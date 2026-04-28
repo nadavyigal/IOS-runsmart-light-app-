@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import CoreLocation
 
 enum RunSmartTab: String, CaseIterable, Identifiable {
     case today = "Today"
@@ -90,4 +91,94 @@ struct Achievement: Identifiable {
     var subtitle: String
     var symbol: String
     var tint: Color
+}
+
+enum RunSmartDataSource: String, Codable {
+    case runSmart = "RunSmart"
+    case garmin = "Garmin"
+    case healthKit = "HealthKit"
+}
+
+struct RunRoutePoint: Identifiable, Codable, Hashable {
+    var id = UUID()
+    var latitude: Double
+    var longitude: Double
+    var timestamp: Date
+    var horizontalAccuracy: Double
+    var altitude: Double?
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
+struct RecordedRun: Identifiable, Codable, Hashable {
+    var id: UUID
+    var providerActivityID: String?
+    var source: RunSmartDataSource
+    var startedAt: Date
+    var endedAt: Date
+    var distanceMeters: Double
+    var movingTimeSeconds: TimeInterval
+    var averagePaceSecondsPerKm: Double
+    var averageHeartRateBPM: Int?
+    var routePoints: [RunRoutePoint]
+    var syncedAt: Date?
+}
+
+struct RouteSuggestion: Identifiable, Codable, Hashable {
+    var id: String
+    var name: String
+    var distanceKm: Double
+    var elevationGainMeters: Int
+    var estimatedDurationMinutes: Int
+    var points: [RunRoutePoint]
+}
+
+struct OnboardingProfile: Codable, Equatable {
+    var displayName: String
+    var goal: String
+    var experience: String
+    var weeklyRunDays: Int
+    var preferredDays: [String]
+    var units: String
+    var coachingTone: String
+    var notificationsEnabled: Bool
+
+    static let empty = OnboardingProfile(
+        displayName: "",
+        goal: "10K improvement",
+        experience: "Building base",
+        weeklyRunDays: 4,
+        preferredDays: ["Tue", "Thu", "Sat", "Sun"],
+        units: "Metric",
+        coachingTone: "Motivating",
+        notificationsEnabled: false
+    )
+}
+
+enum DeviceConnectionState: String, Codable {
+    case disconnected
+    case connecting
+    case connected
+    case error
+}
+
+struct ConnectedDeviceStatus: Identifiable, Codable, Hashable {
+    var id: String { provider }
+    var provider: String
+    var state: DeviceConnectionState
+    var lastSuccessfulSync: Date?
+    var permissions: [String]
+    var message: String?
+}
+
+enum RunRecordingPhase: String {
+    case idle
+    case requestingPermission
+    case ready
+    case recording
+    case paused
+    case denied
+    case failed
 }

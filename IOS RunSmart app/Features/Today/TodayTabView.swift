@@ -3,9 +3,11 @@ import SwiftUI
 struct TodayTabView: View {
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var session: RunSmartAppSession
 
-    @State private var recommendation = RunSmartPreviewData.today
-    @State private var messages = RunSmartPreviewData.coachMessages
+    @State private var recommendation = TodayRecommendation(readiness: 0, readinessLabel: "Loading", workoutTitle: "Loading workout", distance: "--", pace: "--", elevation: "--", coachMessage: "Loading your real training context.")
+    @State private var messages: [CoachMessage] = []
+    @State private var routes: [RouteSuggestion] = []
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -13,7 +15,7 @@ struct TodayTabView: View {
                 RunSmartHeader(showLogo: true)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Good morning, Alex 👋")
+                    Text("Good morning, \(session.onboardingProfile.displayName)")
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                     Text("Your coach is ready when you are.")
                         .foregroundStyle(Color.mutedText)
@@ -40,43 +42,10 @@ struct TodayTabView: View {
                     }
                 }
 
-                HStack(spacing: 0) {
-                    GlassCard(cornerRadius: 18, padding: 16, glow: Color.lime) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack(spacing: 4) {
-                                Text("READINESS")
-                                Image(systemName: "info.circle")
-                            }
-                            .font(.caption.bold())
-                            .foregroundStyle(Color.mutedText)
-                            Text("\(recommendation.readiness)")
-                                .font(.system(size: 42, weight: .bold, design: .rounded))
-                            Text(recommendation.readinessLabel)
-                                .foregroundStyle(Color.electricGreen)
-                            ProgressRing(value: 0.82)
-                                .frame(width: 96, height: 96)
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-
-                    GlassCard(cornerRadius: 18, padding: 16, glow: Color.lime) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            SectionLabel(title: "Coach Recommends")
-                            Text(recommendation.workoutTitle)
-                                .font(.title3.weight(.bold))
-                            Text("• \(recommendation.distance)")
-                                .font(.title3.weight(.semibold))
-                            HStack {
-                                MetricPill(symbol: "stopwatch", text: recommendation.pace)
-                                MetricPill(symbol: "mountain.2", text: recommendation.elevation)
-                            }
-                            MiniRouteView()
-                                .frame(height: 76)
-                            Button(action: { router.startRun() }) {
-                                Label("Start Workout", systemImage: "play.fill")
-                            }
-                            .buttonStyle(NeonButtonStyle())
-                        }
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                    ReadinessCard(recommendation: recommendation)
+                    WorkoutRecommendationCard(recommendation: recommendation, route: routes.first) {
+                        router.startRun()
                     }
                 }
 
@@ -121,6 +90,66 @@ struct TodayTabView: View {
         .task {
             recommendation = await services.todayRecommendation()
             messages = await services.recentMessages()
+            routes = await services.routeSuggestions()
+        }
+    }
+}
+
+private struct ReadinessCard: View {
+    var recommendation: TodayRecommendation
+
+    var body: some View {
+        GlassCard(cornerRadius: 18, padding: 16, glow: Color.lime) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 4) {
+                    Text("READINESS")
+                    Image(systemName: "info.circle")
+                }
+                .font(.caption.bold())
+                .foregroundStyle(Color.mutedText)
+                Text("\(recommendation.readiness)")
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                Text(recommendation.readinessLabel)
+                    .foregroundStyle(Color.electricGreen)
+                Spacer(minLength: 0)
+                ProgressRing(value: Double(recommendation.readiness) / 100)
+                    .frame(width: 96, height: 96)
+                    .frame(maxWidth: .infinity)
+            }
+            .frame(minHeight: 260, alignment: .top)
+        }
+    }
+}
+
+private struct WorkoutRecommendationCard: View {
+    var recommendation: TodayRecommendation
+    var route: RouteSuggestion?
+    var action: () -> Void
+
+    var body: some View {
+        GlassCard(cornerRadius: 18, padding: 16, glow: Color.lime) {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(title: "Coach Recommends")
+                Text(recommendation.workoutTitle)
+                    .font(.title3.weight(.bold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
+                Text(recommendation.distance)
+                    .font(.title3.weight(.semibold))
+                HStack(spacing: 8) {
+                    MetricPill(symbol: "stopwatch", text: recommendation.pace)
+                    MetricPill(symbol: "mountain.2", text: recommendation.elevation)
+                }
+                .lineLimit(1)
+                RouteMapView(points: route?.points ?? [], title: route?.name)
+                    .frame(height: 76)
+                Spacer(minLength: 0)
+                Button(action: action) {
+                    Label("Start Workout", systemImage: "play.fill")
+                }
+                .buttonStyle(NeonButtonStyle())
+            }
+            .frame(minHeight: 260, alignment: .top)
         }
     }
 }

@@ -157,7 +157,7 @@ enum RunSmartAPI {
 
 enum RunSmartAPIError: Error {
     case invalidURL
-    case transportNotImplemented
+    case badStatus(Int)
 }
 
 protocol RunSmartAPIClient {
@@ -167,10 +167,12 @@ protocol RunSmartAPIClient {
 struct URLSessionRunSmartAPIClient: RunSmartAPIClient {
     let baseURL: URL
     let session: URLSession
+    var accessToken: String?
 
-    init(baseURL: URL, session: URLSession = .shared) {
+    init(baseURL: URL, session: URLSession = .shared, accessToken: String? = nil) {
         self.baseURL = baseURL
         self.session = session
+        self.accessToken = accessToken
     }
 
     func send<Response: Decodable & Sendable>(_ endpoint: RunSmartAPI.Endpoint, as: Response.Type) async throws -> Response {
@@ -187,9 +189,14 @@ struct URLSessionRunSmartAPIClient: RunSmartAPIClient {
         if endpoint.body != nil {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
+        if let accessToken {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
 
-        _ = request
-        _ = session
-        throw RunSmartAPIError.transportNotImplemented
+        let (data, response) = try await session.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw RunSmartAPIError.badStatus(http.statusCode)
+        }
+        return try JSONDecoder().decode(Response.self, from: data)
     }
 }

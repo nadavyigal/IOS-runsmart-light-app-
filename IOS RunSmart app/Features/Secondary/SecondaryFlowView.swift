@@ -109,7 +109,7 @@ struct SecondaryFlowView: View {
         case .workoutDetail:
             "Session plan, purpose, and execution cues."
         case .planAdjustment:
-            "Mock coach logic for safe plan changes."
+            "Coach logic for safe plan changes."
         case .reschedule:
             "Move a workout without spiking weekly load."
         case .addActivity:
@@ -226,7 +226,7 @@ private struct WorkoutDetailScaffold: View {
                     ActionRow(title: "Choose Route", detail: "Pick a route that matches the target effort.", symbol: "map") {
                         router.open(.routeSelector)
                     }
-                    ActionRow(title: "Adjust Plan", detail: "Ask the mock coach to reshuffle the week.", symbol: "slider.horizontal.3") {
+                    ActionRow(title: "Adjust Plan", detail: "Ask the coach to reshuffle the week.", symbol: "slider.horizontal.3") {
                         router.open(.planAdjustment)
                     }
                 }
@@ -246,7 +246,7 @@ private struct PlanAdjustmentScaffold: View {
                     ReadinessBar(title: "Recovery", value: 0.82, detail: "High")
                     ReadinessBar(title: "Weekly Load", value: 0.64, detail: "Safe")
                     ReadinessBar(title: "Schedule Fit", value: 0.72, detail: "Tight Thu")
-                    Text("Mock recommendation: keep today's tempo, move strength to Friday, and preserve the Sunday long run.")
+                    Text("Recommendation: keep today's tempo, move strength to Friday, and preserve the Sunday long run.")
                         .font(.callout)
                         .foregroundStyle(.white.opacity(0.84))
                 }
@@ -331,7 +331,7 @@ private struct AddActivityScaffold: View {
 
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Mock Entry")
+                    SectionLabel(title: "Manual Entry")
                     DetailLine(label: "Date", value: "Today, 7:10 AM")
                     DetailLine(label: "Effort", value: "Easy, RPE 4")
                     DetailLine(label: "Notes", value: "Felt smooth after the first kilometer.")
@@ -345,16 +345,20 @@ private struct AddActivityScaffold: View {
 }
 
 private struct RouteSelectorScaffold: View {
+    @Environment(\.runSmartServices) private var services
+    @State private var routes: [RouteSuggestion] = []
+    @State private var selectedRouteID: String?
+
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
             GlassCard(padding: 10, glow: Color.lime) {
                 ZStack(alignment: .bottomLeading) {
-                    MiniRouteView()
+                    RouteMapView(points: selectedRoute?.points ?? [], title: selectedRoute?.name)
                         .frame(height: 180)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Riverside Tempo Loop")
+                        Text(selectedRoute?.name ?? "No saved GPS route yet")
                             .font(.headline)
-                        Text("8.1 km | 54 m gain | low traffic")
+                        Text(routeDetail)
                             .font(.caption)
                             .foregroundStyle(Color.mutedText)
                     }
@@ -368,15 +372,41 @@ private struct RouteSelectorScaffold: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Route Options")
-                    RouteOptionRow(title: "Riverside Tempo Loop", detail: "Flat enough for even pacing.", selected: true)
-                    RouteOptionRow(title: "Park Perimeter", detail: "Softer surface, more turns.", selected: false)
-                    RouteOptionRow(title: "Hill Cutdown", detail: "Save for strength-focused days.", selected: false)
+                    if routes.isEmpty {
+                        Text("Record a GPS run first, then RunSmart can suggest real routes from your activity history.")
+                            .font(.callout)
+                            .foregroundStyle(Color.mutedText)
+                    } else {
+                        ForEach(routes) { route in
+                            RouteOptionRow(
+                                title: route.name,
+                                detail: "\(String(format: "%.1f", route.distanceKm)) km | \(route.elevationGainMeters) m gain",
+                                selected: route.id == selectedRouteID
+                            )
+                            .onTapGesture {
+                                selectedRouteID = route.id
+                            }
+                        }
+                    }
                 }
             }
 
             Button("Use This Route") {}
                 .buttonStyle(NeonButtonStyle())
         }
+        .task {
+            routes = await services.routeSuggestions()
+            selectedRouteID = routes.first?.id
+        }
+    }
+
+    private var selectedRoute: RouteSuggestion? {
+        routes.first(where: { $0.id == selectedRouteID }) ?? routes.first
+    }
+
+    private var routeDetail: String {
+        guard let route = selectedRoute else { return "Route suggestions use real recorded GPS data." }
+        return "\(String(format: "%.1f", route.distanceKm)) km | \(route.elevationGainMeters) m gain | \(route.estimatedDurationMinutes) min"
     }
 }
 
@@ -512,7 +542,7 @@ private struct CoachingToneScaffold: View {
                 }
             }
 
-            VoicePreviewCard(text: "Strong and steady, Alex. This is the kind of controlled work that moves your 10K forward.")
+            VoicePreviewCard(text: "Strong and steady. This is the kind of controlled work that moves your goal forward.")
         }
     }
 }
@@ -566,7 +596,10 @@ private struct ReminderPreferencesScaffold: View {
 }
 
 private struct ConnectedServiceDetailScaffold: View {
+    @Environment(\.runSmartServices) private var services
     var serviceName: String
+    @State private var status: ConnectedDeviceStatus?
+    @State private var isWorking = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -574,13 +607,13 @@ private struct ConnectedServiceDetailScaffold: View {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Connection")
                     HStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
+                        Image(systemName: statusIcon)
                             .font(.title)
-                            .foregroundStyle(Color.lime)
+                            .foregroundStyle(statusColor)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Connected")
+                            Text(statusTitle)
                                 .font(.title3.bold())
-                            Text("Last sync 14 minutes ago")
+                            Text(statusSubtitle)
                                 .foregroundStyle(Color.mutedText)
                         }
                     }
@@ -590,22 +623,77 @@ private struct ConnectedServiceDetailScaffold: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Permissions")
-                    PermissionRow(title: "Activities", enabled: true)
-                    PermissionRow(title: "Sleep", enabled: serviceName == "Garmin Connect")
-                    PermissionRow(title: "Heart rate", enabled: true)
-                    PermissionRow(title: "Routes", enabled: serviceName == "Strava")
+                    PermissionRow(title: "Activities", enabled: permissions.contains("Activities") || permissions.contains("Workouts"))
+                    PermissionRow(title: "Sleep", enabled: permissions.contains("Sleep"))
+                    PermissionRow(title: "Heart rate", enabled: permissions.contains("Heart Rate"))
+                    PermissionRow(title: "Routes", enabled: permissions.contains("Routes"))
                 }
             }
 
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Controls")
-                    ActionRow(title: "Sync Now", detail: "Pull the latest mock activity data.", symbol: "arrow.triangle.2.circlepath") {}
-                    ActionRow(title: "Reconnect", detail: "Refresh service permissions.", symbol: "link") {}
-                    Button("Disconnect \(serviceName)") {}
+                    ActionRow(title: "Connect", detail: "Start the real permission or gateway flow.", symbol: "link") {
+                        run { await services.connect(provider: serviceName) }
+                    }
+                    ActionRow(title: "Sync Now", detail: "Pull the latest real activity data.", symbol: "arrow.triangle.2.circlepath") {
+                        run { await services.syncNow(provider: serviceName) }
+                    }
+                    Button("Disconnect \(serviceName)") {
+                        run { await services.disconnect(provider: serviceName) }
+                    }
                         .buttonStyle(NeonButtonStyle(isDestructive: true))
+                        .disabled(isWorking)
                 }
             }
+        }
+        .task {
+            let statuses = await services.deviceStatuses()
+            status = statuses.first(where: { $0.provider == serviceName })
+        }
+    }
+
+    private var permissions: [String] { status?.permissions ?? [] }
+
+    private var statusTitle: String {
+        switch status?.state ?? .disconnected {
+        case .connected: "Connected"
+        case .connecting: "Connecting"
+        case .disconnected: "Disconnected"
+        case .error: "Needs attention"
+        }
+    }
+
+    private var statusSubtitle: String {
+        if let date = status?.lastSuccessfulSync {
+            return "Last sync \(date.formatted(date: .abbreviated, time: .shortened))"
+        }
+        return status?.message ?? "No sync has completed yet."
+    }
+
+    private var statusIcon: String {
+        switch status?.state ?? .disconnected {
+        case .connected: "checkmark.circle.fill"
+        case .connecting: "arrow.triangle.2.circlepath"
+        case .disconnected: "link.circle"
+        case .error: "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var statusColor: Color {
+        switch status?.state ?? .disconnected {
+        case .connected: Color.lime
+        case .connecting: .cyan
+        case .disconnected: Color.mutedText
+        case .error: .orange
+        }
+    }
+
+    private func run(_ action: @escaping () async -> ConnectedDeviceStatus) {
+        isWorking = true
+        Task {
+            status = await action()
+            isWorking = false
         }
     }
 }

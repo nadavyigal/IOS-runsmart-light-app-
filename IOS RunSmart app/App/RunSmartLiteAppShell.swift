@@ -15,8 +15,20 @@ enum RunSmartSheet: Identifiable {
 
 @MainActor
 final class AppRouter: ObservableObject {
-    @Published var selectedTab: RunSmartTab = .today
+    @Published var selectedTab: RunSmartTab = AppRouter.initialTab()
     @Published var activeSheet: RunSmartSheet?
+
+    private static func initialTab() -> RunSmartTab {
+#if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let idx = args.firstIndex(of: "-INITIAL_TAB"),
+           args.indices.contains(idx + 1),
+           let tab = RunSmartTab(rawValue: args[idx + 1]) {
+            return tab
+        }
+#endif
+        return .today
+    }
 
     func openCoach(context: String) {
         activeSheet = .coach(context)
@@ -33,26 +45,36 @@ final class AppRouter: ObservableObject {
 
 struct RunSmartLiteAppShell: View {
     @StateObject private var router = AppRouter()
-    private let services = MockRunSmartServices()
+    @StateObject private var session = RunSmartAppSession()
+    @StateObject private var recorder = RunRecorder()
+    private let services = ProductionRunSmartServices()
 
     var body: some View {
         ZStack(alignment: .bottom) {
             RunSmartBackground()
 
-            Group {
-                switch router.selectedTab {
-                case .today:   TodayTabView()
-                case .plan:    PlanTabView()
-                case .run:     RunTabView()
-                case .profile: ProfileTabView()
+            if session.hasCompletedOnboarding {
+                Group {
+                    switch router.selectedTab {
+                    case .today:   TodayTabView()
+                    case .plan:    PlanTabView()
+                    case .run:     RunTabView()
+                    case .profile: ProfileTabView()
+                    }
+                }
+                .safeAreaPadding(.bottom, 94)
+
+                CustomTabBar(selectedTab: $router.selectedTab)
+            } else {
+                OnboardingView(initialProfile: session.onboardingProfile) { profile in
+                    session.completeOnboarding(profile)
                 }
             }
-            .safeAreaPadding(.bottom, 94)
-
-            CustomTabBar(selectedTab: $router.selectedTab)
         }
         .environmentObject(router)
+        .environmentObject(session)
         .environment(\.runSmartServices, services)
+        .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
         .sheet(item: $router.activeSheet) { sheet in
             switch sheet {
@@ -64,6 +86,8 @@ struct RunSmartLiteAppShell: View {
                 SecondaryFlowView(destination: destination)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
+                    .environment(\.runSmartServices, services)
+                    .environment(\.runRecorder, recorder)
             }
         }
     }

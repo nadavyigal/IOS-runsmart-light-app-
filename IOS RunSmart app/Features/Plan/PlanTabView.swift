@@ -4,7 +4,7 @@ struct PlanTabView: View {
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
 
-    @State private var workouts = RunSmartPreviewData.workouts
+    @State private var workouts: [WorkoutSummary] = []
     @State private var navPath: [SecondaryDestination] = []
 
     var body: some View {
@@ -19,10 +19,10 @@ struct PlanTabView: View {
                                 CoachAvatar(size: 96)
                                 VStack(alignment: .leading, spacing: 8) {
                                     SectionLabel(title: "AI Coach Briefing")
-                                    Text("Strong week ahead, Alex. Your recovery is on point and last week's tempo looked solid. We're building fitness with a tempo focus midweek and a steady long run on Sunday.")
+                                    Text("Your weekly plan is generated from onboarding preferences and saved activity. Sync Garmin or record GPS runs to sharpen the next update.")
                                         .font(.body)
                                         .foregroundStyle(.white.opacity(0.86))
-                                    Text("Focus: Tempo • Build Aerobic Endurance")
+                                    Text("Focus: Real activity data")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(Color.lime)
                                 }

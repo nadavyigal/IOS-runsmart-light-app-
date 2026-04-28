@@ -4,8 +4,9 @@ struct ProfileTabView: View {
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
 
-    @State private var runner = RunSmartPreviewData.runner
-    @State private var achievements = RunSmartPreviewData.achievements
+    @State private var runner = RunnerProfile(name: "RunSmart Runner", goal: "Loading", streak: "--", level: "--", totalRuns: 0, totalDistance: 0, totalTime: "0h 0m")
+    @State private var achievements: [Achievement] = []
+    @State private var deviceStatuses: [ConnectedDeviceStatus] = []
     @State private var navPath: [SecondaryDestination] = []
 
     var body: some View {
@@ -128,8 +129,8 @@ struct ProfileTabView: View {
                                 .font(.caption.bold())
                                 .foregroundStyle(Color.mutedText)
                             HStack(spacing: 10) {
-                                ConnectedServiceCard(name: "Garmin Connect", status: "Connected", action: { navPath.append(.connectedService("Garmin Connect")) })
-                                ConnectedServiceCard(name: "Strava", status: "Connected", action: { navPath.append(.connectedService("Strava")) })
+                                ConnectedServiceCard(name: "Garmin Connect", status: statusLabel("Garmin Connect"), action: { navPath.append(.connectedService("Garmin Connect")) })
+                                ConnectedServiceCard(name: "HealthKit", status: statusLabel("HealthKit"), action: { navPath.append(.connectedService("HealthKit")) })
                             }
                         }
                     }
@@ -146,7 +147,12 @@ struct ProfileTabView: View {
         .task {
             runner = await services.runnerProfile()
             achievements = await services.achievements()
+            deviceStatuses = await services.deviceStatuses()
         }
+    }
+
+    private func statusLabel(_ provider: String) -> String {
+        deviceStatuses.first(where: { $0.provider == provider })?.state.rawValue.capitalized ?? "Disconnected"
     }
 }
 

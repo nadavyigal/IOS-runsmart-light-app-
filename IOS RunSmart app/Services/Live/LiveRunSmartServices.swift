@@ -161,4 +161,32 @@ struct LiveRunSmartServices: RunSmartServiceProviding {
     func finishRun() async {
         await runLoggingService.finishRun()
     }
+
+    func routeSuggestions() async -> [RouteSuggestion] {
+        []
+    }
+
+    func deviceStatuses() async -> [ConnectedDeviceStatus] {
+        await ProductionRunSmartServices().deviceStatuses()
+    }
+
+    func connect(provider: String) async -> ConnectedDeviceStatus {
+        await ProductionRunSmartServices().connect(provider: provider)
+    }
+
+    func syncNow(provider: String) async -> ConnectedDeviceStatus {
+        await ProductionRunSmartServices().syncNow(provider: provider)
+    }
+
+    func disconnect(provider: String) async -> ConnectedDeviceStatus {
+        await ProductionRunSmartServices().disconnect(provider: provider)
+    }
+
+    func requestHealthAccess() async -> ConnectedDeviceStatus {
+        await ProductionRunSmartServices().requestHealthAccess()
+    }
+
+    func saveToHealth(_ run: RecordedRun) async {
+        await ProductionRunSmartServices().saveToHealth(run)
+    }
 }

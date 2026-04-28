@@ -2,14 +2,10 @@ import SwiftUI
 
 struct RunTabView: View {
     @Environment(\.runSmartServices) private var services
+    @Environment(\.runRecorder) private var recorder
     @EnvironmentObject private var router: AppRouter
 
-    @State private var metrics: [MetricTile] = [
-        MetricTile(title: "Distance", value: "5.24", unit: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up", tint: Color.lime),
-        MetricTile(title: "Pace", value: "5:08", unit: "/km", symbol: "timer", tint: Color.lime),
-        MetricTile(title: "Time", value: "26:54", unit: "", symbol: "stopwatch", tint: .white),
-        MetricTile(title: "Heart Rate", value: "154", unit: "bpm", symbol: "heart", tint: .red)
-    ]
+    @State private var metrics: [MetricTile] = []
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -32,8 +28,8 @@ struct RunTabView: View {
                             ProgressRing(value: 0.78, lineWidth: 5, icon: "waveform")
                                 .frame(width: 58, height: 58)
                             VStack(alignment: .leading, spacing: 3) {
-                                SectionLabel(title: "Live Coach")
-                                Text("Coach is listening")
+                            SectionLabel(title: "Live Coach")
+                            Text(statusText)
                                     .font(.caption)
                                     .foregroundStyle(Color.mutedText)
                                 AudioBars()
@@ -53,7 +49,7 @@ struct RunTabView: View {
                             .buttonStyle(.plain)
                         }
 
-                        Text("Ease your shoulders.\nHold \(Text("5:10").foregroundStyle(Color.lime).bold()) pace for the next minute.")
+                        coachCue
                             .font(.callout)
                             .padding(12)
                             .background(Color.lime.opacity(0.08))
@@ -61,7 +57,7 @@ struct RunTabView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .frame(maxWidth: .infinity, alignment: .center)
 
-                        CoachBubble(message: CoachMessage(text: "You're strong today, Alex. Great rhythm and even effort. Keep it steady.", time: "Just now", isUser: false))
+                        CoachBubble(message: CoachMessage(text: "You are strong today. Great rhythm and even effort. Keep it steady.", time: "Just now", isUser: false))
                     }
                 }
 
@@ -69,33 +65,30 @@ struct RunTabView: View {
                     ZStack {
                         VStack(spacing: 0) {
                             HStack(spacing: 0) {
-                                MetricTileView(metric: metrics[0])
+                                MetricTileView(metric: liveMetrics[0])
                                     .padding(16)
                                 Divider().background(Color.hairline)
-                                MetricTileView(metric: metrics[1])
+                                MetricTileView(metric: liveMetrics[1])
                                     .padding(16)
                             }
                             Divider().background(Color.hairline)
                             HStack(spacing: 0) {
-                                MetricTileView(metric: metrics[2])
+                                MetricTileView(metric: liveMetrics[2])
                                     .padding(16)
                                 Divider().background(Color.hairline)
-                                MetricTileView(metric: metrics[3])
+                                MetricTileView(metric: liveMetrics[3])
                                     .padding(16)
                             }
                         }
                         ProgressRing(value: 0.74, lineWidth: 7)
                             .frame(width: 88, height: 88)
-                            .padding(14)
-                            .background(Color.ink.opacity(0.82))
-                            .clipShape(Circle())
                             .shadow(color: Color.lime.opacity(0.42), radius: 18)
                     }
                 }
 
                 GlassCard(padding: 8, glow: Color.lime) {
                     ZStack(alignment: .topLeading) {
-                        MiniRouteView()
+                        RouteMapView(points: recorder.routePoints, title: recorder.routePoints.isEmpty ? nil : "Live GPS")
                             .frame(height: 124)
                         HStack(spacing: 5) {
                             Text("GPS")
@@ -145,8 +138,8 @@ struct RunTabView: View {
                 HStack(spacing: 18) {
                     RunControlButton(title: "Audio", symbol: "speaker.wave.2.fill", tint: .gray) { router.open(.audioCues) }
                     RunControlButton(title: "Lap", symbol: "flag.fill", tint: .gray) { router.open(.lapMarker) }
-                    RunControlButton(title: "Pause", symbol: "pause.fill", tint: Color.lime, prominent: true) {}
-                    RunControlButton(title: "Finish", symbol: "stop.fill", tint: .red) { router.open(.postRunSummary) }
+                    RunControlButton(title: primaryActionTitle, symbol: primaryActionSymbol, tint: Color.lime, prominent: true) { primaryRunAction() }
+                    RunControlButton(title: "Finish", symbol: "stop.fill", tint: .red) { finishRun() }
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -157,6 +150,79 @@ struct RunTabView: View {
         .task {
             metrics = await services.currentRunMetrics()
         }
+    }
+
+    private var liveMetrics: [MetricTile] {
+        if recorder.phase == .idle || recorder.phase == .ready, !metrics.isEmpty {
+            return metrics
+        }
+        return [
+            MetricTile(title: "Distance", value: recorder.distanceLabel, unit: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up", tint: Color.lime),
+            MetricTile(title: "Pace", value: recorder.currentPaceLabel, unit: "/km", symbol: "timer", tint: Color.lime),
+            MetricTile(title: "Time", value: recorder.movingLabel, unit: "", symbol: "stopwatch", tint: .white),
+            MetricTile(title: "GPS", value: recorder.horizontalAccuracy.map { "\(Int($0))" } ?? "--", unit: "m", symbol: "location.fill", tint: .cyan)
+        ]
+    }
+
+    private var statusText: String {
+        switch recorder.phase {
+        case .idle: "GPS permission needed"
+        case .requestingPermission: "Requesting GPS access"
+        case .ready: "Ready to record"
+        case .recording: "Recording GPS run"
+        case .paused: "Run paused"
+        case .denied: "Location access denied"
+        case .failed: "GPS error"
+        }
+    }
+
+    private var coachCue: Text {
+        switch recorder.phase {
+        case .recording:
+            Text("Ease your shoulders.\nCurrent pace: \(Text(recorder.currentPaceLabel).foregroundStyle(Color.lime).bold()) /km.")
+        case .paused:
+            Text("Paused. Resume when you are ready, or finish to save this run.")
+        case .denied:
+            Text("Location permission is required for real GPS run recording.")
+        default:
+            Text("Start a GPS run to record real distance, route, pace, and time.")
+        }
+    }
+
+    private var primaryActionTitle: String {
+        switch recorder.phase {
+        case .recording: "Pause"
+        case .paused: "Resume"
+        default: "Start"
+        }
+    }
+
+    private var primaryActionSymbol: String {
+        switch recorder.phase {
+        case .recording: "pause.fill"
+        case .paused: "play.fill"
+        default: "location.fill"
+        }
+    }
+
+    private func primaryRunAction() {
+        switch recorder.phase {
+        case .recording:
+            recorder.pause()
+        case .paused:
+            recorder.resume()
+        default:
+            recorder.start()
+        }
+    }
+
+    private func finishRun() {
+        if let run = recorder.finish() {
+            Task {
+                await services.saveToHealth(run)
+            }
+        }
+        router.open(.postRunSummary)
     }
 }
 

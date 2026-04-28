@@ -59,4 +59,33 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     }
 
     func finishRun() async {}
+
+    func routeSuggestions() async -> [RouteSuggestion] {
+        []
+    }
+
+    func deviceStatuses() async -> [ConnectedDeviceStatus] {
+        [
+            ConnectedDeviceStatus(provider: "Garmin Connect", state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: "Preview only"),
+            ConnectedDeviceStatus(provider: "HealthKit", state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: "Preview only")
+        ]
+    }
+
+    func connect(provider: String) async -> ConnectedDeviceStatus {
+        ConnectedDeviceStatus(provider: provider, state: .connected, lastSuccessfulSync: Date(), permissions: ["Preview"], message: "Preview connected")
+    }
+
+    func syncNow(provider: String) async -> ConnectedDeviceStatus {
+        ConnectedDeviceStatus(provider: provider, state: .connected, lastSuccessfulSync: Date(), permissions: ["Preview"], message: "Preview synced")
+    }
+
+    func disconnect(provider: String) async -> ConnectedDeviceStatus {
+        ConnectedDeviceStatus(provider: provider, state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: "Preview disconnected")
+    }
+
+    func requestHealthAccess() async -> ConnectedDeviceStatus {
+        ConnectedDeviceStatus(provider: "HealthKit", state: .connected, lastSuccessfulSync: nil, permissions: ["Preview"], message: "Preview HealthKit")
+    }
+
+    func saveToHealth(_ run: RecordedRun) async {}
 }
