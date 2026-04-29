@@ -5,6 +5,7 @@ struct SignInView: View {
     @EnvironmentObject private var session: SupabaseSession
     @State private var isSigningIn = false
     @State private var errorMessage: String?
+    @State private var currentNonce = AppleSignInHelper.randomNonce()
 
     var body: some View {
         ZStack {
@@ -59,9 +60,14 @@ struct SignInView: View {
                             .scaleEffect(1.2)
                     } else {
                         SignInWithAppleButton(.signIn) { request in
+                            // Fresh nonce per attempt — store raw, send hashed to Apple
+                            currentNonce = AppleSignInHelper.randomNonce()
                             request.requestedScopes = [.fullName, .email]
-                        } onCompletion: { _ in
-                            Task { await performAppleSignIn() }
+                            request.nonce = AppleSignInHelper.sha256(currentNonce)
+                        } onCompletion: { result in
+                            // Use the credential Apple just gave us — do NOT create a second
+                            // ASAuthorizationController; that is what caused the concurrency warning.
+                            Task { @MainActor in await handleAppleResult(result) }
                         }
                         .signInWithAppleButtonStyle(.white)
                         .frame(height: 54)
@@ -81,21 +87,27 @@ struct SignInView: View {
         .preferredColorScheme(.dark)
     }
 
-    private func performAppleSignIn() async {
+    @MainActor
+    private func handleAppleResult(_ result: Result<ASAuthorization, Error>) async {
         isSigningIn = true
         errorMessage = nil
+        defer { isSigningIn = false }
+
         do {
-            try await session.signInWithApple()
-        } catch {
-            let nsErr = error as NSError
-            if nsErr.domain == "com.apple.AuthenticationServices.AuthorizationError",
-               nsErr.code == 1001 {
-                // User cancelled - not an error
-            } else {
-                errorMessage = error.localizedDescription
+            let authorization = try result.get()
+            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                  let tokenData = credential.identityToken,
+                  let idToken = String(data: tokenData, encoding: .utf8) else {
+                throw AppleSignInError.invalidCredential
             }
+            try await session.signInWithApple(idToken: idToken, nonce: currentNonce)
+        } catch let error as NSError
+            where error.domain == ASAuthorizationError.errorDomain
+               && error.code == ASAuthorizationError.canceled.rawValue {
+            // User dismissed the sheet — not an error
+        } catch {
+            errorMessage = error.localizedDescription
         }
-        isSigningIn = false
     }
 }
 
