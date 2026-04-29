@@ -38,8 +38,17 @@ enum AppleSignInError: LocalizedError {
 
 extension SupabaseSession {
     func signInWithApple(idToken: String, nonce: String) async throws {
-        _ = try await supabase.auth.signInWithIdToken(
-            credentials: .init(provider: .apple, idToken: idToken, nonce: nonce)
-        )
+        lastAuthError = nil
+        print("[SupabaseSession] Apple sign-in: exchanging Apple identity token with Supabase")
+        do {
+            let session = try await supabase.auth.signInWithIdToken(
+                credentials: .init(provider: .apple, idToken: idToken, nonce: nonce)
+            )
+            print("[SupabaseSession] Apple sign-in succeeded uid=\(session.user.id)")
+        } catch {
+            lastAuthError = "Apple sign-in could not complete. Verify the Supabase Apple provider and native bundle ID audience."
+            print("[SupabaseSession] Apple sign-in failed:", error)
+            throw error
+        }
     }
 }

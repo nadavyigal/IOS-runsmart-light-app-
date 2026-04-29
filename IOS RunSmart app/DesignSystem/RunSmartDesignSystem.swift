@@ -222,6 +222,7 @@ struct RunSmartHeader: View {
     var title: String?
     var showLogo = false
     var showSettings = false
+    var onSettingsTap: (() -> Void)?
 
     var body: some View {
         HStack {
@@ -241,17 +242,30 @@ struct RunSmartHeader: View {
                     .foregroundStyle(.white)
             }
             Spacer()
-            Image(systemName: showSettings ? "gearshape" : "bell")
-                .font(.title3)
-                .foregroundStyle(.white.opacity(0.78))
-                .overlay(alignment: .topTrailing) {
-                    if !showSettings {
-                        Circle()
-                            .fill(Color.lime)
-                            .frame(width: 7, height: 7)
-                            .offset(x: 3, y: -3)
+            Group {
+                if showSettings, let onSettingsTap {
+                    Button(action: onSettingsTap) {
+                        Image(systemName: "gearshape")
+                            .font(.title3)
+                            .foregroundStyle(.white.opacity(0.78))
+                            .frame(width: 36, height: 36)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                } else {
+                    Image(systemName: showSettings ? "gearshape" : "bell")
+                        .font(.title3)
+                        .foregroundStyle(.white.opacity(0.78))
+                        .overlay(alignment: .topTrailing) {
+                            if !showSettings {
+                                Circle()
+                                    .fill(Color.lime)
+                                    .frame(width: 7, height: 7)
+                                    .offset(x: 3, y: -3)
+                            }
+                        }
                 }
+            }
             if !showSettings {
                 CoachAvatar(size: 38)
             }
@@ -263,40 +277,27 @@ struct CustomTabBar: View {
     @Binding var selectedTab: RunSmartTab
 
     var body: some View {
-        HStack(alignment: .bottom) {
+        HStack(spacing: 0) {
             ForEach(RunSmartTab.allCases) { tab in
                 Button {
                     selectedTab = tab
                 } label: {
                     VStack(spacing: 4) {
                         Image(systemName: tab.symbol)
-                            .font(.system(size: tab == .run ? 30 : 21, weight: .semibold))
+                            .font(.system(size: 22, weight: .semibold))
                         Text(tab.rawValue)
                             .font(.caption2.weight(.semibold))
                     }
                     .foregroundStyle(selectedTab == tab ? Color.lime : Color.white.opacity(0.52))
                     .frame(maxWidth: .infinity)
-                    .frame(height: tab == .run ? 76 : 56)
-                    .background {
-                        if tab == .run {
-                            Circle()
-                                .fill(
-                                    LinearGradient(colors: [Color.white.opacity(0.13), Color.white.opacity(0.045)], startPoint: .top, endPoint: .bottom)
-                                )
-                                .overlay(Circle().stroke(Color.hairline))
-                                .shadow(color: Color.lime.opacity(selectedTab == .run ? 0.42 : 0.12), radius: 16)
-                                .frame(width: 76, height: 76)
-                                .offset(y: -10)
-                        }
-                    }
-                    .offset(y: tab == .run ? -10 : 0)
+                    .frame(height: 56)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 18)
-        .padding(.top, 7)
-        .padding(.bottom, 8)
+        .padding(.vertical, 6)
         .background(.ultraThinMaterial.opacity(0.9))
         .background(Color.inkElevated.opacity(0.62))
         .clipShape(Capsule(style: .continuous))

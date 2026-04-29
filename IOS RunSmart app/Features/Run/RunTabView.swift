@@ -25,15 +25,17 @@ struct RunTabView: View {
                 GlassCard(glow: Color.lime) {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
-                            ProgressRing(value: 0.78, lineWidth: 5, icon: "waveform")
+                            ProgressRing(value: liveCoachProgress, lineWidth: 5, icon: "waveform")
                                 .frame(width: 58, height: 58)
                             VStack(alignment: .leading, spacing: 3) {
-                            SectionLabel(title: "Live Coach")
-                            Text(statusText)
+                                SectionLabel(title: "Live Coach")
+                                Text(statusText)
                                     .font(.caption)
                                     .foregroundStyle(Color.mutedText)
-                                AudioBars()
-                                    .frame(width: 150, height: 20)
+                                if recorder.phase == .recording {
+                                    AudioBars()
+                                        .frame(width: 150, height: 20)
+                                }
                             }
                             Spacer()
                             Button(action: { router.openCoach(context: "Run") }) {
@@ -56,8 +58,6 @@ struct RunTabView: View {
                             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.lime.opacity(0.28)))
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .frame(maxWidth: .infinity, alignment: .center)
-
-                        CoachBubble(message: CoachMessage(text: "You are strong today. Great rhythm and even effort. Keep it steady.", time: "Just now", isUser: false))
                     }
                 }
 
@@ -80,9 +80,11 @@ struct RunTabView: View {
                                     .padding(16)
                             }
                         }
-                        ProgressRing(value: 0.74, lineWidth: 7)
-                            .frame(width: 88, height: 88)
-                            .shadow(color: Color.lime.opacity(0.42), radius: 18)
+                        if recorder.phase == .recording || recorder.phase == .paused {
+                            ProgressRing(value: gpsAccuracyProgress, lineWidth: 7)
+                                .frame(width: 88, height: 88)
+                                .shadow(color: Color.lime.opacity(0.42), radius: 18)
+                        }
                     }
                 }
 
@@ -154,6 +156,20 @@ struct RunTabView: View {
         .task {
             metrics = await services.currentRunMetrics()
         }
+    }
+
+    private var liveCoachProgress: Double {
+        switch recorder.phase {
+        case .recording: return 1.0
+        case .paused: return 0.5
+        default: return 0.0
+        }
+    }
+
+    private var gpsAccuracyProgress: Double {
+        guard let acc = recorder.horizontalAccuracy, acc > 0 else { return 0 }
+        // 5m or better = 1.0, 30m = 0; clamped.
+        return max(0, min(1, (30 - acc) / 25))
     }
 
     private var liveMetrics: [MetricTile] {

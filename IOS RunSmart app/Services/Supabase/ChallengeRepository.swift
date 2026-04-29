@@ -53,7 +53,9 @@ final class ChallengeRepository {
                 )
             }
         } catch {
-            print("[ChallengeRepo] availableChallenges error:", error)
+            if !(error is CancellationError) {
+                print("[ChallengeRepo] availableChallenges error:", error)
+            }
             return []
         }
     }

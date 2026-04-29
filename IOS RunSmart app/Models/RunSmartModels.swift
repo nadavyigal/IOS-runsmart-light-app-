@@ -130,6 +130,11 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var syncedAt: Date?
 }
 
+enum RouteKind: String, Codable, Hashable {
+    case past
+    case generated
+}
+
 struct RouteSuggestion: Identifiable, Codable, Hashable {
     var id: String
     var name: String
@@ -137,6 +142,7 @@ struct RouteSuggestion: Identifiable, Codable, Hashable {
     var elevationGainMeters: Int
     var estimatedDurationMinutes: Int
     var points: [RunRoutePoint]
+    var kind: RouteKind
 }
 
 struct OnboardingProfile: Codable, Equatable {

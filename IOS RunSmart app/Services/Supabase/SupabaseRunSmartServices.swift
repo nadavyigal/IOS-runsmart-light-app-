@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Supabase
+import MapKit
 
 // MARK: - SupabaseRunSmartServices
 
@@ -111,7 +112,9 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 )
             }
         } catch {
-            print("[SupabaseServices] recentMessages error:", error)
+            if !(error is CancellationError) {
+                print("[SupabaseServices] recentMessages error:", error)
+            }
             return []
         }
     }
@@ -128,19 +131,33 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             return RunnerProfile(name: "Runner", goal: "--", streak: "--", level: "--", totalRuns: 0, totalDistance: 0, totalTime: "--")
         }
 
-        let streak = await fetchStreak(userID: userID)
-        let activePlan = await planRepo.activePlan(profileID: userID)
-        let totalKm = activePlan?.completedKmThisWeek ?? 0
+        async let streakTask = fetchStreak(userID: userID)
+        async let activitiesTask = GarminBridge.shared.recentActivities(authUserID: userID, limit: 200)
+        let (streak, activities) = await (streakTask, activitiesTask)
+
+        let totalRuns = activities.count
+        let totalMeters = activities.reduce(0.0) { $0 + ($1.distanceM ?? 0) }
+        let totalSeconds = activities.reduce(0.0) { $0 + ($1.durationS ?? 0) }
+        let totalTime = formatTotalTime(seconds: totalSeconds)
 
         return RunnerProfile(
             name: profile.name ?? "Runner",
             goal: profile.goal.capitalized,
             streak: "\(streak?.currentStreak ?? 0) day streak",
             level: profile.experience.capitalized,
-            totalRuns: 0,
-            totalDistance: Int(totalKm),
-            totalTime: "--"
+            totalRuns: totalRuns,
+            totalDistance: Int(totalMeters / 1000),
+            totalTime: totalTime
         )
+    }
+
+    private func formatTotalTime(seconds: Double) -> String {
+        guard seconds > 0 else { return "--" }
+        let total = Int(seconds)
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        if hours == 0 { return "\(minutes)m" }
+        return String(format: "%dh %02dm", hours, minutes)
     }
 
     func achievements() async -> [Achievement] { [] }
@@ -153,7 +170,48 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     // MARK: RouteProviding
 
-    func routeSuggestions() async -> [RouteSuggestion] { [] }
+    func routeSuggestions() async -> [RouteSuggestion] {
+        guard let userID = currentUserID else { return [] }
+        let activities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 30)
+        // Bucket by rounded distance (in km), keep one representative per bucket.
+        let buckets = [3, 5, 8, 10, 15]
+        var pickedByBucket: [Int: DBGarminActivity] = [:]
+        for activity in activities {
+            guard let m = activity.distanceM, m > 0 else { continue }
+            let km = m / 1000
+            let bucket = buckets.min(by: { abs(Double($0) - km) < abs(Double($1) - km) }) ?? Int(km.rounded())
+            if pickedByBucket[bucket] == nil {
+                pickedByBucket[bucket] = activity
+            }
+        }
+        return pickedByBucket
+            .sorted(by: { $0.key < $1.key })
+            .compactMap { (bucket, activity) -> RouteSuggestion? in
+                guard let m = activity.distanceM else { return nil }
+                let km = m / 1000
+                let elevation = Int(activity.elevationGainM ?? 0)
+                let durationS = activity.durationS ?? (km * 360)
+                return RouteSuggestion(
+                    id: "garmin-\(activity.id)",
+                    name: "\(bucket)K · from Garmin",
+                    distanceKm: km,
+                    elevationGainMeters: elevation,
+                    estimatedDurationMinutes: Int(durationS / 60),
+                    points: [],
+                    kind: .past
+                )
+            }
+    }
+
+    func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion] {
+        var suggestions: [RouteSuggestion] = []
+        for distanceKm in distancesKm {
+            if let route = await generatedLoopRoute(around: coordinate, distanceKm: distanceKm) {
+                suggestions.append(route)
+            }
+        }
+        return suggestions
+    }
 
     // MARK: DeviceSyncing
 
@@ -307,6 +365,75 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         } catch { return nil }
     }
 
+    private func generatedLoopRoute(around coordinate: CLLocationCoordinate2D, distanceKm: Double) async -> RouteSuggestion? {
+        let bearings = [0.0, 120.0, 240.0]
+        var closest: RouteSuggestion?
+        var closestDelta = Double.greatestFiniteMagnitude
+
+        for bearing in bearings {
+            guard let candidate = await outAndBackRoute(around: coordinate, distanceKm: distanceKm, bearingDegrees: bearing) else {
+                continue
+            }
+            let delta = abs(candidate.distanceKm - distanceKm)
+            if delta / distanceKm <= 0.15 {
+                return candidate
+            }
+            if delta < closestDelta {
+                closest = candidate
+                closestDelta = delta
+            }
+        }
+
+        return closest
+    }
+
+    private func outAndBackRoute(around coordinate: CLLocationCoordinate2D, distanceKm: Double, bearingDegrees: Double) async -> RouteSuggestion? {
+        let midpoint = coordinate.destination(distanceMeters: distanceKm * 500, bearingDegrees: bearingDegrees)
+        do {
+            async let outboundTask = directions(from: coordinate, to: midpoint)
+            async let inboundTask = directions(from: midpoint, to: coordinate)
+            let (outbound, inbound) = try await (outboundTask, inboundTask)
+            let totalMeters = outbound.distance + inbound.distance
+            guard totalMeters > 0 else { return nil }
+            let coordinates = outbound.polyline.coordinates + inbound.polyline.coordinates.dropFirst()
+            guard coordinates.count >= 2 else { return nil }
+            let points = coordinates.enumerated().map { index, coord in
+                RunRoutePoint(
+                    latitude: coord.latitude,
+                    longitude: coord.longitude,
+                    timestamp: Date().addingTimeInterval(Double(index)),
+                    horizontalAccuracy: 0,
+                    altitude: nil
+                )
+            }
+            let actualKm = totalMeters / 1000
+            return RouteSuggestion(
+                id: "nearby-\(Int(distanceKm * 10))-\(Int(bearingDegrees))-\(coordinate.latitude)-\(coordinate.longitude)",
+                name: "\(Int(distanceKm.rounded()))K loop · nearby",
+                distanceKm: actualKm,
+                elevationGainMeters: 0,
+                estimatedDurationMinutes: max(1, Int((actualKm * 360).rounded() / 60)),
+                points: points,
+                kind: .generated
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    private func directions(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D) async throws -> MKRoute {
+        let request = MKDirections.Request()
+        request.source = MKMapItem(placemark: MKPlacemark(coordinate: start))
+        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: end))
+        request.transportType = .walking
+        request.requestsAlternateRoutes = true
+        let response = try await MKDirections(request: request).calculate()
+        guard let route = response.routes.min(by: { $0.distance < $1.distance }) else {
+            throw MKError(.directionsNotFound)
+        }
+        return route
+    }
+
     private func formatRelativeTime(_ isoString: String?) -> String {
         guard let str = isoString, let date = parseISO8601Date(str) else { return "" }
         let diff = Date().timeIntervalSince(date)
@@ -322,6 +449,32 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         if let d = formatter.date(from: str) { return d }
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: str)
+    }
+}
+
+private extension CLLocationCoordinate2D {
+    func destination(distanceMeters: Double, bearingDegrees: Double) -> CLLocationCoordinate2D {
+        let radius = 6_371_000.0
+        let bearing = bearingDegrees * .pi / 180
+        let lat1 = latitude * .pi / 180
+        let lon1 = longitude * .pi / 180
+        let angularDistance = distanceMeters / radius
+
+        let lat2 = asin(sin(lat1) * cos(angularDistance) + cos(lat1) * sin(angularDistance) * cos(bearing))
+        let lon2 = lon1 + atan2(
+            sin(bearing) * sin(angularDistance) * cos(lat1),
+            cos(angularDistance) - sin(lat1) * sin(lat2)
+        )
+
+        return CLLocationCoordinate2D(latitude: lat2 * 180 / .pi, longitude: lon2 * 180 / .pi)
+    }
+}
+
+private extension MKPolyline {
+    var coordinates: [CLLocationCoordinate2D] {
+        var coordinates = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid, count: pointCount)
+        getCoordinates(&coordinates, range: NSRange(location: 0, length: pointCount))
+        return coordinates
     }
 }
 

@@ -46,7 +46,7 @@ struct SignInView: View {
                 Spacer()
 
                 VStack(spacing: 14) {
-                    if let error = errorMessage {
+                    if let error = errorMessage ?? session.lastAuthError {
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(.red)

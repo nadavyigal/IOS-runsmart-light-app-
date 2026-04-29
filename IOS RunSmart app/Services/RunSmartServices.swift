@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import CoreLocation
 
 protocol TodayProviding {
     func todayRecommendation() async -> TodayRecommendation
@@ -61,6 +62,10 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func finishRun() async {}
 
     func routeSuggestions() async -> [RouteSuggestion] {
+        []
+    }
+
+    func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion] {
         []
     }
 

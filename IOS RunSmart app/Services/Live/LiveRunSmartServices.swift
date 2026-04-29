@@ -1,4 +1,5 @@
 import Foundation
+import CoreLocation
 
 struct LiveTodayService: TodayProviding {
     let apiClient: any RunSmartAPIClient
@@ -163,6 +164,10 @@ struct LiveRunSmartServices: RunSmartServiceProviding {
     }
 
     func routeSuggestions() async -> [RouteSuggestion] {
+        []
+    }
+
+    func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion] {
         []
     }
 

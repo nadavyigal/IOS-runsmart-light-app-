@@ -13,6 +13,7 @@ final class SupabaseSession: ObservableObject {
     @Published var profile: DBProfile?
     @Published var displayName: String = ""
     @Published var isLoading = true
+    @Published var lastAuthError: String?
 
     let supabase = SupabaseManager.client
 
@@ -23,6 +24,8 @@ final class SupabaseSession: ObservableObject {
     }
 
     var currentUserID: UUID? { supabase.auth.currentUser?.id }
+    var currentEmail: String? { supabase.auth.currentUser?.email }
+    var currentMemberSince: Date? { supabase.auth.currentUser?.createdAt }
 
     // plans/conversations use auth.uid() as profile_id (uuid), not profiles.id (bigint)
     var profileID: UUID? { currentUserID }
@@ -39,19 +42,16 @@ final class SupabaseSession: ObservableObject {
             switch event {
             case .signedIn:
                 if let s = session, !s.isExpired {
-                    isAuthenticated = true
+                    await MainActor.run {
+                        isAuthenticated = true
+                        lastAuthError = nil
+                    }
                     await loadProfile(userID: s.user.id)
                 } else {
-                    isAuthenticated = false
-                    hasCompletedOnboarding = false
-                    profile = nil
-                    displayName = ""
+                    clearSessionState()
                 }
             case .signedOut:
-                isAuthenticated = false
-                hasCompletedOnboarding = false
-                profile = nil
-                displayName = ""
+                clearSessionState()
             default:
                 break
             }
@@ -72,6 +72,7 @@ final class SupabaseSession: ObservableObject {
                 profile = p
                 hasCompletedOnboarding = p.onboardingComplete
                 displayName = p.name ?? ""
+                lastAuthError = nil
                 onboardingProfile = OnboardingProfile(
                     displayName: p.name ?? "",
                     goal: p.goal.isEmpty ? "" : p.goal,
@@ -82,8 +83,15 @@ final class SupabaseSession: ObservableObject {
                     coachingTone: p.coachingStyle ?? "Motivating",
                     notificationsEnabled: false
                 )
+            } else {
+                profile = nil
+                hasCompletedOnboarding = false
+                displayName = ""
+                lastAuthError = nil
             }
         } catch {
+            let message = "Could not load your RunSmart profile. Check Supabase profiles RLS and auth_user_id linkage."
+            lastAuthError = message
             print("[SupabaseSession] loadProfile error:", error)
         }
     }
@@ -122,11 +130,20 @@ final class SupabaseSession: ObservableObject {
                 displayName = p.name ?? onboarding.displayName
             }
         } catch {
+            lastAuthError = "Could not save onboarding. Check the profiles auth_user_id unique constraint and RLS policies."
             print("[SupabaseSession] completeOnboarding error:", error)
         }
     }
 
     func signOut() async {
         try? await supabase.auth.signOut()
+    }
+
+    private func clearSessionState() {
+        isAuthenticated = false
+        hasCompletedOnboarding = false
+        profile = nil
+        displayName = ""
+        lastAuthError = nil
     }
 }

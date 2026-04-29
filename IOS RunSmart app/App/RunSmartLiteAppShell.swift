@@ -74,7 +74,7 @@ struct RunSmartLiteAppShell: View {
                     case .profile: ProfileTabView()
                     }
                 }
-                .safeAreaPadding(.bottom, 94)
+                .safeAreaPadding(.bottom, 80)
 
                 CustomTabBar(selectedTab: $router.selectedTab)
             }
@@ -85,19 +85,22 @@ struct RunSmartLiteAppShell: View {
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
         .sheet(item: $router.activeSheet) { sheet in
-            switch sheet {
-            case .coach(let context):
-                CoachFlowView(context: context)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-            case .secondary(let destination):
-                SecondaryFlowView(destination: destination)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-                    .environment(\.runSmartServices, services)
-                    .environment(\.runRecorder, recorder)
-                    .environmentObject(session)
+            Group {
+                switch sheet {
+                case .coach(let context):
+                    CoachFlowView(context: context)
+                        .presentationDetents([.large])
+                        .presentationDragIndicator(.visible)
+                case .secondary(let destination):
+                    SecondaryFlowView(destination: destination)
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
+                }
             }
+            .environmentObject(router)
+            .environmentObject(session)
+            .environment(\.runSmartServices, services)
+            .environment(\.runRecorder, recorder)
         }
     }
 }

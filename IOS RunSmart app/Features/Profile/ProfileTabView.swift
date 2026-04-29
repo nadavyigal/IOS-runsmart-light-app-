@@ -3,17 +3,21 @@ import SwiftUI
 struct ProfileTabView: View {
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var session: SupabaseSession
 
     @State private var runner = RunnerProfile(name: "RunSmart Runner", goal: "Loading", streak: "--", level: "--", totalRuns: 0, totalDistance: 0, totalTime: "0h 0m")
     @State private var achievements: [Achievement] = []
     @State private var deviceStatuses: [ConnectedDeviceStatus] = []
+    @State private var recentActivities: [DBGarminActivity] = []
     @State private var navPath: [SecondaryDestination] = []
 
     var body: some View {
         NavigationStack(path: $navPath) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 13) {
-                    RunSmartHeader(title: "Profile", showSettings: true)
+                    RunSmartHeader(title: "Profile", showSettings: true) {
+                        navPath.append(.account)
+                    }
 
                     HStack(spacing: 16) {
                         CoachAvatar(size: 92, showBolt: true)
@@ -48,9 +52,9 @@ struct ProfileTabView: View {
                         HStack(alignment: .center, spacing: 14) {
                             VStack(alignment: .leading, spacing: 10) {
                                 SectionLabel(title: "Your AI Coach")
-                                HStack {
-                                    Text("Coach Spark")
-                                        .font(.title.weight(.bold))
+                                HStack(spacing: 8) {
+                                    Text("RunSmart Coach")
+                                        .font(.title3.weight(.bold))
                                     Text("AI")
                                         .font(.caption.bold())
                                         .foregroundStyle(Color.lime)
@@ -59,12 +63,9 @@ struct ProfileTabView: View {
                                         .background(Color.lime.opacity(0.13))
                                         .clipShape(Capsule())
                                 }
-                                Text("Adaptive. Motivating. Data-driven.")
+                                Text("Tone: \(session.onboardingProfile.coachingTone)")
                                     .font(.subheadline)
                                     .foregroundStyle(Color.mutedText)
-                                Text("I analyze your data, adapt your plan in real-time, and coach you to be your best.")
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.72))
                                 Button(action: { router.openCoach(context: "Profile") }) {
                                     Label("Chat with Coach", systemImage: "text.bubble")
                                         .font(.caption.bold())
@@ -77,9 +78,9 @@ struct ProfileTabView: View {
                                 .overlay(Capsule().stroke(Color.lime.opacity(0.7)))
                                 .clipShape(Capsule(style: .continuous))
                             }
-                            Spacer()
+                            Spacer(minLength: 8)
                             CoachSilhouette()
-                                .frame(width: 138, height: 150)
+                                .frame(width: 110, height: 120)
                         }
                     }
 
@@ -89,10 +90,10 @@ struct ProfileTabView: View {
                                 .font(.caption.bold())
                                 .foregroundStyle(Color.mutedText)
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                                SettingsTile(title: "Voice Coaching", value: "On", symbol: "speaker.wave.2", action: { navPath.append(.voiceCoaching) })
-                                SettingsTile(title: "Coaching Tone", value: "Motivating", symbol: "waveform", action: { navPath.append(.coachingTone) })
-                                SettingsTile(title: "Goal Focus", value: "10K Improvement", symbol: "target", action: { navPath.append(.goalFocus) })
-                                SettingsTile(title: "Check-in Cadence", value: "Every 3 Days", symbol: "calendar", action: { navPath.append(.reminders) })
+                                SettingsTile(title: "Voice Coaching", value: session.onboardingProfile.notificationsEnabled ? "On" : "Off", symbol: "speaker.wave.2", action: { navPath.append(.voiceCoaching) })
+                                SettingsTile(title: "Coaching Tone", value: session.onboardingProfile.coachingTone, symbol: "waveform", action: { navPath.append(.coachingTone) })
+                                SettingsTile(title: "Goal Focus", value: session.onboardingProfile.goal.isEmpty ? "Not set" : session.onboardingProfile.goal, symbol: "target", action: { navPath.append(.goalFocus) })
+                                SettingsTile(title: "Runs / Week", value: "\(session.onboardingProfile.weeklyRunDays)", symbol: "calendar", action: { navPath.append(.reminders) })
                             }
                         }
                     }
@@ -117,6 +118,28 @@ struct ProfileTabView: View {
                                 HStack(spacing: 14) {
                                     ForEach(achievements) { achievement in
                                         AchievementBadge(achievement: achievement)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    GlassCard(cornerRadius: 18, padding: 14) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            SectionLabel(title: "Recent Activities", trailing: recentActivities.isEmpty ? nil : "From Garmin")
+                            if recentActivities.isEmpty {
+                                Text("No Garmin activities yet. Tap Sync Now under Connected → Garmin Connect to pull your latest runs.")
+                                    .font(.callout)
+                                    .foregroundStyle(Color.mutedText)
+                            } else {
+                                VStack(spacing: 8) {
+                                    ForEach(recentActivities.prefix(5), id: \.id) { activity in
+                                        Button {
+                                            navPath.append(.runReport(activity))
+                                        } label: {
+                                            RecentActivityRow(activity: activity)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
                                 }
                             }
@@ -168,9 +191,14 @@ struct ProfileTabView: View {
             }
         }
         .task {
-            runner = await services.runnerProfile()
-            achievements = await services.achievements()
-            deviceStatuses = await services.deviceStatuses()
+            async let runnerTask = services.runnerProfile()
+            async let achievementsTask = services.achievements()
+            async let statusesTask = services.deviceStatuses()
+            async let activitiesTask: [DBGarminActivity] = {
+                guard let userID = await session.currentUserID else { return [] }
+                return await GarminBridge.shared.recentActivities(authUserID: userID, limit: 10)
+            }()
+            (runner, achievements, deviceStatuses, recentActivities) = await (runnerTask, achievementsTask, statusesTask, activitiesTask)
         }
     }
 
@@ -290,6 +318,48 @@ struct AchievementBadge: View {
                 .foregroundStyle(Color.mutedText)
         }
         .frame(width: 72)
+    }
+}
+
+struct RecentActivityRow: View {
+    var activity: DBGarminActivity
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.title3.bold())
+                .foregroundStyle(Color.lime)
+                .frame(width: 38, height: 38)
+                .background(Color.lime.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(activity.sportLabel)
+                    .font(.subheadline.weight(.semibold))
+                Text(activity.relativeStartLabel)
+                    .font(.caption)
+                    .foregroundStyle(Color.mutedText)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(activity.distanceKmLabel)
+                    .font(.subheadline.weight(.semibold))
+                Text(activity.durationLabel)
+                    .font(.caption)
+                    .foregroundStyle(Color.mutedText)
+            }
+        }
+        .padding(10)
+        .background(.white.opacity(0.045))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var symbol: String {
+        let s = (activity.sport ?? "").lowercased()
+        if s.contains("run") { return "figure.run" }
+        if s.contains("walk") { return "figure.walk" }
+        if s.contains("bike") || s.contains("cycle") { return "bicycle" }
+        if s.contains("swim") { return "figure.pool.swim" }
+        return "figure.mixed.cardio"
     }
 }
 

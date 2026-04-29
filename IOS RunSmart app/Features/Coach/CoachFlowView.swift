@@ -17,7 +17,7 @@ struct CoachFlowView: View {
                     HStack {
                         CoachAvatar(size: 62, showBolt: true)
                         VStack(alignment: .leading) {
-                            Text("Coach Spark")
+                            Text("RunSmart Coach")
                                 .font(.title2.bold())
                             Text("\(context) context")
                                 .font(.caption)

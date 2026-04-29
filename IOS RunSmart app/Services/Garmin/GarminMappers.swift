@@ -3,6 +3,47 @@ import Foundation
 // MARK: - DBGarminActivity → RecordedRun
 
 extension DBGarminActivity {
+    var startDate: Date? {
+        guard let startStr = startTime else { return nil }
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f.date(from: startStr) { return d }
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: startStr)
+    }
+
+    var distanceKmLabel: String {
+        guard let m = distanceM, m > 0 else { return "—" }
+        return String(format: "%.2f km", m / 1000)
+    }
+
+    var durationLabel: String {
+        guard let s = durationS, s > 0 else { return "—" }
+        let total = Int(s)
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        return h > 0 ? String(format: "%dh %02dm", h, m) : String(format: "%dm", m)
+    }
+
+    var sportLabel: String {
+        guard let raw = sport, !raw.isEmpty else { return "Activity" }
+        return raw.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    var relativeStartLabel: String {
+        guard let d = startDate else { return "—" }
+        let diff = Date().timeIntervalSince(d)
+        if diff < 60 { return "Just now" }
+        if diff < 3600 { return "\(Int(diff / 60))m ago" }
+        if diff < 86400 { return "\(Int(diff / 3600))h ago" }
+        let days = Int(diff / 86400)
+        return days < 7 ? "\(days)d ago" : {
+            let f = DateFormatter()
+            f.dateFormat = "MMM d"
+            return f.string(from: d)
+        }()
+    }
+
     func toRecordedRun() -> RecordedRun? {
         guard let startStr = startTime,
               let startDate = parseISO8601(startStr),

@@ -31,8 +31,8 @@ struct TodayTabView: View {
                         .foregroundStyle(Color.mutedText)
                 }
 
-                HStack(alignment: .center, spacing: 16) {
-                    CoachAvatar(size: 124)
+                HStack(alignment: .center, spacing: 14) {
+                    CoachAvatar(size: 96)
 
                     GlassCard(cornerRadius: 18, padding: 14, glow: Color.lime) {
                         VStack(alignment: .leading, spacing: 12) {
@@ -54,28 +54,34 @@ struct TodayTabView: View {
 
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                     ReadinessCard(recommendation: recommendation)
-                    WorkoutRecommendationCard(recommendation: recommendation, route: routes.first) {
-                        router.startRun()
-                    }
+                    WorkoutRecommendationCard(
+                        recommendation: recommendation,
+                        route: routes.first,
+                        action: { router.startRun() },
+                        onChooseRoute: { router.open(.routeSelector) }
+                    )
                 }
 
-                InsightCard(
-                    title: "Coach Insight",
-                    message: "Your readiness is high and your consistency is paying off. This tempo session will boost your endurance and confidence.",
-                    action: {
-                        let w = WorkoutSummary(
-                            weekday: "",
-                            date: "",
-                            kind: .tempo,
-                            title: recommendation.workoutTitle,
-                            distance: recommendation.distance,
-                            detail: "",
-                            isToday: true,
-                            isComplete: false
-                        )
-                        router.open(.workoutDetail(w))
-                    }
-                )
+                if !recommendation.coachMessage.isEmpty,
+                   recommendation.coachMessage != TodayRecommendation.placeholder.coachMessage {
+                    InsightCard(
+                        title: "Coach Insight",
+                        message: recommendation.coachMessage,
+                        action: {
+                            let w = WorkoutSummary(
+                                weekday: "",
+                                date: "",
+                                kind: .tempo,
+                                title: recommendation.workoutTitle,
+                                distance: recommendation.distance,
+                                detail: "",
+                                isToday: true,
+                                isComplete: false
+                            )
+                            router.open(.workoutDetail(w))
+                        }
+                    )
+                }
 
                 GlassCard(cornerRadius: 18, padding: 14) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -135,6 +141,7 @@ private struct WorkoutRecommendationCard: View {
     var recommendation: TodayRecommendation
     var route: RouteSuggestion?
     var action: () -> Void
+    var onChooseRoute: () -> Void
 
     var body: some View {
         GlassCard(cornerRadius: 18, padding: 16, glow: Color.lime) {
@@ -151,8 +158,21 @@ private struct WorkoutRecommendationCard: View {
                     MetricPill(symbol: "mountain.2", text: recommendation.elevation)
                 }
                 .lineLimit(1)
-                RouteMapView(points: route?.points ?? [], title: route?.name)
-                    .frame(height: 76)
+                Button(action: onChooseRoute) {
+                    RouteMapView(points: route?.points ?? [], title: route?.name ?? "Choose route")
+                        .frame(height: 76)
+                        .overlay(alignment: .bottomTrailing) {
+                            Label("Choose", systemImage: "map")
+                                .font(.caption2.weight(.bold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(.black.opacity(0.55))
+                                .foregroundStyle(Color.lime)
+                                .clipShape(Capsule())
+                                .padding(8)
+                        }
+                }
+                .buttonStyle(.plain)
                 Spacer(minLength: 0)
                 Button(action: action) {
                     Label("Start Workout", systemImage: "play.fill")

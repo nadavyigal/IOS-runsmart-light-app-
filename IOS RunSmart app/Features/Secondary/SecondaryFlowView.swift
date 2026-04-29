@@ -6,6 +6,7 @@ enum SecondaryDestination: Hashable, Identifiable {
     case reschedule(WorkoutSummary)
     case addActivity
     case routeSelector
+    case runReport(DBGarminActivity)
     case postRunSummary(RecordedRun?)
     case audioCues
     case lapMarker
@@ -15,6 +16,7 @@ enum SecondaryDestination: Hashable, Identifiable {
     case reminders
     case connectedService(String)
     case challenges
+    case account
 
     var id: String {
         switch self {
@@ -23,6 +25,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .reschedule(let w): "reschedule-\(w.id)"
         case .addActivity: "addActivity"
         case .routeSelector: "routeSelector"
+        case .runReport(let activity): "runReport-\(activity.id)"
         case .postRunSummary(let run): "postRunSummary-\(run?.id.uuidString ?? "nil")"
         case .audioCues: "audioCues"
         case .lapMarker: "lapMarker"
@@ -32,6 +35,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .reminders: "reminders"
         case .connectedService(let name): "connectedService-\(name)"
         case .challenges: "challenges"
+        case .account: "account"
         }
     }
 
@@ -42,6 +46,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .reschedule: "Reschedule"
         case .addActivity: "Add Activity"
         case .routeSelector: "Route Selector"
+        case .runReport: "Run Report"
         case .postRunSummary: "Post-Run Summary"
         case .audioCues: "Audio Cues"
         case .lapMarker: "Lap Marker"
@@ -51,6 +56,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .reminders: "Reminders & Preferences"
         case .connectedService(let name): name
         case .challenges: "Challenges"
+        case .account: "Account"
         }
     }
 }
@@ -88,6 +94,8 @@ struct SecondaryFlowView: View {
             AddActivityScaffold()
         case .routeSelector:
             RouteSelectorScaffold()
+        case .runReport(let activity):
+            RunReportScaffold(activity: activity)
         case .postRunSummary(let run):
             PostRunSummaryScaffold(run: run)
         case .audioCues:
@@ -106,6 +114,8 @@ struct SecondaryFlowView: View {
             ConnectedServiceDetailScaffold(serviceName: serviceName)
         case .challenges:
             ChallengesListView()
+        case .account:
+            AccountScaffold()
         }
     }
 
@@ -121,6 +131,8 @@ struct SecondaryFlowView: View {
             "Log a manual run or cross-training session."
         case .routeSelector:
             "Choose a route that fits today's workout."
+        case .runReport:
+            "Review a saved run from your history."
         case .postRunSummary:
             "Review effort and save the completed run."
         case .audioCues:
@@ -139,6 +151,8 @@ struct SecondaryFlowView: View {
             "Inspect sync status, permissions, and controls."
         case .challenges:
             "Adopt a challenge and track your progress."
+        case .account:
+            "Manage your sign-in and profile data."
         }
     }
 
@@ -149,6 +163,7 @@ struct SecondaryFlowView: View {
         case .reschedule: "calendar.badge.clock"
         case .addActivity: "plus.circle.fill"
         case .routeSelector: "map.fill"
+        case .runReport: "chart.xyaxis.line"
         case .postRunSummary: "checkmark.seal.fill"
         case .audioCues: "speaker.wave.2.fill"
         case .lapMarker: "flag.fill"
@@ -158,6 +173,7 @@ struct SecondaryFlowView: View {
         case .reminders: "bell.badge.fill"
         case .connectedService: "link.circle.fill"
         case .challenges: "trophy.fill"
+        case .account: "person.crop.circle.fill"
         }
     }
 }
@@ -354,8 +370,11 @@ private struct AddActivityScaffold: View {
 
 private struct RouteSelectorScaffold: View {
     @Environment(\.runSmartServices) private var services
-    @State private var routes: [RouteSuggestion] = []
+    @State private var pastRoutes: [RouteSuggestion] = []
+    @State private var nearbyRoutes: [RouteSuggestion] = []
     @State private var selectedRouteID: String?
+    @State private var isLoadingNearby = false
+    @State private var locationUnavailable = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -379,21 +398,63 @@ private struct RouteSelectorScaffold: View {
 
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Route Options")
-                    if routes.isEmpty {
+                    SectionLabel(title: "Nearby Loops", trailing: isLoadingNearby ? "Searching" : nil)
+                    if isLoadingNearby {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                                .tint(Color.lime)
+                            Text("Finding runnable loops near you...")
+                                .font(.callout)
+                                .foregroundStyle(Color.mutedText)
+                        }
+                    } else if nearbyRoutes.isEmpty {
+                        Text(locationUnavailable ? "Location is unavailable. Enable location access to generate loops near you." : "Generate loop routes around your current location.")
+                            .font(.callout)
+                            .foregroundStyle(Color.mutedText)
+                        Button(locationUnavailable ? "Enable Location" : "Generate Nearby Loops") {
+                            Task { await loadNearbyRoutes() }
+                        }
+                        .buttonStyle(NeonButtonStyle())
+                    } else {
+                        ForEach(nearbyRoutes) { route in
+                            Button {
+                                selectedRouteID = route.id
+                            } label: {
+                                RouteOptionRow(
+                                    title: route.name,
+                                    detail: "\(String(format: "%.1f", route.distanceKm)) km | \(route.estimatedDurationMinutes) min",
+                                    selected: route.id == selectedRouteID
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Button("Regenerate") {
+                            Task { await loadNearbyRoutes() }
+                        }
+                        .buttonStyle(NeonButtonStyle())
+                    }
+                }
+            }
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Past Routes")
+                    if pastRoutes.isEmpty {
                         Text("Record a GPS run first, then RunSmart can suggest real routes from your activity history.")
                             .font(.callout)
                             .foregroundStyle(Color.mutedText)
                     } else {
-                        ForEach(routes) { route in
-                            RouteOptionRow(
-                                title: route.name,
-                                detail: "\(String(format: "%.1f", route.distanceKm)) km | \(route.elevationGainMeters) m gain",
-                                selected: route.id == selectedRouteID
-                            )
-                            .onTapGesture {
+                        ForEach(pastRoutes) { route in
+                            Button {
                                 selectedRouteID = route.id
+                            } label: {
+                                RouteOptionRow(
+                                    title: route.name,
+                                    detail: "\(String(format: "%.1f", route.distanceKm)) km | \(route.elevationGainMeters) m gain",
+                                    selected: route.id == selectedRouteID
+                                )
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -401,20 +462,127 @@ private struct RouteSelectorScaffold: View {
 
             Button("Use This Route") {}
                 .buttonStyle(NeonButtonStyle())
+                .disabled(selectedRoute == nil)
         }
         .task {
-            routes = await services.routeSuggestions()
-            selectedRouteID = routes.first?.id
+            pastRoutes = await services.routeSuggestions()
+            await loadNearbyRoutes()
+            selectedRouteID = nearbyRoutes.first?.id ?? pastRoutes.first?.id
         }
     }
 
     private var selectedRoute: RouteSuggestion? {
-        routes.first(where: { $0.id == selectedRouteID }) ?? routes.first
+        allRoutes.first(where: { $0.id == selectedRouteID }) ?? allRoutes.first
+    }
+
+    private var allRoutes: [RouteSuggestion] {
+        nearbyRoutes + pastRoutes
     }
 
     private var routeDetail: String {
         guard let route = selectedRoute else { return "Route suggestions use real recorded GPS data." }
         return "\(String(format: "%.1f", route.distanceKm)) km | \(route.elevationGainMeters) m gain | \(route.estimatedDurationMinutes) min"
+    }
+
+    private func loadNearbyRoutes() async {
+        isLoadingNearby = true
+        locationUnavailable = false
+        defer { isLoadingNearby = false }
+
+        guard let coordinate = await LocationLookupService.shared.currentLocation() else {
+            nearbyRoutes = []
+            locationUnavailable = true
+            return
+        }
+
+        nearbyRoutes = await services.nearbyLoopRoutes(around: coordinate, distancesKm: [3, 5, 8, 10])
+        if selectedRouteID == nil {
+            selectedRouteID = nearbyRoutes.first?.id ?? pastRoutes.first?.id
+        }
+    }
+}
+
+private struct RunReportScaffold: View {
+    var activity: DBGarminActivity
+    @State private var routePoints: [RunRoutePoint] = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            GlassCard(glow: Color.lime) {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Run Summary", trailing: activity.relativeStartLabel)
+                    Text(activity.sportLabel)
+                        .font(.title2.bold())
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        MetricBadge(title: "Distance", value: activity.distanceKmLabel)
+                        MetricBadge(title: "Time", value: activity.durationLabel)
+                        MetricBadge(title: "Avg Pace", value: paceLabel)
+                        MetricBadge(title: "Avg HR", value: heartRateLabel)
+                    }
+                }
+            }
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Details")
+                    DetailLine(label: "Started", value: startTimeLabel)
+                    DetailLine(label: "Elevation", value: elevationLabel)
+                    DetailLine(label: "Calories", value: caloriesLabel)
+                    DetailLine(label: "Source", value: "Garmin")
+                }
+            }
+
+            GlassCard(padding: 8, glow: routePoints.isEmpty ? nil : Color.lime) {
+                RouteMapView(points: routePoints, title: routePoints.isEmpty ? nil : "Run Route")
+                    .frame(height: 210)
+            }
+
+            Text("Saved to your history")
+                .font(.caption.bold())
+                .foregroundStyle(Color.lime)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.lime.opacity(0.11))
+                .clipShape(Capsule(style: .continuous))
+        }
+        .task(id: activity.id) {
+            routePoints = activity.toRecordedRun()?.routePoints ?? []
+            if routePoints.isEmpty {
+                routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activity.activityId)
+            }
+        }
+    }
+
+    private var paceLabel: String {
+        if let pace = activity.avgPaceSPerKm, pace > 0 {
+            let s = Int(pace.rounded())
+            return String(format: "%d:%02d", Int32(s / 60), Int32(s % 60))
+        }
+        guard let duration = activity.durationS, let meters = activity.distanceM, meters > 0 else {
+            return "--"
+        }
+        let s = Int((duration / (meters / 1000)).rounded())
+        return String(format: "%d:%02d", Int32(s / 60), Int32(s % 60))
+    }
+
+    private var heartRateLabel: String {
+        guard let avgHr = activity.avgHr else { return "--" }
+        return "\(avgHr) bpm"
+    }
+
+    private var elevationLabel: String {
+        guard let elevation = activity.elevationGainM else { return "--" }
+        return "\(Int(elevation.rounded())) m"
+    }
+
+    private var caloriesLabel: String {
+        guard let calories = activity.calories else { return "--" }
+        return "\(Int(calories.rounded())) kcal"
+    }
+
+    private var startTimeLabel: String {
+        guard let date = activity.startDate else { return "--" }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 }
 
@@ -433,17 +601,13 @@ private struct AudioCuesScaffold: View {
 
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Live Preview")
-                    HStack(spacing: 12) {
-                        AudioBars()
-                            .frame(width: 110, height: 28)
-                        Text("You are a little fast. Ease back five seconds per kilometer.")
-                            .font(.callout)
-                            .foregroundStyle(.white.opacity(0.84))
-                    }
-                    .padding(12)
-                    .background(Color.lime.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    SectionLabel(title: "Preview")
+                    Text("Cue audio will play during a run with your selected coach tone.")
+                        .font(.callout)
+                        .foregroundStyle(Color.mutedText)
+                        .padding(12)
+                        .background(Color.lime.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
             }
         }
@@ -451,29 +615,28 @@ private struct AudioCuesScaffold: View {
 }
 
 private struct LapMarkerScaffold: View {
+    @Environment(\.runRecorder) private var recorder
+
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionLabel(title: "Current Lap")
-                    Text("Lap 5")
-                        .font(.system(size: 54, weight: .bold, design: .rounded))
-                    HStack {
-                        MetricBadge(title: "Split", value: "5:07")
-                        MetricBadge(title: "Distance", value: "1.00 km")
-                        MetricBadge(title: "HR", value: "158")
+                    SectionLabel(title: "Current Run")
+                    if recorder.phase == .recording || recorder.phase == .paused {
+                        Text(recorder.distanceLabel + " km")
+                            .font(.system(size: 48, weight: .bold, design: .rounded))
+                        HStack {
+                            MetricBadge(title: "Time", value: recorder.movingLabel)
+                            MetricBadge(title: "Pace", value: recorder.currentPaceLabel + " /km")
+                        }
+                    } else {
+                        Text("No active run")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(Color.mutedText)
+                        Text("Start a GPS run on the Run tab to capture splits and lap markers.")
+                            .font(.caption)
+                            .foregroundStyle(Color.mutedText)
                     }
-                }
-            }
-
-            GlassCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Coach Note")
-                    Text("Strong rhythm. Mark this lap as controlled tempo and keep the next one even.")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.mutedText)
-                    Button("Mark Lap") {}
-                        .buttonStyle(NeonButtonStyle())
                 }
             }
         }
@@ -689,9 +852,12 @@ private struct ReminderPreferencesScaffold: View {
 
 private struct ConnectedServiceDetailScaffold: View {
     @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var session: SupabaseSession
     var serviceName: String
     @State private var status: ConnectedDeviceStatus?
     @State private var isWorking = false
+    @State private var recentActivities: [DBGarminActivity] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -738,10 +904,37 @@ private struct ConnectedServiceDetailScaffold: View {
                         .disabled(isWorking)
                 }
             }
+
+            if serviceName == "Garmin Connect" {
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(title: "Recent Activities")
+                        if recentActivities.isEmpty {
+                            Text("No activities synced yet. Tap Sync Now above once Garmin is connected.")
+                                .font(.callout)
+                                .foregroundStyle(Color.mutedText)
+                        } else {
+                            VStack(spacing: 8) {
+                                ForEach(recentActivities, id: \.id) { activity in
+                                    Button {
+                                        router.open(.runReport(activity))
+                                    } label: {
+                                        RecentActivityRow(activity: activity)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         .task {
             let statuses = await services.deviceStatuses()
             status = statuses.first(where: { $0.provider == serviceName })
+            if serviceName == "Garmin Connect", let userID = session.currentUserID {
+                recentActivities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 10)
+            }
         }
     }
 
@@ -1071,6 +1264,88 @@ private struct PermissionRow: View {
             Label(enabled ? "Enabled" : "Off", systemImage: enabled ? "checkmark.circle.fill" : "minus.circle")
                 .font(.caption.bold())
                 .foregroundStyle(enabled ? Color.lime : Color.mutedText)
+        }
+    }
+}
+
+private struct AccountScaffold: View {
+    @EnvironmentObject private var session: SupabaseSession
+    @State private var isSigningOut = false
+
+    private var email: String {
+        session.currentEmail ?? "--"
+    }
+
+    private var memberSince: String {
+        guard let createdAt = session.currentMemberSince else { return "--" }
+        let fmt = DateFormatter()
+        fmt.dateStyle = .medium
+        return fmt.string(from: createdAt)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            GlassCard(glow: Color.lime) {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Signed In")
+                    HStack(spacing: 14) {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 38))
+                            .foregroundStyle(Color.lime)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(session.displayName.isEmpty ? "RunSmart Runner" : session.displayName)
+                                .font(.headline)
+                            Text(email)
+                                .font(.caption)
+                                .foregroundStyle(Color.mutedText)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                }
+            }
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Account Details")
+                    HStack {
+                        Text("Email").foregroundStyle(Color.mutedText)
+                        Spacer()
+                        Text(email).font(.subheadline).lineLimit(1).truncationMode(.middle)
+                    }
+                    HStack {
+                        Text("Member since").foregroundStyle(Color.mutedText)
+                        Spacer()
+                        Text(memberSince).font(.subheadline)
+                    }
+                    HStack {
+                        Text("Auth provider").foregroundStyle(Color.mutedText)
+                        Spacer()
+                        Label("Apple", systemImage: "apple.logo").font(.subheadline)
+                    }
+                }
+            }
+
+            Button {
+                isSigningOut = true
+                Task {
+                    await session.signOut()
+                    isSigningOut = false
+                }
+            } label: {
+                if isSigningOut {
+                    ProgressView().tint(.white)
+                } else {
+                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+            }
+            .buttonStyle(NeonButtonStyle(isDestructive: true))
+            .disabled(isSigningOut)
+
+            Text("Signing out returns you to the sign-in screen, where you can register a new account or switch users.")
+                .font(.caption)
+                .foregroundStyle(Color.mutedText)
+                .padding(.horizontal, 4)
         }
     }
 }

@@ -77,6 +77,33 @@ final class GarminBridge: NSObject {
         } catch { return nil }
     }
 
+    func activityRoutePoints(activityID: String) async -> [RunRoutePoint] {
+        do {
+            let rows: [DBGarminActivityPoint] = try await supabase
+                .from("garmin_activity_points")
+                .select()
+                .eq("activity_id", value: activityID)
+                .order("sequence", ascending: true)
+                .execute()
+                .value
+
+            return rows.enumerated().map { index, row in
+                RunRoutePoint(
+                    latitude: row.latitude,
+                    longitude: row.longitude,
+                    timestamp: row.timestamp.flatMap(Self.parseISO8601) ?? Date().addingTimeInterval(Double(index)),
+                    horizontalAccuracy: row.horizontalAccuracy ?? 0,
+                    altitude: row.altitude
+                )
+            }
+        } catch {
+            if !(error is CancellationError) {
+                print("[GarminBridge] activityRoutePoints error:", error)
+            }
+            return []
+        }
+    }
+
     func connectionStatus(authUserID: UUID) async -> DBGarminConnection? {
         do {
             let rows: [DBGarminConnection] = try await supabase
@@ -88,6 +115,34 @@ final class GarminBridge: NSObject {
                 .value
             return rows.first
         } catch { return nil }
+    }
+
+    private static func parseISO8601(_ string: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: string) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: string)
+    }
+}
+
+private struct DBGarminActivityPoint: Codable {
+    let activityId: String
+    let sequence: Int?
+    let latitude: Double
+    let longitude: Double
+    let timestamp: String?
+    let horizontalAccuracy: Double?
+    let altitude: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case activityId = "activity_id"
+        case sequence
+        case latitude
+        case longitude
+        case timestamp
+        case horizontalAccuracy = "horizontal_accuracy"
+        case altitude
     }
 }
 

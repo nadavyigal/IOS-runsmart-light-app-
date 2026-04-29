@@ -3,6 +3,7 @@ import SwiftUI
 struct PlanTabView: View {
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var session: SupabaseSession
 
     @State private var workouts: [WorkoutSummary] = []
     @State private var navPath: [SecondaryDestination] = []
@@ -21,6 +22,13 @@ struct PlanTabView: View {
         let fmt = DateFormatter()
         fmt.dateFormat = "MMM d"
         return "\(fmt.string(from: weekStart)) – \(fmt.string(from: weekEnd))"
+    }
+
+    private var planSummary: String {
+        let goal = session.onboardingProfile.goal
+        let days = session.onboardingProfile.weeklyRunDays
+        let goalText = goal.isEmpty ? "Build consistency" : goal
+        return "Goal: \(goalText) · \(days) runs/week. Sync Garmin or record GPS runs to sharpen each weekly update."
     }
 
     private var weekOverviewTitle: String {
@@ -48,13 +56,10 @@ struct PlanTabView: View {
                             HStack(spacing: 16) {
                                 CoachAvatar(size: 96)
                                 VStack(alignment: .leading, spacing: 8) {
-                                    SectionLabel(title: "AI Coach Briefing")
-                                    Text("Your weekly plan is generated from onboarding preferences and saved activity. Sync Garmin or record GPS runs to sharpen the next update.")
+                                    SectionLabel(title: "Your Plan")
+                                    Text(planSummary)
                                         .font(.body)
                                         .foregroundStyle(.white.opacity(0.86))
-                                    Text("Focus: Real activity data")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(Color.lime)
                                 }
                             }
                             Button(action: { router.openCoach(context: "Plan") }) {
@@ -149,12 +154,6 @@ struct PlanTabView: View {
                             }
                         }
                     }
-
-                    InsightCard(
-                        title: "Coach Notes",
-                        message: "Great consistency lately. Your aerobic base is improving. Keep stacking quality weeks.",
-                        action: { navPath.append(.planAdjustment) }
-                    )
 
                     Button(action: { navPath.append(.challenges) }) {
                         GlassCard(cornerRadius: 18, padding: 14) {
@@ -285,9 +284,15 @@ struct PlanCoachRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("\(workout.weekday.capitalized): \(workout.title)")
                     .font(.headline)
-                Text(workout.kind == .tempo ? "We're targeting threshold. Keep the effort controlled and finish strong." : "Build endurance, not speed. Stay easy, fuel well, and enjoy the rhythm.")
-                    .font(.caption)
-                    .foregroundStyle(Color.mutedText)
+                if !workout.detail.isEmpty {
+                    Text(workout.detail)
+                        .font(.caption)
+                        .foregroundStyle(Color.mutedText)
+                } else {
+                    Text(workout.distance)
+                        .font(.caption)
+                        .foregroundStyle(Color.mutedText)
+                }
             }
             Spacer()
             Image(systemName: "text.bubble")

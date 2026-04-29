@@ -75,7 +75,9 @@ final class TrainingPlanRepository {
 
             return ActivePlan(plan: plan, workouts: workouts)
         } catch {
-            print("[TrainingPlanRepo] error:", error)
+            if !(error is CancellationError) {
+                print("[TrainingPlanRepo] error:", error)
+            }
             return nil
         }
     }

@@ -314,6 +314,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
 
 protocol RouteProviding {
     func routeSuggestions() async -> [RouteSuggestion]
+    func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion]
 }
 
 protocol DeviceSyncing {
@@ -424,11 +425,16 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
                     distanceKm: last.distanceMeters / 1_000,
                     elevationGainMeters: elevationGain(points: last.routePoints),
                     estimatedDurationMinutes: max(1, Int(last.movingTimeSeconds / 60)),
-                    points: last.routePoints
+                    points: last.routePoints,
+                    kind: .past
                 )
             ]
         }
         return []
+    }
+
+    func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion] {
+        []
     }
 
     func deviceStatuses() async -> [ConnectedDeviceStatus] {

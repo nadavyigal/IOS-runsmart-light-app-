@@ -216,7 +216,7 @@ struct DBGarminConnection: Codable, Sendable {
     }
 }
 
-struct DBGarminActivity: Codable, Sendable {
+struct DBGarminActivity: Codable, Hashable, Sendable {
     let id: Int
     let authUserId: UUID?
     let activityId: String
@@ -227,7 +227,7 @@ struct DBGarminActivity: Codable, Sendable {
     let avgHr: Int?
     let avgPaceSPerKm: Double?
     let elevationGainM: Double?
-    let calories: Int?
+    let calories: Double?
 
     enum CodingKeys: String, CodingKey {
         case id
