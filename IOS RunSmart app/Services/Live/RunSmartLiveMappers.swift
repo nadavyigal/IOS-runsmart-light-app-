@@ -64,12 +64,18 @@ enum RunSmartDTOMapper {
             return .intervals
         case "tempo", "tempo_run":
             return .tempo
+        case "hills", "hill":
+            return .hills
         case "strength":
             return .strength
         case "recovery":
             return .recovery
         case "long", "long_run":
             return .long
+        case "race":
+            return .race
+        case "parkrun":
+            return .parkrun
         default:
             return .easy
         }

@@ -16,6 +16,15 @@ enum SecondaryDestination: Hashable, Identifiable {
     case reminders
     case connectedService(String)
     case challenges
+    case recoveryDashboard
+    case morningCheckin
+    case goalWizard
+    case weeklyRecap
+    case garminWellness
+    case zoneAnalysis
+    case routeCreator
+    case badgeCabinet
+    case shareRun(RecordedRun?)
     case account
 
     var id: String {
@@ -35,6 +44,15 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .reminders: "reminders"
         case .connectedService(let name): "connectedService-\(name)"
         case .challenges: "challenges"
+        case .recoveryDashboard: "recoveryDashboard"
+        case .morningCheckin: "morningCheckin"
+        case .goalWizard: "goalWizard"
+        case .weeklyRecap: "weeklyRecap"
+        case .garminWellness: "garminWellness"
+        case .zoneAnalysis: "zoneAnalysis"
+        case .routeCreator: "routeCreator"
+        case .badgeCabinet: "badgeCabinet"
+        case .shareRun(let run): "shareRun-\(run?.id.uuidString ?? "nil")"
         case .account: "account"
         }
     }
@@ -56,6 +74,15 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .reminders: "Reminders & Preferences"
         case .connectedService(let name): name
         case .challenges: "Challenges"
+        case .recoveryDashboard: "Recovery"
+        case .morningCheckin: "Morning Check-In"
+        case .goalWizard: "Goal Wizard"
+        case .weeklyRecap: "Weekly Recap"
+        case .garminWellness: "Garmin Wellness"
+        case .zoneAnalysis: "Zone Analysis"
+        case .routeCreator: "Route Creator"
+        case .badgeCabinet: "Badge Cabinet"
+        case .shareRun: "Share Run"
         case .account: "Account"
         }
     }
@@ -74,7 +101,7 @@ struct SecondaryFlowView: View {
                     content
                     Spacer(minLength: 20)
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.textPrimary)
                 .padding(20)
             }
         }
@@ -114,6 +141,24 @@ struct SecondaryFlowView: View {
             ConnectedServiceDetailScaffold(serviceName: serviceName)
         case .challenges:
             ChallengesListView()
+        case .recoveryDashboard:
+            RecoveryDashboardView()
+        case .morningCheckin:
+            MorningCheckinView()
+        case .goalWizard:
+            GoalWizardView()
+        case .weeklyRecap:
+            WeeklyRecapView()
+        case .garminWellness:
+            GarminWellnessViews()
+        case .zoneAnalysis:
+            ZoneAnalysisView()
+        case .routeCreator:
+            RouteCreatorView()
+        case .badgeCabinet:
+            BadgeCabinetView()
+        case .shareRun(let run):
+            ShareRunView(run: run)
         case .account:
             AccountScaffold()
         }
@@ -151,6 +196,24 @@ struct SecondaryFlowView: View {
             "Inspect sync status, permissions, and controls."
         case .challenges:
             "Adopt a challenge and track your progress."
+        case .recoveryDashboard:
+            "Readiness, sleep, HRV, and recovery signals."
+        case .morningCheckin:
+            "Capture how the runner feels before training."
+        case .goalWizard:
+            "Set or revise the training goal."
+        case .weeklyRecap:
+            "Summarize the week and next coaching move."
+        case .garminWellness:
+            "Wellness panels from connected Garmin data."
+        case .zoneAnalysis:
+            "Understand effort distribution and heart rate zones."
+        case .routeCreator:
+            "Build a route that matches the workout."
+        case .badgeCabinet:
+            "Browse earned and locked achievements."
+        case .shareRun:
+            "Prepare a polished run share card."
         case .account:
             "Manage your sign-in and profile data."
         }
@@ -173,6 +236,15 @@ struct SecondaryFlowView: View {
         case .reminders: "bell.badge.fill"
         case .connectedService: "link.circle.fill"
         case .challenges: "trophy.fill"
+        case .recoveryDashboard: "heart.text.square.fill"
+        case .morningCheckin: "sunrise.fill"
+        case .goalWizard: "target"
+        case .weeklyRecap: "calendar.badge.checkmark"
+        case .garminWellness: "waveform.path.ecg"
+        case .zoneAnalysis: "heart.circle.fill"
+        case .routeCreator: "point.topleft.down.curvedto.point.bottomright.up"
+        case .badgeCabinet: "seal.fill"
+        case .shareRun: "square.and.arrow.up"
         case .account: "person.crop.circle.fill"
         }
     }
@@ -190,18 +262,18 @@ private struct FlowHeader: View {
                 .foregroundStyle(Color.black)
                 .frame(width: 58, height: 58)
                 .background(
-                    LinearGradient(colors: [Color.lime, Color.electricGreen], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    LinearGradient(colors: [Color.accentPrimary, Color.accentEnergy], startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: Color.lime.opacity(0.46), radius: 16)
+                .shadow(color: Color.accentPrimary.opacity(0.38), radius: 16)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(destination.title)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .font(.displayMD)
+                    .foregroundStyle(Color.textPrimary)
                 Text(subtitle)
                     .font(.callout)
-                    .foregroundStyle(Color.mutedText)
+                    .foregroundStyle(Color.textSecondary)
             }
         }
         .padding(.top, 8)
@@ -212,32 +284,77 @@ private struct WorkoutDetailScaffold: View {
     @EnvironmentObject private var router: AppRouter
 
     var workout: WorkoutSummary
+    @State private var runMode = "Outdoor"
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 14) {
-                    SectionLabel(title: "Today's Session", trailing: workout.distance)
-                    Text("Purpose")
-                        .font(.headline)
-                    Text("Build controlled threshold fitness without turning the workout into a race. The win is even pacing and a strong finish.")
+                    SectionLabel(title: "Workout", trailing: workout.distance)
+                    Text(workout.title)
+                        .font(.title2.bold())
+                    Text(workoutPurpose)
                         .font(.body)
                         .foregroundStyle(.white.opacity(0.84))
 
-                    HStack(spacing: 10) {
-                        FlowChip(text: "Warm up 12 min", symbol: "flame")
-                        FlowChip(text: "RPE 7/10", symbol: "speedometer")
-                        FlowChip(text: "Cool down 8 min", symbol: "wind")
+                    HStack(spacing: 8) {
+                        FlowChip(text: workout.distance, symbol: "point.topleft.down.curvedto.point.bottomright.up")
+                        FlowChip(text: estimatedDuration, symbol: "clock")
+                        FlowChip(text: targetZone, symbol: "heart")
                     }
                 }
             }
 
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Execution Plan")
-                    FlowTimelineStep(index: "1", title: "Warm up easy", detail: "Keep breathing relaxed. Add two 20-second strides near the end.")
-                    FlowTimelineStep(index: "2", title: "Tempo block", detail: "Hold 5:15/km and keep the effort controlled through the middle.")
-                    FlowTimelineStep(index: "3", title: "Finish smooth", detail: "Do not sprint. Let the last 800m feel steady and confident.")
+                    SectionLabel(title: "Plan Tools")
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        ActionTile(title: "Warm-Up Stretches", symbol: "line.3.horizontal") {}
+                        ActionTile(title: "Add Route", symbol: "mappin.and.ellipse") { router.open(.routeSelector) }
+                        ActionTile(title: "Link Activity", symbol: "link") { router.open(.addActivity) }
+                        ActionTile(title: "Remove Workout", symbol: "trash", tint: .red) {}
+                    }
+                }
+            }
+
+            HStack(spacing: 0) {
+                ForEach(["Outdoor", "Treadmill"], id: \.self) { mode in
+                    Button { runMode = mode } label: {
+                        Text(mode.uppercased())
+                            .font(.headline)
+                            .foregroundStyle(runMode == mode ? Color.black : Color.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(runMode == mode ? Color.lime : Color.white.opacity(0.045))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "square")
+                            .foregroundStyle(Color.mutedText)
+                        Text("Workout Breakdown")
+                            .font(.headline)
+                        Spacer()
+                        Text("COLLAPSE")
+                            .font(.caption.bold())
+                            .foregroundStyle(Color.mutedText)
+                        Image(systemName: "chevron.up")
+                            .foregroundStyle(Color.mutedText)
+                    }
+                    Text("\(workout.distance) @ \(targetPace)")
+                        .font(.headline)
+                        .foregroundStyle(Color.mutedText)
+                    Text("STEPS")
+                        .font(.caption.bold())
+                        .foregroundStyle(Color.mutedText)
+                    ForEach(Array(breakdownSteps.enumerated()), id: \.offset) { _, step in
+                        WorkoutBreakdownStepRow(step: step)
+                    }
                 }
             }
 
@@ -255,6 +372,92 @@ private struct WorkoutDetailScaffold: View {
                     }
                 }
             }
+        }
+    }
+
+    private var workoutPurpose: String {
+        switch workout.kind {
+        case .easy, .parkrun:
+            return "Build aerobic habit with relaxed effort. The goal is finishing smooth, not proving fitness."
+        case .tempo:
+            return "Build controlled threshold fitness without turning the workout into a race."
+        case .intervals:
+            return "Practice faster running with full control and clean recoveries between efforts."
+        case .hills:
+            return "Build strength and running economy with short, powerful climbs."
+        case .long:
+            return "Grow endurance at conversational effort and keep the last third calm."
+        case .race:
+            return "Execute the plan with a patient start, steady middle, and focused finish."
+        case .strength:
+            return "Support stronger running mechanics without adding impact load."
+        case .recovery:
+            return "Absorb the week. Keep movement easy and leave fresher than you started."
+        }
+    }
+
+    private var estimatedDuration: String {
+        switch workout.kind {
+        case .long: "70-90 min"
+        case .tempo, .intervals, .hills: "45-55 min"
+        case .race: "Goal effort"
+        case .strength: "40 min"
+        case .recovery: "20-30 min"
+        default: "25-35 min"
+        }
+    }
+
+    private var targetZone: String {
+        switch workout.kind {
+        case .tempo, .intervals, .hills, .race: "Zone 3-4"
+        case .recovery: "Zone 1"
+        default: "Zone 2"
+        }
+    }
+
+    private var targetPace: String {
+        switch workout.kind {
+        case .tempo: "5:15 min/km"
+        case .intervals: "4:45 min/km"
+        case .hills: "Strong effort"
+        case .race: "Race pace"
+        case .recovery: "Easy jog"
+        default: "6:10 min/km"
+        }
+    }
+
+    private var breakdownSteps: [WorkoutBreakdownStep] {
+        switch workout.kind {
+        case .tempo:
+            return [
+                .init(title: "Warm Up", duration: "12:00", target: "6:20-6:50 min/km", note: "Easy warm-up", tint: .red),
+                .init(title: "Tempo Block", duration: "20:00", target: "5:05-5:25 min/km", note: "Controlled threshold effort", tint: .orange),
+                .init(title: "Cool Down", duration: "8:00", target: "6:30-7:10 min/km", note: "Relaxed finish", tint: Color.lime)
+            ]
+        case .intervals:
+            return [
+                .init(title: "Warm Up", duration: "10:00", target: "Easy", note: "Add mobility before speed", tint: .red),
+                .init(title: "Repeats", duration: "8 x 400 m", target: "4:35-4:55 min/km", note: "Jog 200 m between reps", tint: .blue),
+                .init(title: "Cool Down", duration: "10:00", target: "Easy", note: "Let heart rate settle", tint: Color.lime)
+            ]
+        case .hills:
+            return [
+                .init(title: "Warm Up", duration: "12:00", target: "Easy", note: "Find a steady climb", tint: .red),
+                .init(title: "Hill Repeats", duration: "8 x 45 sec", target: "Strong form", note: "Walk/jog down recovery", tint: .purple),
+                .init(title: "Cool Down", duration: "8:00", target: "Easy", note: "Flat and relaxed", tint: Color.lime)
+            ]
+        case .long:
+            return [
+                .init(title: "Settle In", duration: "15:00", target: "Zone 2", note: "Start softer than you think", tint: .red),
+                .init(title: "Endurance Run", duration: workout.distance, target: "Conversational", note: "Fuel if running over 75 minutes", tint: .blue),
+                .init(title: "Finish Smooth", duration: "5:00", target: "Easy", note: "No sprint finish", tint: Color.lime)
+            ]
+        default:
+            return [
+                .init(title: "Warm Up", duration: "10:00", target: "7:25-8:26 min/km", note: "Easy warm-up", tint: .red),
+                .init(title: "Run", duration: workout.distance, target: targetPace, note: "Continuous relaxed run", tint: .blue),
+                .init(title: "Cool Down", duration: "5:00", target: "Easy", note: "Walk or jog home", tint: Color.lime)
+            ]
         }
     }
 }
@@ -339,32 +542,95 @@ private struct RescheduleScaffold: View {
 }
 
 private struct AddActivityScaffold: View {
+    @Environment(\.runSmartServices) private var services
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedKind: WorkoutKind = .easy
+    @State private var date = Date()
+    @State private var distanceKm = 5.0
+    @State private var durationMinutes = 30
+    @State private var heartRateText = ""
+    @State private var notes = ""
+    @State private var savedRun: RecordedRun?
+    @State private var isSaving = false
+
+    private let runKinds: [WorkoutKind] = [.easy, .tempo, .intervals, .hills, .long, .race, .parkrun]
+
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Activity Type")
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        FlowSelectionTile(title: "Easy Run", value: "5.0 km", symbol: "figure.run", selected: true)
-                        FlowSelectionTile(title: "Strength", value: "40 min", symbol: "dumbbell", selected: false)
-                        FlowSelectionTile(title: "Bike", value: "45 min", symbol: "bicycle", selected: false)
-                        FlowSelectionTile(title: "Mobility", value: "20 min", symbol: "figure.flexibility", selected: false)
+                    SectionLabel(title: "Add Run")
+                    Text("Add a workout to your plan, generate a guided version, or use it to keep this week's progress accurate.")
+                        .font(.callout)
+                        .foregroundStyle(Color.mutedText)
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        ForEach(runKinds, id: \.self) { kind in
+                            Button { selectedKind = kind } label: {
+                                AddRunKindTile(kind: kind, selected: selectedKind == kind)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
 
             GlassCard {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 14) {
                     SectionLabel(title: "Manual Entry")
-                    DetailLine(label: "Date", value: "Today, 7:10 AM")
-                    DetailLine(label: "Effort", value: "Easy, RPE 4")
-                    DetailLine(label: "Notes", value: "Felt smooth after the first kilometer.")
+                    DatePicker("Date", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                    VStack(alignment: .leading, spacing: 6) {
+                        DetailLine(label: "Distance", value: String(format: "%.1f km", distanceKm))
+                        Slider(value: $distanceKm, in: 0.5...42.2, step: 0.1)
+                            .tint(Color.lime)
+                    }
+                    Stepper("Duration: \(durationMinutes) min", value: $durationMinutes, in: 5...360, step: 5)
+                    TextField("Average heart rate (optional)", text: $heartRateText)
+                        .keyboardType(.numberPad)
+                        .textFieldStyle(RunSmartTextFieldStyle())
+                    TextField("Notes", text: $notes, axis: .vertical)
+                        .lineLimit(2...4)
+                        .textFieldStyle(RunSmartTextFieldStyle())
                 }
             }
 
-            Button("Save Activity") {}
+            if let savedRun {
+                Label("Saved \(String(format: "%.1f", savedRun.distanceMeters / 1_000)) km to your training history.", systemImage: "checkmark.seal.fill")
+                    .font(.callout.bold())
+                    .foregroundStyle(Color.lime)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.lime.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+
+            Button(action: { Task { await saveRun() } }) {
+                HStack {
+                    if isSaving {
+                        ProgressView().tint(.black)
+                    } else {
+                        Label("Save Run", systemImage: "checkmark")
+                    }
+                }
+            }
                 .buttonStyle(NeonButtonStyle())
+                .disabled(isSaving)
         }
+    }
+
+    private func saveRun() async {
+        isSaving = true
+        let hr = Int(heartRateText.trimmingCharacters(in: .whitespacesAndNewlines))
+        let run = await services.saveManualRun(
+            kind: selectedKind,
+            date: date,
+            distanceKm: distanceKm,
+            durationMinutes: durationMinutes,
+            averageHeartRateBPM: hr,
+            notes: notes
+        )
+        savedRun = run
+        isSaving = false
     }
 }
 
@@ -1014,6 +1280,127 @@ private struct ActionRow: View {
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct ActionTile: View {
+    var title: String
+    var symbol: String
+    var tint: Color = Color.lime
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.title3.bold())
+                    .foregroundStyle(tint)
+                Text(title.uppercased())
+                    .font(.caption.bold())
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(tint == .red ? .red : .white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+            }
+            .frame(maxWidth: .infinity, minHeight: 86)
+            .padding(10)
+            .background(.white.opacity(0.045))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.hairline))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct WorkoutBreakdownStep {
+    var title: String
+    var duration: String
+    var target: String
+    var note: String
+    var tint: Color
+}
+
+private struct WorkoutBreakdownStepRow: View {
+    var step: WorkoutBreakdownStep
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(step.tint)
+                .frame(width: 5)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(step.title)
+                    .font(.headline)
+                Text(step.duration)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.mutedText)
+                Text("Intensity Target · \(step.target)")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.mutedText)
+                Text(step.note)
+                    .font(.caption.italic())
+                    .foregroundStyle(Color.mutedText)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(.white.opacity(0.055))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.hairline))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct AddRunKindTile: View {
+    var kind: WorkoutKind
+    var selected: Bool
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                Image(systemName: kind.symbol)
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+            }
+            .frame(height: 58)
+            Text(kind.rawValue)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.72)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 116)
+        .background(selected ? Color.lime.opacity(0.12) : Color.white.opacity(0.045))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(selected ? Color.lime : Color.hairline, lineWidth: selected ? 1.4 : 1))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var colors: [Color] {
+        switch kind {
+        case .easy: [Color.green, Color.mint]
+        case .tempo: [Color.orange, Color.red]
+        case .intervals: [Color.pink, Color.purple]
+        case .hills: [Color.green, Color.teal]
+        case .long: [Color.blue, Color.cyan]
+        case .race: [Color.red, Color.pink]
+        case .parkrun: [Color.teal, Color.green]
+        case .strength: [Color.gray, Color.white.opacity(0.5)]
+        case .recovery: [Color.mint, Color.green.opacity(0.5)]
+        }
+    }
+}
+
+private struct RunSmartTextFieldStyle: TextFieldStyle {
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .padding(12)
+            .foregroundStyle(.white)
+            .background(.white.opacity(0.055))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.hairline))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 

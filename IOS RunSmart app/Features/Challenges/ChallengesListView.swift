@@ -25,10 +25,11 @@ struct ChallengesListView: View {
                                 .frame(height: 110)
                         }
                     } else if challenges.isEmpty {
-                        Text("No challenges available right now.")
-                            .foregroundStyle(Color.mutedText)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.top, 40)
+                        ForEach(Self.fallbackChallenges) { challenge in
+                            ChallengeCard(challenge: challenge) {
+                                selectedChallenge = challenge
+                            }
+                        }
                     } else {
                         ForEach(challenges) { challenge in
                             ChallengeCard(challenge: challenge) {
@@ -61,6 +62,36 @@ struct ChallengesListView: View {
         challenges = await repo.availableChallenges(authUserID: userID)
         isLoading = false
     }
+
+    private static let fallbackChallenges: [ChallengeItem] = [
+        ChallengeItem(
+            id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+            slug: "local-21-day-start-running",
+            title: "21-Day Start Running",
+            description: "From zero to running 30 minutes comfortably with guided habit-building workouts.",
+            durationDays: 21,
+            isEnrolled: false,
+            startedAt: nil
+        ),
+        ChallengeItem(
+            id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+            slug: "local-10k-breakthrough",
+            title: "10K Breakthrough",
+            description: "A focused block with tempo, long run, and recovery balance to unlock your next 10K step.",
+            durationDays: 28,
+            isEnrolled: false,
+            startedAt: nil
+        ),
+        ChallengeItem(
+            id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
+            slug: "local-consistency-streak",
+            title: "Consistency Streak",
+            description: "Complete three runs a week and keep momentum visible in your profile snapshot.",
+            durationDays: 14,
+            isEnrolled: false,
+            startedAt: nil
+        )
+    ]
 }
 
 private struct ChallengeCard: View {

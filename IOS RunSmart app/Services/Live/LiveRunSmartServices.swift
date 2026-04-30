@@ -101,6 +101,21 @@ struct LiveRunLoggingService: RunLogging {
         return RunSmartDTOMapper.metricTiles(from: dto)
     }
 
+    func recentRuns() async -> [RecordedRun] {
+        RunSmartPreviewData.recordedRuns
+    }
+
+    func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
+        await ProductionRunSmartServices().saveManualRun(
+            kind: kind,
+            date: date,
+            distanceKm: distanceKm,
+            durationMinutes: durationMinutes,
+            averageHeartRateBPM: averageHeartRateBPM,
+            notes: notes
+        )
+    }
+
     func finishRun() async {
         let now = ISO8601DateFormatter().string(from: Date())
         let runLog = RunSmartDTO.RunLogRequest(
@@ -157,6 +172,21 @@ struct LiveRunSmartServices: RunSmartServiceProviding {
 
     func currentRunMetrics() async -> [MetricTile] {
         await runLoggingService.currentRunMetrics()
+    }
+
+    func recentRuns() async -> [RecordedRun] {
+        await runLoggingService.recentRuns()
+    }
+
+    func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
+        await runLoggingService.saveManualRun(
+            kind: kind,
+            date: date,
+            distanceKm: distanceKm,
+            durationMinutes: durationMinutes,
+            averageHeartRateBPM: averageHeartRateBPM,
+            notes: notes
+        )
     }
 
     func finishRun() async {

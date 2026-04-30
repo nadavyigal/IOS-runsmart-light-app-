@@ -6,6 +6,7 @@ enum RunSmartTab: String, CaseIterable, Identifiable {
     case today = "Today"
     case plan = "Plan"
     case run = "Run"
+    case activity = "Activity"
     case profile = "Profile"
 
     var id: String { rawValue }
@@ -15,7 +16,18 @@ enum RunSmartTab: String, CaseIterable, Identifiable {
         case .today: "sun.max.fill"
         case .plan: "calendar"
         case .run: "figure.run"
+        case .activity: "chart.bar.xaxis"
         case .profile: "person"
+        }
+    }
+
+    var filledSymbol: String {
+        switch self {
+        case .today: "sun.max.fill"
+        case .plan: "calendar.badge.clock"
+        case .run: "figure.run.circle.fill"
+        case .activity: "chart.bar.xaxis"
+        case .profile: "person.fill"
         }
     }
 }
@@ -24,13 +36,17 @@ enum WorkoutKind: String, Hashable {
     case easy = "Easy Run"
     case intervals = "Intervals"
     case tempo = "Tempo Run"
+    case hills = "Hills"
     case strength = "Strength"
     case recovery = "Recovery"
     case long = "Long Run"
+    case race = "Race"
+    case parkrun = "parkrun"
 
     var symbol: String {
         switch self {
-        case .easy, .intervals, .tempo, .long: "figure.run"
+        case .easy, .intervals, .tempo, .long, .race, .parkrun: "figure.run"
+        case .hills: "mountain.2"
         case .strength: "dumbbell"
         case .recovery: "heart"
         }

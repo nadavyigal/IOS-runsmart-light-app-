@@ -33,7 +33,7 @@ struct RouteMapView: View {
             if coordinates.count >= 2 {
                 Map(initialPosition: .region(region)) {
                     MapPolyline(coordinates: coordinates)
-                        .stroke(Color.lime, lineWidth: 5)
+                        .stroke(Color.accentPrimary, lineWidth: 5)
                     if let first = coordinates.first {
                         Marker("Start", systemImage: "play.fill", coordinate: first)
                             .tint(.green)
@@ -51,7 +51,7 @@ struct RouteMapView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "map")
                             .font(.title)
-                            .foregroundStyle(Color.lime)
+                            .foregroundStyle(Color.accentPrimary)
                         Text("Map appears when GPS points are available")
                             .font(.caption)
                             .foregroundStyle(Color.mutedText)

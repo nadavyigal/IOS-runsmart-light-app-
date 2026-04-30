@@ -39,6 +39,7 @@ final class AppRouter: ObservableObject {
     }
 
     func startRun() {
+        RunSmartHaptics.medium()
         selectedTab = .run
     }
 }
@@ -47,15 +48,16 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var router = AppRouter()
     @StateObject private var session = SupabaseSession()
     @StateObject private var recorder = RunRecorder()
+    @State private var didPresentMorningCheckin = false
     private let services = SupabaseRunSmartServices.shared
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            RunSmartBackground()
+            RunSmartBackground(context: RunSmartBackgroundContext(tab: router.selectedTab))
 
             if session.isLoading {
                 ProgressView()
-                    .tint(Color.lime)
+                    .tint(Color.accentPrimary)
                     .scaleEffect(1.5)
             } else if !session.isAuthenticated {
                 SignInView()
@@ -71,10 +73,11 @@ struct RunSmartLiteAppShell: View {
                     case .today:   TodayTabView()
                     case .plan:    PlanTabView()
                     case .run:     RunTabView()
+                    case .activity: ActivityTabView()
                     case .profile: ProfileTabView()
                     }
                 }
-                .safeAreaPadding(.bottom, 80)
+                .safeAreaPadding(.bottom, 88)
 
                 CustomTabBar(selectedTab: $router.selectedTab)
             }
@@ -84,6 +87,14 @@ struct RunSmartLiteAppShell: View {
         .environment(\.runSmartServices, services)
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
+        .task(id: session.hasCompletedOnboarding) {
+            guard session.isAuthenticated, session.hasCompletedOnboarding, !didPresentMorningCheckin else { return }
+            didPresentMorningCheckin = true
+            try? await Task.sleep(nanoseconds: 650_000_000)
+            if router.activeSheet == nil {
+                router.open(.morningCheckin)
+            }
+        }
         .sheet(item: $router.activeSheet) { sheet in
             Group {
                 switch sheet {

@@ -413,6 +413,30 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         ]
     }
 
+    func recentRuns() async -> [RecordedRun] {
+        store.loadRuns()
+    }
+
+    func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
+        let movingTime = TimeInterval(max(1, durationMinutes) * 60)
+        let distanceMeters = max(0.1, distanceKm) * 1_000
+        let run = RecordedRun(
+            id: UUID(),
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: date,
+            endedAt: date.addingTimeInterval(movingTime),
+            distanceMeters: distanceMeters,
+            movingTimeSeconds: movingTime,
+            averagePaceSecondsPerKm: movingTime / max(distanceKm, 0.1),
+            averageHeartRateBPM: averageHeartRateBPM,
+            routePoints: [],
+            syncedAt: Date()
+        )
+        store.saveRun(run)
+        return run
+    }
+
     func finishRun() async {}
 
     func routeSuggestions() async -> [RouteSuggestion] {
