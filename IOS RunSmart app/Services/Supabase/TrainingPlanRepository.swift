@@ -109,8 +109,11 @@ extension DBWorkout {
         switch type {
         case "easy": return .easy
         case "tempo", "race-pace", "fartlek": return .tempo
-        case "intervals", "hill": return .intervals
+        case "intervals": return .intervals
+        case "hill", "hills": return .hills
         case "long": return .long
+        case "race": return .race
+        case "parkrun": return .parkrun
         case "recovery", "rest": return .recovery
         default: return .easy
         }

@@ -9,6 +9,8 @@ struct ProfileTabView: View {
     @State private var achievements: [Achievement] = []
     @State private var deviceStatuses: [ConnectedDeviceStatus] = []
     @State private var recentActivities: [DBGarminActivity] = []
+    @State private var recentRuns: [RecordedRun] = []
+    @State private var plannedWorkouts: [WorkoutSummary] = []
     @State private var navPath: [SecondaryDestination] = []
 
     var body: some View {
@@ -97,6 +99,10 @@ struct ProfileTabView: View {
                             }
                         }
                     }
+
+                    MomentumSnapshotCard(runs: recentRuns, plannedWorkouts: plannedWorkouts)
+
+                    RunTrendChartCard(runs: recentRuns)
 
                     GlassCard(cornerRadius: 18, padding: 14) {
                         VStack(alignment: .leading, spacing: 12) {
@@ -194,11 +200,13 @@ struct ProfileTabView: View {
             async let runnerTask = services.runnerProfile()
             async let achievementsTask = services.achievements()
             async let statusesTask = services.deviceStatuses()
+            async let runsTask = services.recentRuns()
+            async let planTask = services.weeklyPlan()
             async let activitiesTask: [DBGarminActivity] = {
                 guard let userID = await session.currentUserID else { return [] }
                 return await GarminBridge.shared.recentActivities(authUserID: userID, limit: 10)
             }()
-            (runner, achievements, deviceStatuses, recentActivities) = await (runnerTask, achievementsTask, statusesTask, activitiesTask)
+            (runner, achievements, deviceStatuses, recentRuns, plannedWorkouts, recentActivities) = await (runnerTask, achievementsTask, statusesTask, runsTask, planTask, activitiesTask)
         }
     }
 

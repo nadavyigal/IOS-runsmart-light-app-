@@ -24,13 +24,17 @@ enum WorkoutKind: String, Hashable {
     case easy = "Easy Run"
     case intervals = "Intervals"
     case tempo = "Tempo Run"
+    case hills = "Hills"
     case strength = "Strength"
     case recovery = "Recovery"
     case long = "Long Run"
+    case race = "Race"
+    case parkrun = "parkrun"
 
     var symbol: String {
         switch self {
-        case .easy, .intervals, .tempo, .long: "figure.run"
+        case .easy, .intervals, .tempo, .long, .race, .parkrun: "figure.run"
+        case .hills: "mountain.2"
         case .strength: "dumbbell"
         case .recovery: "heart"
         }

@@ -44,4 +44,26 @@ enum RunSmartPreviewData {
         .init(title: "Long Run", subtitle: "15K", symbol: "shoeprints.fill", tint: .orange),
         .init(title: "Week Warrior", subtitle: "5 days", symbol: "sparkles", tint: .mint)
     ]
+
+    static var recordedRuns: [RecordedRun] {
+        let calendar = Calendar.current
+        let distances = [5.0, 6.2, 4.8, 8.0, 5.4, 10.2, 6.7, 7.1]
+        return distances.enumerated().map { index, distanceKm in
+            let start = calendar.date(byAdding: .day, value: -index * 2, to: Date()) ?? Date()
+            let moving = distanceKm * 330
+            return RecordedRun(
+                id: UUID(),
+                providerActivityID: "preview-\(index)",
+                source: .runSmart,
+                startedAt: start,
+                endedAt: start.addingTimeInterval(moving),
+                distanceMeters: distanceKm * 1_000,
+                movingTimeSeconds: moving,
+                averagePaceSecondsPerKm: moving / distanceKm,
+                averageHeartRateBPM: 142 + index,
+                routePoints: [],
+                syncedAt: nil
+            )
+        }
+    }
 }

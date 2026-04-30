@@ -6,6 +6,7 @@ struct PlanTabView: View {
     @EnvironmentObject private var session: SupabaseSession
 
     @State private var workouts: [WorkoutSummary] = []
+    @State private var recentRuns: [RecordedRun] = []
     @State private var navPath: [SecondaryDestination] = []
 
     private var currentWeekDays: [Date] {
@@ -99,6 +100,17 @@ struct PlanTabView: View {
                         .padding(.horizontal, 2)
                     }
 
+                    Button(action: { router.open(.addActivity) }) {
+                        Label("Add Run", systemImage: "plus.circle.fill")
+                    }
+                    .buttonStyle(NeonButtonStyle())
+
+                    MonthlyScheduleCard(workouts: workouts) { workout in
+                        navPath.append(.workoutDetail(workout))
+                    }
+
+                    RunTrendChartCard(runs: recentRuns)
+
                     GlassCard(cornerRadius: 18, padding: 14) {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -147,7 +159,12 @@ struct PlanTabView: View {
 
                     GlassCard(cornerRadius: 18, padding: 14) {
                         VStack(alignment: .leading, spacing: 12) {
-                            SectionLabel(title: "This Week from Your Coach", trailing: "View all")
+                            SectionLabel(title: "Run Breakthrough", trailing: "This week")
+                            BreakthroughFocusRow(
+                                title: breakthroughTitle,
+                                detail: breakthroughDetail,
+                                symbol: "sparkles"
+                            )
                             ForEach(workouts.filter { $0.kind == .tempo || $0.kind == .long }) { workout in
                                 PlanCoachRow(workout: workout)
                                     .onTapGesture { navPath.append(.workoutDetail(workout)) }
@@ -188,7 +205,9 @@ struct PlanTabView: View {
             }
         }
         .task {
-            workouts = await services.weeklyPlan()
+            async let workoutsTask = services.weeklyPlan()
+            async let runsTask = services.recentRuns()
+            (workouts, recentRuns) = await (workoutsTask, runsTask)
         }
     }
 
@@ -196,6 +215,24 @@ struct PlanTabView: View {
         let calendar = Calendar.current
         let day = String(calendar.component(.day, from: date))
         return workouts.first { $0.date == day }
+    }
+
+    private var breakthroughTitle: String {
+        if recentRuns.isEmpty { return "Start your first logged week" }
+        if let longest = recentRuns.max(by: { $0.distanceMeters < $1.distanceMeters }) {
+            return "Longest run to beat: \(String(format: "%.1f", longest.distanceMeters / 1_000)) km"
+        }
+        return "Build consistency"
+    }
+
+    private var breakthroughDetail: String {
+        if recentRuns.isEmpty {
+            return "Add a run or record GPS to unlock trend coaching and better schedule adjustments."
+        }
+        let weeklyKm = recentRuns
+            .filter { Calendar.current.isDate($0.startedAt, equalTo: Date(), toGranularity: .weekOfYear) }
+            .reduce(0.0) { $0 + $1.distanceMeters / 1_000 }
+        return String(format: "You have %.1f km this week. Keep the next quality run controlled and let the long run do the work.", weeklyKm)
     }
 }
 
@@ -300,6 +337,35 @@ struct PlanCoachRow: View {
         }
         .padding(10)
         .background(.white.opacity(0.045))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct BreakthroughFocusRow: View {
+    var title: String
+    var detail: String
+    var symbol: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.title2.bold())
+                .foregroundStyle(Color.black)
+                .frame(width: 48, height: 48)
+                .background(Color.lime)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(Color.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(10)
+        .background(Color.lime.opacity(0.08))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.lime.opacity(0.22)))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }

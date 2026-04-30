@@ -22,6 +22,8 @@ protocol ProfileProviding {
 
 protocol RunLogging {
     func currentRunMetrics() async -> [MetricTile]
+    func recentRuns() async -> [RecordedRun]
+    func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun
     func finishRun() async
 }
 
@@ -57,6 +59,28 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
             MetricTile(title: "Time", value: "26:54", unit: "", symbol: "stopwatch", tint: .white),
             MetricTile(title: "Heart Rate", value: "154", unit: "bpm", symbol: "heart", tint: .red)
         ]
+    }
+
+    func recentRuns() async -> [RecordedRun] {
+        RunSmartPreviewData.recordedRuns
+    }
+
+    func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
+        let movingTime = TimeInterval(max(1, durationMinutes) * 60)
+        let distanceMeters = max(0.1, distanceKm) * 1_000
+        return RecordedRun(
+            id: UUID(),
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: date,
+            endedAt: date.addingTimeInterval(movingTime),
+            distanceMeters: distanceMeters,
+            movingTimeSeconds: movingTime,
+            averagePaceSecondsPerKm: movingTime / max(distanceKm, 0.1),
+            averageHeartRateBPM: averageHeartRateBPM,
+            routePoints: [],
+            syncedAt: nil
+        )
     }
 
     func finishRun() async {}

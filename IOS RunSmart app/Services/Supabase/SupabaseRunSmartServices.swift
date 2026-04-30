@@ -11,6 +11,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     private let supabase = SupabaseManager.client
     private let planRepo = TrainingPlanRepository()
     private let healthSync = HealthKitSyncService()
+    private let store = RunSmartLocalStore.shared
 
     private var currentUserID: UUID? { supabase.auth.currentUser?.id }
 
@@ -135,9 +136,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         async let activitiesTask = GarminBridge.shared.recentActivities(authUserID: userID, limit: 200)
         let (streak, activities) = await (streakTask, activitiesTask)
 
-        let totalRuns = activities.count
-        let totalMeters = activities.reduce(0.0) { $0 + ($1.distanceM ?? 0) }
-        let totalSeconds = activities.reduce(0.0) { $0 + ($1.durationS ?? 0) }
+        let localRuns = store.loadRuns()
+        let totalRuns = activities.count + localRuns.count
+        let totalMeters = activities.reduce(0.0) { $0 + ($1.distanceM ?? 0) } + localRuns.reduce(0.0) { $0 + $1.distanceMeters }
+        let totalSeconds = activities.reduce(0.0) { $0 + ($1.durationS ?? 0) } + localRuns.reduce(0.0) { $0 + $1.movingTimeSeconds }
         let totalTime = formatTotalTime(seconds: totalSeconds)
 
         return RunnerProfile(
@@ -160,11 +162,69 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return String(format: "%dh %02dm", hours, minutes)
     }
 
-    func achievements() async -> [Achievement] { [] }
+    func achievements() async -> [Achievement] {
+        let runs = await recentRuns()
+        guard !runs.isEmpty else { return [] }
+        let totalKm = runs.reduce(0.0) { $0 + $1.distanceMeters } / 1_000
+        let longestKm = (runs.map(\.distanceMeters).max() ?? 0) / 1_000
+        return [
+            Achievement(title: "Total Volume", subtitle: "\(Int(totalKm.rounded())) km", symbol: "chart.bar.fill", tint: Color.lime),
+            Achievement(title: "Longest Run", subtitle: String(format: "%.1f km", longestKm), symbol: "flag.checkered", tint: .orange),
+            Achievement(title: "Manual Logs", subtitle: "\(runs.filter { $0.source == .runSmart }.count)", symbol: "plus.circle.fill", tint: .cyan)
+        ]
+    }
 
     // MARK: RunLogging
 
-    func currentRunMetrics() async -> [MetricTile] { [] }
+    func currentRunMetrics() async -> [MetricTile] {
+        guard let last = await recentRuns().first else { return [] }
+        return [
+            MetricTile(title: "Distance", value: String(format: "%.2f", last.distanceMeters / 1_000), unit: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up", tint: Color.lime),
+            MetricTile(title: "Pace", value: RunRecorder.paceLabel(secondsPerKm: last.averagePaceSecondsPerKm), unit: "/km", symbol: "timer", tint: Color.lime),
+            MetricTile(title: "Time", value: RunRecorder.timeLabel(last.movingTimeSeconds), unit: "", symbol: "stopwatch", tint: .white),
+            MetricTile(title: "Source", value: last.source.rawValue, unit: "", symbol: "sensor.tag.radiowaves.forward", tint: .cyan)
+        ]
+    }
+
+    func recentRuns() async -> [RecordedRun] {
+        var runs = store.loadRuns()
+        if let userID = currentUserID {
+            let garminRuns = await GarminBridge.shared
+                .recentActivities(authUserID: userID, limit: 100)
+                .compactMap { $0.toRecordedRun() }
+            runs.append(contentsOf: garminRuns)
+        }
+
+        var seen = Set<String>()
+        return runs
+            .sorted { $0.startedAt > $1.startedAt }
+            .filter { run in
+                let key = run.providerActivityID ?? run.id.uuidString
+                guard !seen.contains(key) else { return false }
+                seen.insert(key)
+                return true
+            }
+    }
+
+    func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
+        let movingTime = TimeInterval(max(1, durationMinutes) * 60)
+        let distanceMeters = max(0.1, distanceKm) * 1_000
+        let run = RecordedRun(
+            id: UUID(),
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: date,
+            endedAt: date.addingTimeInterval(movingTime),
+            distanceMeters: distanceMeters,
+            movingTimeSeconds: movingTime,
+            averagePaceSecondsPerKm: movingTime / max(distanceKm, 0.1),
+            averageHeartRateBPM: averageHeartRateBPM,
+            routePoints: [],
+            syncedAt: Date()
+        )
+        store.saveRun(run)
+        return run
+    }
 
     func finishRun() async {}
 

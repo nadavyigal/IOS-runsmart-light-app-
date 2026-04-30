@@ -107,6 +107,11 @@ struct ChallengeDetailView: View {
     }
 
     private func enroll() async {
+        if challenge.slug.hasPrefix("local-") {
+            isEnrolled = true
+            onEnrolled()
+            return
+        }
         guard let userID = session.currentUserID else { return }
         isEnrolling = true
         errorMessage = nil
