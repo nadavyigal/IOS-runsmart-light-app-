@@ -48,6 +48,7 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var router = AppRouter()
     @StateObject private var session = SupabaseSession()
     @StateObject private var recorder = RunRecorder()
+    @State private var didPresentMorningCheckin = false
     private let services = SupabaseRunSmartServices.shared
 
     var body: some View {
@@ -86,6 +87,14 @@ struct RunSmartLiteAppShell: View {
         .environment(\.runSmartServices, services)
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
+        .task(id: session.hasCompletedOnboarding) {
+            guard session.isAuthenticated, session.hasCompletedOnboarding, !didPresentMorningCheckin else { return }
+            didPresentMorningCheckin = true
+            try? await Task.sleep(nanoseconds: 650_000_000)
+            if router.activeSheet == nil {
+                router.open(.morningCheckin)
+            }
+        }
         .sheet(item: $router.activeSheet) { sheet in
             Group {
                 switch sheet {

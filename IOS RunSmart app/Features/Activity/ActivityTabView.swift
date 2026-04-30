@@ -2,7 +2,9 @@ import SwiftUI
 
 struct ActivityTabView: View {
     @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var router: AppRouter
     @State private var runs: [RecordedRun] = []
+    @State private var filter = "All"
 
     private var totalDistanceKm: Double {
         runs.reduce(0) { $0 + $1.distanceMeters / 1_000 }
@@ -16,6 +18,22 @@ struct ActivityTabView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 RunSmartHeader(title: "Activity")
+
+                HStack(spacing: 0) {
+                    ForEach(["All", "Runs", "Workouts"], id: \.self) { option in
+                        Button { filter = option } label: {
+                            Text(option.uppercased())
+                                .font(.labelSM)
+                                .tracking(1.1)
+                                .foregroundStyle(filter == option ? Color.black : Color.textSecondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(filter == option ? Color.accentPrimary : Color.surfaceElevated)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 HeroCard(accent: .accentSuccess) {
                     VStack(alignment: .leading, spacing: 18) {
@@ -48,7 +66,9 @@ struct ActivityTabView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         SectionLabel(title: "Recent runs", trailing: "All")
                         ForEach(runs.prefix(6)) { run in
-                            ActivityRunRow(run: run)
+                            ActivityRow(run: run) {
+                                router.open(.shareRun(run))
+                            }
                             if run.id != runs.prefix(6).last?.id {
                                 Divider()
                                     .background(Color.border)
@@ -58,18 +78,32 @@ struct ActivityTabView: View {
                 }
                 .runSmartStaggeredAppear(index: 1)
 
-                ContentCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(title: "Personal records")
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                            ActivityRecordTile(distance: "5K", time: "23:48", tint: .accentPrimary)
-                            ActivityRecordTile(distance: "10K", time: "49:15", tint: .accentEnergy)
-                            ActivityRecordTile(distance: "Half", time: "1:51:02", tint: .accentRecovery)
-                            ActivityRecordTile(distance: "Marathon", time: "--", tint: .textTertiary)
+                Button { router.open(.zoneAnalysis) } label: {
+                    ContentCard {
+                        HStack(spacing: 14) {
+                            Image(systemName: "heart.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(Color.accentHeart)
+                                .frame(width: 46, height: 46)
+                                .background(Color.accentHeart.opacity(0.12), in: Circle())
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Zone Analysis")
+                                    .font(.headingMD)
+                                Text("Review effort distribution across recent training.")
+                                    .font(.bodyMD)
+                                    .foregroundStyle(Color.textSecondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(Color.textTertiary)
                         }
                     }
                 }
+                .buttonStyle(.plain)
                 .runSmartStaggeredAppear(index: 2)
+
+                PersonalRecordsCard()
+                .runSmartStaggeredAppear(index: 3)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
@@ -100,82 +134,6 @@ private struct ActivityMetricPill: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-}
-
-private struct ActivityRunRow: View {
-    var run: RecordedRun
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "figure.run")
-                .font(.headline)
-                .foregroundStyle(Color.black)
-                .frame(width: 38, height: 38)
-                .background(Color.accentPrimary, in: Circle())
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(run.startedAt.formatted(date: .abbreviated, time: .omitted))
-                    .font(.bodyMD)
-                    .foregroundStyle(Color.textPrimary)
-                Text(run.source.rawValue)
-                    .font(.labelSM)
-                    .tracking(1.0)
-                    .foregroundStyle(Color.textTertiary)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(run.distanceKmLabel)
-                    .font(.metricSM)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.textPrimary)
-                Text(run.paceLabel)
-                    .font(.metricXS)
-                    .foregroundStyle(Color.textSecondary)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-private struct ActivityRecordTile: View {
-    var distance: String
-    var time: String
-    var tint: Color
-
-    var body: some View {
-        CompactCard {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(distance.uppercased())
-                        .font(.labelSM)
-                        .tracking(1.1)
-                        .foregroundStyle(Color.textSecondary)
-                    Spacer()
-                    Circle()
-                        .fill(tint)
-                        .frame(width: 7, height: 7)
-                }
-                Text(time)
-                    .font(.metricSM)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.textPrimary)
-            }
-        }
-    }
-}
-
-private extension RecordedRun {
-    var distanceKmLabel: String {
-        String(format: "%.1f km", distanceMeters / 1_000)
-    }
-
-    var paceLabel: String {
-        let minutes = Int(averagePaceSecondsPerKm) / 60
-        let seconds = Int(averagePaceSecondsPerKm) % 60
-        return String(format: "%d:%02d /km", minutes, seconds)
     }
 }
 

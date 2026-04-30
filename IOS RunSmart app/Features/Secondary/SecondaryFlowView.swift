@@ -16,6 +16,15 @@ enum SecondaryDestination: Hashable, Identifiable {
     case reminders
     case connectedService(String)
     case challenges
+    case recoveryDashboard
+    case morningCheckin
+    case goalWizard
+    case weeklyRecap
+    case garminWellness
+    case zoneAnalysis
+    case routeCreator
+    case badgeCabinet
+    case shareRun(RecordedRun?)
     case account
 
     var id: String {
@@ -35,6 +44,15 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .reminders: "reminders"
         case .connectedService(let name): "connectedService-\(name)"
         case .challenges: "challenges"
+        case .recoveryDashboard: "recoveryDashboard"
+        case .morningCheckin: "morningCheckin"
+        case .goalWizard: "goalWizard"
+        case .weeklyRecap: "weeklyRecap"
+        case .garminWellness: "garminWellness"
+        case .zoneAnalysis: "zoneAnalysis"
+        case .routeCreator: "routeCreator"
+        case .badgeCabinet: "badgeCabinet"
+        case .shareRun(let run): "shareRun-\(run?.id.uuidString ?? "nil")"
         case .account: "account"
         }
     }
@@ -56,6 +74,15 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .reminders: "Reminders & Preferences"
         case .connectedService(let name): name
         case .challenges: "Challenges"
+        case .recoveryDashboard: "Recovery"
+        case .morningCheckin: "Morning Check-In"
+        case .goalWizard: "Goal Wizard"
+        case .weeklyRecap: "Weekly Recap"
+        case .garminWellness: "Garmin Wellness"
+        case .zoneAnalysis: "Zone Analysis"
+        case .routeCreator: "Route Creator"
+        case .badgeCabinet: "Badge Cabinet"
+        case .shareRun: "Share Run"
         case .account: "Account"
         }
     }
@@ -74,7 +101,7 @@ struct SecondaryFlowView: View {
                     content
                     Spacer(minLength: 20)
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.textPrimary)
                 .padding(20)
             }
         }
@@ -114,6 +141,24 @@ struct SecondaryFlowView: View {
             ConnectedServiceDetailScaffold(serviceName: serviceName)
         case .challenges:
             ChallengesListView()
+        case .recoveryDashboard:
+            RecoveryDashboardView()
+        case .morningCheckin:
+            MorningCheckinView()
+        case .goalWizard:
+            GoalWizardView()
+        case .weeklyRecap:
+            WeeklyRecapView()
+        case .garminWellness:
+            GarminWellnessViews()
+        case .zoneAnalysis:
+            ZoneAnalysisView()
+        case .routeCreator:
+            RouteCreatorView()
+        case .badgeCabinet:
+            BadgeCabinetView()
+        case .shareRun(let run):
+            ShareRunView(run: run)
         case .account:
             AccountScaffold()
         }
@@ -151,6 +196,24 @@ struct SecondaryFlowView: View {
             "Inspect sync status, permissions, and controls."
         case .challenges:
             "Adopt a challenge and track your progress."
+        case .recoveryDashboard:
+            "Readiness, sleep, HRV, and recovery signals."
+        case .morningCheckin:
+            "Capture how the runner feels before training."
+        case .goalWizard:
+            "Set or revise the training goal."
+        case .weeklyRecap:
+            "Summarize the week and next coaching move."
+        case .garminWellness:
+            "Wellness panels from connected Garmin data."
+        case .zoneAnalysis:
+            "Understand effort distribution and heart rate zones."
+        case .routeCreator:
+            "Build a route that matches the workout."
+        case .badgeCabinet:
+            "Browse earned and locked achievements."
+        case .shareRun:
+            "Prepare a polished run share card."
         case .account:
             "Manage your sign-in and profile data."
         }
@@ -173,6 +236,15 @@ struct SecondaryFlowView: View {
         case .reminders: "bell.badge.fill"
         case .connectedService: "link.circle.fill"
         case .challenges: "trophy.fill"
+        case .recoveryDashboard: "heart.text.square.fill"
+        case .morningCheckin: "sunrise.fill"
+        case .goalWizard: "target"
+        case .weeklyRecap: "calendar.badge.checkmark"
+        case .garminWellness: "waveform.path.ecg"
+        case .zoneAnalysis: "heart.circle.fill"
+        case .routeCreator: "point.topleft.down.curvedto.point.bottomright.up"
+        case .badgeCabinet: "seal.fill"
+        case .shareRun: "square.and.arrow.up"
         case .account: "person.crop.circle.fill"
         }
     }
@@ -190,18 +262,18 @@ private struct FlowHeader: View {
                 .foregroundStyle(Color.black)
                 .frame(width: 58, height: 58)
                 .background(
-                    LinearGradient(colors: [Color.lime, Color.electricGreen], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    LinearGradient(colors: [Color.accentPrimary, Color.accentEnergy], startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: Color.lime.opacity(0.46), radius: 16)
+                .shadow(color: Color.accentPrimary.opacity(0.38), radius: 16)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(destination.title)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .font(.displayMD)
+                    .foregroundStyle(Color.textPrimary)
                 Text(subtitle)
                     .font(.callout)
-                    .foregroundStyle(Color.mutedText)
+                    .foregroundStyle(Color.textSecondary)
             }
         }
         .padding(.top, 8)
