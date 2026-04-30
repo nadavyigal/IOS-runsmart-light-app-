@@ -39,6 +39,7 @@ final class AppRouter: ObservableObject {
     }
 
     func startRun() {
+        RunSmartHaptics.medium()
         selectedTab = .run
     }
 }
@@ -51,11 +52,11 @@ struct RunSmartLiteAppShell: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            RunSmartBackground()
+            RunSmartBackground(context: RunSmartBackgroundContext(tab: router.selectedTab))
 
             if session.isLoading {
                 ProgressView()
-                    .tint(Color.lime)
+                    .tint(Color.accentPrimary)
                     .scaleEffect(1.5)
             } else if !session.isAuthenticated {
                 SignInView()
@@ -71,10 +72,11 @@ struct RunSmartLiteAppShell: View {
                     case .today:   TodayTabView()
                     case .plan:    PlanTabView()
                     case .run:     RunTabView()
+                    case .activity: ActivityTabView()
                     case .profile: ProfileTabView()
                     }
                 }
-                .safeAreaPadding(.bottom, 80)
+                .safeAreaPadding(.bottom, 88)
 
                 CustomTabBar(selectedTab: $router.selectedTab)
             }

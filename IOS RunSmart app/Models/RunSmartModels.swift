@@ -6,6 +6,7 @@ enum RunSmartTab: String, CaseIterable, Identifiable {
     case today = "Today"
     case plan = "Plan"
     case run = "Run"
+    case activity = "Activity"
     case profile = "Profile"
 
     var id: String { rawValue }
@@ -15,7 +16,18 @@ enum RunSmartTab: String, CaseIterable, Identifiable {
         case .today: "sun.max.fill"
         case .plan: "calendar"
         case .run: "figure.run"
+        case .activity: "chart.bar.xaxis"
         case .profile: "person"
+        }
+    }
+
+    var filledSymbol: String {
+        switch self {
+        case .today: "sun.max.fill"
+        case .plan: "calendar.badge.clock"
+        case .run: "figure.run.circle.fill"
+        case .activity: "chart.bar.xaxis"
+        case .profile: "person.fill"
         }
     }
 }
