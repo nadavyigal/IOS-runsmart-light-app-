@@ -35,6 +35,10 @@ struct LivePlanService: PlanProviding {
         _ = dto.weekEndISO8601
         return dto.workouts.map(RunSmartDTOMapper.workoutSummary(from:))
     }
+
+    func activeTrainingPlan() async -> TrainingPlanSnapshot? { nil }
+    func planWorkouts(from startDate: Date, to endDate: Date) async -> [WorkoutSummary] { [] }
+    func nextWorkouts(limit: Int) async -> [WorkoutSummary] { [] }
 }
 
 struct LiveCoachChatService: CoachChatting {
@@ -152,6 +156,18 @@ struct LiveRunSmartServices: RunSmartServiceProviding {
 
     func weeklyPlan() async -> [WorkoutSummary] {
         await planService.weeklyPlan()
+    }
+
+    func activeTrainingPlan() async -> TrainingPlanSnapshot? {
+        await planService.activeTrainingPlan()
+    }
+
+    func planWorkouts(from startDate: Date, to endDate: Date) async -> [WorkoutSummary] {
+        await planService.planWorkouts(from: startDate, to: endDate)
+    }
+
+    func nextWorkouts(limit: Int) async -> [WorkoutSummary] {
+        await planService.nextWorkouts(limit: limit)
     }
 
     func recentMessages() async -> [CoachMessage] {

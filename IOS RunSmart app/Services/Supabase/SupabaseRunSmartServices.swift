@@ -80,6 +80,42 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return activePlan.currentWeekWorkouts.map { $0.toWorkoutSummary() }
     }
 
+    func activeTrainingPlan() async -> TrainingPlanSnapshot? {
+        guard let userID = currentUserID else { return nil }
+        guard let activePlan = await planRepo.activePlan(profileID: userID) else { return nil }
+        let plan = activePlan.plan
+        let startDate = ISO8601DateFormatter.shortDate.date(from: plan.startDate) ?? Date()
+        let endDate = ISO8601DateFormatter.shortDate.date(from: plan.endDate) ?? Date()
+        return TrainingPlanSnapshot(
+            id: plan.id,
+            title: plan.title,
+            startDate: startDate,
+            endDate: endDate,
+            totalWeeks: plan.totalWeeks,
+            planType: plan.planType
+        )
+    }
+
+    func planWorkouts(from startDate: Date, to endDate: Date) async -> [WorkoutSummary] {
+        guard let userID = currentUserID else { return [] }
+        let workouts = await planRepo.planWorkouts(profileID: userID, from: startDate, to: endDate)
+        return workouts.map { $0.toWorkoutSummary() }
+    }
+
+    func nextWorkouts(limit: Int) async -> [WorkoutSummary] {
+        guard let userID = currentUserID else { return [] }
+        guard let activePlan = await planRepo.activePlan(profileID: userID) else { return [] }
+        let today = Calendar.current.startOfDay(for: Date())
+        return activePlan.workouts
+            .filter { w in
+                guard let date = w.scheduledDateAsDate else { return false }
+                return date >= today && !w.completed
+            }
+            .sorted { ($0.scheduledDateAsDate ?? .distantFuture) < ($1.scheduledDateAsDate ?? .distantFuture) }
+            .prefix(limit)
+            .map { $0.toWorkoutSummary() }
+    }
+
     // MARK: CoachChatting
 
     func recentMessages() async -> [CoachMessage] {

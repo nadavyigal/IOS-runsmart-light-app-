@@ -118,6 +118,9 @@ struct DBWorkout: Codable, Sendable {
     let completed: Bool
     let scheduledDate: String
     let notes: String?
+    let workoutStructure: String?
+    let intensity: String?
+    let trainingPhase: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -131,6 +134,27 @@ struct DBWorkout: Codable, Sendable {
         case completed
         case scheduledDate = "scheduled_date"
         case notes
+        case workoutStructure = "workout_structure"
+        case intensity
+        case trainingPhase = "training_phase"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        planId = try c.decode(UUID.self, forKey: .planId)
+        week = (try? c.decode(Int.self, forKey: .week)) ?? 0
+        day = (try? c.decode(String.self, forKey: .day)) ?? ""
+        type = (try? c.decode(String.self, forKey: .type)) ?? "easy"
+        distance = (try? c.decode(Double.self, forKey: .distance)) ?? 0
+        duration = try? c.decodeIfPresent(Int.self, forKey: .duration)
+        pace = try? c.decodeIfPresent(Int.self, forKey: .pace)
+        completed = (try? c.decode(Bool.self, forKey: .completed)) ?? false
+        scheduledDate = (try? c.decode(String.self, forKey: .scheduledDate)) ?? ""
+        notes = try? c.decodeIfPresent(String.self, forKey: .notes)
+        workoutStructure = try? c.decodeIfPresent(String.self, forKey: .workoutStructure)
+        intensity = try? c.decodeIfPresent(String.self, forKey: .intensity)
+        trainingPhase = try? c.decodeIfPresent(String.self, forKey: .trainingPhase)
     }
 }
 

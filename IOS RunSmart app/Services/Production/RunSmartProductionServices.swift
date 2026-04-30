@@ -352,21 +352,35 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func weeklyPlan() async -> [WorkoutSummary] {
         let profile = store.loadOnboardingProfile() ?? .empty
-        let days = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
-        return days.enumerated().map { index, day in
+        let calendar = Calendar.current
+        let today = Date()
+        guard let weekStart = calendar.date(
+            from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
+        ) else { return [] }
+
+        let shortDays = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+        return shortDays.enumerated().compactMap { index, day in
+            guard let date = calendar.date(byAdding: .day, value: index, to: weekStart) else { return nil }
             let isRunDay = index < profile.weeklyRunDays
+            let dayNum = calendar.component(.day, from: date)
             return WorkoutSummary(
+                id: UUID(),
+                scheduledDate: date,
                 weekday: day,
-                date: "\(index + 1)",
+                date: "\(dayNum)",
                 kind: isRunDay ? (index == 2 ? .tempo : .easy) : .recovery,
                 title: isRunDay ? (index == 2 ? "Tempo Run" : "Easy Run") : "Recovery",
                 distance: isRunDay ? "\(index == 2 ? 8 : 5) km" : "Rest",
-                detail: index == 1 ? "Today" : (isRunDay ? "Planned" : "Mobility"),
-                isToday: index == 1,
+                detail: calendar.isDateInToday(date) ? "Today" : (isRunDay ? "Planned" : "Mobility"),
+                isToday: calendar.isDateInToday(date),
                 isComplete: false
             )
         }
     }
+
+    func activeTrainingPlan() async -> TrainingPlanSnapshot? { nil }
+    func planWorkouts(from startDate: Date, to endDate: Date) async -> [WorkoutSummary] { [] }
+    func nextWorkouts(limit: Int) async -> [WorkoutSummary] { [] }
 
     func recentMessages() async -> [CoachMessage] {
         [

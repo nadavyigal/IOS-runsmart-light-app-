@@ -142,20 +142,31 @@ struct RunTrendChartCard: View {
 }
 
 struct MonthlyScheduleCard: View {
-    var workouts: [WorkoutSummary]
+    var displayedMonth: Date
+    var workoutsByDate: [String: WorkoutSummary]
     var onSelectWorkout: (WorkoutSummary) -> Void
+    var onPreviousMonth: () -> Void
+    var onNextMonth: () -> Void
+
+    private let calendar = Calendar.current
 
     private var monthDays: [Date] {
-        let calendar = Calendar.current
-        guard let interval = calendar.dateInterval(of: .month, for: Date()) else { return [] }
+        guard let interval = calendar.dateInterval(of: .month, for: displayedMonth) else { return [] }
         let firstWeekday = calendar.component(.weekday, from: interval.start)
         let leadingBlanks = max(0, firstWeekday - calendar.firstWeekday)
-        let start = calendar.date(byAdding: .day, value: -leadingBlanks, to: interval.start) ?? interval.start
-        return (0..<42).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+        let gridStart = calendar.date(byAdding: .day, value: -leadingBlanks, to: interval.start) ?? interval.start
+        return (0..<42).compactMap { calendar.date(byAdding: .day, value: $0, to: gridStart) }
     }
 
     private var title: String {
-        DateFormatter.monthYear.string(from: Date())
+        DateFormatter.monthYear.string(from: displayedMonth)
+    }
+
+    private var hasWorkoutsThisMonth: Bool {
+        monthDays.contains { date in
+            let key = ISO8601DateFormatter.shortDate.string(from: date)
+            return workoutsByDate[key] != nil && calendar.isDate(date, equalTo: displayedMonth, toGranularity: .month)
+        }
     }
 
     var body: some View {
@@ -165,14 +176,22 @@ struct MonthlyScheduleCard: View {
                     Text(title)
                         .font(.headline)
                     Spacer()
-                    Image(systemName: "chevron.left")
-                        .foregroundStyle(Color.mutedText)
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(Color.mutedText)
+                    Button(action: onPreviousMonth) {
+                        Image(systemName: "chevron.left")
+                            .foregroundStyle(Color.mutedText)
+                            .frame(width: 32, height: 32)
+                    }
+                    .buttonStyle(.plain)
+                    Button(action: onNextMonth) {
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(Color.mutedText)
+                            .frame(width: 32, height: 32)
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 HStack {
-                    ForEach(Calendar.current.shortWeekdaySymbols, id: \.self) { symbol in
+                    ForEach(calendar.shortWeekdaySymbols, id: \.self) { symbol in
                         Text(String(symbol.prefix(1)))
                             .font(.caption2.bold())
                             .foregroundStyle(Color.mutedText)
@@ -182,8 +201,9 @@ struct MonthlyScheduleCard: View {
 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 7), spacing: 7) {
                     ForEach(Array(monthDays.enumerated()), id: \.offset) { _, date in
-                        let workout = workout(for: date)
-                        let isCurrentMonth = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .month)
+                        let key = ISO8601DateFormatter.shortDate.string(from: date)
+                        let workout = workoutsByDate[key]
+                        let isCurrentMonth = calendar.isDate(date, equalTo: displayedMonth, toGranularity: .month)
                         Button {
                             if let workout { onSelectWorkout(workout) }
                         } label: {
@@ -193,18 +213,16 @@ struct MonthlyScheduleCard: View {
                         .disabled(workout == nil)
                     }
                 }
+
+                if !hasWorkoutsThisMonth && !workoutsByDate.isEmpty {
+                    Text("No scheduled workouts found for this month.")
+                        .font(.caption)
+                        .foregroundStyle(Color.mutedText)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 4)
+                }
             }
         }
-    }
-
-    private func workout(for date: Date) -> WorkoutSummary? {
-        guard !workouts.isEmpty else { return nil }
-        let index = (Calendar.current.component(.weekday, from: date) + 5) % 7
-        let shortWeekday = Calendar.current.shortWeekdaySymbols[Calendar.current.component(.weekday, from: date) - 1]
-        let byWeekday = workouts.first { workout in
-            String(workout.weekday.prefix(3)).caseInsensitiveCompare(shortWeekday) == .orderedSame
-        }
-        return byWeekday ?? workouts[index % workouts.count]
     }
 }
 

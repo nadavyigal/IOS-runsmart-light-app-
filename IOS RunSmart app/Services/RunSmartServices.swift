@@ -8,6 +8,9 @@ protocol TodayProviding {
 
 protocol PlanProviding {
     func weeklyPlan() async -> [WorkoutSummary]
+    func activeTrainingPlan() async -> TrainingPlanSnapshot?
+    func planWorkouts(from startDate: Date, to endDate: Date) async -> [WorkoutSummary]
+    func nextWorkouts(limit: Int) async -> [WorkoutSummary]
 }
 
 protocol CoachChatting {
@@ -27,6 +30,30 @@ protocol RunLogging {
     func finishRun() async
 }
 
+protocol WebParityProviding {
+    func activeGoal() async -> GoalSummary
+    func activeChallenge() async -> ChallengeSummary
+    func recoverySnapshot() async -> RecoverySnapshot
+    func wellnessSnapshot() async -> WellnessSnapshot
+    func shoes() async -> [ShoeSummary]
+    func reminders() async -> [ReminderPreference]
+    func latestRunReports() async -> [RunReportSummary]
+    func trainingLoadSnapshot() async -> TrainingLoadSnapshot
+    func shareableAchievements() async -> [ShareableAchievement]
+}
+
+extension WebParityProviding {
+    func activeGoal() async -> GoalSummary { RunSmartPreviewData.activeGoal }
+    func activeChallenge() async -> ChallengeSummary { RunSmartPreviewData.activeChallenge }
+    func recoverySnapshot() async -> RecoverySnapshot { RunSmartPreviewData.recovery }
+    func wellnessSnapshot() async -> WellnessSnapshot { RunSmartPreviewData.wellness }
+    func shoes() async -> [ShoeSummary] { RunSmartPreviewData.shoes }
+    func reminders() async -> [ReminderPreference] { RunSmartPreviewData.reminders }
+    func latestRunReports() async -> [RunReportSummary] { RunSmartPreviewData.runReports }
+    func trainingLoadSnapshot() async -> TrainingLoadSnapshot { RunSmartPreviewData.trainingLoad }
+    func shareableAchievements() async -> [ShareableAchievement] { RunSmartPreviewData.shareableAchievements }
+}
+
 struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, ProfileProviding, RunLogging {
     func todayRecommendation() async -> TodayRecommendation {
         RunSmartPreviewData.today
@@ -34,6 +61,18 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
 
     func weeklyPlan() async -> [WorkoutSummary] {
         RunSmartPreviewData.workouts
+    }
+
+    func activeTrainingPlan() async -> TrainingPlanSnapshot? { nil }
+
+    func planWorkouts(from startDate: Date, to endDate: Date) async -> [WorkoutSummary] {
+        RunSmartPreviewData.workouts.filter {
+            $0.scheduledDate >= startDate && $0.scheduledDate <= endDate
+        }
+    }
+
+    func nextWorkouts(limit: Int) async -> [WorkoutSummary] {
+        Array(RunSmartPreviewData.workouts.prefix(limit))
     }
 
     func recentMessages() async -> [CoachMessage] {

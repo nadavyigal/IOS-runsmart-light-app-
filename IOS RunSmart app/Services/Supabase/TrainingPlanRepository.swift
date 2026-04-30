@@ -81,6 +81,41 @@ final class TrainingPlanRepository {
             return nil
         }
     }
+
+    func planWorkouts(profileID: UUID, from startDate: Date, to endDate: Date) async -> [DBWorkout] {
+        do {
+            let plans: [DBPlan] = try await supabase
+                .from("plans")
+                .select()
+                .eq("profile_id", value: profileID.uuidString)
+                .eq("is_active", value: true)
+                .limit(1)
+                .execute()
+                .value
+
+            guard let plan = plans.first else { return [] }
+
+            let startStr = ISO8601DateFormatter.shortDate.string(from: startDate)
+            let endStr = ISO8601DateFormatter.shortDate.string(from: endDate)
+
+            let workouts: [DBWorkout] = try await supabase
+                .from("workouts")
+                .select()
+                .eq("plan_id", value: plan.id.uuidString)
+                .gte("scheduled_date", value: startStr)
+                .lte("scheduled_date", value: endStr)
+                .order("scheduled_date")
+                .execute()
+                .value
+
+            return workouts
+        } catch {
+            if !(error is CancellationError) {
+                print("[TrainingPlanRepo] planWorkouts error:", error)
+            }
+            return []
+        }
+    }
 }
 
 // MARK: - DBWorkout → WorkoutSummary
@@ -89,19 +124,28 @@ extension DBWorkout {
     func toWorkoutSummary() -> WorkoutSummary {
         let date = scheduledDateAsDate ?? Date()
         let calendar = Calendar.current
-        let weekday = calendar.shortWeekdaySymbols[calendar.component(.weekday, from: date) - 1]
+        let weekdayIndex = calendar.component(.weekday, from: date) - 1
+        let weekday = calendar.shortWeekdaySymbols[weekdayIndex].uppercased()
         let dayNum = calendar.component(.day, from: date)
         let isToday = calendar.isDateInToday(date)
 
         return WorkoutSummary(
+            id: id,
+            scheduledDate: date,
+            planID: planId,
             weekday: weekday,
             date: "\(dayNum)",
             kind: workoutKind,
             title: workoutTitle,
-            distance: String(format: "%.1f km", distance),
+            distance: distance > 0 ? String(format: "%.1f km", distance) : (duration.map { "\($0) min" } ?? "--"),
             detail: notes ?? "",
             isToday: isToday,
-            isComplete: completed
+            isComplete: completed,
+            durationMinutes: duration,
+            targetPaceSecondsPerKm: pace,
+            intensity: intensity,
+            trainingPhase: trainingPhase,
+            workoutStructure: workoutStructure
         )
     }
 

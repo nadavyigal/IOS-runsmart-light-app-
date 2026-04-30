@@ -28,6 +28,8 @@ enum RunSmartDTOMapper {
 
     static func workoutSummary(from dto: RunSmartDTO.WorkoutItem) -> WorkoutSummary {
         WorkoutSummary(
+            id: UUID(uuidString: dto.workoutID) ?? UUID(),
+            scheduledDate: Date(),
             weekday: dto.weekday,
             date: dto.dateLabel,
             kind: workoutKind(from: dto.kind),
