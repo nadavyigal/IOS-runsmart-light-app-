@@ -6,6 +6,7 @@ struct PlanTabView: View {
     @EnvironmentObject private var session: SupabaseSession
 
     @State private var weekWorkouts: [WorkoutSummary] = []
+    @State private var nextWorkouts: [WorkoutSummary] = []
     @State private var workoutsByDate: [String: WorkoutSummary] = [:]
     @State private var displayedMonth: Date = Date()
     @State private var isLoadingMonthWorkouts: Bool = true
@@ -48,6 +49,12 @@ struct PlanTabView: View {
                         recovery: recovery,
                         onCoach: { router.openCoach(context: "Plan") }
                     )
+
+                    if !nextWorkouts.isEmpty {
+                        UpcomingRunsCard(workouts: nextWorkouts) { workout in
+                            navPath.append(.workoutDetail(workout))
+                        }
+                    }
 
                     SegmentedPillPicker(values: PlanViewMode.allCases, selection: $viewMode) { $0.rawValue }
 
@@ -104,14 +111,22 @@ struct PlanTabView: View {
         }
         .task {
             async let weekTask = services.weeklyPlan()
+            async let nextTask = services.nextWorkouts(limit: 3)
             async let runsTask = services.recentRuns()
             async let goalTask = services.activeGoal()
             async let challengeTask = services.activeChallenge()
             async let recoveryTask = services.recoverySnapshot()
             async let loadTask = services.trainingLoadSnapshot()
-            (weekWorkouts, recentRuns, goal, challenge, recovery, trainingLoad) = await (
-                weekTask, runsTask, goalTask, challengeTask, recoveryTask, loadTask
+            let (ww, nw, runs, g, ch, rec, load) = await (
+                weekTask, nextTask, runsTask, goalTask, challengeTask, recoveryTask, loadTask
             )
+            weekWorkouts = ww
+            nextWorkouts = nw
+            recentRuns = runs
+            goal = g
+            challenge = ch
+            recovery = rec
+            trainingLoad = load
         }
         .task(id: displayedMonth) {
             isLoadingMonthWorkouts = true
