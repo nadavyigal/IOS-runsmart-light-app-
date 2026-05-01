@@ -16,6 +16,11 @@ extension Color {
     static let textTertiary = Color(red: 0.353, green: 0.392, blue: 0.471)
     static let border = Color(red: 0.118, green: 0.149, blue: 0.212)
 
+    static let accentAmber = Color(red: 1.000, green: 0.706, blue: 0.157)
+    static let accentMagenta = Color(red: 0.898, green: 0.271, blue: 0.737)
+    static let borderSubtle = Color(red: 0.094, green: 0.118, blue: 0.165)
+    static let shimmer = Color(red: 0.118, green: 0.149, blue: 0.212)
+
     // Compatibility aliases for existing screens while Phase 2 migrates view code.
     static let ink = Color.surfaceBase
     static let inkElevated = Color.surfaceElevated
@@ -519,5 +524,137 @@ struct CustomTabBar: View {
         }
         .offset(y: -18)
         .accessibilityLabel(RunSmartTab.run.rawValue)
+    }
+}
+
+struct SegmentedPillPicker<T: Hashable & CaseIterable & Identifiable>: View {
+    var values: [T]
+    @Binding var selection: T
+    var label: (T) -> String
+
+    init(values: [T], selection: Binding<T>, label: @escaping (T) -> String) {
+        self.values = values
+        self._selection = selection
+        self.label = label
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(values) { value in
+                Button { selection = value } label: {
+                    Text(label(value))
+                        .font(.labelSM)
+                        .tracking(0.6)
+                        .foregroundStyle(selection == value ? Color.black : Color.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(selection == value ? Color.accentPrimary : Color.surfaceElevated,
+                                    in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: RunSmartRadius.pill, style: .continuous))
+    }
+}
+
+struct StatusChip: View {
+    var text: String
+    var symbol: String? = nil
+    var tint: Color = .accentPrimary
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(.caption2.weight(.semibold))
+            }
+            Text(text)
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(tint.opacity(0.14), in: Capsule())
+    }
+}
+
+struct ParityMetricCard: View {
+    var title: String
+    var value: String
+    var detail: String
+    var symbol: String
+    var tint: Color
+    var values: [Double]
+
+    var body: some View {
+        ContentCard {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: symbol)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(tint)
+                    Spacer()
+                    Text(title.uppercased())
+                        .font(.labelSM)
+                        .tracking(0.8)
+                        .foregroundStyle(Color.textSecondary)
+                }
+                Text(value)
+                    .font(.headingMD)
+                    .foregroundStyle(Color.textPrimary)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(1)
+                MiniSparkline(values: values, tint: tint)
+                    .frame(height: 20)
+            }
+        }
+    }
+}
+
+private struct MiniSparkline: View {
+    var values: [Double]
+    var tint: Color
+
+    var body: some View {
+        GeometryReader { geo in
+            let maxVal = values.max() ?? 1
+            let minVal = values.min() ?? 0
+            let range = maxVal - minVal == 0 ? 1 : maxVal - minVal
+            let step = geo.size.width / CGFloat(Swift.max(values.count - 1, 1))
+            Path { path in
+                for (i, v) in values.enumerated() {
+                    let x = CGFloat(i) * step
+                    let y = geo.size.height * (1 - CGFloat((v - minVal) / range))
+                    if i == 0 { path.move(to: CGPoint(x: x, y: y)) }
+                    else { path.addLine(to: CGPoint(x: x, y: y)) }
+                }
+            }
+            .stroke(tint, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+        }
+    }
+}
+
+struct OrganicProgressRing: View {
+    var value: Double
+    var title: String
+    var subtitle: String
+    var tint: Color = .accentPrimary
+
+    var body: some View {
+        ZStack {
+            ProgressRing(value: value, lineWidth: 8, tint: tint)
+            VStack(spacing: 1) {
+                Text(title)
+                    .font(.labelLG)
+                    .foregroundStyle(Color.textPrimary)
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(Color.textSecondary)
+            }
+        }
     }
 }

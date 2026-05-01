@@ -28,6 +28,7 @@ struct RunTabView: View {
             } else {
                 PreRunView(
                     metrics: metrics,
+                    plannedWorkout: router.plannedWorkout,
                     onStart: {
                         RunSmartHaptics.medium()
                         recorder.start()

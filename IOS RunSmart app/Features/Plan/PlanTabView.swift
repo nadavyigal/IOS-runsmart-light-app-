@@ -146,10 +146,11 @@ struct PlanTabView: View {
     }
 }
 
-private enum PlanViewMode: String, CaseIterable, Hashable {
+private enum PlanViewMode: String, CaseIterable, Hashable, Identifiable {
     case week = "Week"
     case month = "Month"
     case progress = "Progress"
+    var id: String { rawValue }
 }
 
 private struct PlanBriefingCard: View {
@@ -159,7 +160,7 @@ private struct PlanBriefingCard: View {
     var onCoach: () -> Void
 
     var body: some View {
-        HeroCard(accentColor: .accentPrimary, cornerRadius: 22, padding: 16) {
+        HeroCard(accent: .accentPrimary, cornerRadius: 22, padding: 16) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .center, spacing: 16) {
                     CoachAvatar(size: 88, showBolt: true)
@@ -410,7 +411,7 @@ private struct ChallengePlanCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            HeroCard(accentColor: .accentAmber, cornerRadius: 20, padding: 14) {
+            HeroCard(accent: .accentAmber, cornerRadius: 20, padding: 14) {
                 HStack(spacing: 14) {
                     OrganicProgressRing(value: challenge.progress, title: "\(Int(challenge.progress * 100))%", subtitle: "done", tint: .accentAmber)
                         .frame(width: 96, height: 96)

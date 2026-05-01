@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-protocol RunSmartServiceProviding: TodayProviding, PlanProviding, CoachChatting, ProfileProviding, RunLogging, RouteProviding, DeviceSyncing, HealthSyncing {}
+protocol RunSmartServiceProviding: TodayProviding, PlanProviding, CoachChatting, ProfileProviding, RunLogging, WebParityProviding, RouteProviding, DeviceSyncing, HealthSyncing {}
 
 extension MockRunSmartServices: RunSmartServiceProviding {}
 

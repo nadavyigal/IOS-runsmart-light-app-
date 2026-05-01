@@ -7,6 +7,7 @@ struct TodayTabView: View {
 
     @State private var recommendation = TodayRecommendation.placeholder
     @State private var routes: [RouteSuggestion] = []
+    @State private var nextWorkouts: [WorkoutSummary] = []
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -31,7 +32,7 @@ struct TodayTabView: View {
                 TodayWorkoutCard(
                     recommendation: recommendation,
                     route: routes.first,
-                    onStart: { router.startRun() },
+                    onStart: { router.startRun(with: todayWorkout) },
                     onModify: { router.open(.planAdjustment) },
                     onSkip: { router.open(.reschedule(todayWorkout)) },
                     onRoute: { router.open(.routeSelector) }
@@ -45,11 +46,18 @@ struct TodayTabView: View {
                 )
                 .runSmartStaggeredAppear(index: 2)
 
-                quickStats
+                if !nextWorkouts.isEmpty {
+                    UpcomingRunsCard(workouts: nextWorkouts) { workout in
+                        router.open(.workoutDetail(workout))
+                    }
                     .runSmartStaggeredAppear(index: 3)
+                }
+
+                quickStats
+                    .runSmartStaggeredAppear(index: 4)
 
                 WeatherConditionsCard()
-                    .runSmartStaggeredAppear(index: 4)
+                    .runSmartStaggeredAppear(index: 5)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
@@ -58,7 +66,11 @@ struct TodayTabView: View {
         .task {
             async let recommendationTask = services.todayRecommendation()
             async let routesTask = services.routeSuggestions()
-            (recommendation, routes) = await (recommendationTask, routesTask)
+            async let nextWorkoutsTask = services.nextWorkouts(limit: 3)
+            let (rec, rts, nw) = await (recommendationTask, routesTask, nextWorkoutsTask)
+            recommendation = rec
+            routes = rts
+            nextWorkouts = nw
         }
     }
 
@@ -99,13 +111,19 @@ struct TodayTabView: View {
     }
 
     private var todayWorkout: WorkoutSummary {
-        WorkoutSummary(
+        if let real = nextWorkouts.first(where: { $0.isToday }) ?? nextWorkouts.first {
+            return real
+        }
+        return WorkoutSummary(
+            id: UUID(),
+            scheduledDate: Date(),
+            planID: nil,
             weekday: "",
             date: "",
-            kind: .tempo,
+            kind: .easy,
             title: recommendation.workoutTitle,
             distance: recommendation.distance,
-            detail: recommendation.pace,
+            detail: recommendation.coachMessage,
             isToday: true,
             isComplete: false
         )
@@ -223,6 +241,80 @@ struct MiniRouteView: View {
             }
             .stroke(Color.accentPrimary, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
             Circle().fill(Color.accentPrimary).frame(width: 10, height: 10).offset(x: 58, y: -22)
+        }
+    }
+}
+
+struct UpcomingRunsCard: View {
+    var workouts: [WorkoutSummary]
+    var onTap: (WorkoutSummary) -> Void
+
+    var body: some View {
+        ContentCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(title: "Next Runs")
+                ForEach(workouts) { workout in
+                    Button { onTap(workout) } label: {
+                        UpcomingRunRow(workout: workout)
+                    }
+                    .buttonStyle(.plain)
+                    if workout.id != workouts.last?.id {
+                        Divider().background(Color.border)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct UpcomingRunRow: View {
+    var workout: WorkoutSummary
+
+    private var dateLabel: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE d MMM"
+        return formatter.string(from: workout.scheduledDate)
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: workout.kind.symbol)
+                .font(.body)
+                .foregroundStyle(Color.accentPrimary)
+                .frame(width: 32, height: 32)
+                .background(Color.surfaceElevated, in: Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                Text(workout.title)
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                HStack(spacing: 6) {
+                    Text(dateLabel)
+                        .font(.labelSM)
+                        .foregroundStyle(Color.textSecondary)
+                    Text("·")
+                        .foregroundStyle(Color.textTertiary)
+                    Text(workout.distance)
+                        .font(.labelSM)
+                        .foregroundStyle(Color.textSecondary)
+                    if let pace = StructuredWorkoutFactory.derivedPaceLabel(workout: workout) {
+                        Text("·")
+                            .foregroundStyle(Color.textTertiary)
+                        Text(pace)
+                            .font(.labelSM)
+                            .foregroundStyle(Color.textSecondary)
+                    }
+                }
+                if !workout.detail.isEmpty {
+                    Text(workout.detail)
+                        .font(.caption)
+                        .foregroundStyle(Color.textTertiary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(Color.textTertiary)
         }
     }
 }

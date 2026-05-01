@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PreRunView: View {
     var metrics: [MetricTile]
+    var plannedWorkout: WorkoutSummary?
     var onStart: () -> Void
     var onRoute: () -> Void
     var onAudio: () -> Void
@@ -14,11 +15,27 @@ struct PreRunView: View {
                 HeroCard(accent: .accentEnergy) {
                     VStack(alignment: .leading, spacing: 16) {
                         SectionLabel(title: "Ready to run")
-                        Text("Tempo Builder")
+                        Text(plannedWorkout?.title ?? "Free Run")
                             .font(.headingLG)
-                        Text("8.2 km · 45-55 min · controlled threshold")
+                        if let workout = plannedWorkout {
+                            HStack(spacing: 8) {
+                                Text(workout.distance)
+                                if let pace = StructuredWorkoutFactory.derivedPaceLabel(workout: workout) {
+                                    Text("·")
+                                    Text(pace)
+                                }
+                                if !workout.detail.isEmpty {
+                                    Text("·")
+                                    Text(workout.detail).lineLimit(1)
+                                }
+                            }
                             .font(.metricSM)
                             .foregroundStyle(Color.accentPrimary)
+                        } else {
+                            Text("GPS tracking · pace · route")
+                                .font(.metricSM)
+                                .foregroundStyle(Color.accentPrimary)
+                        }
                         RouteMapView(points: [], title: "Select route")
                             .frame(height: 142)
                         Button(action: onStart) {

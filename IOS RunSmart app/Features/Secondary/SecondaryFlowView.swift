@@ -293,14 +293,31 @@ private struct WorkoutDetailScaffold: View {
                     SectionLabel(title: "Workout", trailing: workout.distance)
                     Text(workout.title)
                         .font(.title2.bold())
-                    Text(workoutPurpose)
-                        .font(.body)
-                        .foregroundStyle(.white.opacity(0.84))
+                    if !workout.detail.isEmpty {
+                        Text(workout.detail)
+                            .font(.body)
+                            .foregroundStyle(.white.opacity(0.84))
+                    } else {
+                        Text(workoutPurpose)
+                            .font(.body)
+                            .foregroundStyle(.white.opacity(0.84))
+                    }
 
                     HStack(spacing: 8) {
                         FlowChip(text: workout.distance, symbol: "point.topleft.down.curvedto.point.bottomright.up")
-                        FlowChip(text: estimatedDuration, symbol: "clock")
-                        FlowChip(text: targetZone, symbol: "heart")
+                        if let mins = workout.durationMinutes {
+                            FlowChip(text: "\(mins) min", symbol: "clock")
+                        } else {
+                            FlowChip(text: estimatedDuration, symbol: "clock")
+                        }
+                        if let paceStr = StructuredWorkoutFactory.derivedPaceLabel(workout: workout) {
+                            FlowChip(text: paceStr, symbol: "speedometer")
+                        } else {
+                            FlowChip(text: targetZone, symbol: "heart")
+                        }
+                        if let phase = workout.trainingPhase {
+                            FlowChip(text: phase, symbol: "flag")
+                        }
                     }
                 }
             }
@@ -340,23 +357,32 @@ private struct WorkoutDetailScaffold: View {
                         Text("Workout Breakdown")
                             .font(.headline)
                         Spacer()
-                        Text("COLLAPSE")
-                            .font(.caption.bold())
-                            .foregroundStyle(Color.mutedText)
-                        Image(systemName: "chevron.up")
-                            .foregroundStyle(Color.mutedText)
                     }
-                    Text("\(workout.distance) @ \(targetPace)")
-                        .font(.headline)
-                        .foregroundStyle(Color.mutedText)
-                    Text("STEPS")
-                        .font(.caption.bold())
-                        .foregroundStyle(Color.mutedText)
-                    ForEach(Array(breakdownSteps.enumerated()), id: \.offset) { _, step in
-                        WorkoutBreakdownStepRow(step: step)
+                    if let steps = StructuredWorkoutFactory.makeSteps(for: workout) {
+                        ForEach(steps) { step in
+                            WorkoutStepRow(step: step)
+                        }
+                    } else {
+                        Text("Workout breakdown unavailable for this plan item.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.mutedText)
+                            .padding(.vertical, 8)
                     }
                 }
             }
+
+            Button {
+                router.startRun(with: workout)
+            } label: {
+                Text("Start This Workout")
+                    .font(.headline)
+                    .foregroundStyle(Color.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color.lime)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
 
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
@@ -412,52 +438,6 @@ private struct WorkoutDetailScaffold: View {
         case .tempo, .intervals, .hills, .race: "Zone 3-4"
         case .recovery: "Zone 1"
         default: "Zone 2"
-        }
-    }
-
-    private var targetPace: String {
-        switch workout.kind {
-        case .tempo: "5:15 min/km"
-        case .intervals: "4:45 min/km"
-        case .hills: "Strong effort"
-        case .race: "Race pace"
-        case .recovery: "Easy jog"
-        default: "6:10 min/km"
-        }
-    }
-
-    private var breakdownSteps: [WorkoutBreakdownStep] {
-        switch workout.kind {
-        case .tempo:
-            return [
-                .init(title: "Warm Up", duration: "12:00", target: "6:20-6:50 min/km", note: "Easy warm-up", tint: .red),
-                .init(title: "Tempo Block", duration: "20:00", target: "5:05-5:25 min/km", note: "Controlled threshold effort", tint: .orange),
-                .init(title: "Cool Down", duration: "8:00", target: "6:30-7:10 min/km", note: "Relaxed finish", tint: Color.lime)
-            ]
-        case .intervals:
-            return [
-                .init(title: "Warm Up", duration: "10:00", target: "Easy", note: "Add mobility before speed", tint: .red),
-                .init(title: "Repeats", duration: "8 x 400 m", target: "4:35-4:55 min/km", note: "Jog 200 m between reps", tint: .blue),
-                .init(title: "Cool Down", duration: "10:00", target: "Easy", note: "Let heart rate settle", tint: Color.lime)
-            ]
-        case .hills:
-            return [
-                .init(title: "Warm Up", duration: "12:00", target: "Easy", note: "Find a steady climb", tint: .red),
-                .init(title: "Hill Repeats", duration: "8 x 45 sec", target: "Strong form", note: "Walk/jog down recovery", tint: .purple),
-                .init(title: "Cool Down", duration: "8:00", target: "Easy", note: "Flat and relaxed", tint: Color.lime)
-            ]
-        case .long:
-            return [
-                .init(title: "Settle In", duration: "15:00", target: "Zone 2", note: "Start softer than you think", tint: .red),
-                .init(title: "Endurance Run", duration: workout.distance, target: "Conversational", note: "Fuel if running over 75 minutes", tint: .blue),
-                .init(title: "Finish Smooth", duration: "5:00", target: "Easy", note: "No sprint finish", tint: Color.lime)
-            ]
-        default:
-            return [
-                .init(title: "Warm Up", duration: "10:00", target: "7:25-8:26 min/km", note: "Easy warm-up", tint: .red),
-                .init(title: "Run", duration: workout.distance, target: targetPace, note: "Continuous relaxed run", tint: .blue),
-                .init(title: "Cool Down", duration: "5:00", target: "Easy", note: "Walk or jog home", tint: Color.lime)
-            ]
         }
     }
 }
@@ -1312,16 +1292,8 @@ private struct ActionTile: View {
     }
 }
 
-private struct WorkoutBreakdownStep {
-    var title: String
-    var duration: String
-    var target: String
-    var note: String
-    var tint: Color
-}
-
-private struct WorkoutBreakdownStepRow: View {
-    var step: WorkoutBreakdownStep
+private struct WorkoutStepRow: View {
+    var step: WorkoutStep
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -1334,12 +1306,14 @@ private struct WorkoutBreakdownStepRow: View {
                 Text(step.duration)
                     .font(.subheadline)
                     .foregroundStyle(Color.mutedText)
-                Text("Intensity Target · \(step.target)")
+                Text("Target · \(step.target)")
                     .font(.subheadline)
                     .foregroundStyle(Color.mutedText)
-                Text(step.note)
-                    .font(.caption.italic())
-                    .foregroundStyle(Color.mutedText)
+                if !step.note.isEmpty {
+                    Text(step.note)
+                        .font(.caption.italic())
+                        .foregroundStyle(Color.mutedText)
+                }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)

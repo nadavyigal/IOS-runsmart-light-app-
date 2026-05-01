@@ -17,6 +17,7 @@ enum RunSmartSheet: Identifiable {
 final class AppRouter: ObservableObject {
     @Published var selectedTab: RunSmartTab = AppRouter.initialTab()
     @Published var activeSheet: RunSmartSheet?
+    @Published var plannedWorkout: WorkoutSummary?
 
     private static func initialTab() -> RunSmartTab {
 #if DEBUG
@@ -38,8 +39,10 @@ final class AppRouter: ObservableObject {
         activeSheet = .secondary(destination)
     }
 
-    func startRun() {
+    func startRun(with workout: WorkoutSummary? = nil) {
         RunSmartHaptics.medium()
+        plannedWorkout = workout
+        activeSheet = nil
         selectedTab = .run
     }
 }
