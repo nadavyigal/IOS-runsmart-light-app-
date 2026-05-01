@@ -8,6 +8,7 @@ struct ProfileTabView: View {
     @State private var runner = RunnerProfile(name: "RunSmart Runner", goal: "Loading", streak: "--", level: "--", totalRuns: 0, totalDistance: 0, totalTime: "0h 0m")
     @State private var achievements: [Achievement] = []
     @State private var deviceStatuses: [ConnectedDeviceStatus] = []
+    @State private var runReports: [RunReportSummary] = []
     @State private var navPath: [SecondaryDestination] = []
 
     var body: some View {
@@ -21,6 +22,13 @@ struct ProfileTabView: View {
                     identityHeader
                     statsBar
                     achievementsGallery
+                    if !runReports.isEmpty {
+                        RecentRunReportsCard(reports: runReports) { report in
+                            if let detail = report.toDetail() {
+                                navPath.append(.runReportDetail(detail))
+                            }
+                        }
+                    }
                     settingsSections
                 }
                 .foregroundStyle(Color.textPrimary)
@@ -36,7 +44,8 @@ struct ProfileTabView: View {
             async let runnerTask = services.runnerProfile()
             async let achievementsTask = services.achievements()
             async let statusesTask = services.deviceStatuses()
-            (runner, achievements, deviceStatuses) = await (runnerTask, achievementsTask, statusesTask)
+            async let reportsTask = services.latestRunReports(limit: 3)
+            (runner, achievements, deviceStatuses, runReports) = await (runnerTask, achievementsTask, statusesTask, reportsTask)
         }
     }
 

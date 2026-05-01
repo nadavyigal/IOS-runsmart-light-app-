@@ -268,6 +268,26 @@ struct DBGarminActivity: Codable, Hashable, Sendable {
     }
 }
 
+struct DBAIInsight: Codable, Sendable {
+    let id: UUID?
+    let authUserId: UUID?
+    let activityId: String?
+    let type: String?
+    let content: String?
+    let summary: String?
+    let createdAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case authUserId = "auth_user_id"
+        case activityId = "activity_id"
+        case type
+        case content
+        case summary
+        case createdAt = "created_at"
+    }
+}
+
 struct DBChallenge: Codable, Sendable {
     let id: UUID
     let slug: String

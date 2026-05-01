@@ -41,6 +41,8 @@
 	<string>RunSmart records GPS routes, pace, and distance during outdoor runs.</string>
 	<key>RUNSMART_GARMIN_GATEWAY_URL</key>
 	<string>https://runsmart-ai.com/garmin/connect</string>
+	<key>RunSmartAPIBaseURL</key>
+	<string>https://runsmart-ai.com</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

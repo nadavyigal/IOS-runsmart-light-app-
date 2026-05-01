@@ -276,7 +276,7 @@ struct ReminderPreference: Identifiable, Hashable {
     var enabled: Bool
 }
 
-struct RunReportSummary: Identifiable, Hashable {
+struct RunReportSummary: Identifiable, Codable, Hashable {
     var id: String
     var title: String
     var dateLabel: String
@@ -284,6 +284,56 @@ struct RunReportSummary: Identifiable, Hashable {
     var pace: String
     var score: Int
     var insight: String
+    var source: String = ""
+    var runID: String? = nil
+    var duration: String = "—"
+    var averageHeartRate: String = "—"
+}
+
+struct CoachRunNotes: Codable, Hashable {
+    var summary: String
+    var effort: String
+    var recovery: String
+    var nextSessionNudge: String
+}
+
+struct StructuredNextWorkout: Codable, Hashable {
+    var title: String
+    var dateLabel: String?
+    var distance: String?
+    var target: String?
+    var notes: String?
+}
+
+struct RunReportDetail: Identifiable, Codable, Hashable {
+    var id: String
+    var runID: String
+    var title: String
+    var dateLabel: String
+    var source: String
+    var distance: String
+    var duration: String
+    var averagePace: String
+    var averageHeartRate: String
+    var coachScore: Int?
+    var notes: CoachRunNotes
+    var structuredNextWorkout: StructuredNextWorkout?
+
+    var summary: RunReportSummary {
+        RunReportSummary(
+            id: id,
+            title: title,
+            dateLabel: dateLabel,
+            distance: distance,
+            pace: averagePace,
+            score: coachScore ?? 0,
+            insight: notes.summary,
+            source: source,
+            runID: runID,
+            duration: duration,
+            averageHeartRate: averageHeartRate
+        )
+    }
 }
 
 struct TrainingLoadSnapshot: Hashable {
@@ -313,6 +363,10 @@ extension ChallengeSummary {
 
 extension RecoverySnapshot {
     static let loading = RecoverySnapshot(readiness: 0, bodyBattery: 0, sleep: "—", hrv: "—", stress: "—", recommendation: "Loading recovery data…")
+}
+
+extension WellnessSnapshot {
+    static let empty = WellnessSnapshot(calories: "—", hydration: "—", soreness: "—", mood: "—", checkInStatus: "No wellness check-in yet.")
 }
 
 extension TrainingLoadSnapshot {

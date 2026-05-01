@@ -130,6 +130,38 @@ enum RunSmartDTO {
         let lastSuccessfulSyncISO8601: String?
         let permissions: [String]
     }
+
+    struct RunReportRequest: Codable {
+        let runID: String
+        let source: String
+        let startedAtISO8601: String
+        let endedAtISO8601: String
+        let distanceMeters: Double
+        let movingTimeSeconds: Int
+        let averagePaceSecondsPerKm: Double
+        let averageHeartRateBPM: Int?
+        let telemetry: [RoutePoint]
+        let recentRuns: [RunLogRequest]
+        let upcomingWorkouts: [WorkoutReportContext]
+    }
+
+    struct WorkoutReportContext: Codable {
+        let workoutID: String
+        let scheduledDateISO8601: String
+        let title: String
+        let distanceLabel: String
+        let targetPaceSecondsPerKm: Int?
+        let notes: String?
+    }
+
+    struct RunReportPayload: Codable, Sendable {
+        let summary: String?
+        let effort: String?
+        let recovery: String?
+        let nextSessionNudge: String?
+        let coachScore: Int?
+        let structuredNextWorkout: StructuredNextWorkout?
+    }
 }
 
 enum RunSmartAPI {
@@ -161,7 +193,7 @@ enum RunSmartAPIError: Error {
 }
 
 protocol RunSmartAPIClient {
-    func send<Response: Decodable & Sendable>(_ endpoint: RunSmartAPI.Endpoint, as: Response.Type) async throws -> Response
+    nonisolated func send<Response: Decodable>(_ endpoint: RunSmartAPI.Endpoint, as: Response.Type) async throws -> Response
 }
 
 struct URLSessionRunSmartAPIClient: RunSmartAPIClient {
@@ -169,13 +201,13 @@ struct URLSessionRunSmartAPIClient: RunSmartAPIClient {
     let session: URLSession
     var accessToken: String?
 
-    init(baseURL: URL, session: URLSession = .shared, accessToken: String? = nil) {
+    init(baseURL: URL = URLSessionRunSmartAPIClient.configuredBaseURL(), session: URLSession = .shared, accessToken: String? = nil) {
         self.baseURL = baseURL
         self.session = session
         self.accessToken = accessToken
     }
 
-    func send<Response: Decodable & Sendable>(_ endpoint: RunSmartAPI.Endpoint, as: Response.Type) async throws -> Response {
+    nonisolated func send<Response: Decodable>(_ endpoint: RunSmartAPI.Endpoint, as: Response.Type) async throws -> Response {
         var components = URLComponents(url: baseURL.appendingPathComponent(endpoint.path), resolvingAgainstBaseURL: false)
         components?.queryItems = endpoint.queryItems.isEmpty ? nil : endpoint.queryItems
 
@@ -198,5 +230,14 @@ struct URLSessionRunSmartAPIClient: RunSmartAPIClient {
             throw RunSmartAPIError.badStatus(http.statusCode)
         }
         return try JSONDecoder().decode(Response.self, from: data)
+    }
+
+    static func configuredBaseURL() -> URL {
+        if let raw = Bundle.main.object(forInfoDictionaryKey: "RunSmartAPIBaseURL") as? String,
+           let url = URL(string: raw),
+           !raw.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
+            return url
+        }
+        return URL(string: "https://runsmart-ai.com")!
     }
 }

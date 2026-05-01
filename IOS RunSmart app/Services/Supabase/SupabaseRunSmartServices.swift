@@ -369,6 +369,137 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         await healthSync.save(run)
     }
 
+    // MARK: WebParityProviding
+
+    func latestRunReports(limit: Int) async -> [RunReportSummary] {
+        guard limit > 0 else { return [] }
+
+        var reports: [RunReportDetail] = []
+        let localRuns = store.loadRuns().prefix(limit)
+        for run in localRuns {
+            if let report = await runReport(for: run) {
+                reports.append(report)
+            } else {
+                reports.append(Self.reportSkeleton(for: run))
+            }
+        }
+
+        if let userID = currentUserID {
+            let garminActivities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: limit)
+            for activity in garminActivities {
+                guard let run = activity.toRecordedRun() else { continue }
+                if let report = await runReport(for: run) {
+                    reports.append(report)
+                } else {
+                    reports.append(Self.reportSkeleton(for: run))
+                }
+            }
+        }
+
+        var seen = Set<String>()
+        return reports
+            .sorted { $0.sortDate > $1.sortDate }
+            .filter { report in
+                guard !seen.contains(report.runID) else { return false }
+                seen.insert(report.runID)
+                return true
+            }
+            .prefix(limit)
+            .map(\.summary)
+    }
+
+    func runReport(for run: RecordedRun) async -> RunReportDetail? {
+        if run.source == .garmin,
+           let activityID = run.providerActivityID,
+           let insight = await fetchPostRunInsight(activityID: activityID),
+           let report = Self.report(from: insight, run: run) {
+            return report
+        }
+
+        return store.cachedRunReport(runID: Self.reportRunID(for: run))
+    }
+
+    func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? {
+        if let existing = await runReport(for: run) {
+            return existing
+        }
+
+        guard let token = try? await supabase.auth.session.accessToken else {
+            return nil
+        }
+
+        do {
+            let recent = Array((await recentRuns()).prefix(5))
+            let upcoming = Array((await nextWorkouts(limit: 3)))
+            let request = Self.reportRequest(for: run, recentRuns: recent, upcomingWorkouts: upcoming)
+            let encoder = JSONEncoder()
+            let body = try encoder.encode(request)
+            let client = URLSessionRunSmartAPIClient(accessToken: token)
+            let payload = try await client.send(
+                RunSmartAPI.Endpoint(path: "api/run-report", method: .post, body: body),
+                as: RunSmartDTO.RunReportPayload.self
+            )
+            let report = Self.report(from: payload, run: run)
+            store.saveRunReport(report)
+            return report
+        } catch {
+            if !(error is CancellationError) {
+                print("[SupabaseServices] run report generation error:", error)
+            }
+            return nil
+        }
+    }
+
+    func activeGoal() async -> GoalSummary {
+        guard let plan = await activeTrainingPlan() else { return .loading }
+        let days = Calendar.current.dateComponents([.day], from: Date(), to: plan.endDate).day
+        return GoalSummary(
+            id: plan.id.uuidString,
+            title: plan.title,
+            detail: plan.planType.capitalized,
+            progress: planProgress(plan),
+            target: plan.endDate.formatted(date: .abbreviated, time: .omitted),
+            daysRemaining: days.map { max(0, $0) },
+            trendLabel: "Active plan"
+        )
+    }
+
+    func activeChallenge() async -> ChallengeSummary { .loading }
+
+    func recoverySnapshot() async -> RecoverySnapshot {
+        guard let userID = currentUserID,
+              let metrics = await latestGarminMetrics(userID: userID) else { return .loading }
+        return RecoverySnapshot(
+            readiness: metrics.bodyBattery ?? 0,
+            bodyBattery: metrics.bodyBattery ?? 0,
+            sleep: metrics.sleepDurationS.map { String(format: "%dh %02dm", Int32($0 / 3600), Int32(($0 % 3600) / 60)) } ?? "—",
+            hrv: metrics.hrv.map { String(format: "%.0f ms", $0) } ?? "—",
+            stress: "—",
+            recommendation: (metrics.bodyBattery ?? 0) >= 50 ? "Recovery data synced from Garmin." : "Keep this one easy until recovery improves."
+        )
+    }
+
+    func wellnessSnapshot() async -> WellnessSnapshot { .empty }
+    func shoes() async -> [ShoeSummary] { [] }
+    func reminders() async -> [ReminderPreference] { [] }
+
+    func trainingLoadSnapshot() async -> TrainingLoadSnapshot {
+        let runs = await recentRuns()
+        guard !runs.isEmpty else { return .loading }
+        let sevenDaysAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        let recentKm = runs.filter { $0.startedAt >= sevenDaysAgo }.reduce(0.0) { $0 + $1.distanceMeters } / 1_000
+        return TrainingLoadSnapshot(
+            loadLabel: String(format: "%.1f km", recentKm),
+            loadValue: min(100, Int(recentKm * 4)),
+            acwr: "Real activity",
+            consistency: min(100, runs.count * 10),
+            paceTrend: runs.first.map { RunRecorder.paceLabel(secondsPerKm: $0.averagePaceSecondsPerKm) } ?? "—",
+            weeklyRecap: "Based on synced Garmin and local runs."
+        )
+    }
+
+    func shareableAchievements() async -> [ShareableAchievement] { [] }
+
     // MARK: Private helpers
 
     private func fetchProfile(userID: UUID) async -> DBProfile? {
@@ -434,6 +565,29 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             }
         } catch {}
         return ConnectedDeviceStatus(provider: "Garmin Connect", state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: nil)
+    }
+
+    private func fetchPostRunInsight(activityID: String) async -> DBAIInsight? {
+        do {
+            let rows: [DBAIInsight] = try await supabase
+                .from("ai_insights")
+                .select()
+                .eq("activity_id", value: activityID)
+                .eq("type", value: "post_run")
+                .order("created_at", ascending: false)
+                .limit(1)
+                .execute()
+                .value
+            return rows.first
+        } catch {
+            return nil
+        }
+    }
+
+    private func planProgress(_ plan: TrainingPlanSnapshot) -> Double {
+        let total = max(1, plan.endDate.timeIntervalSince(plan.startDate))
+        let elapsed = Date().timeIntervalSince(plan.startDate)
+        return min(1, max(0, elapsed / total))
     }
 
     private func latestCoachMessage(profileID: UUID) async -> String? {
@@ -545,6 +699,160 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         if let d = formatter.date(from: str) { return d }
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: str)
+    }
+}
+
+private extension SupabaseRunSmartServices {
+    static func reportRunID(for run: RecordedRun) -> String {
+        run.providerActivityID ?? run.id.uuidString
+    }
+
+    static func reportSkeleton(for run: RecordedRun) -> RunReportDetail {
+        let runID = reportRunID(for: run)
+        return RunReportDetail(
+            id: "report-\(runID)",
+            runID: runID,
+            title: "\(run.source.rawValue) Run",
+            dateLabel: run.startedAt.formatted(date: .abbreviated, time: .omitted),
+            source: run.source.rawValue,
+            distance: String(format: "%.2f km", run.distanceMeters / 1_000),
+            duration: RunRecorder.timeLabel(run.movingTimeSeconds),
+            averagePace: RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm),
+            averageHeartRate: run.averageHeartRateBPM.map { "\($0) bpm" } ?? "—",
+            coachScore: nil,
+            notes: CoachRunNotes(
+                summary: "No coach report yet.",
+                effort: "Open the report to generate notes from this activity.",
+                recovery: "No recovery note yet.",
+                nextSessionNudge: "No next-run recommendation yet."
+            ),
+            structuredNextWorkout: nil
+        )
+    }
+
+    static func report(from insight: DBAIInsight, run: RecordedRun) -> RunReportDetail? {
+        let text = insight.content ?? insight.summary ?? ""
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+
+        if let data = text.data(using: .utf8),
+           let payload = try? JSONDecoder().decode(RunSmartDTO.RunReportPayload.self, from: data) {
+            return report(from: payload, run: run)
+        }
+
+        let runID = reportRunID(for: run)
+        return RunReportDetail(
+            id: insight.id?.uuidString ?? "insight-\(runID)",
+            runID: runID,
+            title: "\(run.source.rawValue) Run Report",
+            dateLabel: run.startedAt.formatted(date: .abbreviated, time: .omitted),
+            source: run.source.rawValue,
+            distance: String(format: "%.2f km", run.distanceMeters / 1_000),
+            duration: RunRecorder.timeLabel(run.movingTimeSeconds),
+            averagePace: RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm),
+            averageHeartRate: run.averageHeartRateBPM.map { "\($0) bpm" } ?? "—",
+            coachScore: nil,
+            notes: CoachRunNotes(
+                summary: firstMarkdownSection(named: "summary", in: text) ?? text,
+                effort: firstMarkdownSection(named: "effort", in: text) ?? "Effort notes are included in the coach summary.",
+                recovery: firstMarkdownSection(named: "recovery", in: text) ?? "No recovery note stored.",
+                nextSessionNudge: firstMarkdownSection(named: "next", in: text) ?? "No next-run recommendation stored."
+            ),
+            structuredNextWorkout: nil
+        )
+    }
+
+    static func report(from payload: RunSmartDTO.RunReportPayload, run: RecordedRun) -> RunReportDetail {
+        let runID = reportRunID(for: run)
+        return RunReportDetail(
+            id: "report-\(runID)",
+            runID: runID,
+            title: "\(run.source.rawValue) Run Report",
+            dateLabel: run.startedAt.formatted(date: .abbreviated, time: .omitted),
+            source: run.source.rawValue,
+            distance: String(format: "%.2f km", run.distanceMeters / 1_000),
+            duration: RunRecorder.timeLabel(run.movingTimeSeconds),
+            averagePace: RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm),
+            averageHeartRate: run.averageHeartRateBPM.map { "\($0) bpm" } ?? "—",
+            coachScore: payload.coachScore,
+            notes: CoachRunNotes(
+                summary: payload.summary ?? "No coach report yet.",
+                effort: payload.effort ?? "No effort note yet.",
+                recovery: payload.recovery ?? "No recovery note yet.",
+                nextSessionNudge: payload.nextSessionNudge ?? "No next-run recommendation yet."
+            ),
+            structuredNextWorkout: payload.structuredNextWorkout
+        )
+    }
+
+    static func reportRequest(for run: RecordedRun, recentRuns: [RecordedRun], upcomingWorkouts: [WorkoutSummary]) -> RunSmartDTO.RunReportRequest {
+        RunSmartDTO.RunReportRequest(
+            runID: reportRunID(for: run),
+            source: run.source.rawValue,
+            startedAtISO8601: ISO8601DateFormatter().string(from: run.startedAt),
+            endedAtISO8601: ISO8601DateFormatter().string(from: run.endedAt),
+            distanceMeters: run.distanceMeters,
+            movingTimeSeconds: Int(run.movingTimeSeconds.rounded()),
+            averagePaceSecondsPerKm: run.averagePaceSecondsPerKm,
+            averageHeartRateBPM: run.averageHeartRateBPM,
+            telemetry: run.routePoints.enumerated().map { index, point in
+                RunSmartDTO.RoutePoint(latitude: point.latitude, longitude: point.longitude, sequence: index)
+            },
+            recentRuns: recentRuns.map { recent in
+                RunSmartDTO.RunLogRequest(
+                    startedAtISO8601: ISO8601DateFormatter().string(from: recent.startedAt),
+                    endedAtISO8601: ISO8601DateFormatter().string(from: recent.endedAt),
+                    distanceMeters: recent.distanceMeters,
+                    movingTimeSeconds: Int(recent.movingTimeSeconds.rounded()),
+                    averagePaceSecondsPerKm: recent.averagePaceSecondsPerKm,
+                    averageHeartRateBPM: recent.averageHeartRateBPM,
+                    routePoints: []
+                )
+            },
+            upcomingWorkouts: upcomingWorkouts.map { workout in
+                RunSmartDTO.WorkoutReportContext(
+                    workoutID: workout.id.uuidString,
+                    scheduledDateISO8601: ISO8601DateFormatter().string(from: workout.scheduledDate),
+                    title: workout.title,
+                    distanceLabel: workout.distance,
+                    targetPaceSecondsPerKm: workout.targetPaceSecondsPerKm,
+                    notes: workout.detail.isEmpty ? nil : workout.detail
+                )
+            }
+        )
+    }
+
+    static func firstMarkdownSection(named name: String, in text: String) -> String? {
+        let lowerName = name.lowercased()
+        let lines = text.components(separatedBy: .newlines)
+        var capture = false
+        var collected: [String] = []
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            let heading = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "#*: "))
+            if heading.lowercased().contains(lowerName) {
+                capture = true
+                continue
+            }
+            if capture && trimmed.hasPrefix("#") {
+                break
+            }
+            if capture && !trimmed.isEmpty {
+                collected.append(trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "-* ")))
+            }
+        }
+
+        let value = collected.joined(separator: " ")
+        return value.isEmpty ? nil : value
+    }
+}
+
+private extension RunReportDetail {
+    var sortDate: Date {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.date(from: dateLabel) ?? .distantPast
     }
 }
 

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 
+#if DEBUG
 enum RunSmartPreviewData {
     static let runner = RunnerProfile(
         name: "Alex Morgan",
@@ -161,3 +162,4 @@ enum RunSmartPreviewData {
         }
     }
 }
+#endif

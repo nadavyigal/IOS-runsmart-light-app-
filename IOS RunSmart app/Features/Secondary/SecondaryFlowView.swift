@@ -7,6 +7,7 @@ enum SecondaryDestination: Hashable, Identifiable {
     case addActivity
     case routeSelector
     case runReport(DBGarminActivity)
+    case runReportDetail(RunReportDetail)
     case postRunSummary(RecordedRun?)
     case audioCues
     case lapMarker
@@ -35,6 +36,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .addActivity: "addActivity"
         case .routeSelector: "routeSelector"
         case .runReport(let activity): "runReport-\(activity.id)"
+        case .runReportDetail(let report): "runReportDetail-\(report.id)"
         case .postRunSummary(let run): "postRunSummary-\(run?.id.uuidString ?? "nil")"
         case .audioCues: "audioCues"
         case .lapMarker: "lapMarker"
@@ -64,7 +66,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .reschedule: "Reschedule"
         case .addActivity: "Add Activity"
         case .routeSelector: "Route Selector"
-        case .runReport: "Run Report"
+        case .runReport, .runReportDetail: "Run Report"
         case .postRunSummary: "Post-Run Summary"
         case .audioCues: "Audio Cues"
         case .lapMarker: "Lap Marker"
@@ -123,6 +125,8 @@ struct SecondaryFlowView: View {
             RouteSelectorScaffold()
         case .runReport(let activity):
             RunReportScaffold(activity: activity)
+        case .runReportDetail(let report):
+            RunReportDetailScaffold(report: report)
         case .postRunSummary(let run):
             PostRunSummaryScaffold(run: run)
         case .audioCues:
@@ -176,7 +180,7 @@ struct SecondaryFlowView: View {
             "Log a manual run or cross-training session."
         case .routeSelector:
             "Choose a route that fits today's workout."
-        case .runReport:
+        case .runReport, .runReportDetail:
             "Review a saved run from your history."
         case .postRunSummary:
             "Review effort and save the completed run."
@@ -226,7 +230,7 @@ struct SecondaryFlowView: View {
         case .reschedule: "calendar.badge.clock"
         case .addActivity: "plus.circle.fill"
         case .routeSelector: "map.fill"
-        case .runReport: "chart.xyaxis.line"
+        case .runReport, .runReportDetail: "chart.xyaxis.line"
         case .postRunSummary: "checkmark.seal.fill"
         case .audioCues: "speaker.wave.2.fill"
         case .lapMarker: "flag.fill"
@@ -749,8 +753,12 @@ private struct RouteSelectorScaffold: View {
 }
 
 private struct RunReportScaffold: View {
+    @Environment(\.runSmartServices) private var services
     var activity: DBGarminActivity
     @State private var routePoints: [RunRoutePoint] = []
+    @State private var report: RunReportDetail?
+    @State private var isGenerating = false
+    @State private var generationFailed = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -778,6 +786,25 @@ private struct RunReportScaffold: View {
                 }
             }
 
+            if let report {
+                RunReportCoachNotesCard(report: report)
+                RunReportNextWorkoutCard(report: report)
+            } else {
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(title: "Coach Report")
+                        Text(generationFailed ? "No coach report yet. Report generation failed, but you can retry from this real activity." : "No coach report yet.")
+                            .font(.callout)
+                            .foregroundStyle(Color.mutedText)
+                        Button(isGenerating ? "Generating..." : "Generate Report") {
+                            Task { await generateReport() }
+                        }
+                        .buttonStyle(NeonButtonStyle())
+                        .disabled(isGenerating)
+                    }
+                }
+            }
+
             GlassCard(padding: 8, glow: routePoints.isEmpty ? nil : Color.lime) {
                 RouteMapView(points: routePoints, title: routePoints.isEmpty ? nil : "Run Route")
                     .frame(height: 210)
@@ -796,6 +823,23 @@ private struct RunReportScaffold: View {
             if routePoints.isEmpty {
                 routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activity.activityId)
             }
+            if var run = activity.toRecordedRun() {
+                if !routePoints.isEmpty { run.routePoints = routePoints }
+                report = await services.runReport(for: run)
+            }
+        }
+    }
+
+    private func generateReport() async {
+        guard var run = activity.toRecordedRun() else { return }
+        if !routePoints.isEmpty { run.routePoints = routePoints }
+        isGenerating = true
+        generationFailed = false
+        defer { isGenerating = false }
+        if let generated = await services.generateRunReportIfMissing(for: run) {
+            report = generated
+        } else {
+            generationFailed = true
         }
     }
 
@@ -829,6 +873,79 @@ private struct RunReportScaffold: View {
     private var startTimeLabel: String {
         guard let date = activity.startDate else { return "--" }
         return date.formatted(date: .abbreviated, time: .shortened)
+    }
+}
+
+private struct RunReportDetailScaffold: View {
+    var report: RunReportDetail
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            GlassCard(glow: Color.lime) {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Run Summary", trailing: report.dateLabel)
+                    Text(report.title)
+                        .font(.title2.bold())
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        MetricBadge(title: "Distance", value: report.distance)
+                        MetricBadge(title: "Time", value: report.duration)
+                        MetricBadge(title: "Avg Pace", value: report.averagePace)
+                        MetricBadge(title: "Avg HR", value: report.averageHeartRate)
+                    }
+                    Text(report.source)
+                        .font(.caption.bold())
+                        .foregroundStyle(Color.lime)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.lime.opacity(0.11))
+                        .clipShape(Capsule(style: .continuous))
+                }
+            }
+            RunReportCoachNotesCard(report: report)
+            RunReportNextWorkoutCard(report: report)
+        }
+    }
+}
+
+private struct RunReportCoachNotesCard: View {
+    var report: RunReportDetail
+
+    var body: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(title: "Coach Notes", trailing: scoreLabel)
+                DetailLine(label: "Insight", value: report.notes.summary)
+                DetailLine(label: "Effort", value: report.notes.effort)
+                DetailLine(label: "Recovery", value: report.notes.recovery)
+            }
+        }
+    }
+
+    private var scoreLabel: String? {
+        report.coachScore.map { "Score \($0)" }
+    }
+}
+
+private struct RunReportNextWorkoutCard: View {
+    var report: RunReportDetail
+
+    var body: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(title: "Recommended Next Run")
+                if let next = report.structuredNextWorkout {
+                    DetailLine(label: "Workout", value: next.title)
+                    if let date = next.dateLabel { DetailLine(label: "Date", value: date) }
+                    if let distance = next.distance { DetailLine(label: "Distance", value: distance) }
+                    if let target = next.target { DetailLine(label: "Target", value: target) }
+                    if let notes = next.notes { DetailLine(label: "Notes", value: notes) }
+                } else {
+                    Text(report.notes.nextSessionNudge)
+                        .font(.callout)
+                        .foregroundStyle(Color.mutedText)
+                }
+            }
+        }
     }
 }
 

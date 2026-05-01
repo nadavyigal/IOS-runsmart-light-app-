@@ -3,7 +3,9 @@ import SwiftUI
 
 protocol RunSmartServiceProviding: TodayProviding, PlanProviding, CoachChatting, ProfileProviding, RunLogging, WebParityProviding, RouteProviding, DeviceSyncing, HealthSyncing {}
 
+#if DEBUG
 extension MockRunSmartServices: RunSmartServiceProviding {}
+#endif
 
 private struct RunSmartServicesKey: EnvironmentKey {
     static let defaultValue: any RunSmartServiceProviding = SupabaseRunSmartServices.shared

@@ -8,6 +8,7 @@ struct TodayTabView: View {
     @State private var recommendation = TodayRecommendation.placeholder
     @State private var routes: [RouteSuggestion] = []
     @State private var nextWorkouts: [WorkoutSummary] = []
+    @State private var runReports: [RunReportSummary] = []
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -53,11 +54,20 @@ struct TodayTabView: View {
                     .runSmartStaggeredAppear(index: 3)
                 }
 
-                quickStats
+                if !runReports.isEmpty {
+                    RecentRunReportsCard(reports: runReports) { report in
+                        if let detail = report.toDetail() {
+                            router.open(.runReportDetail(detail))
+                        }
+                    }
                     .runSmartStaggeredAppear(index: 4)
+                }
+
+                quickStats
+                    .runSmartStaggeredAppear(index: 5)
 
                 WeatherConditionsCard()
-                    .runSmartStaggeredAppear(index: 5)
+                    .runSmartStaggeredAppear(index: 6)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
@@ -67,10 +77,12 @@ struct TodayTabView: View {
             async let recommendationTask = services.todayRecommendation()
             async let routesTask = services.routeSuggestions()
             async let nextWorkoutsTask = services.nextWorkouts(limit: 3)
-            let (rec, rts, nw) = await (recommendationTask, routesTask, nextWorkoutsTask)
+            async let reportsTask = services.latestRunReports(limit: 3)
+            let (rec, rts, nw, reports) = await (recommendationTask, routesTask, nextWorkoutsTask, reportsTask)
             recommendation = rec
             routes = rts
             nextWorkouts = nw
+            runReports = reports
         }
     }
 
@@ -132,6 +144,77 @@ struct TodayTabView: View {
     private var displayName: String {
         let name = session.onboardingProfile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         return name.isEmpty ? "Runner" : name
+    }
+}
+
+struct RecentRunReportsCard: View {
+    var reports: [RunReportSummary]
+    var onTap: (RunReportSummary) -> Void
+
+    var body: some View {
+        ContentCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(title: "Recent Run Reports")
+                ForEach(reports) { report in
+                    Button { onTap(report) } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "chart.xyaxis.line")
+                                .font(.body)
+                                .foregroundStyle(Color.accentPrimary)
+                                .frame(width: 32, height: 32)
+                                .background(Color.surfaceElevated, in: Circle())
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(report.title)
+                                    .font(.bodyMD.weight(.semibold))
+                                    .foregroundStyle(Color.textPrimary)
+                                Text("\(report.dateLabel) · \(report.distance) · \(report.pace)")
+                                    .font(.labelSM)
+                                    .foregroundStyle(Color.textSecondary)
+                                    .lineLimit(1)
+                                Text(report.insight)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.textTertiary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            if report.score > 0 {
+                                Text("\(report.score)")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Color.black)
+                                    .frame(width: 30, height: 30)
+                                    .background(Color.accentPrimary, in: Circle())
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+extension RunReportSummary {
+    func toDetail() -> RunReportDetail? {
+        guard let runID else { return nil }
+        return RunReportDetail(
+            id: id,
+            runID: runID,
+            title: title,
+            dateLabel: dateLabel,
+            source: source.isEmpty ? "RunSmart" : source,
+            distance: distance,
+            duration: duration,
+            averagePace: pace,
+            averageHeartRate: averageHeartRate,
+            coachScore: score > 0 ? score : nil,
+            notes: CoachRunNotes(
+                summary: insight,
+                effort: "Open the source activity to regenerate detailed effort notes if needed.",
+                recovery: "No recovery note stored.",
+                nextSessionNudge: "No next-run recommendation stored."
+            ),
+            structuredNextWorkout: nil
+        )
     }
 }
 

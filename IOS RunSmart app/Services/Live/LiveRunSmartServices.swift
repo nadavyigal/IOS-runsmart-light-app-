@@ -87,8 +87,7 @@ struct LiveProfileService: ProfileProviding {
     }
 
     func achievements() async -> [Achievement] {
-        // Achievements currently remain static until the backend badge contract is finalized.
-        RunSmartPreviewData.achievements
+        []
     }
 }
 
@@ -106,7 +105,7 @@ struct LiveRunLoggingService: RunLogging {
     }
 
     func recentRuns() async -> [RecordedRun] {
-        RunSmartPreviewData.recordedRuns
+        []
     }
 
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {

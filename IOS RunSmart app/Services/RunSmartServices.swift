@@ -37,23 +37,32 @@ protocol WebParityProviding {
     func wellnessSnapshot() async -> WellnessSnapshot
     func shoes() async -> [ShoeSummary]
     func reminders() async -> [ReminderPreference]
-    func latestRunReports() async -> [RunReportSummary]
+    func latestRunReports(limit: Int) async -> [RunReportSummary]
+    func runReport(for run: RecordedRun) async -> RunReportDetail?
+    func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail?
     func trainingLoadSnapshot() async -> TrainingLoadSnapshot
     func shareableAchievements() async -> [ShareableAchievement]
 }
 
 extension WebParityProviding {
-    func activeGoal() async -> GoalSummary { RunSmartPreviewData.activeGoal }
-    func activeChallenge() async -> ChallengeSummary { RunSmartPreviewData.activeChallenge }
-    func recoverySnapshot() async -> RecoverySnapshot { RunSmartPreviewData.recovery }
-    func wellnessSnapshot() async -> WellnessSnapshot { RunSmartPreviewData.wellness }
-    func shoes() async -> [ShoeSummary] { RunSmartPreviewData.shoes }
-    func reminders() async -> [ReminderPreference] { RunSmartPreviewData.reminders }
-    func latestRunReports() async -> [RunReportSummary] { RunSmartPreviewData.runReports }
-    func trainingLoadSnapshot() async -> TrainingLoadSnapshot { RunSmartPreviewData.trainingLoad }
-    func shareableAchievements() async -> [ShareableAchievement] { RunSmartPreviewData.shareableAchievements }
+    func activeGoal() async -> GoalSummary { .loading }
+    func activeChallenge() async -> ChallengeSummary { .loading }
+    func recoverySnapshot() async -> RecoverySnapshot { .loading }
+    func wellnessSnapshot() async -> WellnessSnapshot { .empty }
+    func shoes() async -> [ShoeSummary] { [] }
+    func reminders() async -> [ReminderPreference] { [] }
+    func latestRunReports(limit: Int) async -> [RunReportSummary] { [] }
+    func runReport(for run: RecordedRun) async -> RunReportDetail? { nil }
+    func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? { nil }
+    func trainingLoadSnapshot() async -> TrainingLoadSnapshot { .loading }
+    func shareableAchievements() async -> [ShareableAchievement] { [] }
+
+    func latestRunReports() async -> [RunReportSummary] {
+        await latestRunReports(limit: 3)
+    }
 }
 
+#if DEBUG
 struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, ProfileProviding, RunLogging {
     func todayRecommendation() async -> TodayRecommendation {
         RunSmartPreviewData.today
@@ -124,6 +133,18 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
 
     func finishRun() async {}
 
+    func activeGoal() async -> GoalSummary { RunSmartPreviewData.activeGoal }
+    func activeChallenge() async -> ChallengeSummary { RunSmartPreviewData.activeChallenge }
+    func recoverySnapshot() async -> RecoverySnapshot { RunSmartPreviewData.recovery }
+    func wellnessSnapshot() async -> WellnessSnapshot { RunSmartPreviewData.wellness }
+    func shoes() async -> [ShoeSummary] { RunSmartPreviewData.shoes }
+    func reminders() async -> [ReminderPreference] { RunSmartPreviewData.reminders }
+    func latestRunReports(limit: Int) async -> [RunReportSummary] { Array(RunSmartPreviewData.runReports.prefix(limit)) }
+    func runReport(for run: RecordedRun) async -> RunReportDetail? { nil }
+    func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? { nil }
+    func trainingLoadSnapshot() async -> TrainingLoadSnapshot { RunSmartPreviewData.trainingLoad }
+    func shareableAchievements() async -> [ShareableAchievement] { RunSmartPreviewData.shareableAchievements }
+
     func routeSuggestions() async -> [RouteSuggestion] {
         []
     }
@@ -157,3 +178,4 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
 
     func saveToHealth(_ run: RecordedRun) async {}
 }
+#endif

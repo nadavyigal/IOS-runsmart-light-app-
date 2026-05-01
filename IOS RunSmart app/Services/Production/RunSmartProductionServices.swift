@@ -68,6 +68,22 @@ final class RunSmartLocalStore {
         load([RecordedRun].self, key: "runsmart.runs") ?? []
     }
 
+    func saveRunReport(_ report: RunReportDetail) {
+        var reports = loadRunReports()
+        reports.removeAll { $0.runID == report.runID || $0.id == report.id }
+        reports.append(report)
+        reports.sort { $0.dateLabel > $1.dateLabel }
+        save(reports, key: "runsmart.runReports")
+    }
+
+    func loadRunReports() -> [RunReportDetail] {
+        load([RunReportDetail].self, key: "runsmart.runReports") ?? []
+    }
+
+    func cachedRunReport(runID: String) -> RunReportDetail? {
+        loadRunReports().first { $0.runID == runID || $0.id == runID }
+    }
+
     func saveDeviceStatus(_ status: ConnectedDeviceStatus) {
         var statuses = loadDeviceStatuses()
         statuses.removeAll { $0.provider == status.provider }
