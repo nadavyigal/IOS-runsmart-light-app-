@@ -1,17 +1,19 @@
-//
-//  ResumeBuilder_IOS_APPApp.swift
-//  ResumeBuilder IOS APP
-//
-//  Created by Nadav Yigal on 03/05/2026.
-//
-
 import SwiftUI
 
 @main
 struct ResumeBuilder_IOS_APPApp: App {
+    @State private var appState = AppState()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environment(appState)
+                .task {
+                    appState.bootstrap()
+                }
+                .onOpenURL { url in
+                    appState.handleIncomingURL(url)
+                }
         }
     }
 }
