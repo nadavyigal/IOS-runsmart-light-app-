@@ -168,20 +168,19 @@ final class TrainingPlanRepository {
             print("[TrainingPlanRepo] ✅ found active plan via auth_user_id=\(authUserID)")
             return active
         }
-        
-        if resolved.numericUserID == nil && resolved.planOwnerCandidates.isEmpty {
+
+        if resolved.planOwnerCandidates.isEmpty {
             print("[TrainingPlanRepo] ❌ identity unresolved for auth=\(authUserID)")
             return nil
         }
-        
-        // Plans are owned by UUID profile_id in this schema (auth_user_id / auth.uid()).
+
         for ownerID in resolved.planOwnerCandidates {
             if let active = await activePlan(profileID: ownerID) {
                 print("[TrainingPlanRepo] ✅ found active plan via UUID profileID=\(ownerID)")
                 return active
             }
         }
-        
+
         print("[TrainingPlanRepo] ❌ no active plan for auth=\(authUserID) tried numeric=\(resolved.numericUserID.map(String.init) ?? "nil") UUIDs=\(resolved.planOwnerCandidates.map(\.uuidString))")
         return nil
     }
@@ -345,7 +344,7 @@ final class TrainingPlanRepository {
                 print("[TrainingPlanRepo] ❌ persistGeneratedPlan failed: no plan returned after insert")
                 return false
             }
-            
+
             let workouts = generated.workouts.map {
                 DBWorkoutInsert(
                     planID: plan.id.uuidString,
