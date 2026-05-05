@@ -5,11 +5,7 @@ struct CoachFlowView: View {
     @Environment(\.runSmartServices) private var services
     @State private var draft = ""
     @State private var isTyping = false
-    @State private var messages = [
-        CoachMessage(text: "I have your readiness, recent runs, and current plan context. What should we adjust?", time: "Now", isUser: false),
-        CoachMessage(text: "Should I run today?", time: "Just now", isUser: true),
-        CoachMessage(text: "Yes, but treat the first 10 minutes as a readiness check. If breathing feels strained, convert the tempo into steady aerobic work.", time: "Just now", isUser: false)
-    ]
+    @State private var messages: [CoachMessage] = []
 
     private let prompts = ["Explain today’s workout", "Should I run today?", "Adjust my plan", "Recovery advice"]
 
@@ -25,6 +21,9 @@ struct CoachFlowView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .task {
+            messages = await services.recentMessages()
+        }
     }
 
     private var header: some View {
@@ -83,8 +82,17 @@ struct CoachFlowView: View {
     private var chatArea: some View {
         ScrollView {
             VStack(spacing: 12) {
-                ForEach(messages) { message in
-                    CoachBubble(message: message)
+                if messages.isEmpty {
+                    ContentCard {
+                        Text("No verified coach conversation yet. Ask a question to start a new thread with your current RunSmart context.")
+                            .font(.bodyMD)
+                            .foregroundStyle(Color.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else {
+                    ForEach(messages) { message in
+                        CoachBubble(message: message)
+                    }
                 }
                 if isTyping {
                     TypingIndicator()

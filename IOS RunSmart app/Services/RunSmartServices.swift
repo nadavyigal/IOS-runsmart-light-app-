@@ -42,6 +42,7 @@ protocol RunLogging {
     func currentRunMetrics() async -> [MetricTile]
     func recentRuns() async -> [RecordedRun]
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun
+    func removeRun(_ run: RecordedRun) async -> Bool
     func finishRun() async
 }
 
@@ -58,6 +59,7 @@ protocol WebParityProviding {
     func trainingLoadSnapshot() async -> TrainingLoadSnapshot
     func shareableAchievements() async -> [ShareableAchievement]
     func shouldPresentManualMorningCheckin() async -> Bool
+    func approveGarminMorningCheckin() async -> Bool
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool
 }
 
@@ -74,7 +76,9 @@ extension WebParityProviding {
     func trainingLoadSnapshot() async -> TrainingLoadSnapshot { .loading }
     func shareableAchievements() async -> [ShareableAchievement] { [] }
     func shouldPresentManualMorningCheckin() async -> Bool { true }
+    func approveGarminMorningCheckin() async -> Bool { false }
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool { false }
+    func removeRun(_ run: RecordedRun) async -> Bool { false }
 
     func latestRunReports() async -> [RunReportSummary] {
         await latestRunReports(limit: 3)
@@ -157,6 +161,8 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
         )
     }
 
+    func removeRun(_ run: RecordedRun) async -> Bool { true }
+
     func finishRun() async {}
 
     func activeGoal() async -> GoalSummary { RunSmartPreviewData.activeGoal }
@@ -170,6 +176,7 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? { nil }
     func trainingLoadSnapshot() async -> TrainingLoadSnapshot { RunSmartPreviewData.trainingLoad }
     func shareableAchievements() async -> [ShareableAchievement] { RunSmartPreviewData.shareableAchievements }
+    func approveGarminMorningCheckin() async -> Bool { true }
 
     func routeSuggestions() async -> [RouteSuggestion] {
         []

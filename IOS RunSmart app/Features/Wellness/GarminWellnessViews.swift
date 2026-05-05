@@ -1,30 +1,38 @@
 import SwiftUI
 
 struct GarminWellnessViews: View {
-    private let panels: [(String, String, String, Color, String)] = [
-        ("HRV Status", "Balanced", "64 ms avg over 7 days", .accentHeart, "waveform.path.ecg"),
-        ("Sleep Analytics", "82%", "Deep sleep improved 14%", .accentRecovery, "bed.double.fill"),
-        ("Body Battery", "76", "Enough reserve for tempo", .accentSuccess, "battery.75percent"),
-        ("Stress", "Low", "Best window: before 10 AM", .accentPrimary, "brain.head.profile")
-    ]
+    @Environment(\.runSmartServices) private var services
+    @State private var recovery: RecoverySnapshot = .loading
+    @State private var wellness: WellnessSnapshot = .empty
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HeroCard(accent: .accentRecovery) {
                 VStack(alignment: .leading, spacing: 10) {
                     SectionLabel(title: "Garmin wellness")
-                    Text("Connected health signals")
+                    Text(sourceTitle)
                         .font(.headingLG)
-                    Text("Panels mirror the web wellness dashboard and keep coaching recommendations explainable.")
+                    Text(wellness.checkInStatus)
                         .font(.bodyMD)
                         .foregroundStyle(Color.textSecondary)
                 }
             }
 
-            ForEach(panels, id: \.0) { panel in
-                WellnessPanel(title: panel.0, value: panel.1, detail: panel.2, tint: panel.3, symbol: panel.4)
-            }
+            WellnessPanel(title: "Readiness", value: recovery.readiness > 0 ? "\(recovery.readiness)" : "--", detail: recovery.recommendation, tint: .accentSuccess, symbol: "bolt.heart.fill")
+            WellnessPanel(title: "Body Battery", value: recovery.bodyBattery > 0 ? "\(recovery.bodyBattery)" : "--", detail: wellness.hydration, tint: .accentPrimary, symbol: "battery.75percent")
+            WellnessPanel(title: "Sleep", value: recovery.sleep, detail: "Latest Garmin sleep value when connected.", tint: .accentRecovery, symbol: "bed.double.fill")
+            WellnessPanel(title: "HRV", value: recovery.hrv, detail: "Latest synced HRV value.", tint: .accentHeart, symbol: "waveform.path.ecg")
+            WellnessPanel(title: "Manual Check-In", value: wellness.mood, detail: "Soreness \(wellness.soreness)", tint: .accentEnergy, symbol: "checklist.checked")
         }
+        .task {
+            async let recoveryTask = services.recoverySnapshot()
+            async let wellnessTask = services.wellnessSnapshot()
+            (recovery, wellness) = await (recoveryTask, wellnessTask)
+        }
+    }
+
+    private var sourceTitle: String {
+        recovery.readiness > 0 ? "Synced health signals" : "No Garmin recovery data yet"
     }
 }
 
@@ -49,11 +57,15 @@ private struct WellnessPanel: View {
                     Text(detail)
                         .font(.bodyMD)
                         .foregroundStyle(Color.textSecondary)
+                        .lineLimit(2)
                 }
                 Spacer()
                 Text(value)
                     .font(.metricSM)
                     .foregroundStyle(tint)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
         }
     }

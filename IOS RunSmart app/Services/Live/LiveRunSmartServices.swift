@@ -119,6 +119,10 @@ struct LiveRunLoggingService: RunLogging {
         )
     }
 
+    func removeRun(_ run: RecordedRun) async -> Bool {
+        await ProductionRunSmartServices().removeRun(run)
+    }
+
     func finishRun() async {
         let now = ISO8601DateFormatter().string(from: Date())
         let runLog = RunSmartDTO.RunLogRequest(
@@ -202,6 +206,10 @@ struct LiveRunSmartServices: RunSmartServiceProviding {
             averageHeartRateBPM: averageHeartRateBPM,
             notes: notes
         )
+    }
+
+    func removeRun(_ run: RecordedRun) async -> Bool {
+        await runLoggingService.removeRun(run)
     }
 
     func finishRun() async {

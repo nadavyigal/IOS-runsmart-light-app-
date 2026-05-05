@@ -15,7 +15,7 @@ struct PostRunSummaryView: View {
                             .font(.displayXL)
                             .monospacedDigit()
                             .displayTightTracking()
-                        Text("Saved with route, pace, time, and effort context.")
+                        Text(run == nil ? "No completed run was saved." : "Saved with route, pace, time, and effort context.")
                             .font(.bodyMD)
                             .foregroundStyle(Color.textSecondary)
                         RouteMapView(points: run?.routePoints ?? [], title: "Completed route")
@@ -55,19 +55,19 @@ struct PostRunSummaryView: View {
     }
 
     private var distanceLabel: String {
-        guard let run else { return "5.2 km" }
+        guard let run else { return "-- km" }
         return String(format: "%.2f km", run.distanceMeters / 1_000)
     }
 
     private var timeLabel: String {
-        guard let run else { return "26:54" }
+        guard let run else { return "--" }
         let minutes = Int(run.movingTimeSeconds) / 60
         let seconds = Int(run.movingTimeSeconds) % 60
         return String(format: "%d:%02d", minutes, seconds)
     }
 
     private var paceLabel: String {
-        guard let run else { return "5:10" }
+        guard let run else { return "--" }
         let minutes = Int(run.averagePaceSecondsPerKm) / 60
         let seconds = Int(run.averagePaceSecondsPerKm) % 60
         return String(format: "%d:%02d", minutes, seconds)

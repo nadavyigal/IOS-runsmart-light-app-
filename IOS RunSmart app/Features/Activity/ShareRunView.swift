@@ -12,7 +12,7 @@ struct ShareRunView: View {
                         .font(.displayLG)
                         .monospacedDigit()
                         .foregroundStyle(Color.textPrimary)
-                    Text("Night Stadium share card")
+                    Text(run == nil ? "No selected run" : "Verified RunSmart activity")
                         .font(.headingMD)
                     RouteMapView(points: run?.routePoints ?? [], title: "Completed route")
                         .frame(height: 160)
@@ -26,7 +26,7 @@ struct ShareRunView: View {
     }
 
     private var distanceLabel: String {
-        guard let run else { return "5.2 km" }
+        guard let run else { return "-- km" }
         return String(format: "%.1f km", run.distanceMeters / 1_000)
     }
 }

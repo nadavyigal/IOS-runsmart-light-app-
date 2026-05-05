@@ -50,10 +50,12 @@ struct TodayTabView: View {
                 )
                 .runSmartStaggeredAppear(index: 2)
 
-                TodayConversationPreview(messages: coachMessages) {
-                    router.openCoach(context: "Today")
+                if !coachMessages.isEmpty {
+                    TodayConversationPreview(messages: coachMessages) {
+                        router.openCoach(context: "Today")
+                    }
+                    .runSmartStaggeredAppear(index: 3)
                 }
-                .runSmartStaggeredAppear(index: 3)
 
                 quickStats
                     .runSmartStaggeredAppear(index: 4)
@@ -85,6 +87,9 @@ struct TodayTabView: View {
             await loadData()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanDidChange)) { _ in
+            Task { await loadData() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
             Task { await loadData() }
         }
     }

@@ -44,12 +44,19 @@ struct ProfileTabView: View {
             }
         }
         .task {
-            async let runnerTask = services.runnerProfile()
-            async let achievementsTask = services.achievements()
-            async let statusesTask = services.deviceStatuses()
-            async let reportsTask = services.latestRunReports(limit: 3)
-            (runner, achievements, deviceStatuses, runReports) = await (runnerTask, achievementsTask, statusesTask, reportsTask)
+            await loadProfileData()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
+            Task { await loadProfileData() }
+        }
+    }
+
+    private func loadProfileData() async {
+        async let runnerTask = services.runnerProfile()
+        async let achievementsTask = services.achievements()
+        async let statusesTask = services.deviceStatuses()
+        async let reportsTask = services.latestRunReports(limit: 3)
+        (runner, achievements, deviceStatuses, runReports) = await (runnerTask, achievementsTask, statusesTask, reportsTask)
     }
 
     private var identityHeader: some View {

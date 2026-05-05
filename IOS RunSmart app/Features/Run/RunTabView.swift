@@ -44,6 +44,9 @@ struct RunTabView: View {
         .task {
             metrics = await services.currentRunMetrics()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
+            Task { metrics = await services.currentRunMetrics() }
+        }
     }
 
     private var liveMetrics: [MetricTile] {
@@ -83,6 +86,7 @@ struct RunTabView: View {
         let run = recorder.finish()
         if let run {
             Task { await services.saveToHealth(run) }
+            NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
             finishedRun = run
         } else {
             router.open(.postRunSummary(nil))
