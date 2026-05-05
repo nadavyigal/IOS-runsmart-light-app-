@@ -163,22 +163,58 @@ final class TrainingPlanRepository {
 
     func activePlan(authUserID: UUID) async -> ActivePlan? {
         let resolved = await identity(authUserID: authUserID)
-        
-        if resolved.numericUserID == nil && resolved.planOwnerCandidates.isEmpty {
+
+        if let active = await activePlanByAuthUserID(authUserID) {
+            print("[TrainingPlanRepo] ✅ found active plan via auth_user_id=\(authUserID)")
+            return active
+        }
+
+        if resolved.planOwnerCandidates.isEmpty {
             print("[TrainingPlanRepo] ❌ identity unresolved for auth=\(authUserID)")
             return nil
         }
-        
-        // Plans are owned by UUID profile_id in this schema (auth_user_id / auth.uid()).
+
         for ownerID in resolved.planOwnerCandidates {
             if let active = await activePlan(profileID: ownerID) {
                 print("[TrainingPlanRepo] ✅ found active plan via UUID profileID=\(ownerID)")
                 return active
             }
         }
-        
+
         print("[TrainingPlanRepo] ❌ no active plan for auth=\(authUserID) tried numeric=\(resolved.numericUserID.map(String.init) ?? "nil") UUIDs=\(resolved.planOwnerCandidates.map(\.uuidString))")
         return nil
+    }
+
+    func activePlanByAuthUserID(_ authUserID: UUID) async -> ActivePlan? {
+        do {
+            let plans: [DBPlan] = try await supabase
+                .from("plans")
+                .select()
+                .eq("auth_user_id", value: authUserID.uuidString)
+                .eq("is_active", value: true)
+                .limit(1)
+                .execute()
+                .value
+
+            print("[TrainingPlanRepo] activePlan authUserID=\(authUserID) plans=\(plans.count)")
+            guard let plan = plans.first else { return nil }
+
+            let workouts: [DBWorkout] = try await supabase
+                .from("workouts")
+                .select()
+                .eq("plan_id", value: plan.id.uuidString)
+                .order("scheduled_date")
+                .execute()
+                .value
+
+            print("[TrainingPlanRepo] activePlan auth planID=\(plan.id) workouts=\(workouts.count)")
+            return ActivePlan(plan: plan, workouts: workouts)
+        } catch {
+            if !(error is CancellationError) {
+                print("[TrainingPlanRepo] activePlan auth error:", error)
+            }
+            return nil
+        }
     }
 
     func activePlan(profileID: UUID) async -> ActivePlan? {
@@ -308,7 +344,7 @@ final class TrainingPlanRepository {
                 print("[TrainingPlanRepo] ❌ persistGeneratedPlan failed: no plan returned after insert")
                 return false
             }
-            
+
             let workouts = generated.workouts.map {
                 DBWorkoutInsert(
                     planID: plan.id.uuidString,

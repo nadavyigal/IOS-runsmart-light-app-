@@ -302,10 +302,11 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         async let activitiesTask = GarminBridge.shared.recentActivities(authUserID: userID, limit: 200)
         let (streak, activities) = await (streakTask, activitiesTask)
 
-        let localRuns = store.loadRuns()
-        let totalRuns = activities.count + localRuns.count
-        let totalMeters = activities.reduce(0.0) { $0 + ($1.distanceM ?? 0) } + localRuns.reduce(0.0) { $0 + $1.distanceMeters }
-        let totalSeconds = activities.reduce(0.0) { $0 + ($1.durationS ?? 0) } + localRuns.reduce(0.0) { $0 + $1.movingTimeSeconds }
+        let localRuns = store.visibleRuns(store.loadRuns())
+        let garminRuns = store.visibleRuns(activities.compactMap { $0.toRecordedRun() })
+        let totalRuns = garminRuns.count + localRuns.count
+        let totalMeters = garminRuns.reduce(0.0) { $0 + $1.distanceMeters } + localRuns.reduce(0.0) { $0 + $1.distanceMeters }
+        let totalSeconds = garminRuns.reduce(0.0) { $0 + $1.movingTimeSeconds } + localRuns.reduce(0.0) { $0 + $1.movingTimeSeconds }
         let totalTime = formatTotalTime(seconds: totalSeconds)
 
         return RunnerProfile(
@@ -353,11 +354,11 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func recentRuns() async -> [RecordedRun] {
-        var runs = store.loadRuns()
+        var runs = store.visibleRuns(store.loadRuns())
         if let userID = currentUserID {
-            let garminRuns = await GarminBridge.shared
+            let garminRuns = store.visibleRuns(await GarminBridge.shared
                 .recentActivities(authUserID: userID, limit: 100)
-                .compactMap { $0.toRecordedRun() }
+                .compactMap { $0.toRecordedRun() })
             runs.append(contentsOf: garminRuns)
         }
 
@@ -375,7 +376,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
         let movingTime = TimeInterval(max(1, durationMinutes) * 60)
         let distanceMeters = max(0.1, distanceKm) * 1_000
-        let run = RecordedRun(
+        var run = RecordedRun(
             id: UUID(),
             providerActivityID: nil,
             source: .runSmart,
@@ -388,8 +389,58 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             routePoints: [],
             syncedAt: Date()
         )
+
+        if let userID = currentUserID {
+            let identity = await planRepo.identity(authUserID: userID)
+            if let profileID = identity.numericUserID {
+                do {
+                    try await supabase
+                        .from("runs")
+                        .upsert(DBRunInsert(run: run, profileID: profileID, kind: kind, notes: notes), onConflict: "source_provider,source_activity_id")
+                        .execute()
+                    run.syncedAt = Date()
+                } catch {
+                    if !(error is CancellationError) {
+                        print("[SupabaseServices] saveManualRun Supabase error:", error)
+                    }
+                    run.syncedAt = nil
+                }
+            } else {
+                run.syncedAt = nil
+            }
+        } else {
+            run.syncedAt = nil
+        }
+
         store.saveRun(run)
+        await postRunsChanged()
         return run
+    }
+
+    func removeRun(_ run: RecordedRun) async -> Bool {
+        let removedLocally = store.removeRun(run)
+
+        guard run.source == .runSmart else {
+            await postRunsChanged()
+            return removedLocally
+        }
+
+        do {
+            _ = try await supabase
+                .from("runs")
+                .delete()
+                .eq("source_provider", value: "runsmart_ios")
+                .eq("source_activity_id", value: run.id.uuidString)
+                .execute()
+            await postRunsChanged()
+            return true
+        } catch {
+            if !(error is CancellationError) {
+                print("[SupabaseServices] removeRun Supabase error:", error)
+            }
+            await postRunsChanged()
+            return removedLocally
+        }
     }
 
     func finishRun() async {}
@@ -399,6 +450,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     func routeSuggestions() async -> [RouteSuggestion] {
         guard let userID = currentUserID else { return [] }
         let activities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 30)
+            .filter { activity in
+                guard let run = activity.toRecordedRun() else { return false }
+                return !store.isRunHidden(run)
+            }
         // Bucket by rounded distance (in km), keep one representative per bucket.
         let buckets = [3, 5, 8, 10, 15]
         var pickedByBucket: [Int: DBGarminActivity] = [:]
@@ -505,7 +560,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         guard limit > 0 else { return [] }
 
         var reports: [RunReportDetail] = []
-        let localRuns = store.loadRuns().prefix(limit)
+        let localRuns = store.visibleRuns(store.loadRuns()).prefix(limit)
         for run in localRuns {
             if let report = await runReport(for: run) {
                 reports.append(report)
@@ -518,6 +573,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             let garminActivities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: limit)
             for activity in garminActivities {
                 guard let run = activity.toRecordedRun() else { continue }
+                guard !store.isRunHidden(run) else { continue }
                 if let report = await runReport(for: run) {
                     reports.append(report)
                 } else {
@@ -609,7 +665,36 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         )
     }
 
-    func wellnessSnapshot() async -> WellnessSnapshot { .empty }
+    func wellnessSnapshot() async -> WellnessSnapshot {
+        guard let userID = currentUserID else { return .empty }
+
+        async let metricsTask = latestGarminMetrics(userID: userID)
+        async let checkinTask = latestMorningCheckin(userID: userID)
+        let (metrics, checkin) = await (metricsTask, checkinTask)
+
+        if let checkin {
+            return WellnessSnapshot(
+                calories: metrics?.steps.map { "\($0) steps" } ?? "—",
+                hydration: metrics?.bodyBattery.map { "\($0) body battery" } ?? "—",
+                soreness: checkin.soreness.map { "\($0)/10" } ?? "—",
+                mood: checkin.mood ?? "—",
+                checkInStatus: "Manual check-in saved for \(checkin.checkinDate)."
+            )
+        }
+
+        if let metrics {
+            let sleep = metrics.sleepDurationS.map { String(format: "%dh %02dm sleep", Int32($0 / 3600), Int32(($0 % 3600) / 60)) } ?? "Garmin synced"
+            return WellnessSnapshot(
+                calories: metrics.steps.map { "\($0) steps" } ?? "—",
+                hydration: metrics.bodyBattery.map { "\($0) body battery" } ?? "—",
+                soreness: "Garmin",
+                mood: metrics.stress.map { String(format: "Stress %.0f", $0) } ?? "—",
+                checkInStatus: sleep
+            )
+        }
+
+        return .empty
+    }
     func shoes() async -> [ShoeSummary] { [] }
     func reminders() async -> [ReminderPreference] { [] }
 
@@ -630,6 +715,80 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func shareableAchievements() async -> [ShareableAchievement] { [] }
 
+    func shouldPresentManualMorningCheckin() async -> Bool {
+        guard let userID = currentUserID else { return true }
+        if await hasMorningCheckinToday(userID: userID) { return false }
+
+        let connection = await fetchGarminConnection(userID: userID)
+        guard connection.state == .connected else { return true }
+
+        _ = await latestGarminMetrics(userID: userID)
+        return true
+    }
+
+    func approveGarminMorningCheckin() async -> Bool {
+        guard let userID = currentUserID,
+              let metrics = await latestGarminMetrics(userID: userID),
+              isFreshMorningMetricDate(metrics.date) else {
+            return false
+        }
+
+        let bodyBattery = metrics.bodyBattery ?? 50
+        let energy = max(1, min(10, Int((Double(bodyBattery) / 10.0).rounded())))
+        let stress = metrics.stress.map { max(1, min(10, Int(($0 / 10.0).rounded()))) }
+        let fatigue = metrics.sleepDurationS.map { sleepSeconds in
+            sleepSeconds >= 25_200 ? 2 : sleepSeconds >= 21_600 ? 4 : 7
+        }
+
+        return await saveMorningCheckin(
+            energy: energy,
+            soreness: nil,
+            mood: "Garmin approved",
+            stress: stress,
+            fatigue: fatigue,
+            notes: "Approved Garmin morning metrics from \(metrics.date).",
+            source: "garmin_approved"
+        )
+    }
+
+    func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool {
+        await saveMorningCheckin(
+            energy: energy,
+            soreness: soreness,
+            mood: mood,
+            stress: stress,
+            fatigue: fatigue,
+            notes: notes,
+            source: "manual"
+        )
+    }
+
+    private func saveMorningCheckin(energy: Int, soreness: Int?, mood: String, stress: Int?, fatigue: Int?, notes: String?, source: String) async -> Bool {
+        guard let userID = currentUserID else { return false }
+        do {
+            try await supabase
+                .from("wellness_checkins")
+                .upsert(DBWellnessCheckinUpsert(
+                    authUserID: userID.uuidString,
+                    checkinDate: localDateString(Date()),
+                    energy: energy,
+                    soreness: soreness ?? 0,
+                    mood: mood,
+                    stress: stress,
+                    fatigue: fatigue,
+                    notes: notes,
+                    source: source
+                ), onConflict: "auth_user_id,checkin_date")
+                .execute()
+            return true
+        } catch {
+            if !(error is CancellationError) {
+                print("[SupabaseServices] saveMorningCheckin error:", error)
+            }
+            return false
+        }
+    }
+
     // MARK: Private helpers
 
     private func fetchProfile(userID: UUID) async -> DBProfile? {
@@ -645,10 +804,16 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         } catch { return nil }
     }
 
+    private func postRunsChanged() async {
+        await MainActor.run {
+            NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+        }
+    }
+
     private func latestGarminMetrics(userID: UUID) async -> DBGarminDailyMetrics? {
         do {
             let rows: [DBGarminDailyMetrics] = try await supabase
-                .from("garmin_daily_metrics")
+                .from("garmin_daily_metrics_deduped")
                 .select()
                 .eq("auth_user_id", value: userID.uuidString)
                 .order("date", ascending: false)
@@ -683,7 +848,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 .value
 
             if let conn = rows.first {
-                let lastSync = conn.lastSyncAt.flatMap { parseISO8601Date($0) }
+                let lastSync = (conn.lastSuccessfulSyncAt ?? conn.lastSyncAt).flatMap { parseISO8601Date($0) }
                 let state: DeviceConnectionState = conn.status == "connected" ? .connected : .disconnected
                 return ConnectedDeviceStatus(
                     provider: "Garmin Connect",
@@ -757,6 +922,59 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         if lower.contains("half") { return "half-marathon" }
         if lower.contains("marathon") { return "marathon" }
         return nil
+    }
+
+    private func hasMorningCheckinToday(userID: UUID) async -> Bool {
+        do {
+            let rows: [DBWellnessCheckin] = try await supabase
+                .from("wellness_checkins")
+                .select("id,checkin_date,energy,soreness,mood,source")
+                .eq("auth_user_id", value: userID.uuidString)
+                .eq("checkin_date", value: localDateString(Date()))
+                .limit(1)
+                .execute()
+                .value
+            return !rows.isEmpty
+        } catch {
+            return false
+        }
+    }
+
+    private func latestMorningCheckin(userID: UUID) async -> DBWellnessCheckin? {
+        do {
+            let rows: [DBWellnessCheckin] = try await supabase
+                .from("wellness_checkins")
+                .select("id,checkin_date,energy,soreness,mood,source")
+                .eq("auth_user_id", value: userID.uuidString)
+                .order("checkin_date", ascending: false)
+                .limit(1)
+                .execute()
+                .value
+            return rows.first
+        } catch {
+            return nil
+        }
+    }
+
+    private func isFreshMorningMetricDate(_ dateString: String) -> Bool {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        guard let metricDate = formatter.date(from: dateString) else { return false }
+        let calendar = Calendar.current
+        return calendar.isDateInToday(metricDate) || calendar.isDateInYesterday(metricDate)
+    }
+
+    private func localDateString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 
     private func planWeeks(until targetDate: Date) -> Int? {
@@ -854,6 +1072,88 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
 extension Notification.Name {
     static let runSmartPlanDidChange = Notification.Name("RunSmartPlanDidChange")
+    static let runSmartRunsDidChange = Notification.Name("RunSmartRunsDidChange")
+}
+
+private extension ISO8601DateFormatter {
+    static let internet: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+}
+
+private struct DBRunInsert: Encodable {
+    let profileID: Int
+    let type: String
+    let distance: Double
+    let duration: Int
+    let pace: Double?
+    let heartRate: Int?
+    let notes: String?
+    let completedAt: String
+    let sourceProvider: String
+    let sourceActivityID: String
+    let lastSyncedAt: String
+
+    init(run: RecordedRun, profileID: Int, kind: WorkoutKind, notes: String?) {
+        let syncedAt = Date()
+        self.profileID = profileID
+        self.type = kind.supabaseType
+        self.distance = Double((run.distanceMeters / 1_000 * 1000).rounded()) / 1000
+        self.duration = Int(run.movingTimeSeconds.rounded())
+        self.pace = run.averagePaceSecondsPerKm.isFinite ? run.averagePaceSecondsPerKm : nil
+        self.heartRate = run.averageHeartRateBPM
+        let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.notes = trimmedNotes?.isEmpty == false ? trimmedNotes : nil
+        self.completedAt = ISO8601DateFormatter.internet.string(from: run.startedAt)
+        self.sourceProvider = "runsmart_ios"
+        self.sourceActivityID = run.id.uuidString
+        self.lastSyncedAt = ISO8601DateFormatter.internet.string(from: syncedAt)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case profileID = "profile_id"
+        case type, distance, duration, pace, notes
+        case heartRate = "heart_rate"
+        case completedAt = "completed_at"
+        case sourceProvider = "source_provider"
+        case sourceActivityID = "source_activity_id"
+        case lastSyncedAt = "last_synced_at"
+    }
+}
+
+private struct DBWellnessCheckinUpsert: Encodable {
+    let authUserID: String
+    let checkinDate: String
+    let energy: Int
+    let soreness: Int
+    let mood: String
+    let stress: Int?
+    let fatigue: Int?
+    let notes: String?
+    let source: String
+
+    enum CodingKeys: String, CodingKey {
+        case authUserID = "auth_user_id"
+        case checkinDate = "checkin_date"
+        case energy, soreness, mood, stress, fatigue, notes, source
+    }
+}
+
+private struct DBWellnessCheckin: Decodable {
+    let id: UUID
+    let checkinDate: String
+    let energy: Int?
+    let soreness: Int?
+    let mood: String?
+    let source: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case checkinDate = "checkin_date"
+        case energy, soreness, mood, source
+    }
 }
 
 private extension SupabaseRunSmartServices {

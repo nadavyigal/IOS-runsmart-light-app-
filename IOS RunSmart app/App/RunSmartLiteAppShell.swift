@@ -93,7 +93,7 @@ struct RunSmartLiteAppShell: View {
             guard session.isAuthenticated, session.hasCompletedOnboarding, !didPresentMorningCheckin else { return }
             didPresentMorningCheckin = true
             try? await Task.sleep(nanoseconds: 650_000_000)
-            if router.activeSheet == nil {
+            if router.activeSheet == nil, await services.shouldPresentManualMorningCheckin() {
                 router.open(.morningCheckin)
             }
         }

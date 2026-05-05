@@ -52,6 +52,7 @@ final class RunSmartLocalStore {
     }
 
     func saveRun(_ run: RecordedRun) {
+        guard !isRunHidden(run) else { return }
         var runs = loadRuns()
         if let providerID = run.providerActivityID,
            runs.contains(where: { $0.providerActivityID == providerID && $0.source == run.source }) {
@@ -66,6 +67,42 @@ final class RunSmartLocalStore {
 
     func loadRuns() -> [RecordedRun] {
         load([RecordedRun].self, key: "runsmart.runs") ?? []
+    }
+
+    func visibleRuns(_ runs: [RecordedRun]) -> [RecordedRun] {
+        runs.filter { !isRunHidden($0) }
+    }
+
+    @discardableResult
+    func removeRun(_ run: RecordedRun) -> Bool {
+        var didRemove = false
+        var runs = loadRuns()
+        let before = runs.count
+        runs.removeAll { stored in
+            if stored.id == run.id { return true }
+            guard let storedProviderID = stored.providerActivityID,
+                  let runProviderID = run.providerActivityID else { return false }
+            return storedProviderID == runProviderID && stored.source == run.source
+        }
+        didRemove = runs.count != before
+        save(runs, key: "runsmart.runs")
+
+        var reports = loadRunReports()
+        let reportIDs = [run.id.uuidString, run.providerActivityID].compactMap { $0 }
+        reports.removeAll { report in
+            reportIDs.contains(report.runID) || reportIDs.contains(report.id)
+        }
+        save(reports, key: "runsmart.runReports")
+
+        if run.providerActivityID != nil {
+            hideRun(run)
+            didRemove = true
+        }
+        return didRemove
+    }
+
+    func isRunHidden(_ run: RecordedRun) -> Bool {
+        Set(loadHiddenRunKeys()).contains(runVisibilityKey(for: run))
     }
 
     func saveRunReport(_ report: RunReportDetail) {
@@ -106,6 +143,20 @@ final class RunSmartLocalStore {
     private func load<Value: Decodable>(_ type: Value.Type, key: String) -> Value? {
         guard let data = defaults.data(forKey: key) else { return nil }
         return try? decoder.decode(type, from: data)
+    }
+
+    private func hideRun(_ run: RecordedRun) {
+        var keys = Set(loadHiddenRunKeys())
+        keys.insert(runVisibilityKey(for: run))
+        save(Array(keys), key: "runsmart.hiddenRuns")
+    }
+
+    private func loadHiddenRunKeys() -> [String] {
+        load([String].self, key: "runsmart.hiddenRuns") ?? []
+    }
+
+    private func runVisibilityKey(for run: RecordedRun) -> String {
+        "\(run.source.rawValue)|\(run.providerActivityID ?? run.id.uuidString)"
     }
 }
 
@@ -352,7 +403,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func todayRecommendation() async -> TodayRecommendation {
         let profile = store.loadOnboardingProfile() ?? .empty
-        let recentRuns = store.loadRuns().prefix(7)
+        let recentRuns = store.visibleRuns(store.loadRuns()).prefix(7)
         let weeklyKm = recentRuns.reduce(0) { $0 + $1.distanceMeters } / 1_000
         let readiness = min(95, max(55, 72 + min(18, Int(weeklyKm))))
         return TodayRecommendation(
@@ -410,7 +461,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func runnerProfile() async -> RunnerProfile {
         let profile = store.loadOnboardingProfile() ?? .empty
-        let runs = store.loadRuns()
+        let runs = store.visibleRuns(store.loadRuns())
         let totalDistance = Int((runs.reduce(0) { $0 + $1.distanceMeters } / 1_000).rounded())
         let totalSeconds = runs.reduce(0) { $0 + $1.movingTimeSeconds }
         return RunnerProfile(
@@ -425,7 +476,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     }
 
     func achievements() async -> [Achievement] {
-        let runs = store.loadRuns()
+        let runs = store.visibleRuns(store.loadRuns())
         return [
             Achievement(title: "GPS Runs", subtitle: "\(runs.filter { $0.source == .runSmart }.count)", symbol: "location.fill", tint: Color.lime),
             Achievement(title: "Garmin", subtitle: deviceSubtitle("Garmin Connect"), symbol: "link", tint: .cyan),
@@ -434,7 +485,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     }
 
     func currentRunMetrics() async -> [MetricTile] {
-        let last = store.loadRuns().first
+        let last = store.visibleRuns(store.loadRuns()).first
         return [
             MetricTile(title: "Distance", value: last.map { String(format: "%.2f", $0.distanceMeters / 1_000) } ?? "0.00", unit: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up", tint: Color.lime),
             MetricTile(title: "Pace", value: last.map { RunRecorder.paceLabel(secondsPerKm: $0.averagePaceSecondsPerKm) } ?? "--", unit: "/km", symbol: "timer", tint: Color.lime),
@@ -444,7 +495,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     }
 
     func recentRuns() async -> [RecordedRun] {
-        store.loadRuns()
+        store.visibleRuns(store.loadRuns())
     }
 
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
@@ -467,10 +518,14 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         return run
     }
 
+    func removeRun(_ run: RecordedRun) async -> Bool {
+        store.removeRun(run)
+    }
+
     func finishRun() async {}
 
     func routeSuggestions() async -> [RouteSuggestion] {
-        let runs = store.loadRuns().filter { !$0.routePoints.isEmpty }
+        let runs = store.visibleRuns(store.loadRuns()).filter { !$0.routePoints.isEmpty }
         if let last = runs.first {
             return [
                 RouteSuggestion(

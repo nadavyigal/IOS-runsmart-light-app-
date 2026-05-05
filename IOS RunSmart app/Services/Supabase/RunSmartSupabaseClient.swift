@@ -254,11 +254,14 @@ struct DBGarminDailyMetrics: Codable, Sendable {
     let authUserId: UUID?
     let date: String
     let steps: Int?
-    let sleepScore: Int?
+    let sleepScore: Double?
     let sleepDurationS: Int?
     let hrv: Double?
     let bodyBattery: Int?
     let bodyBatteryBalance: Double?
+    let stress: Double?
+    let trainingReadiness: Int?
+    let restingHR: Int?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -270,6 +273,9 @@ struct DBGarminDailyMetrics: Codable, Sendable {
         case hrv
         case bodyBattery = "body_battery"
         case bodyBatteryBalance = "body_battery_balance"
+        case stress
+        case trainingReadiness = "training_readiness"
+        case restingHR = "resting_hr"
     }
 }
 
@@ -278,6 +284,7 @@ struct DBGarminConnection: Codable, Sendable {
     let authUserId: UUID?
     let status: String?
     let lastSyncAt: String?
+    let lastSuccessfulSyncAt: String?
     let connectedAt: String?
     let scopes: [String]?
 
@@ -286,6 +293,7 @@ struct DBGarminConnection: Codable, Sendable {
         case authUserId = "auth_user_id"
         case status
         case lastSyncAt = "last_sync_at"
+        case lastSuccessfulSyncAt = "last_successful_sync_at"
         case connectedAt = "connected_at"
         case scopes
     }

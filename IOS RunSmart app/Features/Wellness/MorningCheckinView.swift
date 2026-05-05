@@ -1,9 +1,16 @@
 import SwiftUI
 
 struct MorningCheckinView: View {
+    @Environment(\.runSmartServices) private var services
+    @Environment(\.dismiss) private var dismiss
     @State private var energy = 7.0
     @State private var soreness = 3.0
     @State private var mood = "Steady"
+    @State private var isSaving = false
+    @State private var saveFailed = false
+    @State private var recovery: RecoverySnapshot = .loading
+    @State private var wellness: WellnessSnapshot = .empty
+    @State private var garminApprovalFailed = false
 
     private let moods = ["Strong", "Steady", "Tired", "Stressed"]
 
@@ -12,11 +19,38 @@ struct MorningCheckinView: View {
             HeroCard(accent: .accentPrimary) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Morning check-in")
-                    Text("How ready do you feel before today’s training?")
+                    Text(hasGarminSignal ? "Approve Garmin readiness?" : "How ready do you feel before today’s training?")
                         .font(.headingLG)
-                    Text("This adjusts workout intensity without storing medical records.")
+                    Text(hasGarminSignal ? recovery.recommendation : "This adjusts workout intensity without storing medical records.")
                         .font(.bodyMD)
                         .foregroundStyle(Color.textSecondary)
+                }
+            }
+
+            if hasGarminSignal {
+                ContentCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(title: "Garmin proposal", trailing: "Approve")
+                        CheckinDetailLine(label: "Readiness", value: recovery.readiness > 0 ? "\(recovery.readiness)" : "--")
+                        CheckinDetailLine(label: "Body Battery", value: recovery.bodyBattery > 0 ? "\(recovery.bodyBattery)" : "--")
+                        CheckinDetailLine(label: "Sleep", value: recovery.sleep)
+                        CheckinDetailLine(label: "HRV", value: recovery.hrv)
+                        CheckinDetailLine(label: "Status", value: wellness.checkInStatus)
+                    }
+                }
+
+                Button {
+                    Task { await approveGarmin() }
+                } label: {
+                    Label(isSaving ? "Saving" : "Approve Garmin Check-In", systemImage: "checkmark.seal.fill")
+                }
+                .buttonStyle(NeonButtonStyle())
+                .disabled(isSaving)
+
+                if garminApprovalFailed {
+                    Text("Garmin metrics are not fresh enough to approve. Use the manual check-in below.")
+                        .font(.bodyMD)
+                        .foregroundStyle(Color.accentHeart)
                 }
             }
 
@@ -45,11 +79,80 @@ struct MorningCheckinView: View {
             }
 
             Button {
-                RunSmartHaptics.success()
+                Task { await save() }
             } label: {
-                Label("Save Check-In", systemImage: "checkmark")
+                Label(isSaving ? "Saving" : "Save Check-In", systemImage: "checkmark")
             }
             .buttonStyle(NeonButtonStyle())
+            .disabled(isSaving)
+
+            if saveFailed {
+                Text("Could not save check-in. Try again in a moment.")
+                    .font(.bodyMD)
+                    .foregroundStyle(Color.accentHeart)
+            }
+        }
+        .task {
+            async let recoveryTask = services.recoverySnapshot()
+            async let wellnessTask = services.wellnessSnapshot()
+            (recovery, wellness) = await (recoveryTask, wellnessTask)
+        }
+    }
+
+    private var hasGarminSignal: Bool {
+        recovery.readiness > 0 || recovery.bodyBattery > 0 || recovery.hrv != "—" || recovery.sleep != "—"
+    }
+
+    private func approveGarmin() async {
+        isSaving = true
+        saveFailed = false
+        garminApprovalFailed = false
+        let saved = await services.approveGarminMorningCheckin()
+        isSaving = false
+        if saved {
+            RunSmartHaptics.success()
+            dismiss()
+        } else {
+            garminApprovalFailed = true
+        }
+    }
+
+    private func save() async {
+        isSaving = true
+        saveFailed = false
+        garminApprovalFailed = false
+        let saved = await services.saveMorningCheckin(
+            energy: Int(energy),
+            soreness: Int(soreness),
+            mood: mood,
+            stress: nil,
+            fatigue: nil,
+            notes: nil
+        )
+        isSaving = false
+        if saved {
+            RunSmartHaptics.success()
+            dismiss()
+        } else {
+            saveFailed = true
+        }
+    }
+}
+
+private struct CheckinDetailLine: View {
+    var label: String
+    var value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(.bodyMD)
+                .foregroundStyle(Color.textSecondary)
+            Spacer()
+            Text(value)
+                .font(.bodyMD.weight(.semibold))
+                .foregroundStyle(Color.textPrimary)
+                .multilineTextAlignment(.trailing)
         }
     }
 }
