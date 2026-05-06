@@ -1,3 +1,7 @@
 DerivedData/
 *.xcresult
 *.xcactivitylog
+.DS_Store
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
