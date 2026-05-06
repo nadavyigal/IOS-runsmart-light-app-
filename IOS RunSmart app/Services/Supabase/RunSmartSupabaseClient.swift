@@ -23,6 +23,9 @@ struct DBProfile: Sendable {
     let name: String?
     let goal: String         // nullable in DB; defaults to ""
     let experience: String   // nullable in DB; defaults to ""
+    let averageWeeklyDistanceKm: Double?
+    let trainingDataSource: String?
+    let trainingDataUpdatedAt: String?
     let preferredTimes: [String]
     let coachingStyle: String?
     let daysPerWeek: Int     // nullable in DB; defaults to 0
@@ -37,6 +40,9 @@ extension DBProfile: Codable {
         case name
         case goal
         case experience
+        case averageWeeklyDistanceKm = "average_weekly_distance_km"
+        case trainingDataSource = "training_data_source"
+        case trainingDataUpdatedAt = "training_data_updated_at"
         case preferredTimes = "preferred_times"
         case coachingStyle = "coaching_style"
         case daysPerWeek = "days_per_week"
@@ -59,6 +65,9 @@ extension DBProfile: Codable {
         name = try? c.decodeIfPresent(String.self, forKey: .name)
         goal = (try? c.decode(String.self, forKey: .goal)) ?? ""
         experience = (try? c.decode(String.self, forKey: .experience)) ?? ""
+        averageWeeklyDistanceKm = try? c.decodeIfPresent(Double.self, forKey: .averageWeeklyDistanceKm)
+        trainingDataSource = try? c.decodeIfPresent(String.self, forKey: .trainingDataSource)
+        trainingDataUpdatedAt = try? c.decodeIfPresent(String.self, forKey: .trainingDataUpdatedAt)
         preferredTimes = (try? c.decode([String].self, forKey: .preferredTimes)) ?? []
         coachingStyle = try? c.decodeIfPresent(String.self, forKey: .coachingStyle)
         daysPerWeek = (try? c.decode(Int.self, forKey: .daysPerWeek)) ?? 0
@@ -69,6 +78,36 @@ extension DBProfile: Codable {
 struct DBProfileInsert: Encodable, Sendable {
     let authUserId: String   // UUID string — matches auth_user_id uuid column
     let email: String        // NOT NULL in DB
+    let name: String
+    let goal: String
+    let experience: String
+    let averageWeeklyDistanceKm: Double?
+    let trainingDataSource: String?
+    let trainingDataUpdatedAt: String?
+    let preferredTimes: [String]
+    let daysPerWeek: Int
+    let coachingStyle: String
+    let onboardingComplete: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case authUserId = "auth_user_id"
+        case email
+        case name
+        case goal
+        case experience
+        case averageWeeklyDistanceKm = "average_weekly_distance_km"
+        case trainingDataSource = "training_data_source"
+        case trainingDataUpdatedAt = "training_data_updated_at"
+        case preferredTimes = "preferred_times"
+        case daysPerWeek = "days_per_week"
+        case coachingStyle = "coaching_style"
+        case onboardingComplete = "onboarding_complete"
+    }
+}
+
+struct DBProfileInsertLegacy: Encodable, Sendable {
+    let authUserId: String
+    let email: String
     let name: String
     let goal: String
     let experience: String

@@ -144,6 +144,11 @@ extension ISO8601DateFormatter {
 
 final class TrainingPlanRepository {
     private let supabase = SupabaseManager.client
+    private static let profileDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
     func identity(authUserID: UUID) async -> RunSmartIdentity {
         do {
@@ -332,6 +337,9 @@ final class TrainingPlanRepository {
                 name: request.displayName,
                 goal: request.supabaseGoal,
                 experience: request.supabaseExperience,
+                averageWeeklyDistanceKm: request.averageWeeklyDistanceKm,
+                trainingDataSource: request.trainingDataSource?.rawValue,
+                trainingDataUpdatedAt: request.averageWeeklyDistanceKm.map { _ in Self.profileDateFormatter.string(from: Date()) },
                 preferredTimes: request.preferredDays,
                 daysPerWeek: request.weeklyRunDays,
                 coachingStyle: request.supabaseCoachingStyle,
@@ -346,9 +354,29 @@ final class TrainingPlanRepository {
             return true
         } catch {
             if !(error is CancellationError) {
-                print("[TrainingPlanRepo] saveTrainingGoal error:", error)
+                print("[TrainingPlanRepo] saveTrainingGoal rich update error:", error)
             }
-            return false
+            do {
+                try await supabase
+                    .from("profiles")
+                    .update(DBProfileGoalUpdateLegacy(
+                        name: request.displayName,
+                        goal: request.supabaseGoal,
+                        experience: request.supabaseExperience,
+                        preferredTimes: request.preferredDays,
+                        daysPerWeek: request.weeklyRunDays,
+                        coachingStyle: request.supabaseCoachingStyle,
+                        onboardingComplete: true
+                    ))
+                    .eq("auth_user_id", value: authUserID.uuidString)
+                    .execute()
+                return true
+            } catch {
+                if !(error is CancellationError) {
+                    print("[TrainingPlanRepo] saveTrainingGoal legacy update error:", error)
+                }
+                return false
+            }
         }
     }
 
@@ -748,6 +776,30 @@ final class TrainingPlanRepository {
 }
 
 private struct DBProfileGoalUpdate: Encodable {
+    let name: String
+    let goal: String
+    let experience: String
+    let averageWeeklyDistanceKm: Double?
+    let trainingDataSource: String?
+    let trainingDataUpdatedAt: String?
+    let preferredTimes: [String]
+    let daysPerWeek: Int
+    let coachingStyle: String
+    let onboardingComplete: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case name, goal, experience
+        case averageWeeklyDistanceKm = "average_weekly_distance_km"
+        case trainingDataSource = "training_data_source"
+        case trainingDataUpdatedAt = "training_data_updated_at"
+        case preferredTimes = "preferred_times"
+        case daysPerWeek = "days_per_week"
+        case coachingStyle = "coaching_style"
+        case onboardingComplete = "onboarding_complete"
+    }
+}
+
+private struct DBProfileGoalUpdateLegacy: Encodable {
     let name: String
     let goal: String
     let experience: String

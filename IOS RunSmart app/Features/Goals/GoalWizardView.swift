@@ -107,6 +107,8 @@ struct GoalWizardView: View {
             displayName: profile.displayName,
             goal: goal,
             experience: profile.experience.isEmpty ? "intermediate" : profile.experience,
+            averageWeeklyDistanceKm: profile.averageWeeklyDistanceKm,
+            trainingDataSource: profile.trainingDataSource,
             weeklyRunDays: Int(weeklyRuns),
             preferredDays: normalizedPreferredDays(profile.preferredDays, weeklyRuns: Int(weeklyRuns)),
             coachingTone: profile.coachingTone.isEmpty ? "Motivating" : profile.coachingTone,

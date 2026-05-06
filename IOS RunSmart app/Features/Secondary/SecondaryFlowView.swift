@@ -14,6 +14,7 @@ enum SecondaryDestination: Hashable, Identifiable {
     case lapMarker
     case voiceCoaching
     case coachingTone
+    case trainingData
     case goalFocus
     case reminders
     case connectedService(String)
@@ -44,6 +45,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .lapMarker: "lapMarker"
         case .voiceCoaching: "voiceCoaching"
         case .coachingTone: "coachingTone"
+        case .trainingData: "trainingData"
         case .goalFocus: "goalFocus"
         case .reminders: "reminders"
         case .connectedService(let name): "connectedService-\(name)"
@@ -75,6 +77,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .lapMarker: "Lap Marker"
         case .voiceCoaching: "Voice Coaching"
         case .coachingTone: "Coaching Tone"
+        case .trainingData: "Training Data"
         case .goalFocus: "Goal Focus"
         case .reminders: "Reminders & Preferences"
         case .connectedService(let name): name
@@ -146,6 +149,8 @@ struct SecondaryFlowView: View {
             VoiceCoachingScaffold()
         case .coachingTone:
             CoachingToneScaffold()
+        case .trainingData:
+            TrainingDataEditor()
         case .goalFocus:
             GoalFocusEditor()
         case .reminders:
@@ -203,6 +208,8 @@ struct SecondaryFlowView: View {
             "Set how active Coach Spark should be during runs."
         case .coachingTone:
             "Pick the coach personality for future guidance."
+        case .trainingData:
+            "Save the baseline your coach uses to size training load."
         case .goalFocus:
             "Tell the coach what to optimize this block around."
         case .reminders:
@@ -248,6 +255,7 @@ struct SecondaryFlowView: View {
         case .lapMarker: "flag.fill"
         case .voiceCoaching: "waveform"
         case .coachingTone: "sparkles"
+        case .trainingData: "figure.run"
         case .goalFocus: "target"
         case .reminders: "bell.badge.fill"
         case .connectedService: "link.circle.fill"
@@ -1414,6 +1422,191 @@ private struct CoachingToneScaffold: View {
     }
 }
 
+private struct TrainingDataEditor: View {
+    @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var session: SupabaseSession
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedExperience = ""
+    @State private var weeklyDistanceKm = 0.0
+    @State private var selectedSource: TrainingDataSource = .manual
+    @State private var daysPerWeek = 4
+    @State private var recentRuns: [RecordedRun] = []
+    @State private var isSaving = false
+    @State private var saved = false
+    @State private var failed = false
+
+    private let experiences = ["Beginner", "Intermediate", "Advanced", "Competitive"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            if let estimate = estimatedWeeklyDistance {
+                GlassCard(glow: Color.lime) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(title: "Detected Baseline", trailing: estimateSource.displayName)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(String(format: "%.1f", estimate))
+                                .font(.metric)
+                                .monospacedDigit()
+                            Text("km / week")
+                                .font(.bodyMD.weight(.semibold))
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                        Button {
+                            weeklyDistanceKm = estimate
+                            selectedSource = estimateSource
+                        } label: {
+                            Label("Use Estimate", systemImage: "checkmark.seal.fill")
+                        }
+                        .buttonStyle(NeonButtonStyle())
+                    }
+                }
+            }
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionLabel(title: "Running Experience")
+                    ForEach(experiences, id: \.self) { exp in
+                        Button { selectedExperience = exp } label: {
+                            FlowSelectionTile(title: exp, value: experienceDetail(exp), symbol: "figure.run", selected: selectedExperience == exp)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Average Weekly Distance")
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(String(format: "%.0f", weeklyDistanceKm))
+                            .font(.metric)
+                            .monospacedDigit()
+                        Text("km / week")
+                            .font(.bodyMD.weight(.semibold))
+                            .foregroundStyle(Color.textSecondary)
+                    }
+                    Slider(value: $weeklyDistanceKm, in: 0...120, step: 1)
+                        .tint(Color.lime)
+                    Stepper("\(daysPerWeek) run days per week", value: $daysPerWeek, in: 1...7)
+                        .foregroundStyle(Color.textPrimary)
+                }
+            }
+
+            if weeklyDistanceRequired && weeklyDistanceKm <= 0 {
+                Label("Intermediate and advanced plans need a weekly distance baseline.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(Color.accentRecovery)
+            }
+
+            if saved {
+                Label("Training data saved.", systemImage: "checkmark.seal.fill")
+                    .foregroundStyle(Color.lime)
+                    .font(.headline)
+            }
+
+            if failed {
+                Text("Training data saved locally, but the web coach did not regenerate a plan. Try again after connection is stable.")
+                    .font(.callout)
+                    .foregroundStyle(Color.red)
+            }
+
+            Button(action: { Task { await save() } }) {
+                HStack {
+                    if isSaving {
+                        ProgressView().tint(.black)
+                    } else {
+                        Label("Save Training Data", systemImage: "checkmark")
+                    }
+                }
+            }
+            .buttonStyle(NeonButtonStyle())
+            .disabled(isSaving || selectedExperience.isEmpty || (weeklyDistanceRequired && weeklyDistanceKm <= 0))
+        }
+        .task {
+            loadInitialState()
+            recentRuns = await services.recentRuns()
+            if session.onboardingProfile.averageWeeklyDistanceKm == nil,
+               let estimate = estimatedWeeklyDistance,
+               weeklyDistanceKm <= 0 {
+                weeklyDistanceKm = estimate
+                selectedSource = estimateSource
+            }
+        }
+    }
+
+    private var estimatedWeeklyDistance: Double? {
+        TrainingDataBaseline.averageWeeklyDistanceKm(from: recentRuns)
+    }
+
+    private var estimateSource: TrainingDataSource {
+        TrainingDataBaseline.inferredSource(from: recentRuns) ?? .runSmart
+    }
+
+    private var weeklyDistanceRequired: Bool {
+        let lower = selectedExperience.lowercased()
+        return lower.contains("intermediate") || lower.contains("advanced") || lower.contains("competitive")
+    }
+
+    private func loadInitialState() {
+        let profile = session.onboardingProfile
+        selectedExperience = normalizedExperience(profile.experience)
+        weeklyDistanceKm = profile.averageWeeklyDistanceKm ?? 0
+        selectedSource = profile.trainingDataSource ?? .manual
+        daysPerWeek = max(1, min(7, profile.weeklyRunDays))
+    }
+
+    private func normalizedExperience(_ value: String) -> String {
+        let lower = value.lowercased()
+        if lower.contains("advanced") { return "Advanced" }
+        if lower.contains("competitive") { return "Competitive" }
+        if lower.contains("beginner") || lower.contains("base") || lower.contains("new") { return "Beginner" }
+        if lower.contains("intermediate") || lower.contains("consistent") { return "Intermediate" }
+        return "Intermediate"
+    }
+
+    private func experienceDetail(_ value: String) -> String {
+        switch value {
+        case "Beginner": "New or rebuilding"
+        case "Intermediate": "Steady weekly running"
+        case "Advanced": "Higher volume or workouts"
+        default: "Race-focused training"
+        }
+    }
+
+    private func save() async {
+        var updated = session.onboardingProfile
+        updated.experience = selectedExperience
+        updated.averageWeeklyDistanceKm = weeklyDistanceKm > 0 ? weeklyDistanceKm : nil
+        updated.trainingDataSource = updated.averageWeeklyDistanceKm == nil ? nil : selectedSource
+        updated.trainingDataUpdatedAt = Date()
+        updated.weeklyRunDays = daysPerWeek
+
+        isSaving = true
+        await session.completeOnboarding(updated)
+        let request = TrainingGoalRequest(
+            displayName: updated.displayName,
+            goal: updated.goal.isEmpty ? "10K Improvement" : updated.goal,
+            experience: updated.experience,
+            averageWeeklyDistanceKm: updated.averageWeeklyDistanceKm,
+            trainingDataSource: updated.trainingDataSource,
+            weeklyRunDays: updated.weeklyRunDays,
+            preferredDays: updated.preferredDays,
+            coachingTone: updated.coachingTone,
+            targetDate: Calendar.current.date(byAdding: .month, value: 4, to: Date()) ?? Date()
+        )
+        let savedToPlan = await services.saveTrainingGoal(request)
+        isSaving = false
+        saved = true
+        failed = !savedToPlan
+
+        if savedToPlan {
+            RunSmartHaptics.success()
+            dismiss()
+        }
+    }
+}
+
 private struct GoalFocusEditor: View {
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var session: SupabaseSession
@@ -1524,6 +1717,8 @@ private struct GoalFocusEditor: View {
             displayName: updated.displayName,
             goal: updated.goal,
             experience: updated.experience,
+            averageWeeklyDistanceKm: updated.averageWeeklyDistanceKm,
+            trainingDataSource: updated.trainingDataSource,
             weeklyRunDays: updated.weeklyRunDays,
             preferredDays: updated.preferredDays,
             coachingTone: updated.coachingTone,

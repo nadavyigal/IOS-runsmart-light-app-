@@ -77,6 +77,9 @@ final class SupabaseSession: ObservableObject {
                     displayName: p.name ?? "",
                     goal: p.goal.isEmpty ? "" : p.goal,
                     experience: p.experience.isEmpty ? "" : p.experience,
+                    averageWeeklyDistanceKm: p.averageWeeklyDistanceKm,
+                    trainingDataSource: p.trainingDataSource.flatMap(TrainingDataSource.init(rawValue:)),
+                    trainingDataUpdatedAt: p.trainingDataUpdatedAt.flatMap(Self.parseProfileDate),
                     weeklyRunDays: p.daysPerWeek,
                     preferredDays: p.preferredTimes,
                     units: "Metric",
@@ -110,6 +113,9 @@ final class SupabaseSession: ObservableObject {
             name: onboarding.displayName,
             goal: onboarding.supabaseGoal,
             experience: onboarding.supabaseExperience,
+            averageWeeklyDistanceKm: onboarding.averageWeeklyDistanceKm,
+            trainingDataSource: onboarding.trainingDataSource?.rawValue,
+            trainingDataUpdatedAt: onboarding.trainingDataUpdatedAt.map(Self.profileDateFormatter.string(from:)),
             preferredTimes: onboarding.preferredDays,
             daysPerWeek: onboarding.weeklyRunDays,
             coachingStyle: onboarding.supabaseCoachingStyle,
@@ -130,8 +136,34 @@ final class SupabaseSession: ObservableObject {
                 displayName = p.name ?? onboarding.displayName
             }
         } catch {
-            lastAuthError = "Could not save onboarding. Check the profiles auth_user_id unique constraint and RLS policies."
-            print("[SupabaseSession] completeOnboarding error:", error)
+            print("[SupabaseSession] completeOnboarding rich upsert error:", error)
+            do {
+                let rows: [DBProfile] = try await supabase
+                    .from("profiles")
+                    .upsert(DBProfileInsertLegacy(
+                        authUserId: userID.uuidString,
+                        email: email,
+                        name: onboarding.displayName,
+                        goal: onboarding.supabaseGoal,
+                        experience: onboarding.supabaseExperience,
+                        preferredTimes: onboarding.preferredDays,
+                        daysPerWeek: onboarding.weeklyRunDays,
+                        coachingStyle: onboarding.supabaseCoachingStyle,
+                        onboardingComplete: true
+                    ), onConflict: "auth_user_id")
+                    .select()
+                    .execute()
+                    .value
+                if let p = rows.first {
+                    profile = p
+                    hasCompletedOnboarding = true
+                    displayName = p.name ?? onboarding.displayName
+                    lastAuthError = nil
+                }
+            } catch {
+                lastAuthError = "Could not save onboarding. Check the profiles auth_user_id unique constraint and RLS policies."
+                print("[SupabaseSession] completeOnboarding legacy upsert error:", error)
+            }
         }
     }
 
@@ -145,5 +177,18 @@ final class SupabaseSession: ObservableObject {
         profile = nil
         displayName = ""
         lastAuthError = nil
+    }
+
+    private static let profileDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static func parseProfileDate(_ value: String) -> Date? {
+        if let date = profileDateFormatter.date(from: value) { return date }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
     }
 }

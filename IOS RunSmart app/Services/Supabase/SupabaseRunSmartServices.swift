@@ -143,7 +143,13 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
 
         do {
-            let recent = Array((await recentRuns()).prefix(10))
+            let recent = await recentRuns(limit: 50)
+            let planAverageWeeklyKm = TrainingDataBaseline.planAverageWeeklyKm(
+                saved: request.averageWeeklyDistanceKm,
+                runs: recent
+            )
+            let recentSevenDayKm = recentWeeklyKm(runs: recent)
+            let weeklyVolumeKm = planAverageWeeklyKm ?? recentSevenDayKm
             let identity = await planRepo.identity(authUserID: userID)
             let payload = RunSmartDTO.GeneratePlanRequest(
                 userContext: .init(
@@ -153,12 +159,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     daysPerWeek: request.weeklyRunDays,
                     preferredTimes: request.preferredDays.isEmpty ? ["morning"] : request.preferredDays,
                     coachingStyle: request.supabaseCoachingStyle,
-                    averageWeeklyKm: recentWeeklyKm(runs: recent)
+                    averageWeeklyKm: planAverageWeeklyKm
                 ),
                 trainingHistory: .init(
-                    weeklyVolumeKm: recentWeeklyKm(runs: recent),
+                    weeklyVolumeKm: weeklyVolumeKm,
                     consistencyScore: min(100, recent.count * 10),
-                    recentRuns: recent.map { run in
+                    recentRuns: recent.prefix(10).map { run in
                         .init(
                             date: ISO8601DateFormatter.shortDate.string(from: run.startedAt),
                             distanceKm: run.distanceMeters / 1_000,

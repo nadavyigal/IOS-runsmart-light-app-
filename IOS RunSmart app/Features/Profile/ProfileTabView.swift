@@ -9,6 +9,7 @@ struct ProfileTabView: View {
     @State private var achievements: [Achievement] = []
     @State private var deviceStatuses: [ConnectedDeviceStatus] = []
     @State private var runReports: [RunReportSummary] = []
+    @State private var recentRuns: [RecordedRun] = []
     @State private var navPath: [SecondaryDestination] = []
 
     var body: some View {
@@ -22,6 +23,7 @@ struct ProfileTabView: View {
                     identityHeader
                     statsBar
                     coachSparkCard
+                    trainingDataCard
                     coachSettingsGrid
                     optimizationCards
                     achievementsGallery
@@ -57,7 +59,8 @@ struct ProfileTabView: View {
         async let achievementsTask = services.achievements()
         async let statusesTask = services.deviceStatuses()
         async let reportsTask = services.latestRunReports(limit: 3)
-        (runner, achievements, deviceStatuses, runReports) = await (runnerTask, achievementsTask, statusesTask, reportsTask)
+        async let runsTask = services.recentRuns()
+        (runner, achievements, deviceStatuses, runReports, recentRuns) = await (runnerTask, achievementsTask, statusesTask, reportsTask, runsTask)
     }
 
     private var identityHeader: some View {
@@ -166,6 +169,61 @@ struct ProfileTabView: View {
         }
     }
 
+    private var trainingDataCard: some View {
+        let profile = session.onboardingProfile
+        let estimated = TrainingDataBaseline.averageWeeklyDistanceKm(from: recentRuns)
+        let saved = profile.averageWeeklyDistanceKm
+        let value = saved ?? estimated
+        let source = saved != nil
+            ? (profile.trainingDataSource?.displayName ?? "Manual")
+            : estimatedTrainingDataSourceLabel
+
+        return RunSmartPanel(cornerRadius: 20, padding: 14) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    SectionLabel(title: "Training Data")
+                    Spacer()
+                    Button { navPath.append(.trainingData) } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.bodyMD.weight(.bold))
+                            .foregroundStyle(Color.accentPrimary)
+                            .frame(width: 34, height: 34)
+                            .background(Color.accentPrimary.opacity(0.10), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Edit training data")
+                }
+
+                HStack(spacing: 10) {
+                    TrainingDataMetricTile(
+                        title: "Experience",
+                        value: profile.experience.isEmpty ? "Not set" : profile.experience.capitalized,
+                        detail: "Plan progression",
+                        symbol: "figure.run",
+                        tint: .accentPrimary
+                    )
+                    TrainingDataMetricTile(
+                        title: "Weekly Distance",
+                        value: value.map { String(format: "%.1f", $0) } ?? "--",
+                        detail: value == nil ? "Needed" : "km / week",
+                        symbol: "point.topleft.down.curvedto.point.bottomright.up",
+                        tint: .accentRecovery
+                    )
+                }
+
+                ConnectedServiceTile(
+                    title: source,
+                    detail: saved == nil && estimated != nil ? "Review and save estimate" : "Saved training baseline",
+                    status: saved == nil && estimated != nil ? "Estimate" : (saved == nil ? "Missing" : "Saved"),
+                    symbol: source.lowercased().contains("garmin") ? "link.circle.fill" : "checkmark.seal.fill",
+                    tint: saved == nil ? .accentRecovery : .accentPrimary
+                ) {
+                    navPath.append(.trainingData)
+                }
+            }
+        }
+    }
+
     private var optimizationCards: some View {
         RunSmartPanel(cornerRadius: 20, padding: 14) {
             VStack(alignment: .leading, spacing: 12) {
@@ -252,9 +310,49 @@ struct ProfileTabView: View {
         deviceStatuses.first(where: { $0.provider == provider })?.state.rawValue.capitalized ?? "Disconnected"
     }
 
+    private var estimatedTrainingDataSourceLabel: String {
+        guard TrainingDataBaseline.averageWeeklyDistanceKm(from: recentRuns) != nil else { return "Manual setup needed" }
+        return TrainingDataBaseline.inferredSource(from: recentRuns)?.displayName ?? "Recent runs"
+    }
+
     private var levelNumber: String {
         let digits = runner.level.filter(\.isNumber)
         return digits.isEmpty ? "14" : String(digits)
+    }
+}
+
+private struct TrainingDataMetricTile: View {
+    var title: String
+    var value: String
+    var detail: String
+    var symbol: String
+    var tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: symbol)
+                    .foregroundStyle(tint)
+                Spacer()
+            }
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.textSecondary)
+                .lineLimit(1)
+            Text(value)
+                .font(.bodyMD.weight(.bold))
+                .foregroundStyle(Color.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+            Text(detail)
+                .font(.caption2)
+                .foregroundStyle(Color.textTertiary)
+                .lineLimit(1)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+        .background(Color.surfaceCard.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.border, lineWidth: 1))
     }
 }
 

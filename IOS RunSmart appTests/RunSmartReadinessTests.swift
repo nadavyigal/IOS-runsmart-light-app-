@@ -204,6 +204,30 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(moving, 90)
     }
 
+    func testTrainingDataAverageWeeklyDistanceUsesRecentFourWeekWindow() {
+        let now = makeDate("2026-05-06").addingTimeInterval(12 * 3600)
+        let runs = [
+            makeRun(source: .garmin, startedAt: makeDate("2026-05-01"), distanceMeters: 12_000, movingTimeSeconds: 3_600),
+            makeRun(source: .runSmart, startedAt: makeDate("2026-04-24"), distanceMeters: 8_000, movingTimeSeconds: 2_400),
+            makeRun(source: .garmin, startedAt: makeDate("2026-03-20"), distanceMeters: 20_000, movingTimeSeconds: 6_000)
+        ]
+
+        let average = TrainingDataBaseline.averageWeeklyDistanceKm(from: runs, now: now)
+
+        XCTAssertEqual(average, 5.0)
+    }
+
+    func testTrainingDataBaselinePrefersSavedWeeklyDistance() {
+        let now = makeDate("2026-05-06").addingTimeInterval(12 * 3600)
+        let runs = [
+            makeRun(source: .garmin, startedAt: makeDate("2026-05-01"), distanceMeters: 12_000, movingTimeSeconds: 3_600)
+        ]
+
+        let average = TrainingDataBaseline.planAverageWeeklyKm(saved: 42, runs: runs, now: now)
+
+        XCTAssertEqual(average, 42)
+    }
+
     func testHealthKitWorkoutMapperUsesStableProviderIDAndPace() {
         let providerID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
         let snapshot = HealthKitWorkoutSnapshot(

@@ -83,6 +83,8 @@ struct TrainingGoalRequest: Hashable {
     var displayName: String
     var goal: String
     var experience: String
+    var averageWeeklyDistanceKm: Double? = nil
+    var trainingDataSource: TrainingDataSource? = nil
     var weeklyRunDays: Int
     var preferredDays: [String]
     var coachingTone: String
@@ -217,6 +219,9 @@ struct OnboardingProfile: Codable, Equatable {
     var displayName: String
     var goal: String
     var experience: String
+    var averageWeeklyDistanceKm: Double?
+    var trainingDataSource: TrainingDataSource?
+    var trainingDataUpdatedAt: Date?
     var weeklyRunDays: Int
     var preferredDays: [String]
     var units: String
@@ -227,12 +232,57 @@ struct OnboardingProfile: Codable, Equatable {
         displayName: "",
         goal: "10K improvement",
         experience: "Building base",
+        averageWeeklyDistanceKm: nil,
+        trainingDataSource: nil,
+        trainingDataUpdatedAt: nil,
         weeklyRunDays: 4,
         preferredDays: ["Tue", "Thu", "Sat", "Sun"],
         units: "Metric",
         coachingTone: "Motivating",
         notificationsEnabled: false
     )
+}
+
+enum TrainingDataSource: String, Codable, Hashable {
+    case manual
+    case garmin
+    case runSmart
+
+    var displayName: String {
+        switch self {
+        case .manual: "Manual"
+        case .garmin: "Garmin"
+        case .runSmart: "RunSmart runs"
+        }
+    }
+}
+
+enum TrainingDataBaseline {
+    static func averageWeeklyDistanceKm(
+        from runs: [RecordedRun],
+        now: Date = Date(),
+        windowWeeks: Int = 4,
+        calendar: Calendar = .current
+    ) -> Double? {
+        let weeks = max(1, windowWeeks)
+        guard let start = calendar.date(byAdding: .day, value: -(weeks * 7), to: now) else { return nil }
+        let distanceKm = runs
+            .filter { $0.startedAt >= start && $0.startedAt <= now && $0.distanceMeters > 0 }
+            .reduce(0.0) { $0 + ($1.distanceMeters / 1_000) }
+        guard distanceKm > 0 else { return nil }
+        return (distanceKm / Double(weeks) * 10).rounded() / 10
+    }
+
+    static func planAverageWeeklyKm(saved: Double?, runs: [RecordedRun], now: Date = Date()) -> Double? {
+        if let saved, saved > 0 { return saved }
+        return averageWeeklyDistanceKm(from: runs, now: now)
+    }
+
+    static func inferredSource(from runs: [RecordedRun]) -> TrainingDataSource? {
+        if runs.contains(where: { $0.source == .garmin }) { return .garmin }
+        if runs.contains(where: { $0.source == .runSmart || $0.source == .healthKit }) { return .runSmart }
+        return nil
+    }
 }
 
 enum DeviceConnectionState: String, Codable {
