@@ -403,7 +403,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             runs.append(contentsOf: garminRuns)
         }
 
-        return Array(ActivityConsolidationService.consolidatedRuns(runs).prefix(limit))
+        return Array(ActivityConsolidationService.userVisibleRecentRuns(runs).prefix(limit))
     }
 
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
@@ -673,6 +673,9 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             )
             let report = Self.report(from: payload.report, run: run)
             store.saveRunReport(report)
+            await MainActor.run {
+                NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+            }
             return report
         } catch {
             if !(error is CancellationError) {
@@ -680,6 +683,13 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             }
             return nil
         }
+    }
+
+    func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail? {
+        guard let run = await run(matchingReportRunID: runID) else {
+            return store.cachedRunReport(runID: runID)
+        }
+        return await generateRunReportIfMissing(for: run)
     }
 
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
@@ -1290,6 +1300,14 @@ private struct DBWellnessCheckin: Decodable {
 }
 
 extension SupabaseRunSmartServices {
+    private func run(matchingReportRunID runID: String) async -> RecordedRun? {
+        await recentRuns(limit: 100).first { run in
+            Self.reportRunID(for: run) == runID ||
+            run.providerActivityID == runID ||
+            run.id.uuidString == runID
+        }
+    }
+
     static func reportRunID(for run: RecordedRun) -> String {
         run.consolidatedActivityID ?? run.providerActivityID ?? run.id.uuidString
     }

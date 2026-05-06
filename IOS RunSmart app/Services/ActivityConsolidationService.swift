@@ -11,6 +11,23 @@ enum ActivityConsolidationService {
         groups(for: runs, calendar: calendar).map(\.canonicalRun)
     }
 
+    static func userVisibleRecentRuns(
+        _ runs: [RecordedRun],
+        now: Date = Date(),
+        lookbackDays: Int = 14,
+        calendar: Calendar = .current
+    ) -> [RecordedRun] {
+        let start = calendar.date(byAdding: .day, value: -lookbackDays, to: now) ?? now.addingTimeInterval(TimeInterval(-lookbackDays * 86_400))
+        let futureTolerance = now.addingTimeInterval(6 * 3_600)
+
+        return consolidatedRuns(runs, calendar: calendar)
+            .filter { run in
+                run.startedAt >= start &&
+                run.startedAt <= futureTolerance &&
+                isUserVisibleRun(run)
+            }
+    }
+
     static func canonicalRun(for target: RecordedRun, in runs: [RecordedRun], calendar: Calendar = .current) -> RecordedRun {
         let allRuns = runs.contains(where: { isSameStoredRun($0, target) }) ? runs : runs + [target]
         return groups(for: allRuns, calendar: calendar)
@@ -56,6 +73,16 @@ enum ActivityConsolidationService {
             overlap >= -120 &&
             distanceDelta <= distanceTolerance &&
             durationDelta <= durationTolerance
+    }
+
+    static func isUserVisibleRun(_ run: RecordedRun) -> Bool {
+        guard run.distanceMeters >= 1_000 else { return false }
+        guard run.movingTimeSeconds >= 8 * 60 else { return false }
+
+        let pace = run.averagePaceSecondsPerKm > 0
+            ? run.averagePaceSecondsPerKm
+            : run.movingTimeSeconds / max(run.distanceMeters / 1_000, 0.1)
+        return pace >= 150 && pace <= 1_200
     }
 
     private static func uniqueStoredRuns(_ runs: [RecordedRun]) -> [RecordedRun] {

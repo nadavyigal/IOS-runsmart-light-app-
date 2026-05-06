@@ -1052,7 +1052,14 @@ private struct RunReportScaffold: View {
 }
 
 private struct RunReportDetailScaffold: View {
-    var report: RunReportDetail
+    @Environment(\.runSmartServices) private var services
+    @State private var report: RunReportDetail
+    @State private var isGenerating = false
+    @State private var generationFailed = false
+
+    init(report: RunReportDetail) {
+        _report = State(initialValue: report)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -1077,8 +1084,40 @@ private struct RunReportDetailScaffold: View {
                 }
             }
             RunReportCoachNotesCard(report: report)
+            if !report.hasGeneratedReport {
+                generateReportCard
+            }
             RunReportRichSignalsCard(report: report)
             RunReportNextWorkoutCard(report: report)
+        }
+    }
+
+    private var generateReportCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(title: "Generate Coach Report")
+                Text(generationFailed ? "Report generation failed. Check your connection and try again." : "Create a full coach report from this real activity and save it under Recent Run Reports.")
+                    .font(.callout)
+                    .foregroundStyle(Color.mutedText)
+                Button(isGenerating ? "Generating..." : "Generate Report") {
+                    Task { await generateReport() }
+                }
+                .buttonStyle(NeonButtonStyle())
+                .disabled(isGenerating)
+            }
+        }
+    }
+
+    private func generateReport() async {
+        isGenerating = true
+        generationFailed = false
+        defer { isGenerating = false }
+
+        if let generated = await services.generateRunReportIfMissing(forRunID: report.runID) {
+            report = generated
+            RunSmartHaptics.success()
+        } else {
+            generationFailed = true
         }
     }
 }

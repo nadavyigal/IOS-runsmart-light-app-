@@ -58,6 +58,7 @@ protocol WebParityProviding {
     func latestRunReports(limit: Int) async -> [RunReportSummary]
     func runReport(for run: RecordedRun) async -> RunReportDetail?
     func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail?
+    func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail?
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome
     func trainingLoadSnapshot() async -> TrainingLoadSnapshot
     func shareableAchievements() async -> [ShareableAchievement]
@@ -76,6 +77,7 @@ extension WebParityProviding {
     func latestRunReports(limit: Int) async -> [RunReportSummary] { [] }
     func runReport(for run: RecordedRun) async -> RunReportDetail? { nil }
     func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? { nil }
+    func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail? { nil }
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
         PostActivityOutcome(canonicalRun: run, report: nil, completedWorkout: nil, didCompletePlannedWorkout: false)
     }
@@ -181,6 +183,7 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func latestRunReports(limit: Int) async -> [RunReportSummary] { Array(RunSmartPreviewData.runReports.prefix(limit)) }
     func runReport(for run: RecordedRun) async -> RunReportDetail? { nil }
     func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? { nil }
+    func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail? { nil }
     func trainingLoadSnapshot() async -> TrainingLoadSnapshot { RunSmartPreviewData.trainingLoad }
     func shareableAchievements() async -> [ShareableAchievement] { RunSmartPreviewData.shareableAchievements }
     func approveGarminMorningCheckin() async -> Bool { true }

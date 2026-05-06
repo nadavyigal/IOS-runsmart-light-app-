@@ -335,6 +335,22 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(consolidated[0].averageHeartRateBPM, 150)
     }
 
+    func testUserVisibleRecentRunsKeepsOnlyPlausibleLast14DayActivities() {
+        let now = makeDate("2026-05-06").addingTimeInterval(12 * 3600)
+        let realToday = makeRun(providerActivityID: "real-today", source: .healthKit, startedAt: makeDate("2026-05-06").addingTimeInterval(7 * 3600), distanceMeters: 7_600, movingTimeSeconds: 2_700)
+        let realTwoDaysAgo = makeRun(providerActivityID: "real-two-days", source: .garmin, startedAt: makeDate("2026-05-04").addingTimeInterval(8 * 3600), distanceMeters: 7_100, movingTimeSeconds: 2_550)
+        let nearZero = makeRun(providerActivityID: "noise-zero", source: .garmin, startedAt: makeDate("2026-05-06").addingTimeInterval(9 * 3600), distanceMeters: 10, movingTimeSeconds: 2_243)
+        let tooShort = makeRun(providerActivityID: "noise-short", source: .garmin, startedAt: makeDate("2026-05-06").addingTimeInterval(8 * 3600), distanceMeters: 1_920, movingTimeSeconds: 468)
+        let tooOld = makeRun(providerActivityID: "old-real", source: .garmin, startedAt: makeDate("2026-04-19").addingTimeInterval(8 * 3600), distanceMeters: 3_700, movingTimeSeconds: 1_400)
+
+        let visible = ActivityConsolidationService.userVisibleRecentRuns(
+            [nearZero, realTwoDaysAgo, tooOld, tooShort, realToday],
+            now: now
+        )
+
+        XCTAssertEqual(visible.map(\.providerActivityID), ["real-today", "real-two-days"])
+    }
+
     func testConsolidatedReportIDIsStableWhenGarminArrivesAfterHealthKit() {
         let start = makeDate("2026-05-05").addingTimeInterval(7 * 3600)
         let health = makeRun(providerActivityID: "hk-stable", source: .healthKit, startedAt: start, distanceMeters: 5_000, movingTimeSeconds: 1_500)

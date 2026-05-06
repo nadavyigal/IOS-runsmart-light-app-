@@ -39,7 +39,7 @@ struct ActivityTabView: View {
 
                 HeroCard(accent: .accentSuccess) {
                     VStack(alignment: .leading, spacing: 18) {
-                        SectionLabel(title: "This week")
+                        SectionLabel(title: "Last 14 days")
                         HStack(alignment: .firstTextBaseline) {
                             Text(totalDistanceKm, format: .number.precision(.fractionLength(1)))
                                 .font(.displayLG)
@@ -66,20 +66,20 @@ struct ActivityTabView: View {
 
                 ContentCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(title: "Recent runs", trailing: "All")
+                        SectionLabel(title: "Running activities", trailing: "\(runs.count)")
                         if runs.isEmpty {
                             Text("No verified runs yet. Start a GPS run, add a manual run, or connect Garmin to import real activity.")
                                 .font(.bodyMD)
                                 .foregroundStyle(Color.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         } else {
-                            ForEach(Array(runs.prefix(6))) { run in
+                            ForEach(runs) { run in
                                 ActivityRow(
                                     run: run,
-                                    onTap: { router.open(.shareRun(run)) },
+                                    onTap: { router.open(.runReportDetail(SupabaseRunSmartServices.reportSkeleton(for: run))) },
                                     onDelete: { runPendingRemoval = run }
                                 )
-                                if run.id != runs.prefix(6).last?.id {
+                                if run.id != runs.last?.id {
                                     Divider()
                                         .background(Color.border)
                                 }

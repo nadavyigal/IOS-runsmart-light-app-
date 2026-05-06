@@ -509,7 +509,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func runnerProfile() async -> RunnerProfile {
         let profile = store.loadOnboardingProfile() ?? .empty
-        let runs = ActivityConsolidationService.consolidatedRuns(store.visibleRuns(store.loadRuns()))
+        let runs = ActivityConsolidationService.userVisibleRecentRuns(store.visibleRuns(store.loadRuns()))
         let totalDistance = Int((runs.reduce(0) { $0 + $1.distanceMeters } / 1_000).rounded())
         let totalSeconds = runs.reduce(0) { $0 + $1.movingTimeSeconds }
         return RunnerProfile(
@@ -524,7 +524,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     }
 
     func achievements() async -> [Achievement] {
-        let runs = ActivityConsolidationService.consolidatedRuns(store.visibleRuns(store.loadRuns()))
+        let runs = ActivityConsolidationService.userVisibleRecentRuns(store.visibleRuns(store.loadRuns()))
         return [
             Achievement(title: "GPS Runs", subtitle: "\(runs.filter { $0.source == .runSmart }.count)", symbol: "location.fill", tint: Color.lime),
             Achievement(title: "Garmin", subtitle: deviceSubtitle("Garmin Connect"), symbol: "link", tint: .cyan),
@@ -543,7 +543,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     }
 
     func recentRuns() async -> [RecordedRun] {
-        ActivityConsolidationService.consolidatedRuns(store.visibleRuns(store.loadRuns()))
+        ActivityConsolidationService.userVisibleRecentRuns(store.visibleRuns(store.loadRuns()))
     }
 
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
