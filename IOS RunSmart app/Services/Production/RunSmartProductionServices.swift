@@ -178,6 +178,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     private var accumulatedPausedSeconds: TimeInterval = 0
     private var timer: Timer?
     private var lastAcceptedLocation: CLLocation?
+    private var shouldStartAfterPermission = false
 
     override convenience init() {
         self.init(store: .shared)
@@ -213,21 +214,29 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func requestPermission() {
+        lastErrorMessage = nil
         phase = .requestingPermission
         manager.requestWhenInUseAuthorization()
     }
 
     func start() {
         if manager.authorizationStatus == .notDetermined {
+            shouldStartAfterPermission = true
             requestPermission()
             return
         }
         guard manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse else {
+            shouldStartAfterPermission = false
             phase = .denied
             lastErrorMessage = "Location permission is required to record GPS runs."
             return
         }
 
+        beginRecording()
+    }
+
+    private func beginRecording() {
+        shouldStartAfterPermission = false
         startedAt = Date()
         pausedAt = nil
         accumulatedPausedSeconds = 0
@@ -260,6 +269,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func discard() {
+        shouldStartAfterPermission = false
         stopTracking()
         routePoints = []
         distanceMeters = 0
@@ -274,8 +284,14 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     func finish() -> RecordedRun? {
         guard let startedAt else { return nil }
         let endedAt = Date()
+        let activePauseStartedAt = pausedAt
         stopTracking()
-        let moving = max(0, endedAt.timeIntervalSince(startedAt) - accumulatedPausedSeconds)
+        let moving = Self.movingDuration(
+            startedAt: startedAt,
+            endedAt: endedAt,
+            accumulatedPausedSeconds: accumulatedPausedSeconds,
+            activePauseStartedAt: activePauseStartedAt
+        )
         let pace = distanceMeters > 0 ? moving / (distanceMeters / 1_000) : 0
         let run = RecordedRun(
             id: UUID(),
@@ -298,6 +314,10 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         updatePhaseForAuthorization()
+        if shouldStartAfterPermission,
+           manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
+            beginRecording()
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -334,6 +354,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
                 phase = .ready
             }
         case .denied, .restricted:
+            shouldStartAfterPermission = false
             phase = .denied
         case .notDetermined:
             phase = .idle
@@ -353,9 +374,14 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     private func tick() {
         guard let startedAt else { return }
-        elapsedSeconds = Date().timeIntervalSince(startedAt)
-        let livePause = pausedAt.map { Date().timeIntervalSince($0) } ?? 0
-        movingSeconds = max(0, elapsedSeconds - accumulatedPausedSeconds - livePause)
+        let now = Date()
+        elapsedSeconds = now.timeIntervalSince(startedAt)
+        movingSeconds = Self.movingDuration(
+            startedAt: startedAt,
+            endedAt: now,
+            accumulatedPausedSeconds: accumulatedPausedSeconds,
+            activePauseStartedAt: pausedAt
+        )
     }
 
     private func stopTracking() {
@@ -376,6 +402,16 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         guard secondsPerKm.isFinite, secondsPerKm > 0 else { return "--" }
         let total = Int(secondsPerKm.rounded())
         return String(format: "%d:%02d", Int32(total / 60), Int32(total % 60))
+    }
+
+    static func movingDuration(
+        startedAt: Date,
+        endedAt: Date,
+        accumulatedPausedSeconds: TimeInterval,
+        activePauseStartedAt: Date?
+    ) -> TimeInterval {
+        let activePause = activePauseStartedAt.map { max(0, endedAt.timeIntervalSince($0)) } ?? 0
+        return max(0, endedAt.timeIntervalSince(startedAt) - accumulatedPausedSeconds - activePause)
     }
 }
 

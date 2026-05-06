@@ -4,97 +4,65 @@ struct LiveRunView: View {
     var metrics: [MetricTile]
     var routePoints: [RunRoutePoint]
     var phase: RunRecordingPhase
-    var coachCue: String
-    var onCoach: () -> Void
-    var onAudio: () -> Void
+    var gpsStatus: String
+    var gpsDetail: String
     var onPauseResume: () -> Void
-    var onLap: () -> Void
-    var onLock: () -> Void
     var onFinish: () -> Void
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 14) {
+        GeometryReader { proxy in
+            VStack(spacing: 12) {
                 RunSmartTopBar(title: "Run")
 
-                RunCoachPanel(coachCue: coachCue, onCoach: onCoach)
+                GPSStatusPill(status: gpsStatus, detail: gpsDetail, phase: phase)
 
                 RunSmartPanel(cornerRadius: 22, padding: 0, accent: .accentPrimary) {
-                    ZStack {
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 0) {
-                            ForEach(metrics) { metric in
-                                LiveMetricCard(metric: metric, isPrimary: metric.title == "Distance")
-                                    .padding(16)
-                                    .frame(minHeight: 116)
+                    if let primaryMetric = metrics.first {
+                        VStack(spacing: 0) {
+                            LiveMetricCard(metric: primaryMetric, isPrimary: true)
+                                .padding(.horizontal, 18)
+                                .padding(.top, 16)
+                                .padding(.bottom, 12)
+
+                            HStack(spacing: 0) {
+                                ForEach(Array(metrics.dropFirst().enumerated()), id: \.element.id) { index, metric in
+                                    LiveMetricCard(metric: metric, isPrimary: false)
+                                        .padding(14)
+                                        .frame(maxWidth: .infinity, minHeight: 94)
+                                        .overlay(alignment: .leading) {
+                                            Rectangle()
+                                                .fill(Color.border.opacity(0.72))
+                                                .frame(width: index == 0 ? 0 : 1)
+                                        }
+                                }
                             }
                         }
-                        Circle()
-                            .fill(Color.surfaceElevated)
-                            .frame(width: 94, height: 94)
-                            .overlay(ProgressRing(value: phase == .paused ? 0.68 : 0.82, lineWidth: 7, icon: "figure.run", tint: .accentPrimary).padding(13))
-                            .shadow(color: Color.accentPrimary.opacity(0.34), radius: 20)
                     }
                 }
+                .frame(height: max(208, min(260, proxy.size.height * 0.31)))
 
                 if routePoints.isEmpty {
-                    RunSmartRoutePreview(title: "GPS", showGPS: true, height: 154)
+                    RunSmartRoutePreview(title: "GPS", showGPS: true, height: max(112, min(154, proxy.size.height * 0.18)))
                 } else {
                     RunSmartPanel(cornerRadius: 20, padding: 8) {
                         RouteMapView(points: routePoints, title: "GPS")
-                            .frame(height: 142)
+                            .frame(height: max(104, min(146, proxy.size.height * 0.17)))
                     }
                 }
 
-                HStack(spacing: 0) {
-                    RunSmartPanel(cornerRadius: 18, padding: 12, accent: .accentPrimary) {
-                        HStack(spacing: 10) {
-                            CoachGlowBadge(size: 40)
-                            VStack(alignment: .leading, spacing: 4) {
-                                SectionLabel(title: "Coach Cue")
-                                Text(coachCue)
-                                    .font(.bodyMD)
-                                    .foregroundStyle(Color.textPrimary)
-                                    .lineLimit(2)
-                            }
-                            Spacer()
-                        }
-                    }
-                    RunSmartPanel(cornerRadius: 18, padding: 12) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                SectionLabel(title: "Cadence")
-                                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    Text("172")
-                                        .font(.metric)
-                                    Text("spm")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.accentPrimary)
-                                }
-                            }
-                            Spacer()
-                            MetricBars(values: [0.35, 0.62, 0.48, 0.78, 0.42, 0.68], tint: .accentPrimary)
-                        }
-                    }
-                }
+                Spacer(minLength: 0)
 
-                HStack(spacing: 12) {
-                    LiveInsightTile(title: "Elevation", value: "28", unit: "m", symbol: "mountain.2", tint: .accentPrimary)
-                    LiveInsightTile(title: "Zone", value: "4", unit: "Threshold", symbol: "heart", tint: .accentHeart)
-                    LiveInsightTile(title: "Pace Trend", value: "-0:03", unit: "/km", symbol: "speedometer", tint: .accentPrimary)
-                }
-
-                HStack(spacing: 24) {
-                    LiveControlButton(title: "Audio", symbol: "speaker.wave.2.fill", tint: .textSecondary, action: onAudio)
-                    LiveControlButton(title: "Lap", symbol: "flag.fill", tint: .textSecondary, action: onLap)
+                HStack(alignment: .bottom, spacing: 18) {
                     LiveControlButton(title: phase == .paused ? "Resume" : "Pause", symbol: phase == .paused ? "play.fill" : "pause.fill", tint: .accentPrimary, prominent: true, action: onPauseResume)
-                    LiveControlButton(title: "Finish", symbol: "stop.fill", tint: .accentHeart, action: onFinish)
+                    LiveControlButton(title: "Finish", symbol: "stop.fill", tint: .accentHeart, prominent: false, action: onFinish)
                 }
-                .padding(.top, 4)
+                .padding(.bottom, 4)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
             .padding(.top, 14)
             .padding(.bottom, 10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .foregroundStyle(Color.textPrimary)
         .background(Color.black.opacity(0.52).ignoresSafeArea())
@@ -107,51 +75,23 @@ private struct LiveMetricCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-                Label(metric.title.uppercased(), systemImage: metric.symbol)
-                    .font(.labelSM)
-                    .tracking(1.1)
-                    .foregroundStyle(Color.textSecondary)
-                Text(metric.value)
-                    .font(isPrimary ? .displayLG : .metric)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.68)
-                Text(metric.unit)
-                    .font(.labelSM)
-                    .foregroundStyle(metric.tint)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct LiveInsightTile: View {
-    var title: String
-    var value: String
-    var unit: String
-    var symbol: String
-    var tint: Color
-
-    var body: some View {
-        RunSmartPanel(cornerRadius: 16, padding: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-                Label(title.uppercased(), systemImage: symbol)
-                    .font(.labelSM)
-                    .foregroundStyle(Color.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(value)
-                        .font(.metric)
-                    Text(unit)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(tint)
-                }
-                RunSmartSparkline(values: [2, 3, 2.5, 5, 4.2, 6, 5.4], tint: tint)
-                    .frame(height: 22)
-            }
-            .frame(maxWidth: .infinity, minHeight: 86, alignment: .topLeading)
+            Label(metric.title.uppercased(), systemImage: metric.symbol)
+                .font(.labelSM)
+                .foregroundStyle(Color.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+            Text(metric.value)
+                .font(isPrimary ? .displayXL : .metric)
+                .monospacedDigit()
+                .foregroundStyle(Color.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+            Text(metric.unit)
+                .font(.labelSM)
+                .foregroundStyle(metric.tint)
+                .lineLimit(1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -166,16 +106,19 @@ private struct LiveControlButton: View {
         Button(action: action) {
             VStack(spacing: 7) {
                 Image(systemName: symbol)
-                    .font(.system(size: prominent ? 24 : 18, weight: .bold))
+                    .font(.system(size: prominent ? 34 : 24, weight: .bold))
                     .foregroundStyle(prominent ? Color.black : tint)
-                    .frame(width: prominent ? 72 : 56, height: prominent ? 72 : 56)
+                    .frame(width: prominent ? 128 : 86, height: prominent ? 128 : 86)
                     .background(prominent ? tint : Color.surfaceCard)
                     .clipShape(Circle())
                 Text(title)
-                    .font(.caption.weight(.semibold))
+                    .font(.bodyMD.weight(.bold))
                     .foregroundStyle(tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
             }
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
     }
 }

@@ -19,23 +19,22 @@ struct RunTabView: View {
                     metrics: liveMetrics,
                     routePoints: recorder.routePoints,
                     phase: recorder.phase,
-                    coachCue: coachCue,
-                    onCoach: { router.openCoach(context: "Run") },
-                    onAudio: { router.open(.audioCues) },
+                    gpsStatus: gpsStatus,
+                    gpsDetail: gpsDetail,
                     onPauseResume: primaryRunAction,
-                    onLap: { router.open(.lapMarker) },
-                    onLock: { RunSmartHaptics.light() },
                     onFinish: finishRun
                 )
             } else {
                 PreRunView(
                     metrics: metrics,
                     plannedWorkout: router.plannedWorkout,
+                    phase: recorder.phase,
+                    gpsStatus: gpsStatus,
+                    gpsDetail: gpsDetail,
                     onStart: {
                         RunSmartHaptics.medium()
                         recorder.start()
                     },
-                    onCoach: { router.openCoach(context: "Run") },
                     onRoute: { router.open(.routeCreator) },
                     onAudio: { router.open(.audioCues) }
                 )
@@ -54,20 +53,47 @@ struct RunTabView: View {
             MetricTile(title: "Distance", value: recorder.distanceLabel, unit: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up", tint: .accentPrimary),
             MetricTile(title: "Pace", value: recorder.currentPaceLabel, unit: "/km", symbol: "timer", tint: .accentEnergy),
             MetricTile(title: "Time", value: recorder.movingLabel, unit: "", symbol: "stopwatch", tint: .textPrimary),
-            MetricTile(title: "Heart Rate", value: recorder.horizontalAccuracy.map { "\(Int($0))" } ?? "--", unit: "gps", symbol: "location.fill", tint: .accentRecovery)
+            MetricTile(title: "GPS", value: recorder.horizontalAccuracy.map { "\(Int($0))" } ?? "--", unit: "m", symbol: "location.fill", tint: .accentRecovery)
         ]
     }
 
-    private var coachCue: String {
+    private var gpsStatus: String {
         switch recorder.phase {
+        case .idle:
+            "GPS ready to request"
+        case .requestingPermission:
+            "Waiting for location permission"
+        case .ready:
+            "GPS ready"
         case .recording:
-            "Ease your shoulders. Pace: \(recorder.currentPaceLabel)/km."
+            recorder.routePoints.isEmpty ? "Finding GPS signal" : "Recording GPS"
         case .paused:
-            "Paused. Resume when ready or finish to save."
+            "Paused"
         case .denied:
-            "Location permission is required for GPS recording."
+            "Location permission needed"
+        case .failed:
+            "GPS error"
+        }
+    }
+
+    private var gpsDetail: String {
+        if let message = recorder.lastErrorMessage {
+            return message
+        }
+        switch recorder.phase {
+        case .requestingPermission:
+            return "Approve location access and the run will start automatically."
+        case .recording:
+            if let accuracy = recorder.horizontalAccuracy {
+                return "Accuracy \(Int(accuracy))m"
+            }
+            return "Timer is running. Distance appears after the first GPS points."
+        case .paused:
+            return "Resume to continue distance tracking or finish to save."
+        case .denied:
+            return "Enable location access in iOS Settings to record outdoor runs."
         default:
-            "Start a GPS run to record distance, route, and pace."
+            return "Track distance, moving time, pace, and route with phone GPS."
         }
     }
 

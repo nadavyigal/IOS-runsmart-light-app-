@@ -163,4 +163,19 @@ final class RunSmartReadinessTests: XCTestCase {
             notes: nil
         )), 30)
     }
+
+    func testRunRecorderMovingDurationExcludesActivePauseWhenFinishingPaused() {
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+        let pausedAt = startedAt.addingTimeInterval(120)
+        let endedAt = startedAt.addingTimeInterval(300)
+
+        let moving = RunRecorder.movingDuration(
+            startedAt: startedAt,
+            endedAt: endedAt,
+            accumulatedPausedSeconds: 30,
+            activePauseStartedAt: pausedAt
+        )
+
+        XCTAssertEqual(moving, 90)
+    }
 }
