@@ -91,6 +91,7 @@ struct RunSmartLiteAppShell: View {
         }
         .environmentObject(router)
         .environmentObject(session)
+        .environmentObject(recorder)
         .environment(\.runSmartServices, services)
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
@@ -116,6 +117,7 @@ struct RunSmartLiteAppShell: View {
                     .presentationDragIndicator(.visible)
                     .environmentObject(router)
                     .environmentObject(session)
+                    .environmentObject(recorder)
                     .environment(\.runSmartServices, services)
                     .environment(\.runRecorder, recorder)
             case .secondary(let destination):
@@ -124,6 +126,7 @@ struct RunSmartLiteAppShell: View {
                     .presentationDragIndicator(.visible)
                     .environmentObject(router)
                     .environmentObject(session)
+                    .environmentObject(recorder)
                     .environment(\.runSmartServices, services)
                     .environment(\.runRecorder, recorder)
             }

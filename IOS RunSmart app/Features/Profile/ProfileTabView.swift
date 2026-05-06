@@ -207,19 +207,17 @@ struct ProfileTabView: View {
         RunSmartPanel(cornerRadius: 20, padding: 14) {
             VStack(alignment: .leading, spacing: 12) {
                 SectionLabel(title: "Connected")
-                HStack(spacing: 10) {
-                    ConnectedServiceTile(title: "Garmin", detail: "Garmin Connect", status: statusLabel("Garmin Connect")) {
+                VStack(spacing: 8) {
+                    ConnectedServiceTile(title: "Garmin", detail: "Garmin Connect", status: statusLabel("Garmin Connect"), symbol: "link.circle.fill", tint: .accentPrimary) {
                         navPath.append(.connectedService("Garmin Connect"))
                     }
-                    ConnectedServiceTile(title: "Health", detail: "HealthKit", status: statusLabel("HealthKit")) {
+                    ConnectedServiceTile(title: "Health", detail: "HealthKit", status: statusLabel("HealthKit"), symbol: "heart.fill", tint: .accentHeart) {
                         navPath.append(.connectedService("HealthKit"))
                     }
-                }
-                HStack(spacing: 10) {
-                    ConnectedServiceTile(title: "Prefs", detail: "Reminders", status: session.onboardingProfile.notificationsEnabled ? "On" : "Manage") {
+                    ConnectedServiceTile(title: "Prefs", detail: "Reminders", status: session.onboardingProfile.notificationsEnabled ? "On" : "Manage", symbol: "bell.fill", tint: .accentRecovery) {
                         navPath.append(.reminders)
                     }
-                    ConnectedServiceTile(title: "Account", detail: "Privacy", status: "Manage") {
+                    ConnectedServiceTile(title: "Account", detail: "Privacy", status: "Manage", symbol: "lock.shield.fill", tint: .textSecondary) {
                         navPath.append(.account)
                     }
                 }
@@ -361,39 +359,46 @@ private struct ConnectedServiceTile: View {
     var title: String
     var detail: String
     var status: String
+    var symbol: String
+    var tint: Color
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                Text(title.uppercased())
-                    .font(.bodyMD.weight(.black))
-                    .foregroundStyle(title == "Garmin" ? Color.textPrimary : Color.accentPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.62)
-                    .frame(width: 74, alignment: .leading)
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .font(.bodyMD.weight(.bold))
+                    .foregroundStyle(tint)
+                    .frame(width: 34, height: 34)
+                    .background(tint.opacity(0.12), in: Circle())
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(detail)
+                    Text(title)
                         .font(.bodyMD.weight(.semibold))
                         .foregroundStyle(Color.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
-                    HStack(spacing: 5) {
-                        Circle()
-                            .fill(status.lowercased().contains("connected") || status == "On" ? Color.accentPrimary : Color.textTertiary)
-                            .frame(width: 6, height: 6)
-                        Text(status)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.accentPrimary)
-                    }
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                        .lineLimit(1)
                 }
                 Spacer()
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(status.lowercased().contains("connected") || status == "On" ? Color.accentPrimary : Color.textTertiary)
+                        .frame(width: 7, height: 7)
+                    Text(status)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(status.lowercased().contains("connected") || status == "On" ? Color.accentPrimary : Color.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
                 Image(systemName: "chevron.right")
                     .font(.caption.bold())
                     .foregroundStyle(Color.textSecondary)
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, minHeight: 66)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, minHeight: 56)
             .background(Color.surfaceCard.opacity(0.78), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.border, lineWidth: 1))
         }

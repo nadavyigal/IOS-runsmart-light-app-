@@ -249,6 +249,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         phase = .recording
         manager.startUpdatingLocation()
         startTimer()
+        tick()
     }
 
     func pause() {
@@ -256,6 +257,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         pausedAt = Date()
         phase = .paused
         manager.stopUpdatingLocation()
+        tick()
     }
 
     func resume() {
@@ -266,6 +268,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         pausedAt = nil
         phase = .recording
         manager.startUpdatingLocation()
+        tick()
     }
 
     func discard() {
@@ -365,11 +368,13 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     private func startTimer() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.tick()
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 
     private func tick() {

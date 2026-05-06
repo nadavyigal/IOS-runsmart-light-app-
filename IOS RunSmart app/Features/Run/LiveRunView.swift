@@ -6,6 +6,7 @@ struct LiveRunView: View {
     var phase: RunRecordingPhase
     var gpsStatus: String
     var gpsDetail: String
+    var elapsedSeconds: TimeInterval
     var onPauseResume: () -> Void
     var onFinish: () -> Void
 
@@ -15,6 +16,7 @@ struct LiveRunView: View {
                 RunSmartTopBar(title: "Run")
 
                 GPSStatusPill(status: gpsStatus, detail: gpsDetail, phase: phase)
+                LiveRunStateBanner(phase: phase, elapsedSeconds: elapsedSeconds)
 
                 RunSmartPanel(cornerRadius: 22, padding: 0, accent: .accentPrimary) {
                     if let primaryMetric = metrics.first {
@@ -92,6 +94,60 @@ private struct LiveMetricCard: View {
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct LiveRunStateBanner: View {
+    var phase: RunRecordingPhase
+    var elapsedSeconds: TimeInterval
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(0.18))
+                    .frame(width: 42, height: 42)
+                Circle()
+                    .fill(tint)
+                    .frame(width: 13, height: 13)
+                    .runSmartPulse(scale: phase == .recording ? 1.35 : 1.0)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headingMD)
+                    .foregroundStyle(Color.textPrimary)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+            }
+
+            Spacer()
+
+            Text(RunRecorder.timeLabel(elapsedSeconds))
+                .font(.metricSM)
+                .monospacedDigit()
+                .foregroundStyle(tint)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 66)
+        .background(Color.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(tint.opacity(0.42), lineWidth: 1))
+    }
+
+    private var title: String {
+        phase == .paused ? "Paused" : "Recording"
+    }
+
+    private var subtitle: String {
+        phase == .paused ? "Distance tracking is stopped." : "Time is running now."
+    }
+
+    private var tint: Color {
+        phase == .paused ? .accentEnergy : .accentPrimary
     }
 }
 

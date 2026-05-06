@@ -2,8 +2,8 @@ import SwiftUI
 
 struct RunTabView: View {
     @Environment(\.runSmartServices) private var services
-    @Environment(\.runRecorder) private var recorder
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var recorder: RunRecorder
 
     @State private var metrics: [MetricTile] = []
     @State private var finishedRun: RecordedRun?
@@ -11,9 +11,7 @@ struct RunTabView: View {
     var body: some View {
         Group {
             if let finishedRun {
-                PostRunSummaryView(run: finishedRun) {
-                    self.finishedRun = nil
-                }
+                PostRunSummaryView(run: finishedRun, onSave: saveFinishedRun, onDelete: deleteFinishedRun)
             } else if recorder.phase == .recording || recorder.phase == .paused {
                 LiveRunView(
                     metrics: liveMetrics,
@@ -21,6 +19,7 @@ struct RunTabView: View {
                     phase: recorder.phase,
                     gpsStatus: gpsStatus,
                     gpsDetail: gpsDetail,
+                    elapsedSeconds: recorder.movingSeconds,
                     onPauseResume: primaryRunAction,
                     onFinish: finishRun
                 )
@@ -66,7 +65,7 @@ struct RunTabView: View {
         case .ready:
             "GPS ready"
         case .recording:
-            recorder.routePoints.isEmpty ? "Finding GPS signal" : "Recording GPS"
+            "Recording now"
         case .paused:
             "Paused"
         case .denied:
@@ -85,9 +84,9 @@ struct RunTabView: View {
             return "Approve location access and the run will start automatically."
         case .recording:
             if let accuracy = recorder.horizontalAccuracy {
-                return "Accuracy \(Int(accuracy))m"
+                return "Timer running - GPS accuracy \(Int(accuracy))m"
             }
-            return "Timer is running. Distance appears after the first GPS points."
+            return "Timer running - finding the first GPS point."
         case .paused:
             return "Resume to continue distance tracking or finish to save."
         case .denied:
@@ -100,8 +99,10 @@ struct RunTabView: View {
     private func primaryRunAction() {
         switch recorder.phase {
         case .recording:
+            RunSmartHaptics.light()
             recorder.pause()
         case .paused:
+            RunSmartHaptics.light()
             recorder.resume()
         default:
             recorder.start()
@@ -109,6 +110,7 @@ struct RunTabView: View {
     }
 
     private func finishRun() {
+        RunSmartHaptics.medium()
         let run = recorder.finish()
         if let run {
             Task { await services.saveToHealth(run) }
@@ -116,6 +118,25 @@ struct RunTabView: View {
             finishedRun = run
         } else {
             router.open(.postRunSummary(nil))
+        }
+    }
+
+    private func saveFinishedRun() {
+        finishedRun = nil
+        Task { metrics = await services.currentRunMetrics() }
+    }
+
+    private func deleteFinishedRun() {
+        guard let run = finishedRun else {
+            finishedRun = nil
+            return
+        }
+        Task {
+            _ = await services.removeRun(run)
+            await MainActor.run {
+                finishedRun = nil
+                NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+            }
         }
     }
 }
