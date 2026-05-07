@@ -1855,9 +1855,9 @@ private struct ConnectedServiceDetailScaffold: View {
                         } else {
                             VStack(spacing: 8) {
                                 ForEach(healthRuns.prefix(8)) { run in
-                                    ActivityRow(run: run) {
+                                    ActivityRow(run: run, onTap: {
                                         router.open(.postRunSummary(run))
-                                    }
+                                    })
                                 }
                             }
                         }
