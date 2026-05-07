@@ -10,7 +10,12 @@ struct MainTabView: View {
 
             TailorView(viewModel: TailorViewModel())
                 .tabItem {
-                    Label("Tailor", systemImage: "wand.and.stars")
+                    Label("Improve", systemImage: "wand.and.stars")
+                }
+
+            DesignHubView()
+                .tabItem {
+                    Label("Design", systemImage: "paintbrush.fill")
                 }
 
             ApplicationsListView(viewModel: ApplicationsViewModel())

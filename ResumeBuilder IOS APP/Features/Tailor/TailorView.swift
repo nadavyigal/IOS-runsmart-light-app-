@@ -5,6 +5,7 @@ struct TailorView: View {
     @Environment(AppState.self) private var appState
     @Bindable var viewModel: TailorViewModel
     @State private var isImporterPresented = false
+    @State private var navigateTo: String?
 
     var body: some View {
         NavigationStack {
@@ -89,9 +90,21 @@ struct TailorView: View {
                         }
                         .frame(minHeight: 130)
 
+                        // ── Hidden navigation destination ─────────────────────
+                        NavigationLink(value: navigateTo) { EmptyView() }
+                            .hidden()
+                            .navigationDestination(for: String.self) { reviewId in
+                                OptimizedResumeView(reviewId: reviewId)
+                            }
+
                         // ── Optimize button ───────────────────────────────────
                         Button {
-                            Task { await viewModel.optimize(appState: appState) }
+                            Task {
+                                await viewModel.optimize(appState: appState)
+                                if let reviewId = viewModel.reviewId {
+                                    navigateTo = reviewId
+                                }
+                            }
                         } label: {
                             Group {
                                 if viewModel.isOptimizing {
@@ -111,11 +124,6 @@ struct TailorView: View {
                         // ── Optimizing indicator ──────────────────────────────
                         if viewModel.isOptimizing {
                             OptimizingView()
-                        }
-
-                        // ── Diff review ───────────────────────────────────────
-                        if let reviewId = viewModel.reviewId {
-                            DiffReviewView(reviewId: reviewId)
                         }
 
                         // ── Error ─────────────────────────────────────────────

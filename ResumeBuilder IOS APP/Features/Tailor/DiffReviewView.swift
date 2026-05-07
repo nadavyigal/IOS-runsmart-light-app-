@@ -78,7 +78,7 @@ struct DiffReviewView: View {
             // ── Design link ───────────────────────────────────────────────────
             if let optimizationId = viewModel.appliedOptimizationId {
                 NavigationLink {
-                    DesignTemplatesView(
+                    RedesignView(
                         optimizationId: optimizationId,
                         snapshot: viewModel.resumeSnapshot
                     )

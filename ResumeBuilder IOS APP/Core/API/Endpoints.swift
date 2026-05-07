@@ -12,6 +12,8 @@ enum Endpoint {
     case credits
     case designTemplates
     case customizeDesign(String)
+    case assignDesign(String)
+    case downloadResume(String)
     case uploadResume
     case iapVerify
 
@@ -39,6 +41,10 @@ enum Endpoint {
             return "/api/v1/design/templates"
         case .customizeDesign(let optimizationId):
             return "/api/v1/design/\(optimizationId)/customize"
+        case .assignDesign(let optimizationId):
+            return "/api/v1/design/\(optimizationId)"
+        case .downloadResume(let optimizationId):
+            return "/api/download/\(optimizationId)"
         case .uploadResume:
             return "/api/upload-resume"
         case .iapVerify:
