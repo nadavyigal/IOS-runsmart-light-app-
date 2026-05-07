@@ -329,10 +329,12 @@ enum RunSmartDTO {
             let userId: Int?
             let goal: String
             let experience: String
+            let age: Int?
             let daysPerWeek: Int
             let preferredTimes: [String]
             let coachingStyle: String?
             let averageWeeklyKm: Double?
+            let trainingDataSource: String?
         }
 
         struct TrainingHistory: Encodable {

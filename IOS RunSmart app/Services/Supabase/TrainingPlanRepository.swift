@@ -337,6 +337,7 @@ final class TrainingPlanRepository {
                 name: request.displayName,
                 goal: request.supabaseGoal,
                 experience: request.supabaseExperience,
+                age: request.age,
                 averageWeeklyDistanceKm: request.averageWeeklyDistanceKm,
                 trainingDataSource: request.trainingDataSource?.rawValue,
                 trainingDataUpdatedAt: request.averageWeeklyDistanceKm.map { _ in Self.profileDateFormatter.string(from: Date()) },
@@ -779,6 +780,7 @@ private struct DBProfileGoalUpdate: Encodable {
     let name: String
     let goal: String
     let experience: String
+    let age: Int?
     let averageWeeklyDistanceKm: Double?
     let trainingDataSource: String?
     let trainingDataUpdatedAt: String?
@@ -788,7 +790,7 @@ private struct DBProfileGoalUpdate: Encodable {
     let onboardingComplete: Bool
 
     enum CodingKeys: String, CodingKey {
-        case name, goal, experience
+        case name, goal, experience, age
         case averageWeeklyDistanceKm = "average_weekly_distance_km"
         case trainingDataSource = "training_data_source"
         case trainingDataUpdatedAt = "training_data_updated_at"

@@ -114,7 +114,9 @@ struct SecondaryFlowView: View {
                     }
                     .foregroundStyle(Color.textPrimary)
                     .padding(20)
+                    .padding(.bottom, destination == .trainingData ? 120 : 0)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
         }
         .preferredColorScheme(.dark)
@@ -1428,6 +1430,7 @@ private struct TrainingDataEditor: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedExperience = ""
+    @State private var ageText = ""
     @State private var weeklyDistanceKm = 0.0
     @State private var selectedSource: TrainingDataSource = .manual
     @State private var daysPerWeek = 4
@@ -1477,6 +1480,23 @@ private struct TrainingDataEditor: View {
 
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Age")
+                    TextField("Age", text: $ageText)
+                        .keyboardType(.numberPad)
+                        .font(.metricSM)
+                        .foregroundStyle(Color.textPrimary)
+                        .padding(.horizontal, 14)
+                        .frame(height: 52)
+                        .background(Color.white.opacity(0.055))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    Text("13-90 years")
+                        .font(.caption)
+                        .foregroundStyle(Color.mutedText)
+                }
+            }
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Average Weekly Distance")
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(String(format: "%.0f", weeklyDistanceKm))
@@ -1495,6 +1515,12 @@ private struct TrainingDataEditor: View {
 
             if weeklyDistanceRequired && weeklyDistanceKm <= 0 {
                 Label("Intermediate and advanced plans need a weekly distance baseline.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(Color.accentRecovery)
+            }
+
+            if !ageText.isEmpty && parsedAge == nil {
+                Label("Enter an age between 13 and 90.", systemImage: "exclamationmark.triangle.fill")
                     .font(.callout)
                     .foregroundStyle(Color.accentRecovery)
             }
@@ -1521,7 +1547,9 @@ private struct TrainingDataEditor: View {
                 }
             }
             .buttonStyle(NeonButtonStyle())
-            .disabled(isSaving || selectedExperience.isEmpty || (weeklyDistanceRequired && weeklyDistanceKm <= 0))
+            .disabled(isSaving || selectedExperience.isEmpty || parsedAge == nil || (weeklyDistanceRequired && weeklyDistanceKm <= 0))
+
+            Color.clear.frame(height: 96)
         }
         .task {
             loadInitialState()
@@ -1539,6 +1567,12 @@ private struct TrainingDataEditor: View {
         TrainingDataBaseline.averageWeeklyDistanceKm(from: recentRuns)
     }
 
+    private var parsedAge: Int? {
+        let trimmed = ageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let age = Int(trimmed), (13...90).contains(age) else { return nil }
+        return age
+    }
+
     private var estimateSource: TrainingDataSource {
         TrainingDataBaseline.inferredSource(from: recentRuns) ?? .runSmart
     }
@@ -1551,6 +1585,7 @@ private struct TrainingDataEditor: View {
     private func loadInitialState() {
         let profile = session.onboardingProfile
         selectedExperience = normalizedExperience(profile.experience)
+        ageText = profile.age.map(String.init) ?? ""
         weeklyDistanceKm = profile.averageWeeklyDistanceKm ?? 0
         selectedSource = profile.trainingDataSource ?? .manual
         daysPerWeek = max(1, min(7, profile.weeklyRunDays))
@@ -1577,6 +1612,7 @@ private struct TrainingDataEditor: View {
     private func save() async {
         var updated = session.onboardingProfile
         updated.experience = selectedExperience
+        updated.age = parsedAge
         updated.averageWeeklyDistanceKm = weeklyDistanceKm > 0 ? weeklyDistanceKm : nil
         updated.trainingDataSource = updated.averageWeeklyDistanceKm == nil ? nil : selectedSource
         updated.trainingDataUpdatedAt = Date()
@@ -1588,6 +1624,7 @@ private struct TrainingDataEditor: View {
             displayName: updated.displayName,
             goal: updated.goal.isEmpty ? "10K Improvement" : updated.goal,
             experience: updated.experience,
+            age: updated.age,
             averageWeeklyDistanceKm: updated.averageWeeklyDistanceKm,
             trainingDataSource: updated.trainingDataSource,
             weeklyRunDays: updated.weeklyRunDays,
@@ -1717,6 +1754,7 @@ private struct GoalFocusEditor: View {
             displayName: updated.displayName,
             goal: updated.goal,
             experience: updated.experience,
+            age: updated.age,
             averageWeeklyDistanceKm: updated.averageWeeklyDistanceKm,
             trainingDataSource: updated.trainingDataSource,
             weeklyRunDays: updated.weeklyRunDays,

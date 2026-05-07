@@ -197,7 +197,7 @@ struct ProfileTabView: View {
                     .accessibilityLabel("Edit training data")
                 }
 
-                HStack(spacing: 10) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     TrainingDataMetricTile(
                         title: "Experience",
                         value: profile.experience.isEmpty ? "Not set" : profile.experience.capitalized,
@@ -211,6 +211,13 @@ struct ProfileTabView: View {
                         detail: value == nil ? "Needed" : "km / week",
                         symbol: "point.topleft.down.curvedto.point.bottomright.up",
                         tint: .accentRecovery
+                    )
+                    TrainingDataMetricTile(
+                        title: "Age",
+                        value: ageLabel,
+                        detail: profile.age == nil ? "Needed" : "years",
+                        symbol: "person.crop.circle.fill",
+                        tint: .accentHeart
                     )
                 }
 
@@ -322,6 +329,10 @@ struct ProfileTabView: View {
         let value = session.onboardingProfile.averageWeeklyDistanceKm
             ?? TrainingDataBaseline.averageWeeklyDistanceKm(from: recentRuns)
         return value.map { String(format: "%.0f km/wk", $0) } ?? "Set baseline"
+    }
+
+    private var ageLabel: String {
+        session.onboardingProfile.age.map(String.init) ?? "--"
     }
 
     private var levelNumber: String {

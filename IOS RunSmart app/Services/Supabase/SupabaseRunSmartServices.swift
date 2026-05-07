@@ -156,10 +156,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     userId: identity.numericUserID,
                     goal: request.supabaseGoal,
                     experience: request.supabaseExperience,
+                    age: request.age,
                     daysPerWeek: request.weeklyRunDays,
                     preferredTimes: request.preferredDays.isEmpty ? ["morning"] : request.preferredDays,
                     coachingStyle: request.supabaseCoachingStyle,
-                    averageWeeklyKm: planAverageWeeklyKm
+                    averageWeeklyKm: planAverageWeeklyKm,
+                    trainingDataSource: request.trainingDataSource?.rawValue
                 ),
                 trainingHistory: .init(
                     weeklyVolumeKm: weeklyVolumeKm,

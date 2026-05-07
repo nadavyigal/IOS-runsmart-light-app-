@@ -83,6 +83,7 @@ struct TrainingGoalRequest: Hashable {
     var displayName: String
     var goal: String
     var experience: String
+    var age: Int? = nil
     var averageWeeklyDistanceKm: Double? = nil
     var trainingDataSource: TrainingDataSource? = nil
     var weeklyRunDays: Int
@@ -219,6 +220,7 @@ struct OnboardingProfile: Codable, Equatable {
     var displayName: String
     var goal: String
     var experience: String
+    var age: Int?
     var averageWeeklyDistanceKm: Double?
     var trainingDataSource: TrainingDataSource?
     var trainingDataUpdatedAt: Date?
@@ -232,6 +234,7 @@ struct OnboardingProfile: Codable, Equatable {
         displayName: "",
         goal: "10K improvement",
         experience: "Building base",
+        age: nil,
         averageWeeklyDistanceKm: nil,
         trainingDataSource: nil,
         trainingDataUpdatedAt: nil,

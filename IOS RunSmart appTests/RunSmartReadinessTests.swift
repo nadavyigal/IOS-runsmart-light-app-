@@ -228,6 +228,43 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(average, 42)
     }
 
+    func testGeneratedPlanPayloadIncludesTrainingProfileBaseline() throws {
+        let request = RunSmartDTO.GeneratePlanRequest(
+            userContext: .init(
+                userId: 7,
+                goal: "Half Marathon",
+                experience: "Advanced",
+                age: 38,
+                daysPerWeek: 5,
+                preferredTimes: ["Mon", "Wed", "Fri"],
+                coachingStyle: "Supportive",
+                averageWeeklyKm: 42,
+                trainingDataSource: "manual"
+            ),
+            trainingHistory: nil,
+            goals: nil,
+            targetDistance: "Half Marathon",
+            totalWeeks: 16,
+            planPreferences: .init(
+                trainingDays: ["Mon", "Wed", "Fri"],
+                availableDays: ["Mon", "Wed", "Fri"],
+                longRunDay: "Sun",
+                trainingVolume: "moderate",
+                difficulty: "adaptive"
+            )
+        )
+
+        let data = try JSONEncoder().encode(request)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let userContext = try XCTUnwrap(json["userContext"] as? [String: Any])
+
+        XCTAssertEqual(userContext["experience"] as? String, "Advanced")
+        XCTAssertEqual(userContext["age"] as? Int, 38)
+        XCTAssertEqual(userContext["daysPerWeek"] as? Int, 5)
+        XCTAssertEqual(userContext["averageWeeklyKm"] as? Double, 42)
+        XCTAssertEqual(userContext["trainingDataSource"] as? String, "manual")
+    }
+
     func testHealthKitWorkoutMapperUsesStableProviderIDAndPace() {
         let providerID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
         let snapshot = HealthKitWorkoutSnapshot(

@@ -23,6 +23,7 @@ struct DBProfile: Sendable {
     let name: String?
     let goal: String         // nullable in DB; defaults to ""
     let experience: String   // nullable in DB; defaults to ""
+    let age: Int?
     let averageWeeklyDistanceKm: Double?
     let trainingDataSource: String?
     let trainingDataUpdatedAt: String?
@@ -40,6 +41,7 @@ extension DBProfile: Codable {
         case name
         case goal
         case experience
+        case age
         case averageWeeklyDistanceKm = "average_weekly_distance_km"
         case trainingDataSource = "training_data_source"
         case trainingDataUpdatedAt = "training_data_updated_at"
@@ -65,6 +67,7 @@ extension DBProfile: Codable {
         name = try? c.decodeIfPresent(String.self, forKey: .name)
         goal = (try? c.decode(String.self, forKey: .goal)) ?? ""
         experience = (try? c.decode(String.self, forKey: .experience)) ?? ""
+        age = try? c.decodeIfPresent(Int.self, forKey: .age)
         averageWeeklyDistanceKm = try? c.decodeIfPresent(Double.self, forKey: .averageWeeklyDistanceKm)
         trainingDataSource = try? c.decodeIfPresent(String.self, forKey: .trainingDataSource)
         trainingDataUpdatedAt = try? c.decodeIfPresent(String.self, forKey: .trainingDataUpdatedAt)
@@ -81,6 +84,7 @@ struct DBProfileInsert: Encodable, Sendable {
     let name: String
     let goal: String
     let experience: String
+    let age: Int?
     let averageWeeklyDistanceKm: Double?
     let trainingDataSource: String?
     let trainingDataUpdatedAt: String?
@@ -95,6 +99,7 @@ struct DBProfileInsert: Encodable, Sendable {
         case name
         case goal
         case experience
+        case age
         case averageWeeklyDistanceKm = "average_weekly_distance_km"
         case trainingDataSource = "training_data_source"
         case trainingDataUpdatedAt = "training_data_updated_at"
