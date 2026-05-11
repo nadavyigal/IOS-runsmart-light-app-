@@ -3,6 +3,28 @@ import CoreLocation
 @testable import IOS_RunSmart_app
 
 final class RunSmartReadinessTests: XCTestCase {
+    private func encodedProfileID(_ reference: DBProfileReference) throws -> Any? {
+        let data = try JSONEncoder().encode(["profile_id": reference])
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return object?["profile_id"]
+    }
+
+    func testDBProfileReferenceEncodesNumericUUIDAndStringValues() throws {
+        let uuid = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+
+        XCTAssertEqual(try encodedProfileID(.numeric(42)) as? Int, 42)
+        XCTAssertEqual(try encodedProfileID(.uuid(uuid)) as? String, "00000000-0000-0000-0000-000000000001")
+        XCTAssertEqual(try encodedProfileID(.string("abc")) as? String, "abc")
+    }
+
+    func testDBProfileReferenceDebugValuesDescribeReferenceType() {
+        let uuid = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+
+        XCTAssertEqual(DBProfileReference.numeric(42).debugValue, "numeric:42")
+        XCTAssertEqual(DBProfileReference.uuid(uuid).debugValue, "uuid:00000000-0000-0000-0000-000000000001")
+        XCTAssertEqual(DBProfileReference.string("abc").debugValue, "string:abc")
+    }
+
     private func makeDate(_ value: String) -> Date {
         ISO8601DateFormatter.shortDate.date(from: value)!
     }
@@ -321,6 +343,30 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(displayPoints.last?.id, rawPoints.last?.id)
     }
 
+    @MainActor
+    func testRunRecorderAccumulatesAllPointsAcrossConsecutiveLocationUpdates() {
+        let recorder = RunRecorder()
+        let origin = Date(timeIntervalSince1970: 5_000)
+
+        recorder.startAcquiringLocation(startLocationUpdates: false)
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0800, longitude: 34.7800, accuracy: 12, timestamp: origin)
+        ], now: origin)
+        XCTAssertEqual(recorder.phase, .recording, "should enter recording after good lock")
+
+        for i in 1...29 {
+            let t = origin.addingTimeInterval(Double(i) * 4)
+            let lat = 32.0800 + Double(i) * 0.0001
+            recorder.handleLocationUpdates([
+                makeLocation(latitude: lat, longitude: 34.7800, accuracy: 12, timestamp: t)
+            ], now: t)
+        }
+
+        XCTAssertEqual(recorder.routePoints.count, 30)
+        XCTAssertGreaterThan(recorder.distanceMeters, 200)
+        recorder.discard()
+    }
+
     func testTrainingDataAverageWeeklyDistanceUsesRecentFourWeekWindow() {
         let now = makeDate("2026-05-06").addingTimeInterval(12 * 3600)
         let runs = [
@@ -389,7 +435,7 @@ final class RunSmartReadinessTests: XCTestCase {
 
         let reference = identity.planWriteProfileReference(fallback: authID)
 
-        XCTAssertEqual(reference.debugValue, authID.uuidString)
+        XCTAssertEqual(reference.debugValue, "uuid:\(authID.uuidString)")
     }
 
     func testGoalMappingUsesProfileConstraintSafeValues() {
