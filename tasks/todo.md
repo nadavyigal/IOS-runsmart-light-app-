@@ -1,40 +1,54 @@
 # Task State
 
 ## Current Task
-Install a lightweight router-based Agent OS for the native RunSmart iOS repository.
+Implement Story 1 for the RunSmart iOS improvement: confirm app shell and information architecture mapping.
 
 ## Goal
-Create project files that make Claude Code, Codex, and Cursor plan consistently, implement in small verified steps, preserve lessons, and prepare for iOS QA/TestFlight without changing app feature code.
+Create a concrete current-to-future IA mapping so the app can later move toward a cleaner, lighter, premium SwiftUI RunSmart structure without breaking existing flows.
+
+## Exact Story
+As a runner, I want the app organized by daily running jobs so I can find the right feature quickly.
+
+## Scope
+- Create the approved IA mapping artifact.
+- Map current/known app areas to Today, Plan, Run, Report, Coach, and Profile.
+- Identify preserve/move/rename decisions and risks.
+- Keep implementation documentation-only for this first story.
+
+## Out of Scope
+- No SwiftUI navigation changes.
+- No full redesign.
+- No app code edits.
+- No signing, certificates, or provisioning changes.
+- No Garmin or Apple Health implementation.
+- No paid services.
+- No unrelated refactors.
 
 ## Plan
-- [x] Inspect repository structure.
-- [x] Create thin agent router files.
-- [x] Create task memory files.
-- [x] Create product, architecture, QA, spec, and decision docs.
-- [x] Create Agent OS workflows, standards, and templates.
-- [x] Run final file existence verification.
+- [x] Read the requested Agent OS router, memory, task, implementation, QA, and TestFlight workflow files.
+- [x] Confirm the first story and constraints.
+- [x] Check worktree state and preserve existing uncommitted app changes.
+- [x] Create `docs/specs/runsmart-ios-ia-mapping.md`.
+- [x] Verify the mapping file exists and covers all six proposed app areas.
+- [x] Run lightweight project validation with `xcodebuild -list`.
+- [x] Update `tasks/session-log.md`.
+- [x] Update `tasks/lessons.md` if a reusable lesson is learned.
 
-## Checklist
-- [x] `AGENTS.md`, `CLAUDE.md`, and `CODEX.md` stay thin.
-- [x] Workflows live under `.agent-os/workflows/`.
-- [x] Standards live under `.agent-os/standards/`.
-- [x] Templates live under `.agent-os/templates/`.
-- [x] Self-learning loop is documented.
-- [x] Token-efficiency routing is documented.
-- [x] No app feature source was intentionally changed.
-
-## Progress
-Agent OS installation in progress.
-
-## Open Questions
-- Which Xcode project is authoritative: `ResumeBuilder IOS APP.xcodeproj` or the incomplete `IOS RunSmart app.xcodeproj` shell?
-- Is the current app source meant to be migrated from resume-builder naming to RunSmart, or is it a placeholder?
-- What is the expected bundle identifier and signing configuration for TestFlight?
+## Risks
+- The repo still has product identity mismatch around `ResumeBuilder IOS APP` versus RunSmart.
+- Some existing RunSmart docs/features may be stale or outside the active Xcode project.
+- A docs-only first story improves implementation safety but does not change runtime UI yet.
+- Existing uncommitted Swift/resource changes are present and must not be staged or modified by this story.
 
 ## Validation
-- File existence verification passed at the workspace root.
-- Xcode build not required for documentation-only install unless requested.
+- `docs/specs/runsmart-ios-ia-mapping.md` exists.
+- IA mapping coverage check passed for Today, Plan, Run, Report, Coach, Profile, Garmin, HealthKit, and TestFlight.
+- `xcodebuild -list -project "ResumeBuilder IOS APP.xcodeproj"` succeeded.
+- `xcodebuild -project "ResumeBuilder IOS APP.xcodeproj" -scheme "ResumeBuilder IOS APP" -destination "generic/platform=iOS Simulator" build` succeeded.
+- `xcodebuild -project "ResumeBuilder IOS APP.xcodeproj" -scheme "ResumeBuilder IOS APP" -destination "platform=iOS Simulator,name=iPhone 17" test` failed in the existing test target because `ResumeOptimizationServiceSwiftTestingTests.swift` test doubles still implement `optimize(resumeId:jobDescription:token:)` while `ResumeOptimizationServiceProtocol` requires `optimize(resumeId:jobDescriptionId:token:)`.
+- Simulator smoke test skipped because this story did not edit runtime UI and no app launch was required.
 
 ## Review Notes
-- Preserve existing modified Swift files; they appear unrelated to this documentation install.
-- Agent OS is installed at the GitHub repo root: `IOS RunSmart app/`.
+- Implementation should be small, reviewable, and limited to one story.
+- Story 1 was implemented as a documentation/spec artifact, not runtime SwiftUI code, to preserve current navigation before a concrete mapping exists.
+- Existing test target failure is unrelated to this docs-only story and should be handled in a separate bug-fix story.
