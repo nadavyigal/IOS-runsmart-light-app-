@@ -232,6 +232,80 @@ struct RouteSuggestion: Identifiable, Codable, Hashable {
     var kind: RouteKind
 }
 
+// MARK: - Saved Routes & Benchmarks
+
+enum RouteSource: String, Codable, Hashable {
+    case recorded
+    case garmin
+    case generated
+    case manual
+}
+
+struct SavedRoute: Identifiable, Codable, Hashable {
+    var id: UUID
+    var name: String
+    var distanceMeters: Double
+    var elevationGainMeters: Int
+    var points: [RunRoutePoint]
+    var source: RouteSource
+    var tags: [String]
+    var notes: String
+    var isFavorite: Bool
+    var createdAt: Date
+    var updatedAt: Date
+
+    var distanceKm: Double { distanceMeters / 1_000 }
+    var hasRoutePoints: Bool { !points.isEmpty }
+
+    static func from(run: RecordedRun, name: String, tags: [String] = [], notes: String = "") -> SavedRoute {
+        let source: RouteSource = run.source == .garmin ? .garmin : .recorded
+        var gain = 0.0
+        for pair in zip(run.routePoints, run.routePoints.dropFirst()) {
+            if let a = pair.0.altitude, let b = pair.1.altitude, b > a {
+                gain += b - a
+            }
+        }
+        let now = Date()
+        return SavedRoute(
+            id: UUID(),
+            name: name,
+            distanceMeters: run.distanceMeters,
+            elevationGainMeters: Int(gain.rounded()),
+            points: run.routePoints,
+            source: source,
+            tags: tags,
+            notes: notes,
+            isFavorite: false,
+            createdAt: now,
+            updatedAt: now
+        )
+    }
+}
+
+struct BenchmarkRoute: Identifiable, Codable, Hashable {
+    var id: UUID
+    var savedRouteID: UUID
+    var enabledAt: Date
+    var historicalRunCount: Int
+    var personalBestSeconds: TimeInterval?
+    var personalBestDate: Date?
+    var averagePaceSecondsPerKm: Double?
+    var averageDurationSeconds: TimeInterval?
+}
+
+enum RouteMatchConfidence: String, Codable, Hashable {
+    case matched
+    case possibleMatch
+    case noMatch
+}
+
+struct RouteMatchResult: Codable, Hashable {
+    var routeID: UUID
+    var confidence: RouteMatchConfidence
+    var distanceDeltaMeters: Double
+    var shapeSimilarity: Double
+}
+
 struct OnboardingProfile: Codable, Equatable {
     var displayName: String
     var goal: String

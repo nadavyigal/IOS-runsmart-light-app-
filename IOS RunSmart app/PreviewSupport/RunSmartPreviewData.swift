@@ -140,6 +140,92 @@ enum RunSmartPreviewData {
         .init(id: "share-long", title: "Long Run", subtitle: "15K", symbol: "flag.checkered", tintName: "amber")
     ]
 
+    // MARK: - Saved Routes & Benchmarks
+
+    private static func sampleRoutePoints(startLat: Double, startLon: Double, count: Int) -> [RunRoutePoint] {
+        (0..<count).map { i in
+            RunRoutePoint(
+                latitude: startLat + Double(i) * 0.0004,
+                longitude: startLon + Double(i % 3) * 0.0003 - 0.0003,
+                timestamp: Date().addingTimeInterval(TimeInterval(i * 15)),
+                horizontalAccuracy: 8,
+                altitude: 22 + Double(i % 5) * 2
+            )
+        }
+    }
+
+    static let savedRouteIDs = (UUID(), UUID(), UUID())
+
+    static let savedRoutes: [SavedRoute] = {
+        let now = Date()
+        return [
+            SavedRoute(
+                id: savedRouteIDs.0,
+                name: "Park Loop",
+                distanceMeters: 5200,
+                elevationGainMeters: 34,
+                points: sampleRoutePoints(startLat: 32.0853, startLon: 34.7818, count: 40),
+                source: .recorded,
+                tags: ["easy", "flat"],
+                notes: "Nice morning route through the park.",
+                isFavorite: true,
+                createdAt: now.addingTimeInterval(-86400 * 14),
+                updatedAt: now.addingTimeInterval(-86400 * 2)
+            ),
+            SavedRoute(
+                id: savedRouteIDs.1,
+                name: "River Trail 8K",
+                distanceMeters: 8100,
+                elevationGainMeters: 62,
+                points: sampleRoutePoints(startLat: 32.0700, startLon: 34.7700, count: 55),
+                source: .recorded,
+                tags: ["tempo", "trail"],
+                notes: "",
+                isFavorite: false,
+                createdAt: now.addingTimeInterval(-86400 * 10),
+                updatedAt: now.addingTimeInterval(-86400 * 5)
+            ),
+            SavedRoute(
+                id: savedRouteIDs.2,
+                name: "Garmin Beach Run",
+                distanceMeters: 6400,
+                elevationGainMeters: 12,
+                points: sampleRoutePoints(startLat: 32.0900, startLon: 34.7650, count: 48),
+                source: .garmin,
+                tags: ["flat", "scenic"],
+                notes: "Imported from Garmin.",
+                isFavorite: true,
+                createdAt: now.addingTimeInterval(-86400 * 7),
+                updatedAt: now.addingTimeInterval(-86400 * 3)
+            )
+        ]
+    }()
+
+    static let benchmarkRoutes: [BenchmarkRoute] = [
+        BenchmarkRoute(
+            id: UUID(),
+            savedRouteID: savedRouteIDs.0,
+            enabledAt: Date().addingTimeInterval(-86400 * 10),
+            historicalRunCount: 5,
+            personalBestSeconds: 1560,
+            personalBestDate: Date().addingTimeInterval(-86400 * 3),
+            averagePaceSecondsPerKm: 318,
+            averageDurationSeconds: 1640
+        ),
+        BenchmarkRoute(
+            id: UUID(),
+            savedRouteID: savedRouteIDs.1,
+            enabledAt: Date().addingTimeInterval(-86400 * 7),
+            historicalRunCount: 2,
+            personalBestSeconds: 2430,
+            personalBestDate: Date().addingTimeInterval(-86400 * 5),
+            averagePaceSecondsPerKm: 312,
+            averageDurationSeconds: 2520
+        )
+    ]
+
+    // MARK: - Recorded Runs
+
     static var recordedRuns: [RecordedRun] {
         let calendar = Calendar.current
         let distances = [5.0, 6.2, 4.8, 8.0, 5.4, 10.2, 6.7, 7.1]

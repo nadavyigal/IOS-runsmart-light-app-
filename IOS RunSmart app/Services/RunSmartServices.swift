@@ -202,6 +202,21 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
         []
     }
 
+    func savedRoutes() async -> [SavedRoute] {
+        RunSmartPreviewData.savedRoutes
+    }
+
+    func saveRoute(_ route: SavedRoute) async -> Bool { true }
+    func deleteRoute(_ routeID: UUID) async -> Bool { true }
+    func updateRoute(_ route: SavedRoute) async -> Bool { true }
+
+    func benchmarkRoutes() async -> [BenchmarkRoute] {
+        RunSmartPreviewData.benchmarkRoutes
+    }
+
+    func enableBenchmark(for routeID: UUID) async -> Bool { true }
+    func disableBenchmark(for routeID: UUID) async -> Bool { true }
+
     func deviceStatuses() async -> [ConnectedDeviceStatus] {
         [
             ConnectedDeviceStatus(provider: "Garmin Connect", state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: "Preview only"),
