@@ -1243,7 +1243,7 @@ private struct RunReportNextWorkoutCard: View {
                     .disabled(isSaving || saveState == .saved)
 
                     if saveState == .failed {
-                        Text("Could not save this workout to your plan. Make sure an active plan is loaded and try again.")
+                        Text("Could not save this workout. Check your connection and try again.")
                             .font(.caption)
                             .foregroundStyle(Color.accentHeart)
                     }

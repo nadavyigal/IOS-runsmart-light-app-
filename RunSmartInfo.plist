@@ -40,7 +40,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>RunSmart records GPS routes, pace, and distance during outdoor runs.</string>
 	<key>RUNSMART_GARMIN_GATEWAY_URL</key>
-	<string>https://runsmart-ai.com/garmin/connect</string>
+	<string>https://www.runsmart-ai.com/api/devices/garmin/connect</string>
 	<key>RunSmartAPIBaseURL</key>
 	<string>https://runsmart-ai.com</string>
 	<key>UIApplicationSceneManifest</key>

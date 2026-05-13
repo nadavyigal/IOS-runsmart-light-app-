@@ -222,6 +222,18 @@ final class RunSmartReadinessTests: XCTestCase {
         )), 30)
     }
 
+    func testRecommendationPlanProfileReferenceFallbacksAreDeduped() {
+        let authID = UUID(uuidString: "068053FD-0000-4000-8000-000000000000")!
+        let references = TrainingPlanRepository.uniqueProfileReferences([
+            .uuid(authID),
+            .numeric(2),
+            .uuid(authID),
+            .numeric(2)
+        ])
+
+        XCTAssertEqual(references, [.uuid(authID), .numeric(2)])
+    }
+
     func testRunRecorderMovingDurationExcludesActivePauseWhenFinishingPaused() {
         let startedAt = Date(timeIntervalSince1970: 1_000)
         let pausedAt = startedAt.addingTimeInterval(120)

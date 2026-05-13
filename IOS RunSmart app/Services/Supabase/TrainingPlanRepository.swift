@@ -488,7 +488,12 @@ final class TrainingPlanRepository {
     }
 
     func saveSuggestedWorkout(authUserID: UUID, suggestion: StructuredNextWorkout, report: RunReportDetail) async -> Bool {
-        guard let active = await activePlan(authUserID: authUserID) else {
+        var active = await activePlan(authUserID: authUserID)
+        if active == nil {
+            active = await createRecommendationPlan(authUserID: authUserID, suggestion: suggestion, report: report)
+        }
+
+        guard let active else {
             print("[TrainingPlanRepo] saveSuggestedWorkout failed: no active plan")
             return false
         }
@@ -536,6 +541,53 @@ final class TrainingPlanRepository {
             }
             return false
         }
+    }
+
+    private func createRecommendationPlan(authUserID: UUID, suggestion: StructuredNextWorkout, report: RunReportDetail) async -> ActivePlan? {
+        let resolved = await identity(authUserID: authUserID)
+        let today = Calendar.current.startOfDay(for: Date())
+        let targetDate = Self.suggestedWorkoutDate(suggestion.dateLabel)
+        let endDate = Calendar.current.date(byAdding: .day, value: 28, to: max(today, targetDate)) ?? targetDate
+        let profileReferences = Self.uniqueProfileReferences([
+            resolved.planWriteProfileReference(fallback: authUserID),
+            resolved.profileReference(fallback: authUserID)
+        ])
+
+        for profileID in profileReferences {
+            do {
+                let planRows: [DBPlan] = try await supabase
+                    .from("plans")
+                    .insert(DBPlanInsert(
+                        profileID: profileID,
+                        authUserID: authUserID.uuidString,
+                        title: "RunSmart Recommendations",
+                        description: "Auto-created so coach-recommended workouts from run reports can be saved.",
+                        startDate: ISO8601DateFormatter.shortDate.string(from: today),
+                        endDate: ISO8601DateFormatter.shortDate.string(from: endDate),
+                        totalWeeks: 4,
+                        isActive: true,
+                        planType: "recommendations",
+                        trainingDaysPerWeek: 3,
+                        targetDistance: Self.distanceKm(from: suggestion.distance) ?? Self.distanceKm(from: suggestion.title),
+                        targetTime: nil,
+                        peakWeeklyVolume: nil
+                    ))
+                    .select()
+                    .execute()
+                    .value
+
+                if let plan = planRows.first {
+                    print("[TrainingPlanRepo] ✅ created recommendation plan=\(plan.id) from report=\(report.id)")
+                    return ActivePlan(plan: plan, workouts: [])
+                }
+            } catch {
+                if !(error is CancellationError) {
+                    print("[TrainingPlanRepo] createRecommendationPlan error profileID=\(profileID.debugValue):", error)
+                }
+            }
+        }
+
+        return nil
     }
 
     func completeBestMatchingWorkout(authUserID: UUID, for run: RecordedRun) async -> WorkoutSummary? {
@@ -722,6 +774,11 @@ final class TrainingPlanRepository {
         let parts = value[match].split(separator: ":").compactMap { Int($0) }
         guard parts.count == 2 else { return nil }
         return parts[0] * 60 + parts[1]
+    }
+
+    static func uniqueProfileReferences(_ references: [DBProfileReference]) -> [DBProfileReference] {
+        var seen = Set<DBProfileReference>()
+        return references.filter { seen.insert($0).inserted }
     }
 
     static func bestWorkoutMatch(for run: RecordedRun, in workouts: [WorkoutSummary], calendar: Calendar = .current) -> WorkoutSummary? {

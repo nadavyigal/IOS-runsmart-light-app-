@@ -9,22 +9,34 @@ final class GarminBridge: NSObject {
     static let shared = GarminBridge()
 
     private let supabase = SupabaseManager.client
-    private let garminGatewayURL = "https://runsmart-ai.com/garmin/connect"
     private var webAuthSession: ASWebAuthenticationSession?
 
+    private var garminGatewayURL: URL {
+        if let raw = Bundle.main.object(forInfoDictionaryKey: "RUNSMART_GARMIN_GATEWAY_URL") as? String,
+           let url = URL(string: raw) {
+            return url
+        }
+        return URL(string: "https://www.runsmart-ai.com/api/devices/garmin/connect")!
+    }
+
     func connect() async throws {
-        guard let token = try? await supabase.auth.session.accessToken else {
+        guard let session = try? await supabase.auth.session, !session.isExpired else {
             throw GarminError.notAuthenticated
         }
 
-        var components = URLComponents(string: garminGatewayURL)!
-        components.queryItems = [URLQueryItem(name: "token", value: token)]
-        let startURL = components.url!
+        guard let numericUserID = try await garminUserID(authUserID: session.user.id) else {
+            throw GarminError.missingProfile
+        }
+
+        let startURL = try await garminAuthorizationURL(
+            userID: numericUserID,
+            accessToken: session.accessToken
+        )
 
         return try await withCheckedThrowingContinuation { continuation in
             let session = ASWebAuthenticationSession(
                 url: startURL,
-                callbackURLScheme: "runsmart"
+                callbackURLScheme: nil
             ) { callbackURL, error in
                 if let error {
                     if (error as NSError).code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
@@ -35,8 +47,8 @@ final class GarminBridge: NSObject {
                     return
                 }
                 guard let url = callbackURL,
-                      url.host == "garmin",
-                      url.path == "/connected" else {
+                      url.host?.contains("runsmart-ai.com") == true,
+                      url.path.hasSuffix("/garmin/callback") || url.query?.contains("screen=profile") == true else {
                     continuation.resume()
                     return
                 }
@@ -47,6 +59,42 @@ final class GarminBridge: NSObject {
             self.webAuthSession = session
             session.start()
         }
+    }
+
+    private func garminUserID(authUserID: UUID) async throws -> Int? {
+        let rows: [GarminProfileIdentity] = try await supabase
+            .from("profiles")
+            .select("id,auth_user_id")
+            .eq("auth_user_id", value: authUserID.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.numericUserID
+    }
+
+    private func garminAuthorizationURL(userID: Int, accessToken: String) async throws -> URL {
+        var request = URLRequest(url: garminGatewayURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let redirectURI = "\(garminGatewayURL.scheme ?? "https")://\(garminGatewayURL.host ?? "www.runsmart-ai.com")/garmin/callback"
+        request.httpBody = try JSONEncoder().encode(GarminConnectRequest(userID: userID, redirectURI: redirectURI))
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw GarminError.gatewayFailed("Garmin gateway did not return a valid response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let message = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw GarminError.gatewayFailed(message?.isEmpty == false ? message! : "Garmin gateway returned \(http.statusCode).")
+        }
+
+        let payload = try JSONDecoder().decode(GarminConnectResponse.self, from: data)
+        guard payload.success, let authURL = payload.authURL, let url = URL(string: authURL) else {
+            throw GarminError.gatewayFailed(payload.error ?? "Garmin gateway did not return an authorization URL.")
+        }
+        return url
     }
 
     func recentActivities(authUserID: UUID, limit: Int = 10) async -> [DBGarminActivity] {
@@ -215,12 +263,57 @@ extension GarminBridge: ASWebAuthenticationPresentationContextProviding {
     }
 }
 
+private struct GarminConnectRequest: Encodable {
+    let userID: Int
+    let redirectURI: String
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "userId"
+        case redirectURI = "redirectUri"
+    }
+}
+
+private struct GarminConnectResponse: Decodable {
+    let success: Bool
+    let authURL: String?
+    let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case success
+        case authURL = "authUrl"
+        case error
+    }
+}
+
+private struct GarminProfileIdentity: Decodable {
+    let numericUserID: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let int = try? c.decode(Int.self, forKey: .id) {
+            numericUserID = int
+        } else if let string = try? c.decode(String.self, forKey: .id), let int = Int(string) {
+            numericUserID = int
+        } else {
+            numericUserID = nil
+        }
+    }
+}
+
 enum GarminError: LocalizedError {
     case notAuthenticated
+    case missingProfile
+    case gatewayFailed(String)
 
     var errorDescription: String? {
         switch self {
         case .notAuthenticated: "Sign in before connecting Garmin."
+        case .missingProfile: "Finish RunSmart onboarding before connecting Garmin."
+        case .gatewayFailed(let message): message
         }
     }
 }
