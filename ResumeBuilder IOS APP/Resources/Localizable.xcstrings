@@ -45,6 +45,12 @@
     "%lld free checks remaining" : {
 
     },
+    "%lld free checks remaining this week." : {
+
+    },
+    "%lld more recommendations unlock with full optimization." : {
+
+    },
     "%lld of %lld changes selected" : {
       "localizations" : {
         "en" : {
@@ -83,6 +89,12 @@
     "+%lldpts" : {
 
     },
+    "2" : {
+
+    },
+    "3" : {
+
+    },
     "100 credits" : {
 
     },
@@ -114,6 +126,12 @@
     "Actions" : {
 
     },
+    "Active account" : {
+
+    },
+    "Add Job" : {
+
+    },
     "After" : {
 
     },
@@ -129,7 +147,19 @@
     "AI Optimized" : {
 
     },
+    "AI POWERED" : {
+
+    },
+    "AI rewrites for this specific job" : {
+
+    },
+    "AI rewrites your resume to beat ATS filters for any job." : {
+
+    },
     "Already have an account?" : {
+
+    },
+    "Analyzing resume…" : {
 
     },
     "Analyzing…" : {
@@ -158,6 +188,12 @@
     "Applied" : {
 
     },
+    "Apply a professional template to your optimized resume." : {
+
+    },
+    "Apply Design" : {
+
+    },
     "Apply is temporarily unavailable — a server update is required. Changes will be available again once the update is complete." : {
 
     },
@@ -165,6 +201,9 @@
 
     },
     "ATS" : {
+
+    },
+    "ATS %lld%%" : {
 
     },
     "ATS breakdown" : {
@@ -200,9 +239,6 @@
     "Before %@" : {
 
     },
-    "Buy Credits" : {
-
-    },
     "Buy More" : {
 
     },
@@ -219,6 +255,12 @@
 
     },
     "Chat unavailable" : {
+
+    },
+    "Check ATS Score" : {
+
+    },
+    "Checking keyword match and ATS signals" : {
 
     },
     "Close" : {
@@ -248,6 +290,9 @@
     "Credits" : {
 
     },
+    "Customize" : {
+
+    },
     "Design" : {
 
     },
@@ -267,6 +312,9 @@
           }
         }
       }
+    },
+    "Designed_Resume.pdf" : {
+
     },
     "Diff Review" : {
 
@@ -313,6 +361,9 @@
     "Expert modes" : {
 
     },
+    "Export" : {
+
+    },
     "export_download_pdf" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -330,6 +381,9 @@
         }
       }
     },
+    "Font" : {
+
+    },
     "Font Style" : {
 
     },
@@ -337,6 +391,9 @@
 
     },
     "Free ATS Preview" : {
+
+    },
+    "FREE CHECK" : {
 
     },
     "Free plan" : {
@@ -434,10 +491,13 @@
     "Include" : {
 
     },
-    "Job Description ID" : {
+    "LinkedIn or Job Link" : {
 
     },
-    "LinkedIn or Job Link" : {
+    "LinkedIn or job post URL" : {
+
+    },
+    "Loading designs…" : {
 
     },
     "Loading optimization history..." : {
@@ -458,9 +518,6 @@
     "Master Resume" : {
 
     },
-    "Master resume preview will appear here." : {
-
-    },
     "Missing Keywords" : {
 
     },
@@ -479,6 +536,9 @@
     "Needs your input" : {
 
     },
+    "No designs yet" : {
+
+    },
     "No master resume uploaded yet." : {
 
     },
@@ -492,6 +552,9 @@
 
     },
     "No optimizations yet" : {
+
+    },
+    "No templates in this category yet." : {
 
     },
     "Not yet exported" : {
@@ -521,13 +584,22 @@
     "Optimize" : {
 
     },
+    "Optimize Resume" : {
+
+    },
     "Optimized Resume" : {
+
+    },
+    "Optimized_Resume.pdf" : {
 
     },
     "Optimizing your resume..." : {
 
     },
     "or" : {
+
+    },
+    "Or paste job description here" : {
 
     },
     "Or paste the job description" : {
@@ -551,7 +623,13 @@
     "PDF or DOCX" : {
 
     },
+    "PDF ready" : {
+
+    },
     "PDF Ready" : {
+
+    },
+    "PDF up to 5 MB" : {
 
     },
     "Preview" : {
@@ -561,9 +639,6 @@
 
     },
     "Priority actions" : {
-
-    },
-    "Profile" : {
 
     },
     "profile_my_applications" : {
@@ -621,6 +696,9 @@
     "Recent Exports" : {
 
     },
+    "Redesign Resume" : {
+
+    },
     "Refinement Instruction" : {
 
     },
@@ -630,16 +708,13 @@
     "Rendering preview…" : {
 
     },
-    "Resume" : {
-
-    },
     "Resume Health Score" : {
 
     },
-    "Resume ID" : {
+    "Resume PDF" : {
 
     },
-    "Resume PDF" : {
+    "Resume Preview" : {
 
     },
     "Resumely" : {
@@ -660,16 +735,10 @@
     "Review changes before approving" : {
 
     },
-    "Review ID: %@" : {
-
-    },
     "Role" : {
 
     },
     "Run a scan and optimization to see it here." : {
-
-    },
-    "Run ATS Score" : {
 
     },
     "Run expert workflows for this optimization" : {
@@ -679,6 +748,9 @@
 
     },
     "Saved resume" : {
+
+    },
+    "Saved to your applications!" : {
 
     },
     "scan_analyze_cta" : {
@@ -715,9 +787,6 @@
         }
       }
     },
-    "Score" : {
-
-    },
     "Scores are still loading." : {
 
     },
@@ -725,6 +794,9 @@
 
     },
     "Search title or company" : {
+
+    },
+    "See how your resume performs against a job before you apply." : {
 
     },
     "Send message" : {
@@ -742,7 +814,13 @@
     "Sign in to manage your master resume." : {
 
     },
+    "Sign in to Optimize" : {
+
+    },
     "Sign in to unlock full optimization." : {
+
+    },
+    "Sign in to unlock full resume optimization." : {
 
     },
     "Sign in to view history" : {
@@ -860,7 +938,10 @@
         }
       }
     },
-    "Tailor" : {
+    "Tailor a resume first, then come here to apply a professional template." : {
+
+    },
+    "Tailor Resume" : {
 
     },
     "Tailor your resume to any job in 60 seconds." : {
@@ -872,6 +953,15 @@
     "Tap Download to generate PDF" : {
 
     },
+    "Tap to change" : {
+
+    },
+    "Templates" : {
+
+    },
+    "TEMPLATES" : {
+
+    },
     "This review was already applied on the web or another device." : {
 
     },
@@ -879,6 +969,9 @@
 
     },
     "Top Fixes" : {
+
+    },
+    "Top Issues" : {
 
     },
     "Top signals" : {
@@ -902,13 +995,16 @@
     "Undo" : {
 
     },
-    "Use Tailor to improve weak bullets and keyword alignment." : {
+    "URL or paste description" : {
+
+    },
+    "Use Tailor to generate the full optimized resume." : {
 
     },
     "View ATS breakdown" : {
 
     },
-    "View Credits" : {
+    "Your files are secure and never shared without permission." : {
 
     },
     "Your optimized resumes and PDF downloads are linked to your account." : {

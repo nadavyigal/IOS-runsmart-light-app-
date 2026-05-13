@@ -1476,3 +1476,36 @@ struct DesignUndoResponseDTO: Decodable, Sendable {
     let message: String?
     let error: String?
 }
+// MARK: - Resume Preview Models
+
+struct ResumeSection: Identifiable, Sendable {
+    let id = UUID()
+    let title: String
+    let lines: [String]
+}
+
+struct ResumeSnapshot: Sendable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let matchScore: Int
+    let json: JSONValue?
+    let sections: [ResumeSection]
+    
+    init(
+        id: String,
+        title: String,
+        subtitle: String,
+        matchScore: Int,
+        json: JSONValue?,
+        sections: [ResumeSection] = []
+    ) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.matchScore = matchScore
+        self.json = json
+        self.sections = sections
+    }
+}
+

@@ -8,6 +8,7 @@ struct ResumeOptimizationServiceSwiftTestingTests {
     func improveViewModelOptimizeSuccess() async throws {
         let viewModel = ImproveViewModel(
             resumeId: "resume_1",
+            jobDescriptionId: "job_1",
             jobDescription: "iOS Engineer",
             analysisService: MockResumeAnalysisService(),
             optimizationService: MockResumeOptimizationService()
@@ -24,6 +25,7 @@ struct ResumeOptimizationServiceSwiftTestingTests {
     func improveViewModelOptimizeFailure() async {
         let viewModel = ImproveViewModel(
             resumeId: "resume_1",
+            jobDescriptionId: "job_1",
             jobDescription: "iOS Engineer",
             analysisService: MockResumeAnalysisService(),
             optimizationService: FailingResumeOptimizationService()
@@ -39,6 +41,7 @@ struct ResumeOptimizationServiceSwiftTestingTests {
     func improveViewModelOptimizeInvalidData() async {
         let viewModel = ImproveViewModel(
             resumeId: "resume_1",
+            jobDescriptionId: "job_1",
             jobDescription: "iOS Engineer",
             analysisService: MockResumeAnalysisService(),
             optimizationService: InvalidDataResumeOptimizationService()
@@ -54,6 +57,7 @@ struct ResumeOptimizationServiceSwiftTestingTests {
     func improveViewModelOptimizeDecodeError() async {
         let viewModel = ImproveViewModel(
             resumeId: "resume_1",
+            jobDescriptionId: "job_1",
             jobDescription: "iOS Engineer",
             analysisService: MockResumeAnalysisService(),
             optimizationService: DecodeFailureResumeOptimizationService()
@@ -92,7 +96,7 @@ struct ResumeOptimizationServiceSwiftTestingTests {
 }
 
 private struct FailingResumeOptimizationService: ResumeOptimizationServiceProtocol {
-    func optimize(resumeId: String, jobDescription: String, token: String) async throws -> OptimizeResponse {
+    func optimize(resumeId: String, jobDescriptionId: String, token: String) async throws -> OptimizeResponse {
         throw ResumeOptimizationFailure.network
     }
 
@@ -112,7 +116,7 @@ private enum ResumeOptimizationFailure: LocalizedError {
 }
 
 private struct InvalidDataResumeOptimizationService: ResumeOptimizationServiceProtocol {
-    func optimize(resumeId: String, jobDescription: String, token: String) async throws -> OptimizeResponse {
+    func optimize(resumeId: String, jobDescriptionId: String, token: String) async throws -> OptimizeResponse {
         throw ResumeOptimizationError.invalidResponse("Server returned invalid optimization payload.")
     }
 
@@ -126,7 +130,7 @@ private struct InvalidDataResumeOptimizationService: ResumeOptimizationServicePr
 }
 
 private struct DecodeFailureResumeOptimizationService: ResumeOptimizationServiceProtocol {
-    func optimize(resumeId: String, jobDescription: String, token: String) async throws -> OptimizeResponse {
+    func optimize(resumeId: String, jobDescriptionId: String, token: String) async throws -> OptimizeResponse {
         throw ResumeOptimizationError.invalidResponse("We couldn't parse the optimization response. Please try again.")
     }
 

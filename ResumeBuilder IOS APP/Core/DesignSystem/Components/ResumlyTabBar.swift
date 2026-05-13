@@ -11,20 +11,20 @@ enum ResumlyTab: Int, CaseIterable {
 
     var icon: String {
         switch self {
-        case .score:   return "gauge.medium"
-        case .tailor:  return "wand.and.stars"
-        case .design:  return "paintbrush.fill"
-        case .track:   return "tray.full"
+        case .score:   return "sun.max.fill"
+        case .tailor:  return "calendar"
+        case .design:  return "figure.run"
+        case .track:   return "chart.xyaxis.line"
         case .profile: return "person.crop.circle"
         }
     }
 
     var label: String {
         switch self {
-        case .score:   return "Score"
-        case .tailor:  return "Tailor"
-        case .design:  return "Design"
-        case .track:   return "Track"
+        case .score:   return "Today"
+        case .tailor:  return "Plan"
+        case .design:  return "Run"
+        case .track:   return "Report"
         case .profile: return "Me"
         }
     }

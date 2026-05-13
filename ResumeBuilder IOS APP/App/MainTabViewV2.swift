@@ -14,22 +14,22 @@ struct MainTabViewV2: View {
         ZStack(alignment: .bottom) {
             // Keep tabs alive to preserve form fields and in-flight async state.
             Group {
-                ScoreView(viewModel: scoreViewModel)
+                TodayView(scoreViewModel: scoreViewModel)
                     .opacity(selectedTab == .score ? 1 : 0)
                     .allowsHitTesting(selectedTab == .score)
 
-                TailorView(viewModel: tailorViewModel)
+                PlanView(tailorViewModel: tailorViewModel)
                     .opacity(selectedTab == .tailor ? 1 : 0)
                     .allowsHitTesting(selectedTab == .tailor)
 
-                RedesignResumeView(
-                    viewModel: designViewModel,
+                RunView(
+                    designViewModel: designViewModel,
                     onPreview: { selectedTab = .profile }
                 )
                 .opacity(selectedTab == .design ? 1 : 0)
                 .allowsHitTesting(selectedTab == .design)
 
-                ApplicationsListView(viewModel: applicationsViewModel)
+                ReportView(applicationsViewModel: applicationsViewModel)
                     .opacity(selectedTab == .track ? 1 : 0)
                     .allowsHitTesting(selectedTab == .track)
 

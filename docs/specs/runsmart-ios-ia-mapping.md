@@ -134,3 +134,32 @@ No feature should be removed simply because it does not fit the new IA. If it ap
 - [x] Existing functionality is preserved by rule.
 - [x] Garmin and Apple Health are prepared for but not implemented.
 - [x] Future implementation order is small and reviewable.
+
+## Story 3 Acceptance
+
+Story: Introduce Today as the default command-center wrapper.
+
+- [x] First tab opens a Today surface instead of the raw score/check screen.
+- [x] Current score/check flow remains reachable from Today.
+- [x] Existing score/check state is preserved by reusing the same view model instance.
+- [x] Full Plan, Run, Coach, HealthKit, Garmin, signing, and paid-services work remain out of scope.
+
+## Story 4 Acceptance
+
+Story: Separate Plan from Report at the top level.
+
+- [x] Plan has its own lightweight tab surface.
+- [x] Report has its own lightweight tab surface.
+- [x] Current Tailor/Improve flow remains reachable from Plan.
+- [x] Current Track/applications flow remains reachable from Report.
+- [x] Full Run, Coach, HealthKit, Garmin, signing, and paid-services work remain out of scope.
+
+## Story 5 Acceptance
+
+Story: Add Run entry points without changing GPS behavior.
+
+- [x] Run has its own lightweight middle-tab surface.
+- [x] GPS start and manual log entry points are visible as unavailable placeholders only.
+- [x] Current Design/redesign flow remains reachable from Run while product ownership is unresolved.
+- [x] Location permissions, GPS tracking, and background-location behavior are unchanged.
+- [x] Full Coach, HealthKit, Garmin, signing, and paid-services work remain out of scope.

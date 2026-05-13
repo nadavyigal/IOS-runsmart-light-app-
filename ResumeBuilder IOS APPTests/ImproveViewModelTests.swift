@@ -6,6 +6,7 @@ final class ImproveViewModelTests: XCTestCase {
     func testOptimizeReturnsErrorWhenTokenMissing() async {
         let viewModel = ImproveViewModel(
             resumeId: "resume_1",
+            jobDescriptionId: "job_1",
             jobDescription: "iOS Engineer",
             analysisService: MockResumeAnalysisService(),
             optimizationService: MockResumeOptimizationService()
@@ -19,6 +20,7 @@ final class ImproveViewModelTests: XCTestCase {
     func testOptimizeReturnsOptimizationIdAndSections() async {
         let viewModel = ImproveViewModel(
             resumeId: "resume_1",
+            jobDescriptionId: "job_1",
             jobDescription: "iOS Engineer",
             analysisService: MockResumeAnalysisService(),
             optimizationService: MockResumeOptimizationService()

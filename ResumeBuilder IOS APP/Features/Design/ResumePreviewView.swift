@@ -38,7 +38,7 @@ struct ResumePreviewView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .sheet(isPresented: $showShareSheet) {
             if let url = shareItem {
-                ShareSheet(activityItems: [url])
+                ShareSheet(items: [url])
             }
         }
         .overlay {
@@ -358,13 +358,5 @@ struct ResumePreviewView: View {
 }
 
 // MARK: - Share Sheet
+// ShareSheet is defined in ResumePreviewExportView.swift
 
-struct ShareSheet: UIViewControllerRepresentable {
-    let activityItems: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}

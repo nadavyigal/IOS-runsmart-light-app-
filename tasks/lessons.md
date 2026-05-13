@@ -12,6 +12,7 @@ Review this file at the start of future tasks.
 - If an approved spec exists only in conversation, create a repo-tracked spec/story artifact before changing SwiftUI navigation or app code.
 - When validating integration readiness docs, explicitly check for platform terms users care about, such as HealthKit, not only friendlier product names like Apple Health.
 - If validation exposes an unrelated pre-existing test failure, record the exact failure and do not fold the fix into the current story unless the story owns that area.
+- When optimization flow tests exercise scanned-resume behavior, provide both `resumeId` and `jobDescriptionId`; pasted job text alone is no longer enough.
 
 ## Lesson Log
 
@@ -49,3 +50,10 @@ Trigger: Running the existing test target failed because test doubles use `jobDe
 Lesson: Validation can surface real but unrelated failures in a dirty worktree.
 
 Future rule: Record exact failing files and symbols, but keep the current story scoped unless the failure blocks the story's own acceptance criteria.
+
+### 2026-05-12 - Scan-First Test Fixtures
+Trigger: The test target compiled after protocol label fixes but still failed because optimize tests lacked `jobDescriptionId`.
+
+Lesson: The current optimization flow is scan-first and requires a persisted job description id before optimization.
+
+Future rule: Update both XCTest and Swift Testing fixtures when required flow state changes, especially when a free-text field is replaced by an ID-backed backend record.
