@@ -1,4 +1,5 @@
 DerivedData/
+build/
 *.xcresult
 *.xcactivitylog
 .DS_Store

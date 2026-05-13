@@ -77,6 +77,7 @@ struct RunSmartLiteAppShell: View {
                     case .today:   TodayTabView()
                     case .plan:    PlanTabView()
                     case .run:     RunTabView()
+                    case .report:  ReportTabView()
                     case .profile: ProfileTabView()
                     }
                 }

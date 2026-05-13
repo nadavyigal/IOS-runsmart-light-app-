@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ActivityTabView: View {
+struct ReportTabView: View {
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
     @State private var runs: [RecordedRun] = []
@@ -19,7 +19,7 @@ struct ActivityTabView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
-                RunSmartHeader(title: "Activity")
+                RunSmartHeader(title: "Report")
 
                 HStack(spacing: 0) {
                     ForEach(["All", "Runs", "Workouts"], id: \.self) { option in

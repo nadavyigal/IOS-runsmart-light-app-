@@ -134,49 +134,6 @@ struct DBProfileInsertLegacy: Encodable, Sendable {
     }
 }
 
-enum DBProfileReference: Codable, Hashable, Sendable {
-    case numeric(Int)
-    case uuid(UUID)
-    case string(String)
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.singleValueContainer()
-        if let int = try? c.decode(Int.self) {
-            self = .numeric(int)
-        } else if let uuid = try? c.decode(UUID.self) {
-            self = .uuid(uuid)
-        } else if let string = try? c.decode(String.self), let uuid = UUID(uuidString: string) {
-            self = .uuid(uuid)
-        } else if let string = try? c.decode(String.self), let int = Int(string) {
-            self = .numeric(int)
-        } else if let string = try? c.decode(String.self) {
-            self = .string(string)
-        } else {
-            self = .string("")
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.singleValueContainer()
-        switch self {
-        case .numeric(let value):
-            try c.encode(value)
-        case .uuid(let value):
-            try c.encode(value.uuidString)
-        case .string(let value):
-            try c.encode(value)
-        }
-    }
-
-    var debugValue: String {
-        switch self {
-        case .numeric(let value): "\(value)"
-        case .uuid(let value): value.uuidString
-        case .string(let value): value
-        }
-    }
-}
-
 struct DBPlan: Codable, Sendable {
     let id: UUID
     let profileId: DBProfileReference
