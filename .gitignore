@@ -1,32 +1,8 @@
-# Xcode
+DerivedData/
+build/
+*.xcresult
+*.xcactivitylog
+.DS_Store
+xcuserdata/
 *.xcuserstate
 *.xcscmblueprint
-xcuserdata/
-
-# Build artifacts
-build/
-DerivedData/
-.derivedData/
-.derivedDataLocal/
-*.ipa
-*.dSYM.zip
-*.dSYM
-
-# CocoaPods
-Pods/
-
-# Swift Package Manager
-.build/
-.swiftpm/
-
-# Carthage
-Carthage/Build/
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Secrets
-*.env
-Secrets.swift

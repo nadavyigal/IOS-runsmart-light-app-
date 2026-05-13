@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "runsmart-badge.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

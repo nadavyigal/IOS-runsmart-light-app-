@@ -1,0 +1,535 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		CC0001022FA0B36A006C1A3C /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = CC0001012FA0B36A006C1A3C /* Supabase */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		33F1D5D72FA0B36A006C1A3C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 33F1D5B62FA0B36A006C1A3C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 33F1D5BD2FA0B36A006C1A3C;
+			remoteInfo = "IOS RunSmart app";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		33F1D5BE2FA0B36A006C1A3C /* IOS RunSmart app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "IOS RunSmart app.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		33F1D5D02FA0B36A006C1A3C /* IOS RunSmart appTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "IOS RunSmart appTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		33F1D5E02FA0B36A006C1A3C /* Exceptions for "IOS RunSmart app" folder in "IOS RunSmart app" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Features/Goals/GoalWizardView 2.swift",
+			);
+			target = 33F1D5BD2FA0B36A006C1A3C /* IOS RunSmart app */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		33F1D5C02FA0B36A006C1A3C /* IOS RunSmart app */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				33F1D5E02FA0B36A006C1A3C /* Exceptions for "IOS RunSmart app" folder in "IOS RunSmart app" target */,
+			);
+			path = "IOS RunSmart app";
+			sourceTree = "<group>";
+		};
+		33F1D5D12FA0B36A006C1A3C /* IOS RunSmart appTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "IOS RunSmart appTests";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		33F1D5BB2FA0B36A006C1A3C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CC0001022FA0B36A006C1A3C /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		33F1D5D42FA0B36A006C1A3C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		33F1D5B52FA0B36A006C1A3C = {
+			isa = PBXGroup;
+			children = (
+				33F1D5C02FA0B36A006C1A3C /* IOS RunSmart app */,
+				33F1D5D12FA0B36A006C1A3C /* IOS RunSmart appTests */,
+				33F1D5BF2FA0B36A006C1A3C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		33F1D5BF2FA0B36A006C1A3C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				33F1D5BE2FA0B36A006C1A3C /* IOS RunSmart app.app */,
+				33F1D5D02FA0B36A006C1A3C /* IOS RunSmart appTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		33F1D5BD2FA0B36A006C1A3C /* IOS RunSmart app */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 33F1D5C92FA0B36D006C1A3C /* Build configuration list for PBXNativeTarget "IOS RunSmart app" */;
+			buildPhases = (
+				33F1D5BA2FA0B36A006C1A3C /* Sources */,
+				33F1D5BB2FA0B36A006C1A3C /* Frameworks */,
+				33F1D5BC2FA0B36A006C1A3C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				33F1D5C02FA0B36A006C1A3C /* IOS RunSmart app */,
+			);
+			name = "IOS RunSmart app";
+			packageProductDependencies = (
+				CC0001012FA0B36A006C1A3C /* Supabase */,
+			);
+			productName = "IOS RunSmart app";
+			productReference = 33F1D5BE2FA0B36A006C1A3C /* IOS RunSmart app.app */;
+			productType = "com.apple.product-type.application";
+		};
+		33F1D5D22FA0B36A006C1A3C /* IOS RunSmart appTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 33F1D5D92FA0B36A006C1A3C /* Build configuration list for PBXNativeTarget "IOS RunSmart appTests" */;
+			buildPhases = (
+				33F1D5D32FA0B36A006C1A3C /* Sources */,
+				33F1D5D42FA0B36A006C1A3C /* Frameworks */,
+				33F1D5D52FA0B36A006C1A3C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				33F1D5D82FA0B36A006C1A3C /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				33F1D5D12FA0B36A006C1A3C /* IOS RunSmart appTests */,
+			);
+			name = "IOS RunSmart appTests";
+			packageProductDependencies = (
+			);
+			productName = "IOS RunSmart appTests";
+			productReference = 33F1D5D02FA0B36A006C1A3C /* IOS RunSmart appTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		33F1D5B62FA0B36A006C1A3C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					33F1D5BD2FA0B36A006C1A3C = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					33F1D5D22FA0B36A006C1A3C = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 33F1D5BD2FA0B36A006C1A3C;
+					};
+				};
+			};
+			buildConfigurationList = 33F1D5B92FA0B36A006C1A3C /* Build configuration list for PBXProject "IOS RunSmart app" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 33F1D5B52FA0B36A006C1A3C;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				CC0001002FA0B36A006C1A3C /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 33F1D5BF2FA0B36A006C1A3C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				33F1D5BD2FA0B36A006C1A3C /* IOS RunSmart app */,
+				33F1D5D22FA0B36A006C1A3C /* IOS RunSmart appTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		33F1D5BC2FA0B36A006C1A3C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		33F1D5D52FA0B36A006C1A3C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		33F1D5BA2FA0B36A006C1A3C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		33F1D5D32FA0B36A006C1A3C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		33F1D5D82FA0B36A006C1A3C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 33F1D5BD2FA0B36A006C1A3C /* IOS RunSmart app */;
+			targetProxy = 33F1D5D72FA0B36A006C1A3C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		33F1D5C72FA0B36D006C1A3C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 8VC4R5M425;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		33F1D5C82FA0B36D006C1A3C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 8VC4R5M425;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		33F1D5CA2FA0B36D006C1A3C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = RunSmart.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 4;
+				DEVELOPMENT_TEAM = 8VC4R5M425;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RunSmartInfo.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "RunSmart reads workouts, routes, heart rate, HRV, sleep, steps, and active energy to personalize coaching, readiness, and training load.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "RunSmart writes completed GPS runs to Health when you allow it.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "RunSmart records GPS routes, pace, and distance during outdoor runs.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "RunSmart records GPS routes, pace, and distance during outdoor runs.";
+				INFOPLIST_KEY_RUNSMART_GARMIN_GATEWAY_URL = "";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = location;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.runsmart.lite;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUNSMART_GARMIN_GATEWAY_URL = "";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		33F1D5CB2FA0B36D006C1A3C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = RunSmart.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 4;
+				DEVELOPMENT_TEAM = 8VC4R5M425;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RunSmartInfo.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "RunSmart reads workouts, routes, heart rate, HRV, sleep, steps, and active energy to personalize coaching, readiness, and training load.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "RunSmart writes completed GPS runs to Health when you allow it.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "RunSmart records GPS routes, pace, and distance during outdoor runs.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "RunSmart records GPS routes, pace, and distance during outdoor runs.";
+				INFOPLIST_KEY_RUNSMART_GARMIN_GATEWAY_URL = "";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = location;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.runsmart.lite;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUNSMART_GARMIN_GATEWAY_URL = "";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		33F1D5DA2FA0B36A006C1A3C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 4;
+				DEVELOPMENT_TEAM = 8VC4R5M425;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.runsmart.lite.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/IOS RunSmart app.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/IOS RunSmart app";
+			};
+			name = Debug;
+		};
+		33F1D5DB2FA0B36A006C1A3C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 4;
+				DEVELOPMENT_TEAM = 8VC4R5M425;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.runsmart.lite.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/IOS RunSmart app.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/IOS RunSmart app";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		33F1D5B92FA0B36A006C1A3C /* Build configuration list for PBXProject "IOS RunSmart app" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				33F1D5C72FA0B36D006C1A3C /* Debug */,
+				33F1D5C82FA0B36D006C1A3C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		33F1D5C92FA0B36D006C1A3C /* Build configuration list for PBXNativeTarget "IOS RunSmart app" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				33F1D5CA2FA0B36D006C1A3C /* Debug */,
+				33F1D5CB2FA0B36D006C1A3C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		33F1D5D92FA0B36A006C1A3C /* Build configuration list for PBXNativeTarget "IOS RunSmart appTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				33F1D5DA2FA0B36A006C1A3C /* Debug */,
+				33F1D5DB2FA0B36A006C1A3C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CC0001002FA0B36A006C1A3C /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CC0001012FA0B36A006C1A3C /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CC0001002FA0B36A006C1A3C /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 33F1D5B62FA0B36A006C1A3C /* Project object */;
+}
