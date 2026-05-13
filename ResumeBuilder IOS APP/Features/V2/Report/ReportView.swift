@@ -1,17 +1,13 @@
 import SwiftUI
 
 struct ReportView: View {
-    @Bindable var applicationsViewModel: ApplicationsViewModel
-
-    @State private var showCurrentReportFlow = false
-
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     reportSummaryCard
-                    currentReportFlowCard
+                    adherenceCard
                     Spacer(minLength: 96)
                 }
                 .padding(.horizontal, 20)
@@ -20,9 +16,6 @@ struct ReportView: View {
             .scrollIndicators(.hidden)
             .screenBackground(showRadialGlow: true)
             .navigationBarHidden(true)
-            .sheet(isPresented: $showCurrentReportFlow) {
-                ApplicationsListView(viewModel: applicationsViewModel)
-            }
         }
     }
 
@@ -91,45 +84,28 @@ struct ReportView: View {
         )
     }
 
-    private var currentReportFlowCard: some View {
-        Button {
-            showCurrentReportFlow = true
-        } label: {
-            HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(AppColors.accentViolet.opacity(0.16))
-                        .frame(width: 48, height: 48)
-                    Image(systemName: "tray.full")
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(AppColors.accentViolet)
-                }
+    private var adherenceCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Plan adherence", systemImage: "checkmark.seal.fill")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(AppColors.textPrimary)
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Current tracking flow")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(AppColors.textPrimary)
-                    Text("Open the existing tracking list while Report is migrated toward running progress.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            Text("Weekly completion, distance trend, and recovery history will appear here after run data is connected.")
+                .font(.subheadline)
+                .foregroundStyle(AppColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppColors.textTertiary)
+            HStack(spacing: 12) {
+                reportMetric(icon: "checkmark.circle", title: "Complete", value: "Pending")
+                reportMetric(icon: "arrow.up.right", title: "Trend", value: "Pending")
             }
-            .padding(18)
-            .background(AppColors.backgroundMid, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(AppColors.glassStroke, lineWidth: 1)
-            )
         }
-        .buttonStyle(.plain)
-        .accessibilityHint("Opens the existing tracking flow.")
+        .padding(18)
+        .background(AppColors.backgroundMid, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(AppColors.glassStroke, lineWidth: 1)
+        )
     }
 
     private func reportMetric(icon: String, title: String, value: String) -> some View {
@@ -154,6 +130,6 @@ struct ReportView: View {
 }
 
 #Preview {
-    ReportView(applicationsViewModel: ApplicationsViewModel())
+    ReportView()
         .environment(AppState())
 }

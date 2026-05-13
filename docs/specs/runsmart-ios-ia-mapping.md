@@ -160,6 +160,17 @@ Story: Add Run entry points without changing GPS behavior.
 
 - [x] Run has its own lightweight middle-tab surface.
 - [x] GPS start and manual log entry points are visible as unavailable placeholders only.
-- [x] Current Design/redesign flow remains reachable from Run while product ownership is unresolved.
+- [x] Current Design/redesign flow is no longer exposed from Run.
 - [x] Location permissions, GPS tracking, and background-location behavior are unchanged.
 - [x] Full Coach, HealthKit, Garmin, signing, and paid-services work remain out of scope.
+
+## RunSmart Shell Cleanup Acceptance
+
+Correction: Remove visible ResumeBuilder-era flows from the RunSmart shell.
+
+- [x] Today no longer opens Score/ATS checks.
+- [x] Plan no longer opens Tailor/Improve optimization.
+- [x] Run no longer opens Design/redesign.
+- [x] Report no longer opens applications/job tracking.
+- [x] Profile no longer exposes resume upload, applications, ATS, credits, or resume copy.
+- [x] Location, HealthKit, Garmin, signing, and paid-services behavior remain unchanged.

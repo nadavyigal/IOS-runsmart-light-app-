@@ -2,9 +2,6 @@ import SwiftUI
 
 struct TodayView: View {
     @Environment(AppState.self) private var appState
-    @Bindable var scoreViewModel: ScoreViewModel
-
-    @State private var showCurrentScoreFlow = false
 
     var body: some View {
         NavigationStack {
@@ -12,7 +9,7 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     todayFocusCard
-                    currentScoreCard
+                    coachCueCard
                     Spacer(minLength: 96)
                 }
                 .padding(.horizontal, 20)
@@ -21,10 +18,6 @@ struct TodayView: View {
             .scrollIndicators(.hidden)
             .screenBackground(showRadialGlow: true)
             .navigationBarHidden(true)
-            .sheet(isPresented: $showCurrentScoreFlow) {
-                ScoreView(viewModel: scoreViewModel)
-                    .environment(appState)
-            }
         }
     }
 
@@ -93,45 +86,35 @@ struct TodayView: View {
         )
     }
 
-    private var currentScoreCard: some View {
-        Button {
-            showCurrentScoreFlow = true
-        } label: {
-            HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(AppColors.accentViolet.opacity(0.16))
-                        .frame(width: 48, height: 48)
-                    Image(systemName: "gauge.medium")
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(AppColors.accentViolet)
-                }
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Current score check")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(AppColors.textPrimary)
-                    Text(scoreSummaryText)
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppColors.textTertiary)
+    private var coachCueCard: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(AppColors.accentViolet.opacity(0.16))
+                    .frame(width: 48, height: 48)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 21, weight: .semibold))
+                    .foregroundStyle(AppColors.accentViolet)
             }
-            .padding(18)
-            .background(AppColors.backgroundMid, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(AppColors.glassStroke, lineWidth: 1)
-            )
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Coach cue")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(AppColors.textPrimary)
+                Text("Connect a goal and recent activity to receive a short daily training recommendation.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
         }
-        .buttonStyle(.plain)
-        .accessibilityHint("Opens the existing score check flow.")
+        .padding(18)
+        .background(AppColors.backgroundMid, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(AppColors.glassStroke, lineWidth: 1)
+        )
     }
 
     private func focusMetric(icon: String, title: String, value: String) -> some View {
@@ -170,20 +153,9 @@ struct TodayView: View {
         }
     }
 
-    private var scoreSummaryText: String {
-        if let score = scoreViewModel.result?.score?.overall {
-            return "Latest score: \(score). Review quick wins and top issues."
-        }
-
-        if scoreViewModel.selectedResumeName != nil {
-            return "A file is selected. Finish the check and review quick wins."
-        }
-
-        return "Review your current score and quick wins."
-    }
 }
 
 #Preview {
-    TodayView(scoreViewModel: ScoreViewModel())
+    TodayView()
         .environment(AppState())
 }

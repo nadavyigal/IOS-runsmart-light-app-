@@ -156,3 +156,34 @@ Implemented Story 5 for the RunSmart iOS improvement by adding a dedicated Run t
 
 ### Next Recommended Action
 Implement Story 6 by placing Coach contextually from the existing shell surfaces without adding a sixth tab, or approve product identity cleanup before expanding more screens.
+
+## 2026-05-13
+
+### Task Summary
+Removed visible ResumeBuilder-era flows from the RunSmart Stories 1-5 shell after user correction.
+
+### Files Changed
+- `ResumeBuilder IOS APP/App/MainTabViewV2.swift`
+- `ResumeBuilder IOS APP/Features/V2/Today/TodayView.swift`
+- `ResumeBuilder IOS APP/Features/V2/Plan/PlanView.swift`
+- `ResumeBuilder IOS APP/Features/V2/Run/RunView.swift`
+- `ResumeBuilder IOS APP/Features/V2/Report/ReportView.swift`
+- `ResumeBuilder IOS APP/Features/V2/Profile/ProfileViewV2.swift`
+- `.agent-os/project-progress.md`
+- `docs/specs/runsmart-ios-ia-mapping.md`
+- `tasks/lessons.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Removed Score/ATS, Tailor/Improve, Design/redesign, applications/job tracking, resume upload, credits, and resume copy from the visible RunSmart shell.
+- Kept Today, Plan, Run, Report, and Profile as RunSmart-only placeholder surfaces until approved running data models are connected.
+- Recorded a new Agent OS lesson: do not expose ResumeBuilder-era flows in the RunSmart shell unless explicitly requested.
+- Verified that `IOS RunSmart app.xcodeproj` currently cannot be read by `xcodebuild` because it is missing `project.pbxproj`.
+
+### Validation
+- `rg` check found no visible ResumeBuilder-era references in the active RunSmart shell files.
+- `xcodebuild -project "ResumeBuilder IOS APP.xcodeproj" -scheme "ResumeBuilder IOS APP" -destination "generic/platform=iOS Simulator" build` succeeded.
+- `xcodebuild -project "ResumeBuilder IOS APP.xcodeproj" -scheme "ResumeBuilder IOS APP" -destination "platform=iOS Simulator,name=iPhone 17" test` succeeded.
+
+### Next Recommended Action
+Repair or replace the broken `IOS RunSmart app.xcodeproj` so the buildable Xcode project name matches RunSmart, then continue with Story 6.

@@ -13,6 +13,8 @@ Review this file at the start of future tasks.
 - When validating integration readiness docs, explicitly check for platform terms users care about, such as HealthKit, not only friendlier product names like Apple Health.
 - If validation exposes an unrelated pre-existing test failure, record the exact failure and do not fold the fix into the current story unless the story owns that area.
 - When optimization flow tests exercise scanned-resume behavior, provide both `resumeId` and `jobDescriptionId`; pasted job text alone is no longer enough.
+- Do not preserve ResumeBuilder-era flows in the RunSmart shell unless the user explicitly asks; remove visible resume/job/ATS/design/application entry points from RunSmart surfaces.
+- Before opening Xcode, prefer the RunSmart-named project/workspace and verify it has a readable `project.pbxproj`; if it is broken, state that clearly and open the closest buildable project only as a fallback.
 
 ## Lesson Log
 
@@ -57,3 +59,10 @@ Trigger: The test target compiled after protocol label fixes but still failed be
 Lesson: The current optimization flow is scan-first and requires a persisted job description id before optimization.
 
 Future rule: Update both XCTest and Swift Testing fixtures when required flow state changes, especially when a free-text field is replaced by an ID-backed backend record.
+
+### 2026-05-13 - RunSmart Shell Must Not Expose ResumeBuilder Flows
+Trigger: User corrected the direction after the shell preserved ResumeBuilder-era score, tailor, design, resume, and application flows.
+
+Lesson: During the RunSmart migration, preserving old functionality in code is not the same as keeping it visible in the RunSmart app experience.
+
+Future rule: Keep RunSmart screens focused on running jobs; hide or remove resume/job/ATS/design/application entry points unless an approved story explicitly includes them.

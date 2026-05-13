@@ -3,33 +3,23 @@ import SwiftUI
 struct MainTabViewV2: View {
     @State private var selectedTab: ResumlyTab = .score
 
-    // Stable VM instances — created once and never recreated on re-render.
-    // This prevents duplicate network fetches and preserves in-flight async state.
-    @State private var scoreViewModel = ScoreViewModel()
-    @State private var tailorViewModel = TailorViewModel()
-    @State private var designViewModel = DesignViewModel(optimizationId: nil)
-    @State private var applicationsViewModel = ApplicationsViewModel()
-
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Keep tabs alive to preserve form fields and in-flight async state.
+            // Keep tabs alive so the shell feels instant while RunSmart data models are connected.
             Group {
-                TodayView(scoreViewModel: scoreViewModel)
+                TodayView()
                     .opacity(selectedTab == .score ? 1 : 0)
                     .allowsHitTesting(selectedTab == .score)
 
-                PlanView(tailorViewModel: tailorViewModel)
+                PlanView()
                     .opacity(selectedTab == .tailor ? 1 : 0)
                     .allowsHitTesting(selectedTab == .tailor)
 
-                RunView(
-                    designViewModel: designViewModel,
-                    onPreview: { selectedTab = .profile }
-                )
-                .opacity(selectedTab == .design ? 1 : 0)
-                .allowsHitTesting(selectedTab == .design)
+                RunView()
+                    .opacity(selectedTab == .design ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .design)
 
-                ReportView(applicationsViewModel: applicationsViewModel)
+                ReportView()
                     .opacity(selectedTab == .track ? 1 : 0)
                     .allowsHitTesting(selectedTab == .track)
 

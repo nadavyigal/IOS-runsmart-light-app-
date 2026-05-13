@@ -1,11 +1,6 @@
 import SwiftUI
 
 struct RunView: View {
-    @Bindable var designViewModel: DesignViewModel
-    var onPreview: (() -> Void)? = nil
-
-    @State private var showCurrentRunFlow = false
-
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -13,7 +8,6 @@ struct RunView: View {
                     header
                     runActionCard
                     manualLogCard
-                    currentRunFlowCard
                     Spacer(minLength: 96)
                 }
                 .padding(.horizontal, 20)
@@ -22,12 +16,6 @@ struct RunView: View {
             .scrollIndicators(.hidden)
             .screenBackground(showRadialGlow: true)
             .navigationBarHidden(true)
-            .sheet(isPresented: $showCurrentRunFlow) {
-                RedesignResumeView(
-                    viewModel: designViewModel,
-                    onPreview: onPreview
-                )
-            }
         }
     }
 
@@ -138,49 +126,9 @@ struct RunView: View {
         )
     }
 
-    private var currentRunFlowCard: some View {
-        Button {
-            showCurrentRunFlow = true
-        } label: {
-            HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(AppColors.accentViolet.opacity(0.16))
-                        .frame(width: 48, height: 48)
-                    Image(systemName: "paintbrush.fill")
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(AppColors.accentViolet)
-                }
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Current design flow")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(AppColors.textPrimary)
-                    Text("Open the existing redesign flow while this tab is migrated toward running actions.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppColors.textTertiary)
-            }
-            .padding(18)
-            .background(AppColors.backgroundMid, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(AppColors.glassStroke, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint("Opens the existing design flow.")
-    }
 }
 
 #Preview {
-    RunView(designViewModel: DesignViewModel(optimizationId: nil))
+    RunView()
         .environment(AppState())
 }

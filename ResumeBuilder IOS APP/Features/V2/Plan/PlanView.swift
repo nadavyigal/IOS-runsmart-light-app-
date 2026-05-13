@@ -1,17 +1,13 @@
 import SwiftUI
 
 struct PlanView: View {
-    @Bindable var tailorViewModel: TailorViewModel
-
-    @State private var showCurrentPlanFlow = false
-
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     planStatusCard
-                    currentPlanFlowCard
+                    upcomingWeekCard
                     Spacer(minLength: 96)
                 }
                 .padding(.horizontal, 20)
@@ -20,9 +16,6 @@ struct PlanView: View {
             .scrollIndicators(.hidden)
             .screenBackground(showRadialGlow: true)
             .navigationBarHidden(true)
-            .sheet(isPresented: $showCurrentPlanFlow) {
-                TailorView(viewModel: tailorViewModel)
-            }
         }
     }
 
@@ -91,45 +84,38 @@ struct PlanView: View {
         )
     }
 
-    private var currentPlanFlowCard: some View {
-        Button {
-            showCurrentPlanFlow = true
-        } label: {
-            HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(AppColors.accentViolet.opacity(0.16))
-                        .frame(width: 48, height: 48)
-                    Image(systemName: "wand.and.stars")
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(AppColors.accentViolet)
-                }
+    private var upcomingWeekCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Upcoming week", systemImage: "calendar.badge.clock")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(AppColors.textPrimary)
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Current improve flow")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(AppColors.textPrimary)
-                    Text("Open the existing optimization flow while Plan is migrated toward running workouts.")
-                        .font(.subheadline)
-                        .foregroundStyle(AppColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            Text("Your weekly run structure will appear here after goal setup is connected.")
+                .font(.subheadline)
+                .foregroundStyle(AppColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppColors.textTertiary)
+            HStack(spacing: 10) {
+                planDay("Mon")
+                planDay("Wed")
+                planDay("Sat")
             }
-            .padding(18)
-            .background(AppColors.backgroundMid, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(AppColors.glassStroke, lineWidth: 1)
-            )
         }
-        .buttonStyle(.plain)
-        .accessibilityHint("Opens the existing improve flow.")
+        .padding(18)
+        .background(AppColors.backgroundMid, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(AppColors.glassStroke, lineWidth: 1)
+        )
+    }
+
+    private func planDay(_ label: String) -> some View {
+        Text(label)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(AppColors.textSecondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(AppColors.glassTint, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func planMetric(icon: String, title: String, value: String) -> some View {
@@ -154,6 +140,6 @@ struct PlanView: View {
 }
 
 #Preview {
-    PlanView(tailorViewModel: TailorViewModel())
+    PlanView()
         .environment(AppState())
 }
