@@ -648,10 +648,13 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
         if provider == "Garmin Connect" {
             let status = await fetchGarminConnection(userID: userID)
-            if let run = await GarminBridge.shared
+            if var run = await GarminBridge.shared
                 .recentActivities(authUserID: userID, limit: 3)
                 .compactMap({ $0.toRecordedRun() })
                 .first {
+                if let activityID = run.providerActivityID, run.routePoints.isEmpty {
+                    run.routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activityID)
+                }
                 _ = await processCompletedActivity(run)
             }
             return status
@@ -770,7 +773,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
-        let canonical = ActivityConsolidationService.canonicalRun(for: run, in: await recentRuns(limit: 100))
+        let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: await recentRuns(limit: 100)))
         async let reportTask = generateRunReportIfMissing(for: canonical)
         async let completedTask = completeMatchingWorkout(for: canonical)
         let (report, completed) = await (reportTask, completedTask)
@@ -788,6 +791,29 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             completedWorkout: completed,
             didCompletePlannedWorkout: completed != nil
         )
+    }
+
+    func matchRoute(for run: RecordedRun) async -> RouteMatchResult? {
+        RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes())
+    }
+
+    func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? {
+        BenchmarkRouteAnalyticsService.comparison(
+            for: run,
+            runs: store.visibleRuns(store.loadRuns()),
+            savedRoutes: store.loadSavedRoutes(),
+            benchmarkRoutes: store.loadBenchmarkRoutes()
+        )
+    }
+
+    private func saveRouteMatch(for run: RecordedRun) -> RecordedRun {
+        guard let match = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes()) else {
+            return run
+        }
+        var matchedRun = run
+        matchedRun.routeMatchResult = match
+        store.saveRun(matchedRun)
+        return matchedRun
     }
 
     func activeGoal() async -> GoalSummary {

@@ -43,6 +43,7 @@ struct PostRunSummaryView: View {
 
                 CoachAnalysisCard(run: run, rpe: rpe)
                 PostActivityPlanCard(outcome: outcome, isProcessing: isProcessing)
+                BenchmarkComparisonLoaderView(run: outcome?.canonicalRun ?? run)
                 SplitPreviewCard(splits: splitRows)
                 RecoveryPlanCard()
 

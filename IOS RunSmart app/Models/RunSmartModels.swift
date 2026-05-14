@@ -214,6 +214,7 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var averagePaceSecondsPerKm: Double
     var averageHeartRateBPM: Int?
     var routePoints: [RunRoutePoint]
+    var routeMatchResult: RouteMatchResult? = nil
     var syncedAt: Date?
 }
 
@@ -300,10 +301,67 @@ enum RouteMatchConfidence: String, Codable, Hashable {
 }
 
 struct RouteMatchResult: Codable, Hashable {
-    var routeID: UUID
+    var routeID: UUID?
+    var candidateRouteID: UUID?
     var confidence: RouteMatchConfidence
     var distanceDeltaMeters: Double
+    var startDeltaMeters: Double
+    var endDeltaMeters: Double
     var shapeSimilarity: Double
+    var isReversed: Bool
+}
+
+enum BenchmarkRouteTrend: String, Codable, Hashable {
+    case improving
+    case steady
+    case slowing
+    case notEnoughData
+}
+
+struct BenchmarkRunPerformance: Identifiable, Codable, Hashable {
+    var id: UUID { runID }
+    var runID: UUID
+    var source: RunSmartDataSource
+    var startedAt: Date
+    var durationSeconds: TimeInterval
+    var paceSecondsPerKm: Double
+    var averageHeartRateBPM: Int?
+}
+
+struct BenchmarkPerformanceAverage: Codable, Hashable {
+    var routeID: UUID
+    var runCount: Int
+    var averageDurationSeconds: TimeInterval
+    var averagePaceSecondsPerKm: Double
+    var bestPaceSecondsPerKm: Double
+    var averageHeartRateBPM: Int?
+}
+
+struct MonthlyBenchmarkAverage: Codable, Hashable {
+    var routeID: UUID
+    var monthStart: Date
+    var runCount: Int
+    var averageDurationSeconds: TimeInterval
+    var averagePaceSecondsPerKm: Double
+    var bestPaceSecondsPerKm: Double
+    var averageHeartRateBPM: Int?
+    var hasEnoughData: Bool
+}
+
+struct BenchmarkRouteComparison: Codable, Hashable {
+    var routeID: UUID
+    var routeName: String
+    var matchConfidence: RouteMatchConfidence
+    var currentPerformance: BenchmarkRunPerformance
+    var previousPerformance: BenchmarkRunPerformance?
+    var personalBest: BenchmarkRunPerformance
+    var allTimeAverage: BenchmarkPerformanceAverage
+    var monthlyAverage: MonthlyBenchmarkAverage
+    var recentTrend: BenchmarkRouteTrend
+
+    var hasEnoughHistory: Bool {
+        allTimeAverage.runCount >= 2
+    }
 }
 
 struct OnboardingProfile: Codable, Equatable {
