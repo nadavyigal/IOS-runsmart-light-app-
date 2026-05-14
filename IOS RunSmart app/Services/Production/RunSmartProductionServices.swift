@@ -568,6 +568,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
 protocol RouteProviding {
     func routeSuggestions() async -> [RouteSuggestion]
     func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion]
+    func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion]
     func savedRoutes() async -> [SavedRoute]
     func saveRoute(_ route: SavedRoute) async -> Bool
     func deleteRoute(_ routeID: UUID) async -> Bool
@@ -585,6 +586,7 @@ extension RouteProviding {
     func benchmarkRoutes() async -> [BenchmarkRoute] { [] }
     func enableBenchmark(for routeID: UUID) async -> Bool { false }
     func disableBenchmark(for routeID: UUID) async -> Bool { false }
+    func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion] { [] }
 }
 
 protocol DeviceSyncing {
