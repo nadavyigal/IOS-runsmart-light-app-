@@ -315,3 +315,40 @@ Implemented route feature Story 9: Garmin Import Processing Into Route Flow.
 
 ### Next Recommended Action
 Implement Story 10: TestFlight Polish And Privacy Review.
+
+## 2026-05-14
+
+### Task Summary
+Implemented route feature Story 10: TestFlight Polish And Privacy Review. Physical-device background/battery QA remains before external beta.
+
+### Files Changed
+- `RunSmartInfo.plist`
+- `IOS RunSmart app/Features/Routes/SaveRouteSheet.swift`
+- `IOS RunSmart app/Features/Routes/RouteDetailView.swift`
+- `IOS RunSmart app/Features/Run/RunTabView.swift`
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift`
+- `docs/qa/testflight-checklist.md`
+- `docs/qa/ios-qa-checklist.md`
+- `docs/qa/route-benchmark-testflight-notes.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Clarified location permission strings around outdoor runs, benchmark-route progress, and background use while a run is active.
+- Added route-save privacy copy that explains saved routes contain GPS points and Garmin activities are not deleted.
+- Added saved-route deletion from route details with RunSmart-only deletion copy.
+- Added weak-GPS messaging so poor accuracy does not overpromise route matching.
+- Added Garmin missing-map copy and a loading state for route point fetches.
+- Added TestFlight release notes and manual QA checks for routes, benchmark limitations, battery, and background behavior.
+
+### Validation
+- `plutil -lint RunSmartInfo.plist "IOS RunSmart app/PrivacyInfo.xcprivacy"` passed.
+- Static copy check found the updated location, weak GPS, Garmin missing-map, privacy, and TestFlight notes strings.
+- Simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Full iPhone 17 test pass succeeded:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" test`
+- Build/test still emit pre-existing warning noise from older resume-era view models and AppIntents metadata extraction, but no Story 10 failures.
+
+### Next Recommended Action
+Run a physical-device TestFlight pass for background GPS/battery, then archive/upload when signing and App Store Connect are ready.

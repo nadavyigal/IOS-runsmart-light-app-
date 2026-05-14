@@ -103,17 +103,28 @@ struct RunTabView: View {
         if let message = recorder.lastErrorMessage {
             return message
         }
+        func accuracyMessage(_ accuracy: Double) -> String {
+            let meters = Int(accuracy)
+            if accuracy > 50 {
+                return "Weak GPS at \(meters)m. RunSmart keeps recording, but route matching may be less precise."
+            }
+            if accuracy > 25 {
+                return "GPS accuracy \(meters)m. Open sky helps route matching and pace settle."
+            }
+            return "GPS accuracy \(meters)m. Route recording looks solid."
+        }
+
         switch recorder.phase {
         case .requestingPermission:
             return "Approve location access and the run will start automatically."
         case .acquiringLocation:
             if let accuracy = recorder.horizontalAccuracy {
-                return "Current accuracy \(Int(accuracy))m - move outdoors for a stronger lock."
+                return accuracyMessage(accuracy)
             }
             return "Stand near open sky while RunSmart gets a clean first point."
         case .recording:
             if let accuracy = recorder.horizontalAccuracy {
-                return "Timer running - GPS accuracy \(Int(accuracy))m"
+                return "Timer running. \(accuracyMessage(accuracy))"
             }
             return "Timer running - finding the first GPS point."
         case .paused:

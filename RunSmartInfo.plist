@@ -36,9 +36,9 @@
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>RunSmart writes completed GPS runs to Health when you allow it.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>RunSmart records GPS routes, pace, and distance during outdoor runs.</string>
+	<string>RunSmart uses background location only while an outdoor run is in progress, so distance, pace, and route history continue if you lock your phone.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>RunSmart records GPS routes, pace, and distance during outdoor runs.</string>
+	<string>RunSmart uses your location during outdoor runs to record route, pace, distance, and benchmark-route progress.</string>
 	<key>RUNSMART_GARMIN_GATEWAY_URL</key>
 	<string>https://www.runsmart-ai.com/api/devices/garmin/connect</string>
 	<key>RunSmartAPIBaseURL</key>
