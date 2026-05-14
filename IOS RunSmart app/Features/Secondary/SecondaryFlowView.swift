@@ -278,6 +278,7 @@ struct SecondaryFlowView: View {
         case .routeCreator: "point.topleft.down.curvedto.point.bottomright.up"
         case .badgeCabinet: "seal.fill"
         case .shareRun: "square.and.arrow.up"
+        case .routeDetail: "map.fill"
         case .account: "person.crop.circle.fill"
         }
     }

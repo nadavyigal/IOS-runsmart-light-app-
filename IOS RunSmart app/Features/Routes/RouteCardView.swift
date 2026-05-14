@@ -89,15 +89,17 @@ struct RouteCardView: View {
         }
     }
 
-    private func formatDuration(_ seconds: Int) -> String {
-        if seconds >= 3600 {
-            return String(format: "%d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, seconds % 60)
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let totalSeconds = Int(seconds.rounded())
+        if totalSeconds >= 3600 {
+            return String(format: "%d:%02d:%02d", totalSeconds / 3600, (totalSeconds % 3600) / 60, totalSeconds % 60)
         }
-        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+        return String(format: "%d:%02d", totalSeconds / 60, totalSeconds % 60)
     }
 
-    private func formatPace(_ secondsPerKm: Int) -> String {
-        String(format: "%d:%02d", secondsPerKm / 60, secondsPerKm % 60)
+    private func formatPace(_ secondsPerKm: Double) -> String {
+        let totalSeconds = Int(secondsPerKm.rounded())
+        return String(format: "%d:%02d", totalSeconds / 60, totalSeconds % 60)
     }
 
     private var accessibilityDescription: String {

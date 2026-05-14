@@ -144,12 +144,16 @@ enum RunSmartPreviewData {
 
     private static func sampleRoutePoints(startLat: Double, startLon: Double, count: Int) -> [RunRoutePoint] {
         (0..<count).map { i in
-            RunRoutePoint(
-                latitude: startLat + Double(i) * 0.0004,
-                longitude: startLon + Double(i % 3) * 0.0003 - 0.0003,
-                timestamp: Date().addingTimeInterval(TimeInterval(i * 15)),
+            let latitude = startLat + Double(i) * 0.0004
+            let longitudeOffset = Double(i % 3) * 0.0003 - 0.0003
+            let timestamp = Date().addingTimeInterval(TimeInterval(i * 15))
+            let altitude = 22 + Double(i % 5) * 2
+            return RunRoutePoint(
+                latitude: latitude,
+                longitude: startLon + longitudeOffset,
+                timestamp: timestamp,
                 horizontalAccuracy: 8,
-                altitude: 22 + Double(i % 5) * 2
+                altitude: altitude
             )
         }
     }
