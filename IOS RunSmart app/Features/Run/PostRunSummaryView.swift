@@ -10,6 +10,7 @@ struct PostRunSummaryView: View {
 
     @State private var rpe = 6
     @State private var showDeleteConfirmation = false
+    @State private var showSaveRouteSheet = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -45,6 +46,22 @@ struct PostRunSummaryView: View {
                 SplitPreviewCard(splits: splitRows)
                 RecoveryPlanCard()
 
+                if let run, !run.routePoints.isEmpty {
+                    Button {
+                        showSaveRouteSheet = true
+                    } label: {
+                        Label("Save Route", systemImage: "map.fill")
+                            .font(.buttonLabel)
+                            .foregroundStyle(Color.accentPrimary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(Color.accentPrimary.opacity(0.10), in: Capsule())
+                            .overlay(Capsule().stroke(Color.accentPrimary.opacity(0.55), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Save the route from this run to your route library.")
+                }
+
                 HStack(spacing: 10) {
                     Button(action: onSave) {
                         Label("Keep Activity", systemImage: "checkmark.circle.fill")
@@ -76,6 +93,12 @@ struct PostRunSummaryView: View {
             Button("Keep Activity", role: .cancel) {}
         } message: {
             Text("This removes the run from RunSmart. It will not delete anything from Garmin.")
+        }
+        .sheet(isPresented: $showSaveRouteSheet) {
+            if let run {
+                SaveRouteSheet(run: run)
+                    .preferredColorScheme(.dark)
+            }
         }
     }
 

@@ -561,6 +561,49 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return suggestions
     }
 
+    func savedRoutes() async -> [SavedRoute] {
+        store.loadSavedRoutes()
+    }
+
+    func saveRoute(_ route: SavedRoute) async -> Bool {
+        store.saveSavedRoute(route)
+        return true
+    }
+
+    func deleteRoute(_ routeID: UUID) async -> Bool {
+        store.removeSavedRoute(routeID)
+    }
+
+    func updateRoute(_ route: SavedRoute) async -> Bool {
+        store.saveSavedRoute(route)
+        return true
+    }
+
+    func benchmarkRoutes() async -> [BenchmarkRoute] {
+        store.loadBenchmarkRoutes()
+    }
+
+    func enableBenchmark(for routeID: UUID) async -> Bool {
+        let routes = store.loadSavedRoutes()
+        guard routes.contains(where: { $0.id == routeID }) else { return false }
+        let benchmark = BenchmarkRoute(
+            id: UUID(),
+            savedRouteID: routeID,
+            enabledAt: Date(),
+            historicalRunCount: 0,
+            personalBestSeconds: nil,
+            personalBestDate: nil,
+            averagePaceSecondsPerKm: nil,
+            averageDurationSeconds: nil
+        )
+        store.saveBenchmarkRoute(benchmark)
+        return true
+    }
+
+    func disableBenchmark(for routeID: UUID) async -> Bool {
+        store.removeBenchmarkRoute(routeID)
+    }
+
     // MARK: DeviceSyncing
 
     func deviceStatuses() async -> [ConnectedDeviceStatus] {

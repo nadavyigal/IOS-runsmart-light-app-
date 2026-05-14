@@ -950,6 +950,8 @@ private struct RunReportScaffold: View {
     @State private var report: RunReportDetail?
     @State private var isGenerating = false
     @State private var generationFailed = false
+    @State private var showSaveRouteSheet = false
+    @State private var isLoadingRoutePoints = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -1002,6 +1004,31 @@ private struct RunReportScaffold: View {
                     .frame(height: 210)
             }
 
+            if !routePoints.isEmpty {
+                Button {
+                    showSaveRouteSheet = true
+                } label: {
+                    Label("Save Route", systemImage: "map.fill")
+                        .font(.buttonLabel)
+                        .foregroundStyle(Color.accentPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(Color.accentPrimary.opacity(0.10), in: Capsule())
+                        .overlay(Capsule().stroke(Color.accentPrimary.opacity(0.55), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Save this Garmin route to your route library.")
+            } else if !isLoadingRoutePoints {
+                HStack(spacing: 8) {
+                    Image(systemName: "map")
+                        .foregroundStyle(Color.textSecondary)
+                    Text("Garmin route data is not available for this activity. Route saving requires GPS map data.")
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                }
+                .padding(.horizontal, 4)
+            }
+
             Text("Saved to your history")
                 .font(.caption.bold())
                 .foregroundStyle(Color.lime)
@@ -1010,16 +1037,30 @@ private struct RunReportScaffold: View {
                 .background(Color.lime.opacity(0.11))
                 .clipShape(Capsule(style: .continuous))
         }
+        .sheet(isPresented: $showSaveRouteSheet) {
+            if let run = garminRunWithRoutePoints {
+                SaveRouteSheet(run: run)
+                    .preferredColorScheme(.dark)
+            }
+        }
         .task(id: activity.id) {
+            isLoadingRoutePoints = true
             routePoints = activity.toRecordedRun()?.routePoints ?? []
             if routePoints.isEmpty {
                 routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activity.activityId)
             }
+            isLoadingRoutePoints = false
             if var run = activity.toRecordedRun() {
                 if !routePoints.isEmpty { run.routePoints = routePoints }
                 report = await services.runReport(for: run)
             }
         }
+    }
+
+    private var garminRunWithRoutePoints: RecordedRun? {
+        guard var run = activity.toRecordedRun() else { return nil }
+        run.routePoints = routePoints
+        return run
     }
 
     private func generateReport() async {
