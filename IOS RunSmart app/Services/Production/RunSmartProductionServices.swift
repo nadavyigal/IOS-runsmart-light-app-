@@ -776,6 +776,55 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         []
     }
 
+    func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion] {
+        let saved = store.loadSavedRoutes()
+        let benchmarks = store.loadBenchmarkRoutes()
+        let benchmarkRouteIDs = Set(benchmarks.map(\.savedRouteID))
+        let calendar = Calendar.current
+        var suggestions: [RouteSuggestion] = []
+
+        for route in saved {
+            let isBenchmark = benchmarkRouteIDs.contains(route.id)
+            let kind: RouteKind = isBenchmark ? .benchmark : .saved
+            let reason = RouteSuggestionRanker.reason(
+                kind: kind, distanceKm: route.distanceKm,
+                targetDistanceKm: targetDistanceKm,
+                isFavorite: route.isFavorite, daysSinceLastRun: nil
+            )
+            suggestions.append(RouteSuggestion(
+                id: route.id.uuidString, name: route.name,
+                distanceKm: route.distanceKm,
+                elevationGainMeters: route.elevationGainMeters,
+                estimatedDurationMinutes: max(1, Int((route.distanceKm * 360).rounded() / 60)),
+                points: route.points, kind: kind,
+                recommendationReason: reason,
+                savedRouteID: route.id, isFavorite: route.isFavorite
+            ))
+        }
+
+        let pastRuns = store.visibleRuns(store.loadRuns()).filter { !$0.routePoints.isEmpty }
+        for run in pastRuns.prefix(5) {
+            let days = calendar.dateComponents([.day], from: run.startedAt, to: Date()).day
+            let reason = RouteSuggestionRanker.reason(
+                kind: .past, distanceKm: run.distanceMeters / 1000,
+                targetDistanceKm: targetDistanceKm,
+                isFavorite: false, daysSinceLastRun: days
+            )
+            suggestions.append(RouteSuggestion(
+                id: run.id.uuidString,
+                name: "Run \(DateFormatter.localizedString(from: run.startedAt, dateStyle: .short, timeStyle: .none))",
+                distanceKm: run.distanceMeters / 1000,
+                elevationGainMeters: elevationGain(points: run.routePoints),
+                estimatedDurationMinutes: max(1, Int(run.movingTimeSeconds / 60)),
+                points: run.routePoints, kind: .past,
+                recommendationReason: reason, savedRouteID: nil, isFavorite: false
+            ))
+        }
+
+        let filtered = RouteSuggestionRanker.filter(suggestions, targetDistanceKm: targetDistanceKm)
+        return RouteSuggestionRanker.rank(filtered, targetDistanceKm: targetDistanceKm)
+    }
+
     func savedRoutes() async -> [SavedRoute] {
         store.loadSavedRoutes()
     }
