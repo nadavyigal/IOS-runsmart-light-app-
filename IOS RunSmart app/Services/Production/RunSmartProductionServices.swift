@@ -739,13 +739,23 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     }
 
     func saveRouteMatch(for run: RecordedRun) -> RecordedRun {
-        guard let match = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes()) else {
-            return run
-        }
         var matchedRun = run
-        matchedRun.routeMatchResult = match
+        matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes())
         store.saveRun(matchedRun)
         return matchedRun
+    }
+
+    func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
+        let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: store.visibleRuns(store.loadRuns())))
+        await MainActor.run {
+            NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+        }
+        return PostActivityOutcome(
+            canonicalRun: canonical,
+            report: nil,
+            completedWorkout: nil,
+            didCompletePlannedWorkout: false
+        )
     }
 
     func removeRun(_ run: RecordedRun) async -> Bool {
@@ -891,7 +901,9 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func syncNow(provider: String) async -> ConnectedDeviceStatus {
         if provider == "Garmin Connect" {
             let result = await garmin.syncActivities()
-            result.runs.map(saveRouteMatch(for:)).forEach(store.saveRun)
+            if let newest = result.runs.sorted(by: { $0.startedAt > $1.startedAt }).first {
+                _ = await processCompletedActivity(newest)
+            }
             store.saveDeviceStatus(result.status)
             return result.status
         }

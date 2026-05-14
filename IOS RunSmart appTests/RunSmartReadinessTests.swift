@@ -134,6 +134,29 @@ final class RunSmartReadinessTests: XCTestCase {
         )
     }
 
+    private func makeGarminActivity(
+        id: Int,
+        activityID: String,
+        startTime: String,
+        durationS: Double = 1_500,
+        distanceM: Double = 5_000,
+        avgHr: Int? = nil
+    ) -> DBGarminActivity {
+        DBGarminActivity(
+            id: id,
+            authUserId: UUID(uuidString: "11111111-1111-1111-1111-111111111111"),
+            activityId: activityID,
+            startTime: startTime,
+            sport: "running",
+            durationS: durationS,
+            distanceM: distanceM,
+            avgHr: avgHr,
+            avgPaceSPerKm: durationS / max(distanceM / 1_000, 0.1),
+            elevationGainM: 24,
+            calories: 320
+        )
+    }
+
     private func makeBenchmarkComparison(
         routeID: UUID,
         routeName: String,
@@ -570,6 +593,100 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(comparison?.monthlyAverage.runCount, 1)
         XCTAssertEqual(comparison?.monthlyAverage.averageDurationSeconds, 1_500)
         XCTAssertFalse(comparison?.monthlyAverage.hasEnoughData ?? true)
+    }
+
+    func testGarminImportProcessorHydratesRoutePointsAndOrdersNewestFirst() async {
+        let older = makeGarminActivity(
+            id: 1,
+            activityID: "garmin-older",
+            startTime: "2026-05-12T06:00:00Z"
+        )
+        let newer = makeGarminActivity(
+            id: 2,
+            activityID: "garmin-newer",
+            startTime: "2026-05-14T06:00:00Z"
+        )
+        let routePoints = makeRoutePoints()
+
+        let runs = await GarminImportProcessor.normalizedRuns(
+            from: [older, newer],
+            isHidden: { _ in false },
+            routePointLoader: { activityID in
+                activityID == "garmin-newer" ? routePoints : []
+            }
+        )
+
+        XCTAssertEqual(runs.map(\.providerActivityID), ["garmin-newer", "garmin-older"])
+        XCTAssertEqual(runs.first?.routePoints, routePoints)
+        XCTAssertEqual(runs.last?.routePoints, [])
+    }
+
+    func testGarminImportProcessorKeepsRouteLessRunWhenMapDataIsMissing() async {
+        let activity = makeGarminActivity(
+            id: 3,
+            activityID: "garmin-no-map",
+            startTime: "2026-05-14T06:00:00Z"
+        )
+
+        let run = await GarminImportProcessor.newestNormalizedRun(
+            from: [activity],
+            isHidden: { _ in false },
+            routePointLoader: { _ in [] }
+        )
+
+        XCTAssertEqual(run?.providerActivityID, "garmin-no-map")
+        XCTAssertEqual(run?.source, .garmin)
+        XCTAssertEqual(run?.routePoints, [])
+    }
+
+    func testGarminImportProcessorSkipsHiddenRunsBeforeSelectingNewest() async {
+        let hiddenNewer = makeGarminActivity(
+            id: 4,
+            activityID: "garmin-hidden",
+            startTime: "2026-05-14T06:00:00Z"
+        )
+        let visibleOlder = makeGarminActivity(
+            id: 5,
+            activityID: "garmin-visible",
+            startTime: "2026-05-13T06:00:00Z"
+        )
+
+        let run = await GarminImportProcessor.newestNormalizedRun(
+            from: [hiddenNewer, visibleOlder],
+            isHidden: { $0.providerActivityID == "garmin-hidden" },
+            routePointLoader: { _ in [] }
+        )
+
+        XCTAssertEqual(run?.providerActivityID, "garmin-visible")
+    }
+
+    func testGarminImportProcessorDedupesDuplicateProviderActivities() async {
+        let first = makeGarminActivity(
+            id: 6,
+            activityID: "garmin-duplicate",
+            startTime: "2026-05-14T06:00:00Z"
+        )
+        let richerDuplicate = makeGarminActivity(
+            id: 7,
+            activityID: "garmin-duplicate",
+            startTime: "2026-05-14T06:00:00Z",
+            avgHr: 151
+        )
+        var routeLoadCount = 0
+
+        let runs = await GarminImportProcessor.normalizedRuns(
+            from: [first, richerDuplicate],
+            isHidden: { _ in false },
+            routePointLoader: { _ in
+                routeLoadCount += 1
+                return []
+            }
+        )
+
+        XCTAssertEqual(runs.count, 1)
+        XCTAssertEqual(runs.first?.providerActivityID, "garmin-duplicate")
+        XCTAssertEqual(runs.first?.averageHeartRateBPM, 151)
+        XCTAssertEqual(routeLoadCount, 1)
     }
 
     func testBenchmarkComparisonPresentationShowsFirstRunHistoryPrompt() {

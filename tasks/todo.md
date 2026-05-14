@@ -1,6 +1,46 @@
 # Task State
 
 ## Current Task
+Story 9 complete: Garmin Import Processing Into Route Flow.
+
+## Route Feature Story 9 - Garmin Import Processing Into Route Flow
+As a Garmin runner, I want imported activities to behave like RunSmart-recorded runs so route matching, benchmark comparisons, and reports are consistent.
+
+### Expected Files
+- `IOS RunSmart app/Services/Garmin/GarminImportProcessor.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Services/Production/RunSmartProductionServices.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Checklist
+- [x] Garmin sync processes newest run through `processCompletedActivity`.
+- [x] Garmin route points are normalized before matching when available.
+- [x] Garmin run reports can show benchmark comparison through the existing matched-run report path.
+- [x] Missing Garmin route points still leave a route-less import/report path.
+- [x] Duplicate Garmin activities remain stable by provider activity id.
+- [x] Report generation failure does not block sync status.
+
+### Status
+- [x] Added `GarminImportProcessor` to normalize Garmin activities into newest-first `RecordedRun` values.
+- [x] Hydrates route points before matching when Garmin map data exists.
+- [x] Keeps route-less Garmin runs processable when route points are unavailable.
+- [x] Skips hidden Garmin runs before choosing the newest import.
+- [x] Dedupes duplicate Garmin activity rows by provider activity id.
+- [x] Supabase Garmin sync now sends the newest normalized run through `processCompletedActivity`.
+- [x] Local production Garmin sync now uses the same completed-activity path for the newest gateway run.
+- [x] Completed-activity persistence now saves the canonical run even when no route match is available.
+
+### Validation
+- Focused Story 9 tests passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminImportProcessorHydratesRoutePointsAndOrdersNewestFirst" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminImportProcessorKeepsRouteLessRunWhenMapDataIsMissing" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminImportProcessorSkipsHiddenRunsBeforeSelectingNewest" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminImportProcessorDedupesDuplicateProviderActivities" test`
+- Simulator build check passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+
+---
+
+## Previous Task
 Story 8 complete: Route Discovery Ranking MVP.
 
 ## Route Feature Story 8 - Route Discovery Ranking MVP

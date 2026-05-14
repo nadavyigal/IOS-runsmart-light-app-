@@ -719,13 +719,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
         if provider == "Garmin Connect" {
             let status = await fetchGarminConnection(userID: userID)
-            if var run = await GarminBridge.shared
-                .recentActivities(authUserID: userID, limit: 3)
-                .compactMap({ $0.toRecordedRun() })
-                .first {
-                if let activityID = run.providerActivityID, run.routePoints.isEmpty {
-                    run.routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activityID)
+            let activities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 10)
+            if let run = await GarminImportProcessor.newestNormalizedRun(
+                from: activities,
+                isHidden: store.isRunHidden,
+                routePointLoader: { activityID in
+                    await GarminBridge.shared.activityRoutePoints(activityID: activityID)
                 }
+            ) {
                 _ = await processCompletedActivity(run)
             }
             return status
@@ -878,11 +879,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     private func saveRouteMatch(for run: RecordedRun) -> RecordedRun {
-        guard let match = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes()) else {
-            return run
-        }
         var matchedRun = run
-        matchedRun.routeMatchResult = match
+        matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes())
         store.saveRun(matchedRun)
         return matchedRun
     }
