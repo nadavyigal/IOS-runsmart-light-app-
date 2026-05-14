@@ -28,6 +28,7 @@ enum SecondaryDestination: Hashable, Identifiable {
     case routeCreator
     case badgeCabinet
     case shareRun(RecordedRun?)
+    case routeDetail(SavedRoute)
     case account
 
     var id: String {
@@ -59,6 +60,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .routeCreator: "routeCreator"
         case .badgeCabinet: "badgeCabinet"
         case .shareRun(let run): "shareRun-\(run?.id.uuidString ?? "nil")"
+        case .routeDetail(let route): "routeDetail-\(route.id)"
         case .account: "account"
         }
     }
@@ -91,6 +93,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .routeCreator: "Route Creator"
         case .badgeCabinet: "Badge Cabinet"
         case .shareRun: "Share Run"
+        case .routeDetail(let route): route.name
         case .account: "Account"
         }
     }
@@ -179,6 +182,8 @@ struct SecondaryFlowView: View {
             BadgeCabinetView()
         case .shareRun(let run):
             ShareRunView(run: run)
+        case .routeDetail(let route):
+            RouteDetailScaffold(route: route)
         case .account:
             AccountScaffold()
         }
@@ -238,6 +243,8 @@ struct SecondaryFlowView: View {
             "Browse earned and locked achievements."
         case .shareRun:
             "Prepare a polished run share card."
+        case .routeDetail:
+            "Route details, benchmark stats, and actions."
         case .account:
             "Manage your sign-in and profile data."
         }
