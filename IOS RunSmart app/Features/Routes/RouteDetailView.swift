@@ -2,11 +2,14 @@ import SwiftUI
 
 struct RouteDetailScaffold: View {
     @Environment(\.runSmartServices) private var services
+    @Environment(\.dismiss) private var dismiss
     var route: SavedRoute
 
     @State private var benchmarkRoute: BenchmarkRoute?
     @State private var isTogglingBenchmark = false
     @State private var isTogglingFavorite = false
+    @State private var isDeleting = false
+    @State private var showDeleteConfirmation = false
     @State private var currentRoute: SavedRoute
 
     init(route: SavedRoute) {
@@ -108,6 +111,32 @@ struct RouteDetailScaffold: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(isTogglingBenchmark)
+
+                    Divider()
+                        .padding(.vertical, 10)
+
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "trash")
+                                .foregroundStyle(Color.accentHeart)
+                                .font(.title3)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(isDeleting ? "Deleting Route" : "Delete Route")
+                                    .font(.headline)
+                                Text("Remove this saved route and benchmark tracking from RunSmart.")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.mutedText)
+                            }
+                            Spacer()
+                        }
+                        .padding(10)
+                        .background(Color.accentHeart.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isDeleting)
                 }
             }
 
@@ -119,6 +148,18 @@ struct RouteDetailScaffold: View {
         .task {
             let benchmarks = await services.benchmarkRoutes()
             benchmarkRoute = benchmarks.first(where: { $0.savedRouteID == currentRoute.id })
+        }
+        .confirmationDialog(
+            "Delete saved route?",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Route", role: .destructive) {
+                Task { await deleteRoute() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes RunSmart's saved route and benchmark tracking. It does not delete the original Garmin activity.")
         }
     }
 
@@ -184,6 +225,17 @@ struct RouteDetailScaffold: View {
                 let benchmarks = await services.benchmarkRoutes()
                 benchmarkRoute = benchmarks.first(where: { $0.savedRouteID == currentRoute.id })
             }
+        }
+    }
+
+    private func deleteRoute() async {
+        guard !isDeleting else { return }
+        isDeleting = true
+        let deleted = await services.deleteRoute(currentRoute.id)
+        isDeleting = false
+        if deleted {
+            RunSmartHaptics.success()
+            dismiss()
         }
     }
 

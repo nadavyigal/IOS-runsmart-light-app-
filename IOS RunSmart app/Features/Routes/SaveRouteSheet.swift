@@ -26,6 +26,8 @@ struct SaveRouteSheet: View {
 
                     routeStatsRow
 
+                    routePrivacyNote
+
                     nameField
 
                     tagPicker
@@ -95,6 +97,29 @@ struct SaveRouteSheet: View {
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
         .background(Color.surfaceCard.opacity(0.76), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.border, lineWidth: 1))
+    }
+
+    private var routePrivacyNote: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "lock.shield")
+                .foregroundStyle(Color.accentPrimary)
+                .font(.system(size: 17, weight: .bold))
+                .frame(width: 28, height: 28)
+                .background(Color.accentPrimary.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Precise route data")
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Text("Saved routes include GPS points. You can delete the RunSmart copy or remove benchmark tracking from route details; Garmin activities are not deleted.")
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .background(Color.surfaceCard.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.border, lineWidth: 1))
     }
 

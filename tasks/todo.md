@@ -1,6 +1,43 @@
 # Task State
 
 ## Current Task
+Story 10 implementation complete: TestFlight Polish And Privacy Review. Physical-device background/battery QA remains before external beta.
+
+## Route Feature Story 10 - TestFlight Polish And Privacy Review
+As a beta runner, I want route, GPS, Garmin, and benchmark behavior to be clear and trustworthy so I understand what RunSmart records and where limitations remain.
+
+### Expected Files
+- `RunSmartInfo.plist`
+- `IOS RunSmart app/Features/Routes/SaveRouteSheet.swift`
+- `IOS RunSmart app/Features/Routes/RouteDetailView.swift`
+- `IOS RunSmart app/Features/Run/RunTabView.swift`
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift`
+- `docs/qa/testflight-checklist.md`
+- `docs/qa/ios-qa-checklist.md`
+- `docs/qa/route-benchmark-testflight-notes.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Checklist
+- [x] Route/location privacy copy is clear.
+- [x] Weak GPS and missing Garmin map data are handled with non-alarming copy.
+- [x] Saved route deletion clarifies RunSmart-only deletion and benchmark tracking removal.
+- [x] TestFlight release notes mention route/benchmark limitations.
+- [x] Battery/background behavior is called out for physical-device validation.
+- [ ] Physical-device battery/background run check completed before external TestFlight.
+
+### Validation
+- `plutil -lint RunSmartInfo.plist "IOS RunSmart app/PrivacyInfo.xcprivacy"` passed.
+- Static copy check found the updated location, weak GPS, Garmin missing-map, privacy, and TestFlight notes strings.
+- Simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Full iPhone 17 test pass succeeded:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" test`
+- Build/test still emit pre-existing warning noise from older resume-era view models and AppIntents metadata extraction, but no Story 10 failures.
+
+---
+
+## Previous Task
 Story 9 complete: Garmin Import Processing Into Route Flow.
 
 ## Route Feature Story 9 - Garmin Import Processing Into Route Flow

@@ -829,7 +829,7 @@ private struct RouteSelectorScaffold: View {
             if isLoading {
                 HStack(spacing: 10) {
                     ProgressView().tint(Color.lime)
-                    Text("Finding routes near you…")
+                    Text("Finding routes near you")
                         .font(.callout)
                         .foregroundStyle(Color.mutedText)
                 }
@@ -1003,13 +1003,23 @@ private struct RunReportScaffold: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Save this Garmin route to your route library.")
+            } else if isLoadingRoutePoints {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .tint(Color.textSecondary)
+                    Text("Loading Garmin route points.")
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                }
+                .padding(.horizontal, 4)
             } else if !isLoadingRoutePoints {
                 HStack(spacing: 8) {
                     Image(systemName: "map")
                         .foregroundStyle(Color.textSecondary)
-                    Text("Garmin route data is not available for this activity. Route saving requires GPS map data.")
+                    Text("No Garmin map data for this activity. Route saving, matching, and benchmark comparisons need GPS points; the run report still works.")
                         .font(.caption)
                         .foregroundStyle(Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, 4)
             }
