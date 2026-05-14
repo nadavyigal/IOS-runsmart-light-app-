@@ -52,10 +52,15 @@ final class RunSmartLocalStore {
         guard !isRunHidden(run) else { return }
         var runs = loadRuns()
         if let providerID = run.providerActivityID,
-           runs.contains(where: { $0.providerActivityID == providerID && $0.source == run.source }) {
+           let index = runs.firstIndex(where: { $0.providerActivityID == providerID && $0.source == run.source }) {
+            runs[index] = run
+            runs.sort { $0.startedAt > $1.startedAt }
+            save(runs, key: "runsmart.runs")
             return
         }
-        if !runs.contains(where: { $0.id == run.id }) {
+        if let index = runs.firstIndex(where: { $0.id == run.id }) {
+            runs[index] = run
+        } else {
             runs.append(run)
         }
         runs.sort { $0.startedAt > $1.startedAt }
@@ -718,6 +723,29 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         return run
     }
 
+    func matchRoute(for run: RecordedRun) async -> RouteMatchResult? {
+        RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes())
+    }
+
+    func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? {
+        BenchmarkRouteAnalyticsService.comparison(
+            for: run,
+            runs: store.visibleRuns(store.loadRuns()),
+            savedRoutes: store.loadSavedRoutes(),
+            benchmarkRoutes: store.loadBenchmarkRoutes()
+        )
+    }
+
+    func saveRouteMatch(for run: RecordedRun) -> RecordedRun {
+        guard let match = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes()) else {
+            return run
+        }
+        var matchedRun = run
+        matchedRun.routeMatchResult = match
+        store.saveRun(matchedRun)
+        return matchedRun
+    }
+
     func removeRun(_ run: RecordedRun) async -> Bool {
         store.removeRun(run)
     }
@@ -812,7 +840,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func syncNow(provider: String) async -> ConnectedDeviceStatus {
         if provider == "Garmin Connect" {
             let result = await garmin.syncActivities()
-            result.runs.forEach(store.saveRun)
+            result.runs.map(saveRouteMatch(for:)).forEach(store.saveRun)
             store.saveDeviceStatus(result.status)
             return result.status
         }

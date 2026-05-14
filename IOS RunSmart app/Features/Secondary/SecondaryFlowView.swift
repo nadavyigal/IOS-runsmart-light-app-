@@ -982,6 +982,7 @@ private struct RunReportScaffold: View {
 
             if let report {
                 RunReportCoachNotesCard(report: report)
+                BenchmarkComparisonLoaderView(run: garminRunWithRoutePoints)
                 RunReportRichSignalsCard(report: report)
                 RunReportNextWorkoutCard(report: report)
             } else {
@@ -1115,6 +1116,7 @@ private struct RunReportDetailScaffold: View {
     @State private var report: RunReportDetail
     @State private var isGenerating = false
     @State private var generationFailed = false
+    @State private var reportRun: RecordedRun?
 
     init(report: RunReportDetail) {
         _report = State(initialValue: report)
@@ -1143,11 +1145,15 @@ private struct RunReportDetailScaffold: View {
                 }
             }
             RunReportCoachNotesCard(report: report)
+            BenchmarkComparisonLoaderView(run: reportRun)
             if !report.hasGeneratedReport {
                 generateReportCard
             }
             RunReportRichSignalsCard(report: report)
             RunReportNextWorkoutCard(report: report)
+        }
+        .task(id: report.runID) {
+            await loadReportRun()
         }
     }
 
@@ -1174,9 +1180,19 @@ private struct RunReportDetailScaffold: View {
 
         if let generated = await services.generateRunReportIfMissing(forRunID: report.runID) {
             report = generated
+            await loadReportRun()
             RunSmartHaptics.success()
         } else {
             generationFailed = true
+        }
+    }
+
+    private func loadReportRun() async {
+        let runs = await services.recentRuns()
+        reportRun = runs.first { run in
+            run.consolidatedActivityID == report.runID ||
+            run.providerActivityID == report.runID ||
+            run.id.uuidString == report.runID
         }
     }
 }

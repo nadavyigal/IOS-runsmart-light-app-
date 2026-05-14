@@ -95,6 +95,102 @@ final class RunSmartReadinessTests: XCTestCase {
         )
     }
 
+    private func makeRoutePoints(
+        latitude: Double = 32.0853,
+        longitude: Double = 34.7818,
+        count: Int = 16,
+        latitudeStep: Double = 0.00045,
+        longitudeStep: Double = 0.00035
+    ) -> [RunRoutePoint] {
+        let start = Date(timeIntervalSince1970: 1_000)
+        return (0..<count).map { index in
+            RunRoutePoint(
+                latitude: latitude + (Double(index) * latitudeStep),
+                longitude: longitude + (Double(index) * longitudeStep),
+                timestamp: start.addingTimeInterval(Double(index) * 20),
+                horizontalAccuracy: 8,
+                altitude: nil
+            )
+        }
+    }
+
+    private func makeSavedRoute(
+        id: UUID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+        points: [RunRoutePoint],
+        distanceMeters: Double
+    ) -> SavedRoute {
+        SavedRoute(
+            id: id,
+            name: "Benchmark Loop",
+            distanceMeters: distanceMeters,
+            elevationGainMeters: 0,
+            points: points,
+            source: .recorded,
+            tags: [],
+            notes: "",
+            isFavorite: true,
+            createdAt: Date(timeIntervalSince1970: 1_000),
+            updatedAt: Date(timeIntervalSince1970: 1_000)
+        )
+    }
+
+    private func makeBenchmarkComparison(
+        routeID: UUID,
+        routeName: String,
+        currentRunID: UUID,
+        currentDuration: TimeInterval,
+        currentPace: Double = 300,
+        previous: BenchmarkRunPerformance?,
+        personalBestRunID: UUID,
+        personalBestDuration: TimeInterval,
+        allTimeRunCount: Int,
+        monthlyRunCount: Int,
+        monthlyPace: Double = 300,
+        monthlyHasEnoughData: Bool
+    ) -> BenchmarkRouteComparison {
+        BenchmarkRouteComparison(
+            routeID: routeID,
+            routeName: routeName,
+            matchConfidence: .matched,
+            currentPerformance: BenchmarkRunPerformance(
+                runID: currentRunID,
+                source: .runSmart,
+                startedAt: Date(timeIntervalSince1970: 2_000),
+                durationSeconds: currentDuration,
+                paceSecondsPerKm: currentPace,
+                averageHeartRateBPM: nil
+            ),
+            previousPerformance: previous,
+            personalBest: BenchmarkRunPerformance(
+                runID: personalBestRunID,
+                source: .runSmart,
+                startedAt: Date(timeIntervalSince1970: 1_000),
+                durationSeconds: personalBestDuration,
+                paceSecondsPerKm: personalBestDuration / 5,
+                averageHeartRateBPM: nil
+            ),
+            allTimeAverage: BenchmarkPerformanceAverage(
+                routeID: routeID,
+                runCount: allTimeRunCount,
+                averageDurationSeconds: currentDuration,
+                averagePaceSecondsPerKm: currentPace,
+                bestPaceSecondsPerKm: currentPace,
+                averageHeartRateBPM: nil
+            ),
+            monthlyAverage: MonthlyBenchmarkAverage(
+                routeID: routeID,
+                monthStart: Date(timeIntervalSince1970: 1_000),
+                runCount: monthlyRunCount,
+                averageDurationSeconds: currentDuration,
+                averagePaceSecondsPerKm: monthlyPace,
+                bestPaceSecondsPerKm: min(currentPace, monthlyPace),
+                averageHeartRateBPM: nil,
+                hasEnoughData: monthlyHasEnoughData
+            ),
+            recentTrend: monthlyHasEnoughData ? .improving : .notEnoughData
+        )
+    }
+
     func testPlanWeeksGroupByCalendarWeekAndTotalDistance() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.firstWeekday = 1
@@ -206,6 +302,332 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(report.hasGeneratedReport)
         XCTAssertFalse(report.summary.hasGeneratedReport)
         XCTAssertEqual(report.notes.summary, "No coach report yet.")
+    }
+
+    func testRouteMatchingReturnsHighConfidenceForSameRoute() {
+        let points = makeRoutePoints()
+        let routeID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
+        let route = makeSavedRoute(id: routeID, points: points, distanceMeters: 5_000)
+        let run = makeRun(
+            source: .runSmart,
+            startedAt: Date(timeIntervalSince1970: 2_000),
+            distanceMeters: 5_050,
+            movingTimeSeconds: 1_500,
+            routePoints: points
+        )
+
+        let match = RouteMatchingService.match(run: run, savedRoutes: [route])
+
+        XCTAssertEqual(match?.confidence, .matched)
+        XCTAssertEqual(match?.routeID, routeID)
+        XCTAssertEqual(match?.candidateRouteID, routeID)
+        XCTAssertFalse(match?.isReversed ?? true)
+    }
+
+    func testRouteMatchingMarksNearbyNoisyRouteAsPossibleWithoutAttaching() {
+        let routePoints = makeRoutePoints()
+        let noisyRunPoints = makeRoutePoints(latitude: 32.0859, longitude: 34.7824)
+        let routeID = UUID(uuidString: "44444444-4444-4444-4444-444444444444")!
+        let route = makeSavedRoute(id: routeID, points: routePoints, distanceMeters: 5_000)
+        let run = makeRun(
+            source: .garmin,
+            startedAt: Date(timeIntervalSince1970: 2_000),
+            distanceMeters: 5_520,
+            movingTimeSeconds: 1_620,
+            routePoints: noisyRunPoints
+        )
+
+        let match = RouteMatchingService.match(run: run, savedRoutes: [route])
+
+        XCTAssertEqual(match?.confidence, .possibleMatch)
+        XCTAssertNil(match?.routeID)
+        XCTAssertEqual(match?.candidateRouteID, routeID)
+    }
+
+    func testRouteMatchingReturnsNoMatchForUnrelatedRoute() {
+        let route = makeSavedRoute(points: makeRoutePoints(), distanceMeters: 5_000)
+        let run = makeRun(
+            source: .runSmart,
+            startedAt: Date(timeIntervalSince1970: 2_000),
+            distanceMeters: 7_200,
+            movingTimeSeconds: 2_100,
+            routePoints: makeRoutePoints(latitude: 32.2, longitude: 34.9)
+        )
+
+        let match = RouteMatchingService.match(run: run, savedRoutes: [route])
+
+        XCTAssertEqual(match?.confidence, .noMatch)
+        XCTAssertNil(match?.routeID)
+    }
+
+    func testRouteMatchingHandlesReversedRouteAsMatch() {
+        let points = makeRoutePoints()
+        let routeID = UUID(uuidString: "55555555-5555-5555-5555-555555555555")!
+        let route = makeSavedRoute(id: routeID, points: points, distanceMeters: 5_000)
+        let run = makeRun(
+            source: .garmin,
+            startedAt: Date(timeIntervalSince1970: 2_000),
+            distanceMeters: 5_020,
+            movingTimeSeconds: 1_520,
+            routePoints: Array(points.reversed())
+        )
+
+        let match = RouteMatchingService.match(run: run, savedRoutes: [route])
+
+        XCTAssertEqual(match?.confidence, .matched)
+        XCTAssertEqual(match?.routeID, routeID)
+        XCTAssertTrue(match?.isReversed ?? false)
+    }
+
+    func testRouteMatchingIgnoresManualRouteLessRuns() {
+        let route = makeSavedRoute(points: makeRoutePoints(), distanceMeters: 5_000)
+        let run = makeRun(
+            source: .runSmart,
+            startedAt: Date(timeIntervalSince1970: 2_000),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500,
+            routePoints: []
+        )
+
+        XCTAssertNil(RouteMatchingService.match(run: run, savedRoutes: [route]))
+    }
+
+    func testBenchmarkComparisonReturnsFirstRunNotEnoughHistory() {
+        let routeID = UUID(uuidString: "66666666-6666-6666-6666-666666666666")!
+        let points = makeRoutePoints()
+        let route = makeSavedRoute(id: routeID, points: points, distanceMeters: 5_000)
+        let match = RouteMatchResult(
+            routeID: routeID,
+            candidateRouteID: routeID,
+            confidence: .matched,
+            distanceDeltaMeters: 20,
+            startDeltaMeters: 10,
+            endDeltaMeters: 10,
+            shapeSimilarity: 0.95,
+            isReversed: false
+        )
+        var run = makeRun(
+            source: .runSmart,
+            startedAt: makeDate("2026-05-03"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500,
+            heartRate: 148,
+            routePoints: points
+        )
+        run.routeMatchResult = match
+        let benchmark = BenchmarkRoute(
+            id: UUID(),
+            savedRouteID: routeID,
+            enabledAt: makeDate("2026-05-01"),
+            historicalRunCount: 0,
+            personalBestSeconds: nil,
+            personalBestDate: nil,
+            averagePaceSecondsPerKm: nil,
+            averageDurationSeconds: nil
+        )
+
+        let comparison = BenchmarkRouteAnalyticsService.comparison(
+            for: run,
+            runs: [run],
+            savedRoutes: [route],
+            benchmarkRoutes: [benchmark],
+            calendar: Calendar(identifier: .gregorian)
+        )
+
+        XCTAssertEqual(comparison?.routeID, routeID)
+        XCTAssertEqual(comparison?.routeName, "Benchmark Loop")
+        XCTAssertNil(comparison?.previousPerformance)
+        XCTAssertEqual(comparison?.personalBest.runID, run.id)
+        XCTAssertFalse(comparison?.hasEnoughHistory ?? true)
+        XCTAssertEqual(comparison?.monthlyAverage.runCount, 1)
+        XCTAssertFalse(comparison?.monthlyAverage.hasEnoughData ?? true)
+        XCTAssertEqual(comparison?.recentTrend, .notEnoughData)
+    }
+
+    func testBenchmarkComparisonUsesPreviousPBAndAveragesAcrossGarminAndRunSmartRuns() {
+        let routeID = UUID(uuidString: "77777777-7777-7777-7777-777777777777")!
+        let points = makeRoutePoints()
+        let route = makeSavedRoute(id: routeID, points: points, distanceMeters: 5_000)
+        let match = RouteMatchResult(
+            routeID: routeID,
+            candidateRouteID: routeID,
+            confidence: .matched,
+            distanceDeltaMeters: 0,
+            startDeltaMeters: 0,
+            endDeltaMeters: 0,
+            shapeSimilarity: 1,
+            isReversed: false
+        )
+        var older = makeRun(
+            source: .garmin,
+            startedAt: makeDate("2026-05-02"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_560,
+            heartRate: 150,
+            routePoints: points
+        )
+        var previous = makeRun(
+            source: .runSmart,
+            startedAt: makeDate("2026-05-09"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_520,
+            heartRate: 146,
+            routePoints: points
+        )
+        var current = makeRun(
+            source: .garmin,
+            startedAt: makeDate("2026-05-16"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_480,
+            heartRate: 144,
+            routePoints: points
+        )
+        older.routeMatchResult = match
+        previous.routeMatchResult = match
+        current.routeMatchResult = match
+        let benchmark = BenchmarkRoute(
+            id: UUID(),
+            savedRouteID: routeID,
+            enabledAt: makeDate("2026-05-01"),
+            historicalRunCount: 0,
+            personalBestSeconds: nil,
+            personalBestDate: nil,
+            averagePaceSecondsPerKm: nil,
+            averageDurationSeconds: nil
+        )
+
+        let comparison = BenchmarkRouteAnalyticsService.comparison(
+            for: current,
+            runs: [older, current, previous],
+            savedRoutes: [route],
+            benchmarkRoutes: [benchmark],
+            calendar: Calendar(identifier: .gregorian)
+        )
+
+        XCTAssertEqual(comparison?.previousPerformance?.runID, previous.id)
+        XCTAssertEqual(comparison?.personalBest.runID, current.id)
+        XCTAssertEqual(comparison?.allTimeAverage.runCount, 3)
+        XCTAssertEqual(comparison?.allTimeAverage.averageDurationSeconds, 1_520)
+        XCTAssertEqual(comparison?.allTimeAverage.averagePaceSecondsPerKm, 304)
+        XCTAssertEqual(comparison?.monthlyAverage.runCount, 3)
+        XCTAssertEqual(comparison?.monthlyAverage.averageHeartRateBPM, 147)
+        XCTAssertTrue(comparison?.monthlyAverage.hasEnoughData ?? false)
+        XCTAssertEqual(comparison?.recentTrend, .improving)
+        XCTAssertTrue(comparison?.hasEnoughHistory ?? false)
+    }
+
+    func testBenchmarkComparisonMonthlyAverageRespectsLocalCalendarMonthBoundary() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 2 * 60 * 60)!
+        let routeID = UUID(uuidString: "88888888-8888-8888-8888-888888888888")!
+        let points = makeRoutePoints()
+        let route = makeSavedRoute(id: routeID, points: points, distanceMeters: 5_000)
+        let match = RouteMatchResult(
+            routeID: routeID,
+            candidateRouteID: routeID,
+            confidence: .matched,
+            distanceDeltaMeters: 0,
+            startDeltaMeters: 0,
+            endDeltaMeters: 0,
+            shapeSimilarity: 1,
+            isReversed: false
+        )
+        var aprilLocal = makeRun(
+            source: .runSmart,
+            startedAt: calendar.date(from: DateComponents(timeZone: calendar.timeZone, year: 2026, month: 4, day: 30, hour: 23, minute: 30))!,
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_600,
+            routePoints: points
+        )
+        var mayLocal = makeRun(
+            source: .garmin,
+            startedAt: calendar.date(from: DateComponents(timeZone: calendar.timeZone, year: 2026, month: 5, day: 1, hour: 0, minute: 30))!,
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500,
+            routePoints: points
+        )
+        aprilLocal.routeMatchResult = match
+        mayLocal.routeMatchResult = match
+        let benchmark = BenchmarkRoute(
+            id: UUID(),
+            savedRouteID: routeID,
+            enabledAt: makeDate("2026-04-01"),
+            historicalRunCount: 0,
+            personalBestSeconds: nil,
+            personalBestDate: nil,
+            averagePaceSecondsPerKm: nil,
+            averageDurationSeconds: nil
+        )
+
+        let comparison = BenchmarkRouteAnalyticsService.comparison(
+            for: mayLocal,
+            runs: [aprilLocal, mayLocal],
+            savedRoutes: [route],
+            benchmarkRoutes: [benchmark],
+            calendar: calendar
+        )
+
+        XCTAssertEqual(comparison?.monthlyAverage.runCount, 1)
+        XCTAssertEqual(comparison?.monthlyAverage.averageDurationSeconds, 1_500)
+        XCTAssertFalse(comparison?.monthlyAverage.hasEnoughData ?? true)
+    }
+
+    func testBenchmarkComparisonPresentationShowsFirstRunHistoryPrompt() {
+        let runID = UUID()
+        let routeID = UUID()
+        let comparison = makeBenchmarkComparison(
+            routeID: routeID,
+            routeName: "Park Loop",
+            currentRunID: runID,
+            currentDuration: 1_500,
+            previous: nil,
+            personalBestRunID: runID,
+            personalBestDuration: 1_500,
+            allTimeRunCount: 1,
+            monthlyRunCount: 1,
+            monthlyHasEnoughData: false
+        )
+
+        let insights = BenchmarkComparisonPresentation.insights(for: comparison)
+
+        XCTAssertEqual(insights.count, 3)
+        XCTAssertEqual(insights[0], "This is your first tracked benchmark effort on this route.")
+        XCTAssertEqual(insights[1], "This is your personal best on Park Loop.")
+        XCTAssertEqual(insights[2], "Run this benchmark again to unlock route trends.")
+    }
+
+    func testBenchmarkComparisonPresentationShowsImprovementAgainstPreviousAndMonth() {
+        let routeID = UUID()
+        let previousRunID = UUID()
+        let currentRunID = UUID()
+        let comparison = makeBenchmarkComparison(
+            routeID: routeID,
+            routeName: "River Trail",
+            currentRunID: currentRunID,
+            currentDuration: 1_480,
+            currentPace: 296,
+            previous: BenchmarkRunPerformance(
+                runID: previousRunID,
+                source: .runSmart,
+                startedAt: Date(timeIntervalSince1970: 1_000),
+                durationSeconds: 1_520,
+                paceSecondsPerKm: 304,
+                averageHeartRateBPM: 146
+            ),
+            personalBestRunID: currentRunID,
+            personalBestDuration: 1_480,
+            allTimeRunCount: 3,
+            monthlyRunCount: 3,
+            monthlyPace: 305,
+            monthlyHasEnoughData: true
+        )
+
+        let insights = BenchmarkComparisonPresentation.insights(for: comparison)
+
+        XCTAssertEqual(insights[0], "You were 0:40 faster than your previous run on this route.")
+        XCTAssertEqual(insights[1], "This is your personal best on River Trail.")
+        XCTAssertEqual(insights[2], "You ran faster than this month's average pace.")
+        XCTAssertEqual(BenchmarkComparisonPresentation.deltaLabel(current: 1_480, baseline: 1_520), "-0:40")
     }
 
     func testSuggestedWorkoutParsingDefaultsToPlanFriendlyValues() {
