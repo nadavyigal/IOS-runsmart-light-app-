@@ -1,6 +1,180 @@
 # Task State
 
 ## Current Task
+Stories A, B, C, and D are all implemented. Physical-device QA (Story E) remains before TestFlight.
+
+## Story A - Backend Route Persistence - Implemented
+As a signed-in runner, I want saved routes, benchmark routes, and route match results persisted beyond local UserDefaults so my route history survives reinstall and works across devices.
+
+### Files Changed
+- `IOS RunSmart app/Services/Supabase/RouteRepository.swift` (new)
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+
+### Checklist
+- [x] Saved routes are associated with authenticated user id (Supabase RLS policy: `user_id = auth.uid()`).
+- [x] Benchmark route state survives reinstall/sign-out/sign-in (synced to `user_benchmark_routes` table).
+- [x] Route match results needed for benchmark reports are stored or reconstructable (recomputed at runtime from runs + routes; no separate table needed).
+- [x] Deletion clearly removes RunSmart route copies without deleting Garmin source activities (existing `removeSavedRoute` behavior preserved; Supabase delete is scoped to `user_saved_routes`).
+- [x] Tests cover local fallback (remote empty → local returned), remote success (remote wins on conflict), and remote failure (new entries added from remote only when missing locally).
+
+### Validation
+- Simulator build passed.
+- Story A focused tests (3 tests) passed:
+  `testRouteSyncMergeReturnsLocalWhenRemoteIsEmpty`, `testRouteSyncMergeRemoteWinsOnConflictingRouteID`, `testRouteSyncBenchmarkMergeAddsRemoteEntriesMissingLocally`
+
+## Story B - Benchmark Stat Hydration - Implemented
+As a runner, I want route cards and route details to show current benchmark stats so route library data matches run-report comparisons.
+
+### Files Changed
+- `IOS RunSmart app/Services/Production/RunSmartProductionServices.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+
+### Checklist
+- [x] Benchmark route cards show non-zero history after matched runs exist (stats refreshed after every `processCompletedActivity`).
+- [x] Route detail stats match benchmark report aggregates (`BenchmarkStatRefresh.refresh` uses same matching logic as `BenchmarkRouteAnalyticsService`).
+- [x] Stats update after route match, route deletion, and benchmark removal (refresh called in `processCompletedActivity`, `deleteRoute`, `removeRun`, `enableBenchmark`, `disableBenchmark`).
+- [x] Tests cover mixed Garmin and RunSmart history.
+
+### Validation
+- Simulator build passed.
+- Story B focused tests (4 tests) passed:
+  `testBenchmarkStatRefreshComputesCountPBAndAveragesFromMatchedRuns`, `testBenchmarkStatRefreshSkipsRunsWithNoMatchOrWrongRoute`, `testBenchmarkStatRefreshClearsStatsWhenNoMatchedRunsExist`, `testBenchmarkStatRefreshHandlesMixedGarminAndRunSmartSources`
+
+## Story C - Route Discovery Controls - Implemented
+As a runner, I want distance, elevation, surface, and route intent controls to affect route recommendations instead of being decorative.
+
+### Files Changed
+- `IOS RunSmart app/Services/RouteSuggestionRanker.swift`
+- `IOS RunSmart app/Features/Routes/RouteCreatorView.swift`
+- `IOS RunSmart appTests/RouteRankingTests.swift`
+
+### Checklist
+- [x] Elevation preference (Flat/Rolling/Hilly) changes ranking of saved/past/benchmark routes.
+- [x] Generated route reason copy reflects current elevation preference.
+- [x] MapKit route failure shows inline retry card in Generated Nearby section while saved/past routes remain visible.
+- [x] Location denied still shows saved/past routes (existing behavior preserved).
+- [x] Tests cover flat-first, hilly-first, rolling-first, kind-priority override, and generated reason.
+
+### Validation
+- Simulator build passed.
+- Focused RouteRankingTests (12 tests) passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" -only-testing:"IOS RunSmart appTests/RouteRankingTests" test`
+
+## Story D - Garmin Historical Import Batch - Implemented
+As a Garmin runner, I want newly imported historical activities to become route-aware without duplicating already-processed activities.
+
+### Files Changed
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Services/Production/RunSmartProductionServices.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+
+### Checklist
+- [x] Supabase syncNow skips runs whose providerActivityID is already in the local store.
+- [x] Production syncNow processes all batch runs (sorted newest-first) and skips already-stored IDs.
+- [x] Missing route data does not block activity import (existing GarminImportProcessor behavior preserved).
+- [x] Existing hidden Garmin runs remain hidden (existing behavior preserved).
+- [x] Tests cover full-batch processing, duplicate-ID skipping, and missing-route-data resilience.
+
+### Validation
+- Simulator build passed.
+- Story D focused tests (3 tests) passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminBatchProcessesAllNewRuns" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminBatchSkipsAlreadyProcessedProviderIDs" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminBatchWithMissingRouteDataDoesNotBlockOtherRuns" test`
+
+## QA Quick Wins - Implemented (Previous Session)
+
+## Route QA Quick Wins - Implemented
+As a beta runner, I want the existing route feature to behave consistently while larger backend work is planned.
+
+### Files Changed
+- `IOS RunSmart app/Features/Routes/RouteCreatorView.swift`
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift`
+- `IOS RunSmart app/Features/Routes/SaveRouteSheet.swift`
+- `IOS RunSmart app/Features/Run/PostRunSummaryView.swift`
+- `IOS RunSmart app/Features/Activity/ActivityTabView.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Services/Production/RunSmartProductionServices.swift`
+- `tasks/todo.md`
+
+### Checklist
+- [x] Route Creator and route selector request current location and include generated nearby loops when location is available.
+- [x] Generated route cards receive recommendation reasons.
+- [x] Report route library refreshes after route save, favorite, benchmark, delete, or run changes.
+- [x] Save Route only appears/saves when the activity has enough GPS points to be matchable.
+- [x] Garmin sync processes all normalized runs returned by the current activity batch instead of only the newest run.
+- [ ] Physical-device QA: verify location permission prompt, generated-route loading time, weak-signal copy, and MapKit routing behavior outdoors.
+
+### Validation
+- Simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Full iPhone 17 test run passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" test`
+
+## Remaining Route QA Findings - Plan
+
+### Story A - Backend Route Persistence
+As a signed-in runner, I want saved routes, benchmark routes, and route match results persisted beyond local UserDefaults so my route history survives reinstall and works across devices.
+
+#### Scope
+- Define Supabase tables/API contracts for saved routes, benchmark routes, and route match metadata.
+- Keep route GPS point retention explicit and privacy-safe.
+- Add sync/merge rules for local-first saves and remote state.
+- Do not rebuild route matching or AI insights in this story.
+
+#### Acceptance Criteria
+- [ ] Saved routes are associated with authenticated user id.
+- [ ] Benchmark route state survives reinstall/sign-out/sign-in.
+- [ ] Route match results needed for benchmark reports are stored or reconstructable.
+- [ ] Deletion clearly removes RunSmart route copies without deleting Garmin source activities.
+- [ ] Tests cover local fallback, remote success, and remote failure.
+
+### Story B - Benchmark Stat Hydration
+As a runner, I want route cards and route details to show current benchmark stats so route library data matches run-report comparisons.
+
+#### Scope
+- Recompute benchmark historical count, PB, average pace, and average duration from matched runs.
+- Refresh stats after matched in-app and Garmin runs.
+- Keep report comparison logic as the source of detailed per-run insight.
+
+#### Acceptance Criteria
+- [ ] Benchmark route cards show non-zero history after matched runs exist.
+- [ ] Route detail stats match benchmark report aggregates.
+- [ ] Stats update after route match, route deletion, and benchmark removal.
+- [ ] Tests cover mixed Garmin and RunSmart history.
+
+### Story C - Route Discovery Controls ✓ DONE
+As a runner, I want distance, elevation, surface, and route intent controls to affect route recommendations instead of being decorative.
+
+#### Acceptance Criteria
+- [x] Changing distance/elevation/surface can change ranking or generated-route candidates.
+- [x] Location denied still shows saved/past routes.
+- [x] MapKit route failure has a clear retry/fallback state.
+- [x] Tests cover ranker preference behavior.
+
+### Story D - Garmin Historical Import Batch ✓ DONE
+As a Garmin runner, I want newly imported historical activities to become route-aware, not only the newest visible activity.
+
+#### Acceptance Criteria
+- [x] Multiple returned Garmin activities are processed idempotently.
+- [x] Missing route data does not block activity import.
+- [x] Existing hidden Garmin runs remain hidden.
+- [x] Tests cover batch processing and duplicate provider IDs.
+
+### Story E - Visual And Device QA Pass
+As a beta owner, I want proof that the route UI works on actual device conditions before TestFlight.
+
+#### Scope
+- Simulator screenshot checks for route library, route creator, route detail, Garmin missing-route state, and benchmark card.
+- Physical-device checks for GPS, background/foreground, battery, and generated MapKit routes.
+
+#### Acceptance Criteria
+- [ ] iPhone SE/small-screen and iPhone 17 layouts do not overlap.
+- [ ] Dark mode route cards/maps are legible.
+- [ ] Background run recording continues as expected.
+- [ ] Battery and privacy behavior are documented for TestFlight.
+
+## Previous Task
 Story 10 implementation complete: TestFlight Polish And Privacy Review. Physical-device background/battery QA remains before external beta.
 
 ## Route Feature Story 10 - TestFlight Polish And Privacy Review

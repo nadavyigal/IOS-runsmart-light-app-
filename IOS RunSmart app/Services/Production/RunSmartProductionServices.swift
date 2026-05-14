@@ -193,6 +193,14 @@ final class RunSmartLocalStore {
         return true
     }
 
+    // MARK: - Benchmark stat hydration
+
+    func refreshBenchmarkStats() {
+        let runs = visibleRuns(loadRuns())
+        let updated = BenchmarkStatRefresh.refresh(loadBenchmarkRoutes(), from: runs)
+        save(updated, key: "runsmart.benchmarkRoutes")
+    }
+
     private func save<Value: Encodable>(_ value: Value, key: String) {
         guard let data = try? encoder.encode(value) else { return }
         defaults.set(data, forKey: key)
@@ -747,6 +755,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
         let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: store.visibleRuns(store.loadRuns())))
+        store.refreshBenchmarkStats()
         await MainActor.run {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
         }
@@ -759,7 +768,9 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     }
 
     func removeRun(_ run: RecordedRun) async -> Bool {
-        store.removeRun(run)
+        let removed = store.removeRun(run)
+        if removed { store.refreshBenchmarkStats() }
+        return removed
     }
 
     func finishRun() async {}
@@ -841,17 +852,24 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func saveRoute(_ route: SavedRoute) async -> Bool {
         store.saveSavedRoute(route)
+        postRouteChange()
         return true
     }
 
     func deleteRoute(_ routeID: UUID) async -> Bool {
-        store.removeSavedRoute(routeID)
+        let removed = store.removeSavedRoute(routeID)
+        if removed {
+            store.refreshBenchmarkStats()
+            postRouteChange()
+        }
+        return removed
     }
 
     func updateRoute(_ route: SavedRoute) async -> Bool {
         var updated = route
         updated.updatedAt = Date()
         store.saveSavedRoute(updated)
+        postRouteChange()
         return true
     }
 
@@ -873,11 +891,24 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
             averageDurationSeconds: nil
         )
         store.saveBenchmarkRoute(benchmark)
+        store.refreshBenchmarkStats()
+        postRouteChange()
         return true
     }
 
     func disableBenchmark(for routeID: UUID) async -> Bool {
-        store.removeBenchmarkRoute(routeID)
+        let removed = store.removeBenchmarkRoute(routeID)
+        if removed {
+            store.refreshBenchmarkStats()
+            postRouteChange()
+        }
+        return removed
+    }
+
+    private func postRouteChange() {
+        Task { @MainActor in
+            NotificationCenter.default.post(name: .runSmartRoutesDidChange, object: nil)
+        }
     }
 
     func deviceStatuses() async -> [ConnectedDeviceStatus] {
@@ -901,8 +932,15 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func syncNow(provider: String) async -> ConnectedDeviceStatus {
         if provider == "Garmin Connect" {
             let result = await garmin.syncActivities()
-            if let newest = result.runs.sorted(by: { $0.startedAt > $1.startedAt }).first {
-                _ = await processCompletedActivity(newest)
+            let existingIDs = Set(store.loadRuns().compactMap(\.providerActivityID))
+            let newRuns = result.runs
+                .sorted { $0.startedAt > $1.startedAt }
+                .filter { run in
+                    guard let pid = run.providerActivityID else { return true }
+                    return !existingIDs.contains(pid)
+                }
+            for run in newRuns {
+                _ = await processCompletedActivity(run)
             }
             store.saveDeviceStatus(result.status)
             return result.status
@@ -952,6 +990,38 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
             }
         }
         return Int(gain.rounded())
+    }
+}
+
+// MARK: - Benchmark stat hydration (pure, testable)
+
+enum BenchmarkStatRefresh {
+    /// Recomputes cached aggregate stats for each BenchmarkRoute from the current run history.
+    /// Only high-confidence matched runs contribute to a route's stats.
+    static func refresh(_ benchmarks: [BenchmarkRoute], from runs: [RecordedRun]) -> [BenchmarkRoute] {
+        benchmarks.map { benchmark in
+            let matched = runs.filter {
+                $0.routeMatchResult?.routeID == benchmark.savedRouteID &&
+                $0.routeMatchResult?.confidence == .matched
+            }
+            var updated = benchmark
+            updated.historicalRunCount = matched.count
+            if matched.isEmpty {
+                updated.personalBestSeconds = nil
+                updated.personalBestDate = nil
+                updated.averagePaceSecondsPerKm = nil
+                updated.averageDurationSeconds = nil
+            } else {
+                if let best = matched.min(by: { $0.movingTimeSeconds < $1.movingTimeSeconds }) {
+                    updated.personalBestSeconds = best.movingTimeSeconds
+                    updated.personalBestDate = best.startedAt
+                }
+                let count = Double(matched.count)
+                updated.averagePaceSecondsPerKm = matched.reduce(0.0) { $0 + $1.averagePaceSecondsPerKm } / count
+                updated.averageDurationSeconds = matched.reduce(0.0) { $0 + $1.movingTimeSeconds } / count
+            }
+            return updated
+        }
     }
 }
 

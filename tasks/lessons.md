@@ -17,6 +17,7 @@ Review this file at the start of future tasks.
 - Before opening Xcode, prefer the RunSmart-named project/workspace and verify it has a readable `project.pbxproj`; if it is broken, state that clearly and open the closest buildable project only as a fallback.
 - For route matching tests, keep possible-match fixtures close enough to represent GPS noise or small deviations; far parallel routes should remain no-match.
 - For local-calendar month boundary tests, construct dates with the test `Calendar` and `DateComponents`; do not use opaque epoch constants.
+- Route discovery controls must connect to service behavior or clearly present as unavailable; do not ship decorative filters that leave results unchanged.
 
 ## Lesson Log
 
@@ -82,3 +83,24 @@ Trigger: The first Story 6 month-boundary test used hard-coded epoch values that
 Lesson: Epoch literals make calendar-boundary tests hard to audit and easy to get wrong.
 
 Future rule: Use the same `Calendar`, `TimeZone`, and `DateComponents` in tests that assert local month, week, or day behavior.
+
+### 2026-05-14 - Route Discovery Controls Need Real Wiring
+Trigger: QA found Route Creator elevation/surface controls and generated-route buckets that did not affect loaded suggestions.
+
+Lesson: Premium route UI loses trust quickly when controls look functional but are disconnected from route generation/ranking.
+
+Future rule: For discovery/filter controls, verify each visible control changes service inputs, ranking, or explicit unavailable-state copy before marking the story complete.
+
+### 2026-05-14 - MapKit Failure Should Not Hide Saved Routes
+Trigger: First draft of MapKit failure state replaced the entire route list, hiding saved/past routes that were still available.
+
+Lesson: Partial failures (generated routes unavailable) should degrade gracefully; unaffected buckets (Benchmarks, My Routes) must still render.
+
+Future rule: Show failure/retry state only inside the affected section (Generated Nearby), not as a full-screen replacement. Saved and past routes must remain visible when only generated-route fetch fails.
+
+### 2026-05-14 - Garmin Sync Idempotency Needs Explicit providerActivityID Guard
+Trigger: Production syncNow processed only the newest Garmin run; Supabase syncNow processed all but had no cross-sync duplicate guard.
+
+Lesson: generateRunReportIfMissing is idempotent for report generation, but processCompletedActivity still calls routeMatch and workout-completion on every run, so repeated calls for the same providerActivityID waste CPU and can produce redundant notifications.
+
+Future rule: Before calling processCompletedActivity in any Garmin sync path, filter out runs whose providerActivityID already exists in the local store.

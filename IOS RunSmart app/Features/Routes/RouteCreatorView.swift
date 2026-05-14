@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 
 struct RouteCreatorView: View {
@@ -9,6 +10,7 @@ struct RouteCreatorView: View {
     @State private var selectedRouteID: String?
     @State private var isLoading = false
     @State private var locationUnavailable = false
+    @State private var mapKitFailed = false
     @State private var distanceFilter: Double? = nil
 
     private let filterOptions: [Double?] = [nil, 3, 5, 8, 10, 15]
@@ -44,7 +46,13 @@ struct RouteCreatorView: View {
             VStack(alignment: .leading, spacing: 10) {
                 if isLoading {
                     routeLoadingState
-                } else if allSuggestions.isEmpty {
+                } else if locationUnavailable && allSuggestions.isEmpty {
+                    RouteDiscoveryEmptyCard(
+                        title: "Location unavailable",
+                        message: "Enable location access to generate nearby loops, or use saved and past routes below.",
+                        systemImage: "location.slash"
+                    )
+                } else if allSuggestions.isEmpty && !mapKitFailed {
                     RouteDiscoveryEmptyCard(
                         title: "No routes yet",
                         message: "Tap Generate Route to create a nearby loop based on your current location.",
@@ -76,7 +84,8 @@ struct RouteCreatorView: View {
     // MARK: - Buckets
 
     private var displayed: [RouteSuggestion] {
-        RouteSuggestionRanker.filter(allSuggestions, targetDistanceKm: distanceFilter)
+        let filtered = RouteSuggestionRanker.filter(allSuggestions, targetDistanceKm: distanceFilter)
+        return RouteSuggestionRanker.rank(filtered, targetDistanceKm: distanceFilter ?? targetDistance, elevationPreference: elevation)
     }
 
     private var benchmarks: [RouteSuggestion] {
@@ -127,8 +136,36 @@ struct RouteCreatorView: View {
                         selectedRouteID = r.id
                     }
                 }
+            } else if mapKitFailed && !locationUnavailable {
+                routeMapKitFailureState
             }
         }
+    }
+
+    @ViewBuilder
+    private var routeMapKitFailureState: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "map.fill")
+                .foregroundStyle(Color.textSecondary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Route generation unavailable")
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Text("Couldn't generate a nearby loop. Check your connection and tap Retry.")
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+            }
+            Spacer()
+            Button {
+                Task { await loadSuggestions() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .foregroundStyle(Color.accentPrimary)
+            }
+            .disabled(isLoading)
+        }
+        .padding(14)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     @ViewBuilder
@@ -154,11 +191,44 @@ struct RouteCreatorView: View {
     private func loadSuggestions() async {
         isLoading = true
         locationUnavailable = false
+        mapKitFailed = false
         defer { isLoading = false }
 
-        allSuggestions = await services.rankedRouteSuggestions(targetDistanceKm: targetDistance)
+        async let rankedTask = services.rankedRouteSuggestions(targetDistanceKm: targetDistance)
+        let location = await LocationLookupService.shared.currentLocation()
+        let generated = await generatedSuggestions(around: location)
+        let ranked = await rankedTask
+        locationUnavailable = location == nil
+        mapKitFailed = location != nil && generated.isEmpty
+        allSuggestions = mergedSuggestions(ranked + generated)
         if selectedRouteID == nil {
             selectedRouteID = allSuggestions.first?.id
+        }
+    }
+
+    private func generatedSuggestions(around location: CLLocationCoordinate2D?) async -> [RouteSuggestion] {
+        guard let location else { return [] }
+        let generated = await services.nearbyLoopRoutes(around: location, distancesKm: [targetDistance])
+        return generated.map { suggestion in
+            var enriched = suggestion
+            enriched.recommendationReason = RouteSuggestionRanker.reason(
+                kind: .generated,
+                distanceKm: suggestion.distanceKm,
+                targetDistanceKm: targetDistance,
+                isFavorite: false,
+                daysSinceLastRun: nil,
+                elevationPreference: elevation
+            )
+            return enriched
+        }
+    }
+
+    private func mergedSuggestions(_ suggestions: [RouteSuggestion]) -> [RouteSuggestion] {
+        var seen = Set<String>()
+        return suggestions.filter { suggestion in
+            guard !seen.contains(suggestion.id) else { return false }
+            seen.insert(suggestion.id)
+            return true
         }
     }
 }

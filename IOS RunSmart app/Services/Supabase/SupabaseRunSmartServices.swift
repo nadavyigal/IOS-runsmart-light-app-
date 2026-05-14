@@ -13,6 +13,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     private let challengeRepo = ChallengeRepository()
     private let healthSync = HealthKitSyncService()
     private let store = RunSmartLocalStore.shared
+    private let routeRemote: RouteRemoteStoring = SupabaseRouteRemoteStore()
 
     private var currentUserID: UUID? { supabase.auth.currentUser?.id }
 
@@ -633,34 +634,62 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func savedRoutes() async -> [SavedRoute] {
-        store.loadSavedRoutes()
+        guard let userID = currentUserID else { return store.loadSavedRoutes() }
+        let remote = (try? await routeRemote.fetchSavedRoutes(userID: userID)) ?? []
+        let merged = RouteSync.merge(remote: remote, local: store.loadSavedRoutes())
+        for route in merged { store.saveSavedRoute(route) }
+        return merged
     }
 
     func saveRoute(_ route: SavedRoute) async -> Bool {
         store.saveSavedRoute(route)
+        if let userID = currentUserID {
+            try? await routeRemote.upsertRoute(route, userID: userID)
+        }
+        postRouteChange()
         return true
     }
 
     func deleteRoute(_ routeID: UUID) async -> Bool {
-        store.removeSavedRoute(routeID)
+        let removed = store.removeSavedRoute(routeID)
+        if removed {
+            if let userID = currentUserID {
+                try? await routeRemote.deleteRoute(id: routeID, userID: userID)
+            }
+            store.refreshBenchmarkStats()
+            postRouteChange()
+        }
+        return removed
     }
 
     func updateRoute(_ route: SavedRoute) async -> Bool {
-        store.saveSavedRoute(route)
+        var updated = route
+        updated.updatedAt = Date()
+        store.saveSavedRoute(updated)
+        if let userID = currentUserID {
+            try? await routeRemote.upsertRoute(updated, userID: userID)
+        }
+        postRouteChange()
         return true
     }
 
     func benchmarkRoutes() async -> [BenchmarkRoute] {
-        store.loadBenchmarkRoutes()
+        guard let userID = currentUserID else { return store.loadBenchmarkRoutes() }
+        let remoteEntries = (try? await routeRemote.fetchBenchmarkEntries(userID: userID)) ?? []
+        let merged = RouteSync.mergeBenchmarks(remoteEntries: remoteEntries, local: store.loadBenchmarkRoutes())
+        for benchmark in merged { store.saveBenchmarkRoute(benchmark) }
+        return merged
     }
 
     func enableBenchmark(for routeID: UUID) async -> Bool {
         let routes = store.loadSavedRoutes()
         guard routes.contains(where: { $0.id == routeID }) else { return false }
+        let benchmarkID = UUID()
+        let enabledAt = Date()
         let benchmark = BenchmarkRoute(
-            id: UUID(),
+            id: benchmarkID,
             savedRouteID: routeID,
-            enabledAt: Date(),
+            enabledAt: enabledAt,
             historicalRunCount: 0,
             personalBestSeconds: nil,
             personalBestDate: nil,
@@ -668,11 +697,24 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             averageDurationSeconds: nil
         )
         store.saveBenchmarkRoute(benchmark)
+        if let userID = currentUserID {
+            try? await routeRemote.upsertBenchmark(id: benchmarkID, savedRouteID: routeID, enabledAt: enabledAt, userID: userID)
+        }
+        store.refreshBenchmarkStats()
+        postRouteChange()
         return true
     }
 
     func disableBenchmark(for routeID: UUID) async -> Bool {
-        store.removeBenchmarkRoute(routeID)
+        let removed = store.removeBenchmarkRoute(routeID)
+        if removed {
+            if let userID = currentUserID {
+                try? await routeRemote.deleteBenchmark(savedRouteID: routeID, userID: userID)
+            }
+            store.refreshBenchmarkStats()
+            postRouteChange()
+        }
+        return removed
     }
 
     // MARK: DeviceSyncing
@@ -720,13 +762,15 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         if provider == "Garmin Connect" {
             let status = await fetchGarminConnection(userID: userID)
             let activities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 10)
-            if let run = await GarminImportProcessor.newestNormalizedRun(
+            let runs = await GarminImportProcessor.normalizedRuns(
                 from: activities,
                 isHidden: store.isRunHidden,
                 routePointLoader: { activityID in
                     await GarminBridge.shared.activityRoutePoints(activityID: activityID)
                 }
-            ) {
+            )
+            let existingIDs = Set(store.loadRuns().compactMap(\.providerActivityID))
+            for run in runs where !existingIDs.contains(run.providerActivityID ?? "") {
                 _ = await processCompletedActivity(run)
             }
             return status
@@ -846,6 +890,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
         let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: await recentRuns(limit: 100)))
+        store.refreshBenchmarkStats()
         async let reportTask = generateRunReportIfMissing(for: canonical)
         async let completedTask = completeMatchingWorkout(for: canonical)
         let (report, completed) = await (reportTask, completedTask)
@@ -1373,12 +1418,19 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: str)
     }
+
+    private func postRouteChange() {
+        Task { @MainActor in
+            NotificationCenter.default.post(name: .runSmartRoutesDidChange, object: nil)
+        }
+    }
 }
 
 extension Notification.Name {
     static let runSmartPlanDidChange = Notification.Name("RunSmartPlanDidChange")
     static let runSmartPlanGenerationStatusDidChange = Notification.Name("RunSmartPlanGenerationStatusDidChange")
     static let runSmartRunsDidChange = Notification.Name("RunSmartRunsDidChange")
+    static let runSmartRoutesDidChange = Notification.Name("RunSmartRoutesDidChange")
 }
 
 private extension ISO8601DateFormatter {

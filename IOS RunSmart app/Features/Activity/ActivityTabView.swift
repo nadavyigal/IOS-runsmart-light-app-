@@ -136,7 +136,13 @@ struct ReportTabView: View {
             await reloadRoutes()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
-            Task { await reloadRuns() }
+            Task {
+                await reloadRuns()
+                await reloadRoutes()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartRoutesDidChange)) { _ in
+            Task { await reloadRoutes() }
         }
         .confirmationDialog("Remove this run?", isPresented: Binding(
             get: { runPendingRemoval != nil },

@@ -47,7 +47,7 @@ struct PostRunSummaryView: View {
                 SplitPreviewCard(splits: splitRows)
                 RecoveryPlanCard()
 
-                if let run, !run.routePoints.isEmpty {
+                if let run, run.routePoints.count >= RouteMatchingService.minimumRoutePoints {
                     Button {
                         showSaveRouteSheet = true
                     } label: {

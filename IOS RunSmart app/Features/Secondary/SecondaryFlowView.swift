@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 
 enum SecondaryDestination: Hashable, Identifiable {
@@ -920,9 +921,38 @@ private struct RouteSelectorScaffold: View {
     private func load() async {
         isLoading = true
         defer { isLoading = false }
-        allSuggestions = await services.rankedRouteSuggestions(targetDistanceKm: nil)
+        async let rankedTask = services.rankedRouteSuggestions(targetDistanceKm: nil)
+        let location = await LocationLookupService.shared.currentLocation()
+        let generated = await generatedSuggestions(around: location)
+        let ranked = await rankedTask
+        allSuggestions = mergedSuggestions(ranked + generated)
         if selectedRouteID == nil {
             selectedRouteID = allSuggestions.first?.id
+        }
+    }
+
+    private func generatedSuggestions(around location: CLLocationCoordinate2D?) async -> [RouteSuggestion] {
+        guard let location else { return [] }
+        let generated = await services.nearbyLoopRoutes(around: location, distancesKm: [5, 8, 10])
+        return generated.map { suggestion in
+            var enriched = suggestion
+            enriched.recommendationReason = RouteSuggestionRanker.reason(
+                kind: .generated,
+                distanceKm: suggestion.distanceKm,
+                targetDistanceKm: nil,
+                isFavorite: false,
+                daysSinceLastRun: nil
+            )
+            return enriched
+        }
+    }
+
+    private func mergedSuggestions(_ suggestions: [RouteSuggestion]) -> [RouteSuggestion] {
+        var seen = Set<String>()
+        return suggestions.filter { suggestion in
+            guard !seen.contains(suggestion.id) else { return false }
+            seen.insert(suggestion.id)
+            return true
         }
     }
 }
@@ -989,7 +1019,7 @@ private struct RunReportScaffold: View {
                     .frame(height: 210)
             }
 
-            if !routePoints.isEmpty {
+            if routePoints.count >= RouteMatchingService.minimumRoutePoints {
                 Button {
                     showSaveRouteSheet = true
                 } label: {
@@ -1016,7 +1046,7 @@ private struct RunReportScaffold: View {
                 HStack(spacing: 8) {
                     Image(systemName: "map")
                         .foregroundStyle(Color.textSecondary)
-                    Text("No Garmin map data for this activity. Route saving, matching, and benchmark comparisons need GPS points; the run report still works.")
+                    Text(routePoints.isEmpty ? "No Garmin map data for this activity. Route saving, matching, and benchmark comparisons need GPS points; the run report still works." : "This Garmin map has too few GPS points to save as a repeatable route; the run report still works.")
                         .font(.caption)
                         .foregroundStyle(Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)

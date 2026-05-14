@@ -4,6 +4,10 @@ enum RouteSuggestionRanker {
 
     static let distanceTolerance: Double = 0.25
 
+    // Elevation thresholds in metres
+    private static let flatCeiling = 50
+    private static let rollingCeiling = 150
+
     private static func kindPriority(_ kind: RouteKind) -> Int {
         switch kind {
         case .benchmark: return 0
@@ -13,11 +17,35 @@ enum RouteSuggestionRanker {
         }
     }
 
+    // Score 0 (perfect match) → higher for mismatch; lower is better.
+    private static func elevationScore(_ elevationGainMeters: Int, preference: String) -> Int {
+        switch preference {
+        case "Flat":
+            return elevationGainMeters <= flatCeiling ? 0 : (elevationGainMeters <= rollingCeiling ? 1 : 2)
+        case "Hilly":
+            return elevationGainMeters > rollingCeiling ? 0 : (elevationGainMeters > flatCeiling ? 1 : 2)
+        default: // "Rolling"
+            let inRange = elevationGainMeters > flatCeiling && elevationGainMeters <= rollingCeiling
+            return inRange ? 0 : 1
+        }
+    }
+
     static func rank(_ suggestions: [RouteSuggestion], targetDistanceKm: Double?) -> [RouteSuggestion] {
+        rank(suggestions, targetDistanceKm: targetDistanceKm, elevationPreference: "Rolling")
+    }
+
+    static func rank(
+        _ suggestions: [RouteSuggestion],
+        targetDistanceKm: Double?,
+        elevationPreference: String
+    ) -> [RouteSuggestion] {
         suggestions.sorted { a, b in
             let pa = kindPriority(a.kind)
             let pb = kindPriority(b.kind)
             if pa != pb { return pa < pb }
+            let ea = elevationScore(a.elevationGainMeters, preference: elevationPreference)
+            let eb = elevationScore(b.elevationGainMeters, preference: elevationPreference)
+            if ea != eb { return ea < eb }
             guard let target = targetDistanceKm else { return false }
             return abs(a.distanceKm - target) < abs(b.distanceKm - target)
         }
@@ -33,7 +61,8 @@ enum RouteSuggestionRanker {
         distanceKm: Double,
         targetDistanceKm: Double?,
         isFavorite: Bool,
-        daysSinceLastRun: Int?
+        daysSinceLastRun: Int?,
+        elevationPreference: String = "Rolling"
     ) -> String {
         switch kind {
         case .benchmark:
@@ -51,7 +80,11 @@ enum RouteSuggestionRanker {
             }
             return "Recent route"
         case .generated:
-            return "Low elevation · good for pace"
+            switch elevationPreference {
+            case "Flat":   return "Flat · good for pace"
+            case "Hilly":  return "Hilly · elevation challenge"
+            default:       return "Low elevation · good for pace"
+            }
         }
     }
 }
