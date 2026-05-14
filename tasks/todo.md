@@ -1,6 +1,37 @@
 # Task State
 
 ## Current Task
+Story 8 complete: Route Discovery Ranking MVP.
+
+## Route Feature Story 8 - Route Discovery Ranking MVP
+Full-bleed map route cards (map fills entire card, data overlaid via gradient scrim),
+three-bucket ranked discovery (Benchmarks → My Routes → Generated Nearby),
+distance filter chips, recommendation reason chips on each card. Applied to both
+RouteCreatorView and RouteSelectorScaffold.
+
+### Files Changed
+- `IOS RunSmart app/Models/RunSmartModels.swift` — extended RouteKind + RouteSuggestion
+- `IOS RunSmart app/Services/RouteSuggestionRanker.swift` — new pure ranker
+- `IOS RunSmart app/Services/Production/RunSmartProductionServices.swift` — rankedRouteSuggestions
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift` — rankedRouteSuggestions
+- `IOS RunSmart app/Features/Routes/FullBleedRouteCard.swift` — new component file
+- `IOS RunSmart app/Features/Routes/RouteCreatorView.swift` — redesigned
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift` — RouteSelectorScaffold redesigned
+- `IOS RunSmart app/PreviewSupport/RunSmartPreviewData.swift` — added routeSuggestions
+- `IOS RunSmart appTests/RouteRankingTests.swift` — new tests (all pass)
+
+### Status
+- [x] RouteSuggestion model extended with kind (.benchmark, .saved), recommendationReason, isFavorite
+- [x] RouteSuggestionRanker with rank(), filter(), reason() — tested
+- [x] rankedRouteSuggestions on RouteProviding + both service implementations
+- [x] FullBleedRouteCard (full-bleed map + scrim + overlaid data)
+- [x] RouteCreatorView redesigned with filter bar + three buckets
+- [x] RouteSelectorScaffold redesigned with filter bar + three buckets
+- [x] Preview data added
+
+---
+
+## Previous Task
 Story 7 complete: Benchmark Comparison Card In Run Reports.
 
 ## Goal

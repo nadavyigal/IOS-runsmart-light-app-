@@ -2,139 +2,168 @@ import SwiftUI
 
 struct RouteCreatorView: View {
     @Environment(\.runSmartServices) private var services
-    @State private var distance = 8.0
+    @State private var targetDistance = 8.0
     @State private var elevation = "Rolling"
     @State private var surface = "Road"
-    @State private var pastRoutes: [RouteSuggestion] = []
-    @State private var nearbyRoutes: [RouteSuggestion] = []
+    @State private var allSuggestions: [RouteSuggestion] = []
     @State private var selectedRouteID: String?
-    @State private var isLoadingPastRoutes = false
-    @State private var isLoadingNearbyRoutes = false
+    @State private var isLoading = false
     @State private var locationUnavailable = false
+    @State private var distanceFilter: Double? = nil
+
+    private let filterOptions: [Double?] = [nil, 3, 5, 8, 10, 15]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HeroCard(accent: .accentRecovery) {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Route creator")
-                    Text("Build a route for the workout")
-                        .font(.headingLG)
-                    RouteMapView(points: selectedRoute?.points ?? [], title: selectedRoute?.name ?? "Preview route")
-                        .frame(height: 150)
-                    Text(routeDetail)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.textSecondary)
-                        .lineLimit(2)
-                }
-            }
+        VStack(alignment: .leading, spacing: 0) {
 
+            // Route shape controls
             ContentCard {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Route shape")
                     HStack {
                         Text("Distance")
                         Spacer()
-                        Text(String(format: "%.1f km", distance))
+                        Text(String(format: "%.1f km", targetDistance))
                             .font(.metricSM)
                             .foregroundStyle(Color.accentPrimary)
                     }
-                    Slider(value: $distance, in: 3...24, step: 0.5)
+                    Slider(value: $targetDistance, in: 3...24, step: 0.5)
                         .tint(Color.accentPrimary)
                     RouteSegmentedControl(title: "Elevation", options: ["Flat", "Rolling", "Hilly"], selection: $elevation)
                     RouteSegmentedControl(title: "Surface", options: ["Road", "Trail", "Mixed"], selection: $surface)
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
 
-            ContentCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Nearby")
-                    if isLoadingNearbyRoutes {
-                        RouteLoadingRow(title: "Finding nearby loops", detail: "Using your current location without blocking this screen.")
-                    } else if locationUnavailable {
-                        RouteEmptyRow(title: "GPS unavailable", detail: "Open the app outdoors or try again after location access settles.")
-                    } else if nearbyRoutes.isEmpty {
-                        RouteEmptyRow(title: "No nearby loops yet", detail: "Generate a route after GPS finds your current location.")
-                    } else {
-                        ForEach(nearbyRoutes) { route in
-                            RouteSuggestionButton(route: route, selected: route.id == selectedRouteID) {
-                                selectedRouteID = route.id
-                            }
-                        }
-                    }
+            // Distance filter
+            RouteDistanceFilterBar(options: filterOptions, selected: $distanceFilter)
+                .padding(.vertical, 12)
+
+            // Route list
+            VStack(alignment: .leading, spacing: 10) {
+                if isLoading {
+                    routeLoadingState
+                } else if allSuggestions.isEmpty {
+                    RouteDiscoveryEmptyCard(
+                        title: "No routes yet",
+                        message: "Tap Generate Route to create a nearby loop based on your current location.",
+                        systemImage: "point.topleft.down.curvedto.point.bottomright.up"
+                    )
+                } else {
+                    routeBuckets
                 }
             }
+            .padding(.horizontal, 16)
 
-            ContentCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Past routes")
-                    if isLoadingPastRoutes {
-                        RouteLoadingRow(title: "Loading saved routes", detail: "Checking your recent GPS activity.")
-                    } else if pastRoutes.isEmpty {
-                        RouteEmptyRow(title: "No saved routes", detail: "Record one GPS run and it will appear here for quick reuse.")
-                    } else {
-                        ForEach(pastRoutes) { route in
-                            RouteSuggestionButton(route: route, selected: route.id == selectedRouteID) {
-                                selectedRouteID = route.id
-                            }
-                        }
-                    }
-                }
-            }
-
-            Button { Task { await loadNearbyRoutes() } } label: {
+            // Generate button
+            Button {
+                Task { await loadSuggestions() }
+            } label: {
                 Label("Generate Route", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
             }
             .buttonStyle(NeonButtonStyle())
-            .disabled(isLoadingNearbyRoutes)
+            .disabled(isLoading)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
         }
         .task {
-            await loadPastRoutes()
-            await loadNearbyRoutes()
+            await loadSuggestions()
         }
     }
 
-    private var allRoutes: [RouteSuggestion] {
-        nearbyRoutes + pastRoutes
+    // MARK: - Buckets
+
+    private var displayed: [RouteSuggestion] {
+        RouteSuggestionRanker.filter(allSuggestions, targetDistanceKm: distanceFilter)
     }
 
-    private var selectedRoute: RouteSuggestion? {
-        allRoutes.first(where: { $0.id == selectedRouteID }) ?? allRoutes.first
+    private var benchmarks: [RouteSuggestion] {
+        displayed.filter { $0.kind == .benchmark }
     }
 
-    private var routeDetail: String {
-        guard let selectedRoute else {
-            return "Route suggestions will appear here as GPS and recent activity load."
-        }
-        return "\(String(format: "%.1f", selectedRoute.distanceKm)) km - \(selectedRoute.elevationGainMeters)m gain - \(selectedRoute.estimatedDurationMinutes) min"
+    private var myRoutes: [RouteSuggestion] {
+        displayed.filter { $0.kind == .saved || $0.kind == .past }
     }
 
-    private func loadPastRoutes() async {
-        isLoadingPastRoutes = true
-        defer { isLoadingPastRoutes = false }
-        pastRoutes = await services.routeSuggestions()
-        if selectedRouteID == nil {
-            selectedRouteID = allRoutes.first?.id
-        }
+    private var generatedNearby: [RouteSuggestion] {
+        displayed.filter { $0.kind == .generated }
     }
 
-    private func loadNearbyRoutes() async {
-        isLoadingNearbyRoutes = true
-        locationUnavailable = false
-        defer { isLoadingNearbyRoutes = false }
+    @ViewBuilder
+    private var routeBuckets: some View {
+        let hasAny = !benchmarks.isEmpty || !myRoutes.isEmpty || !generatedNearby.isEmpty
 
-        guard let coordinate = await LocationLookupService.shared.currentLocation() else {
-            locationUnavailable = true
-            nearbyRoutes = []
-            if selectedRouteID == nil {
-                selectedRouteID = allRoutes.first?.id
+        if !hasAny {
+            RouteDiscoveryEmptyCard(
+                title: "No matching routes",
+                message: "Try a different distance filter or generate a new route.",
+                systemImage: "slider.horizontal.3"
+            )
+        } else {
+            if !benchmarks.isEmpty {
+                RouteDiscoverySectionHeader(title: "Benchmarks", count: benchmarks.count)
+                ForEach(benchmarks) { r in
+                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
+                        selectedRouteID = r.id
+                    }
+                }
             }
-            return
-        }
 
-        nearbyRoutes = await services.nearbyLoopRoutes(around: coordinate, distancesKm: [distance])
-        selectedRouteID = nearbyRoutes.first?.id ?? selectedRouteID ?? allRoutes.first?.id
+            if !myRoutes.isEmpty {
+                RouteDiscoverySectionHeader(title: "My Routes", count: myRoutes.count)
+                ForEach(myRoutes) { r in
+                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
+                        selectedRouteID = r.id
+                    }
+                }
+            }
+
+            if !generatedNearby.isEmpty {
+                RouteDiscoverySectionHeader(title: "Generated Nearby", count: generatedNearby.count)
+                ForEach(generatedNearby) { r in
+                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
+                        selectedRouteID = r.id
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var routeLoadingState: some View {
+        HStack(spacing: 12) {
+            ProgressView().tint(Color.accentPrimary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Finding routes")
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Text("Loading saved routes and nearby loops.")
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    // MARK: - Loading
+
+    private func loadSuggestions() async {
+        isLoading = true
+        locationUnavailable = false
+        defer { isLoading = false }
+
+        allSuggestions = await services.rankedRouteSuggestions(targetDistanceKm: targetDistance)
+        if selectedRouteID == nil {
+            selectedRouteID = allSuggestions.first?.id
+        }
     }
 }
+
+// MARK: - Private sub-views (kept internal)
 
 private struct RouteSegmentedControl: View {
     var title: String
@@ -162,73 +191,5 @@ private struct RouteSegmentedControl: View {
                 }
             }
         }
-    }
-}
-
-private struct RouteSuggestionButton: View {
-    var route: RouteSuggestion
-    var selected: Bool
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? Color.accentPrimary : Color.textTertiary)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(route.name)
-                        .font(.bodyMD.weight(.semibold))
-                        .foregroundStyle(Color.textPrimary)
-                    Text("\(String(format: "%.1f", route.distanceKm)) km - \(route.elevationGainMeters)m gain - \(route.estimatedDurationMinutes) min")
-                        .font(.caption)
-                        .foregroundStyle(Color.textSecondary)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(12)
-            .background(Color.surfaceElevated.opacity(selected ? 0.95 : 0.58), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(selected ? Color.accentPrimary.opacity(0.44) : Color.border.opacity(0.35), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct RouteLoadingRow: View {
-    var title: String
-    var detail: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ProgressView()
-                .tint(Color.accentPrimary)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.bodyMD.weight(.semibold))
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(Color.textSecondary)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.surfaceElevated.opacity(0.58), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-}
-
-private struct RouteEmptyRow: View {
-    var title: String
-    var detail: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.bodyMD.weight(.semibold))
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(Color.textSecondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.surfaceElevated.opacity(0.46), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
