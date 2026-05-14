@@ -140,6 +140,54 @@ final class RunSmartLocalStore {
         load(HealthKitDailySnapshot.self, key: "runsmart.healthkit.dailySnapshot")
     }
 
+    // MARK: - Saved Routes
+
+    func saveSavedRoute(_ route: SavedRoute) {
+        var routes = loadSavedRoutes()
+        routes.removeAll { $0.id == route.id }
+        routes.append(route)
+        routes.sort { $0.updatedAt > $1.updatedAt }
+        save(routes, key: "runsmart.savedRoutes")
+    }
+
+    func loadSavedRoutes() -> [SavedRoute] {
+        load([SavedRoute].self, key: "runsmart.savedRoutes") ?? []
+    }
+
+    @discardableResult
+    func removeSavedRoute(_ routeID: UUID) -> Bool {
+        var routes = loadSavedRoutes()
+        let before = routes.count
+        routes.removeAll { $0.id == routeID }
+        guard routes.count != before else { return false }
+        save(routes, key: "runsmart.savedRoutes")
+        removeBenchmarkRoute(routeID)
+        return true
+    }
+
+    // MARK: - Benchmark Routes
+
+    func saveBenchmarkRoute(_ benchmark: BenchmarkRoute) {
+        var benchmarks = loadBenchmarkRoutes()
+        benchmarks.removeAll { $0.savedRouteID == benchmark.savedRouteID }
+        benchmarks.append(benchmark)
+        save(benchmarks, key: "runsmart.benchmarkRoutes")
+    }
+
+    func loadBenchmarkRoutes() -> [BenchmarkRoute] {
+        load([BenchmarkRoute].self, key: "runsmart.benchmarkRoutes") ?? []
+    }
+
+    @discardableResult
+    func removeBenchmarkRoute(_ savedRouteID: UUID) -> Bool {
+        var benchmarks = loadBenchmarkRoutes()
+        let before = benchmarks.count
+        benchmarks.removeAll { $0.savedRouteID == savedRouteID }
+        guard benchmarks.count != before else { return false }
+        save(benchmarks, key: "runsmart.benchmarkRoutes")
+        return true
+    }
+
     private func save<Value: Encodable>(_ value: Value, key: String) {
         guard let data = try? encoder.encode(value) else { return }
         defaults.set(data, forKey: key)
@@ -515,6 +563,23 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
 protocol RouteProviding {
     func routeSuggestions() async -> [RouteSuggestion]
     func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion]
+    func savedRoutes() async -> [SavedRoute]
+    func saveRoute(_ route: SavedRoute) async -> Bool
+    func deleteRoute(_ routeID: UUID) async -> Bool
+    func updateRoute(_ route: SavedRoute) async -> Bool
+    func benchmarkRoutes() async -> [BenchmarkRoute]
+    func enableBenchmark(for routeID: UUID) async -> Bool
+    func disableBenchmark(for routeID: UUID) async -> Bool
+}
+
+extension RouteProviding {
+    func savedRoutes() async -> [SavedRoute] { [] }
+    func saveRoute(_ route: SavedRoute) async -> Bool { false }
+    func deleteRoute(_ routeID: UUID) async -> Bool { false }
+    func updateRoute(_ route: SavedRoute) async -> Bool { false }
+    func benchmarkRoutes() async -> [BenchmarkRoute] { [] }
+    func enableBenchmark(for routeID: UUID) async -> Bool { false }
+    func disableBenchmark(for routeID: UUID) async -> Bool { false }
 }
 
 protocol DeviceSyncing {
@@ -679,6 +744,51 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion] {
         []
+    }
+
+    func savedRoutes() async -> [SavedRoute] {
+        store.loadSavedRoutes()
+    }
+
+    func saveRoute(_ route: SavedRoute) async -> Bool {
+        store.saveSavedRoute(route)
+        return true
+    }
+
+    func deleteRoute(_ routeID: UUID) async -> Bool {
+        store.removeSavedRoute(routeID)
+    }
+
+    func updateRoute(_ route: SavedRoute) async -> Bool {
+        var updated = route
+        updated.updatedAt = Date()
+        store.saveSavedRoute(updated)
+        return true
+    }
+
+    func benchmarkRoutes() async -> [BenchmarkRoute] {
+        store.loadBenchmarkRoutes()
+    }
+
+    func enableBenchmark(for routeID: UUID) async -> Bool {
+        let routes = store.loadSavedRoutes()
+        guard routes.contains(where: { $0.id == routeID }) else { return false }
+        let benchmark = BenchmarkRoute(
+            id: UUID(),
+            savedRouteID: routeID,
+            enabledAt: Date(),
+            historicalRunCount: 0,
+            personalBestSeconds: nil,
+            personalBestDate: nil,
+            averagePaceSecondsPerKm: nil,
+            averageDurationSeconds: nil
+        )
+        store.saveBenchmarkRoute(benchmark)
+        return true
+    }
+
+    func disableBenchmark(for routeID: UUID) async -> Bool {
+        store.removeBenchmarkRoute(routeID)
     }
 
     func deviceStatuses() async -> [ConnectedDeviceStatus] {

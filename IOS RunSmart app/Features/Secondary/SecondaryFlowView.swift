@@ -28,6 +28,7 @@ enum SecondaryDestination: Hashable, Identifiable {
     case routeCreator
     case badgeCabinet
     case shareRun(RecordedRun?)
+    case routeDetail(SavedRoute)
     case account
 
     var id: String {
@@ -59,6 +60,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .routeCreator: "routeCreator"
         case .badgeCabinet: "badgeCabinet"
         case .shareRun(let run): "shareRun-\(run?.id.uuidString ?? "nil")"
+        case .routeDetail(let route): "routeDetail-\(route.id)"
         case .account: "account"
         }
     }
@@ -91,6 +93,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .routeCreator: "Route Creator"
         case .badgeCabinet: "Badge Cabinet"
         case .shareRun: "Share Run"
+        case .routeDetail(let route): route.name
         case .account: "Account"
         }
     }
@@ -179,6 +182,8 @@ struct SecondaryFlowView: View {
             BadgeCabinetView()
         case .shareRun(let run):
             ShareRunView(run: run)
+        case .routeDetail(let route):
+            RouteDetailScaffold(route: route)
         case .account:
             AccountScaffold()
         }
@@ -238,6 +243,8 @@ struct SecondaryFlowView: View {
             "Browse earned and locked achievements."
         case .shareRun:
             "Prepare a polished run share card."
+        case .routeDetail:
+            "Route details, benchmark stats, and actions."
         case .account:
             "Manage your sign-in and profile data."
         }
@@ -271,6 +278,7 @@ struct SecondaryFlowView: View {
         case .routeCreator: "point.topleft.down.curvedto.point.bottomright.up"
         case .badgeCabinet: "seal.fill"
         case .shareRun: "square.and.arrow.up"
+        case .routeDetail: "map.fill"
         case .account: "person.crop.circle.fill"
         }
     }
@@ -943,6 +951,8 @@ private struct RunReportScaffold: View {
     @State private var report: RunReportDetail?
     @State private var isGenerating = false
     @State private var generationFailed = false
+    @State private var showSaveRouteSheet = false
+    @State private var isLoadingRoutePoints = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -995,6 +1005,31 @@ private struct RunReportScaffold: View {
                     .frame(height: 210)
             }
 
+            if !routePoints.isEmpty {
+                Button {
+                    showSaveRouteSheet = true
+                } label: {
+                    Label("Save Route", systemImage: "map.fill")
+                        .font(.buttonLabel)
+                        .foregroundStyle(Color.accentPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(Color.accentPrimary.opacity(0.10), in: Capsule())
+                        .overlay(Capsule().stroke(Color.accentPrimary.opacity(0.55), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Save this Garmin route to your route library.")
+            } else if !isLoadingRoutePoints {
+                HStack(spacing: 8) {
+                    Image(systemName: "map")
+                        .foregroundStyle(Color.textSecondary)
+                    Text("Garmin route data is not available for this activity. Route saving requires GPS map data.")
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                }
+                .padding(.horizontal, 4)
+            }
+
             Text("Saved to your history")
                 .font(.caption.bold())
                 .foregroundStyle(Color.lime)
@@ -1003,16 +1038,30 @@ private struct RunReportScaffold: View {
                 .background(Color.lime.opacity(0.11))
                 .clipShape(Capsule(style: .continuous))
         }
+        .sheet(isPresented: $showSaveRouteSheet) {
+            if let run = garminRunWithRoutePoints {
+                SaveRouteSheet(run: run)
+                    .preferredColorScheme(.dark)
+            }
+        }
         .task(id: activity.id) {
+            isLoadingRoutePoints = true
             routePoints = activity.toRecordedRun()?.routePoints ?? []
             if routePoints.isEmpty {
                 routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activity.activityId)
             }
+            isLoadingRoutePoints = false
             if var run = activity.toRecordedRun() {
                 if !routePoints.isEmpty { run.routePoints = routePoints }
                 report = await services.runReport(for: run)
             }
         }
+    }
+
+    private var garminRunWithRoutePoints: RecordedRun? {
+        guard var run = activity.toRecordedRun() else { return nil }
+        run.routePoints = routePoints
+        return run
     }
 
     private func generateReport() async {

@@ -25,22 +25,9 @@
 		33F1D5D02FA0B36A006C1A3C /* IOS RunSmart appTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "IOS RunSmart appTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		33F1D5E02FA0B36A006C1A3C /* Exceptions for "IOS RunSmart app" folder in "IOS RunSmart app" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"Features/Goals/GoalWizardView 2.swift",
-			);
-			target = 33F1D5BD2FA0B36A006C1A3C /* IOS RunSmart app */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		33F1D5C02FA0B36A006C1A3C /* IOS RunSmart app */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				33F1D5E02FA0B36A006C1A3C /* Exceptions for "IOS RunSmart app" folder in "IOS RunSmart app" target */,
-			);
 			path = "IOS RunSmart app";
 			sourceTree = "<group>";
 		};

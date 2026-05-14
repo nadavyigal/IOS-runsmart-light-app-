@@ -7,6 +7,8 @@ struct ReportTabView: View {
     @State private var filter = "All"
     @State private var runPendingRemoval: RecordedRun?
     @State private var removalFailed = false
+    @State private var savedRoutes: [SavedRoute] = []
+    @State private var benchmarkRoutes: [BenchmarkRoute] = []
 
     private var totalDistanceKm: Double {
         runs.reduce(0) { $0 + $1.distanceMeters / 1_000 }
@@ -121,6 +123,9 @@ struct ReportTabView: View {
 
                 PersonalRecordsCard()
                 .runSmartStaggeredAppear(index: 3)
+
+                routeLibrarySection
+                    .runSmartStaggeredAppear(index: 4)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
@@ -128,6 +133,7 @@ struct ReportTabView: View {
         }
         .task {
             await reloadRuns()
+            await reloadRoutes()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
             Task { await reloadRuns() }
@@ -165,6 +171,74 @@ struct ReportTabView: View {
         } else {
             removalFailed = true
             await reloadRuns()
+        }
+    }
+
+    private func reloadRoutes() async {
+        savedRoutes = await services.savedRoutes()
+        benchmarkRoutes = await services.benchmarkRoutes()
+    }
+
+    private var benchmarkSavedRoutes: [SavedRoute] {
+        let benchmarkIDs = Set(benchmarkRoutes.map(\.savedRouteID))
+        return savedRoutes.filter { benchmarkIDs.contains($0.id) }
+    }
+
+    private var nonBenchmarkSavedRoutes: [SavedRoute] {
+        let benchmarkIDs = Set(benchmarkRoutes.map(\.savedRouteID))
+        return savedRoutes.filter { !benchmarkIDs.contains($0.id) }
+    }
+
+    private func benchmarkRoute(for route: SavedRoute) -> BenchmarkRoute? {
+        benchmarkRoutes.first { $0.savedRouteID == route.id }
+    }
+
+    @ViewBuilder
+    private var routeLibrarySection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if !benchmarkSavedRoutes.isEmpty {
+                ContentCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(title: "Benchmark routes", trailing: "\(benchmarkSavedRoutes.count)")
+                        ForEach(benchmarkSavedRoutes) { route in
+                            RouteCardView(
+                                route: route,
+                                isBenchmark: true,
+                                benchmarkRoute: benchmarkRoute(for: route),
+                                onTap: { router.open(.routeDetail(route)) }
+                            )
+                        }
+                    }
+                }
+            } else {
+                RouteEmptyStateView(
+                    title: "No benchmark routes yet",
+                    message: "Mark a saved route as a benchmark to track your progress over repeated runs.",
+                    symbol: "flag.checkered"
+                )
+            }
+
+            if !nonBenchmarkSavedRoutes.isEmpty {
+                ContentCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(title: "Saved routes", trailing: "\(nonBenchmarkSavedRoutes.count)")
+                        ForEach(nonBenchmarkSavedRoutes) { route in
+                            RouteCardView(
+                                route: route,
+                                isBenchmark: false,
+                                benchmarkRoute: nil,
+                                onTap: { router.open(.routeDetail(route)) }
+                            )
+                        }
+                    }
+                }
+            } else if savedRoutes.isEmpty {
+                RouteEmptyStateView(
+                    title: "No saved routes",
+                    message: "Record a GPS run or review a Garmin activity to save your first route.",
+                    symbol: "map"
+                )
+            }
         }
     }
 }
