@@ -228,6 +228,59 @@ enum RunSmartPreviewData {
         )
     ]
 
+    // MARK: - Route Suggestions
+
+    static let routeSuggestions: [RouteSuggestion] = [
+        RouteSuggestion(
+            id: "preview-benchmark-1",
+            name: "Riverside Loop",
+            distanceKm: 8.2,
+            elevationGainMeters: 48,
+            estimatedDurationMinutes: 44,
+            points: [],
+            kind: .benchmark,
+            recommendationReason: "Matches today's 8 km tempo",
+            savedRouteID: UUID(),
+            isFavorite: true
+        ),
+        RouteSuggestion(
+            id: "preview-saved-1",
+            name: "Park Circuit",
+            distanceKm: 7.8,
+            elevationGainMeters: 22,
+            estimatedDurationMinutes: 41,
+            points: [],
+            kind: .saved,
+            recommendationReason: "Saved · Favorite",
+            savedRouteID: UUID(),
+            isFavorite: true
+        ),
+        RouteSuggestion(
+            id: "preview-saved-2",
+            name: "Harbour Promenade",
+            distanceKm: 5.5,
+            elevationGainMeters: 10,
+            estimatedDurationMinutes: 29,
+            points: [],
+            kind: .past,
+            recommendationReason: "Ran 3 days ago · familiar route",
+            savedRouteID: nil,
+            isFavorite: false
+        ),
+        RouteSuggestion(
+            id: "preview-generated-1",
+            name: "8K Loop · nearby",
+            distanceKm: 8.0,
+            elevationGainMeters: 31,
+            estimatedDurationMinutes: 43,
+            points: [],
+            kind: .generated,
+            recommendationReason: "Low elevation · good for pace",
+            savedRouteID: nil,
+            isFavorite: false
+        )
+    ]
+
     // MARK: - Recorded Runs
 
     static var recordedRuns: [RecordedRun] {

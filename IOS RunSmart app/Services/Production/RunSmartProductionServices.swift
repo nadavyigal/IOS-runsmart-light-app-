@@ -568,6 +568,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
 protocol RouteProviding {
     func routeSuggestions() async -> [RouteSuggestion]
     func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion]
+    func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion]
     func savedRoutes() async -> [SavedRoute]
     func saveRoute(_ route: SavedRoute) async -> Bool
     func deleteRoute(_ routeID: UUID) async -> Bool
@@ -585,6 +586,7 @@ extension RouteProviding {
     func benchmarkRoutes() async -> [BenchmarkRoute] { [] }
     func enableBenchmark(for routeID: UUID) async -> Bool { false }
     func disableBenchmark(for routeID: UUID) async -> Bool { false }
+    func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion] { [] }
 }
 
 protocol DeviceSyncing {
@@ -737,13 +739,23 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     }
 
     func saveRouteMatch(for run: RecordedRun) -> RecordedRun {
-        guard let match = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes()) else {
-            return run
-        }
         var matchedRun = run
-        matchedRun.routeMatchResult = match
+        matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes())
         store.saveRun(matchedRun)
         return matchedRun
+    }
+
+    func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
+        let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: store.visibleRuns(store.loadRuns())))
+        await MainActor.run {
+            NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+        }
+        return PostActivityOutcome(
+            canonicalRun: canonical,
+            report: nil,
+            completedWorkout: nil,
+            didCompletePlannedWorkout: false
+        )
     }
 
     func removeRun(_ run: RecordedRun) async -> Bool {
@@ -772,6 +784,55 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion] {
         []
+    }
+
+    func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion] {
+        let saved = store.loadSavedRoutes()
+        let benchmarks = store.loadBenchmarkRoutes()
+        let benchmarkRouteIDs = Set(benchmarks.map(\.savedRouteID))
+        let calendar = Calendar.current
+        var suggestions: [RouteSuggestion] = []
+
+        for route in saved {
+            let isBenchmark = benchmarkRouteIDs.contains(route.id)
+            let kind: RouteKind = isBenchmark ? .benchmark : .saved
+            let reason = RouteSuggestionRanker.reason(
+                kind: kind, distanceKm: route.distanceKm,
+                targetDistanceKm: targetDistanceKm,
+                isFavorite: route.isFavorite, daysSinceLastRun: nil
+            )
+            suggestions.append(RouteSuggestion(
+                id: route.id.uuidString, name: route.name,
+                distanceKm: route.distanceKm,
+                elevationGainMeters: route.elevationGainMeters,
+                estimatedDurationMinutes: max(1, Int((route.distanceKm * 360).rounded() / 60)),
+                points: route.points, kind: kind,
+                recommendationReason: reason,
+                savedRouteID: route.id, isFavorite: route.isFavorite
+            ))
+        }
+
+        let pastRuns = store.visibleRuns(store.loadRuns()).filter { !$0.routePoints.isEmpty }
+        for run in pastRuns.prefix(5) {
+            let days = calendar.dateComponents([.day], from: run.startedAt, to: Date()).day
+            let reason = RouteSuggestionRanker.reason(
+                kind: .past, distanceKm: run.distanceMeters / 1000,
+                targetDistanceKm: targetDistanceKm,
+                isFavorite: false, daysSinceLastRun: days
+            )
+            suggestions.append(RouteSuggestion(
+                id: run.id.uuidString,
+                name: "Run \(DateFormatter.localizedString(from: run.startedAt, dateStyle: .short, timeStyle: .none))",
+                distanceKm: run.distanceMeters / 1000,
+                elevationGainMeters: elevationGain(points: run.routePoints),
+                estimatedDurationMinutes: max(1, Int(run.movingTimeSeconds / 60)),
+                points: run.routePoints, kind: .past,
+                recommendationReason: reason, savedRouteID: nil, isFavorite: false
+            ))
+        }
+
+        let filtered = RouteSuggestionRanker.filter(suggestions, targetDistanceKm: targetDistanceKm)
+        return RouteSuggestionRanker.rank(filtered, targetDistanceKm: targetDistanceKm)
     }
 
     func savedRoutes() async -> [SavedRoute] {
@@ -840,7 +901,9 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func syncNow(provider: String) async -> ConnectedDeviceStatus {
         if provider == "Garmin Connect" {
             let result = await garmin.syncActivities()
-            result.runs.map(saveRouteMatch(for:)).forEach(store.saveRun)
+            if let newest = result.runs.sorted(by: { $0.startedAt > $1.startedAt }).first {
+                _ = await processCompletedActivity(newest)
+            }
             store.saveDeviceStatus(result.status)
             return result.status
         }

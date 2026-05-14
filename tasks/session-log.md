@@ -283,3 +283,35 @@ Implemented route feature Story 7: Benchmark Comparison Card In Run Reports.
 
 ### Next Recommended Action
 Implement Story 8: Route Discovery Ranking MVP.
+
+## 2026-05-14
+
+### Task Summary
+Implemented route feature Story 9: Garmin Import Processing Into Route Flow.
+
+### Files Changed
+- `IOS RunSmart app/Services/Garmin/GarminImportProcessor.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Services/Production/RunSmartProductionServices.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Added a testable Garmin import processor to normalize recent Garmin activities into newest-first `RecordedRun` values.
+- Fetch route points before route matching when Garmin map data is available.
+- Keep route-less Garmin imports processable when map data is missing.
+- Skip hidden Garmin activities before selecting the newest import.
+- Deduplicate duplicate Garmin rows by provider activity id before route point loading.
+- Route Supabase Garmin sync through `processCompletedActivity` so matching, report generation, workout completion, and benchmark report cards use the same path as recorded runs.
+- Persist canonical completed runs even when route matching returns nil, so missing-map imports do not disappear from local history.
+
+### Validation
+- Focused Story 9 tests passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminImportProcessorHydratesRoutePointsAndOrdersNewestFirst" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminImportProcessorKeepsRouteLessRunWhenMapDataIsMissing" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminImportProcessorSkipsHiddenRunsBeforeSelectingNewest" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminImportProcessorDedupesDuplicateProviderActivities" test`
+- Simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Build still reports pre-existing warning noise from older resume-era view models and AppIntents metadata extraction, but no Story 9 compile/test failures.
+
+### Next Recommended Action
+Implement Story 10: TestFlight Polish And Privacy Review.

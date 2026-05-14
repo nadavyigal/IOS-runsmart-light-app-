@@ -812,94 +812,38 @@ private struct AddActivityScaffold: View {
 
 private struct RouteSelectorScaffold: View {
     @Environment(\.runSmartServices) private var services
-    @State private var pastRoutes: [RouteSuggestion] = []
-    @State private var nearbyRoutes: [RouteSuggestion] = []
+    @State private var allSuggestions: [RouteSuggestion] = []
     @State private var selectedRouteID: String?
-    @State private var isLoadingNearby = false
-    @State private var locationUnavailable = false
+    @State private var isLoading = false
+    @State private var distanceFilter: Double? = nil
+
+    private let filterOptions: [Double?] = [nil, 3, 5, 8, 10, 15]
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
-            GlassCard(padding: 10, glow: Color.lime) {
-                ZStack(alignment: .bottomLeading) {
-                    RouteMapView(points: selectedRoute?.points ?? [], title: selectedRoute?.name)
-                        .frame(height: 180)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(selectedRoute?.name ?? "No saved GPS route yet")
-                            .font(.headline)
-                        Text(routeDetail)
-                            .font(.caption)
-                            .foregroundStyle(Color.mutedText)
-                    }
-                    .padding(12)
-                    .background(.black.opacity(0.42))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .padding(10)
-                }
-            }
 
-            GlassCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Nearby Loops", trailing: isLoadingNearby ? "Searching" : nil)
-                    if isLoadingNearby {
-                        HStack(spacing: 10) {
-                            ProgressView()
-                                .tint(Color.lime)
-                            Text("Finding runnable loops near you...")
-                                .font(.callout)
-                                .foregroundStyle(Color.mutedText)
-                        }
-                    } else if nearbyRoutes.isEmpty {
-                        Text(locationUnavailable ? "Location is unavailable. Enable location access to generate loops near you." : "Generate loop routes around your current location.")
-                            .font(.callout)
-                            .foregroundStyle(Color.mutedText)
-                        Button(locationUnavailable ? "Enable Location" : "Generate Nearby Loops") {
-                            Task { await loadNearbyRoutes() }
-                        }
-                        .buttonStyle(NeonButtonStyle())
-                    } else {
-                        ForEach(nearbyRoutes) { route in
-                            Button {
-                                selectedRouteID = route.id
-                            } label: {
-                                RouteOptionRow(
-                                    title: route.name,
-                                    detail: "\(String(format: "%.1f", route.distanceKm)) km | \(route.estimatedDurationMinutes) min",
-                                    selected: route.id == selectedRouteID
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        Button("Regenerate") {
-                            Task { await loadNearbyRoutes() }
-                        }
-                        .buttonStyle(NeonButtonStyle())
-                    }
-                }
-            }
+            // Distance filter bar
+            RouteDistanceFilterBar(options: filterOptions, selected: $distanceFilter)
 
-            GlassCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Past Routes")
-                    if pastRoutes.isEmpty {
-                        Text("Record a GPS run first, then RunSmart can suggest real routes from your activity history.")
-                            .font(.callout)
-                            .foregroundStyle(Color.mutedText)
-                    } else {
-                        ForEach(pastRoutes) { route in
-                            Button {
-                                selectedRouteID = route.id
-                            } label: {
-                                RouteOptionRow(
-                                    title: route.name,
-                                    detail: "\(String(format: "%.1f", route.distanceKm)) km | \(route.elevationGainMeters) m gain",
-                                    selected: route.id == selectedRouteID
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+            // Route buckets
+            if isLoading {
+                HStack(spacing: 10) {
+                    ProgressView().tint(Color.lime)
+                    Text("Finding routes near you…")
+                        .font(.callout)
+                        .foregroundStyle(Color.mutedText)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            } else if allSuggestions.isEmpty {
+                RouteDiscoveryEmptyCard(
+                    title: "No routes found",
+                    message: "Record a GPS run or enable location to generate nearby loops.",
+                    systemImage: "point.topleft.down.curvedto.point.bottomright.up"
+                )
+            } else {
+                routeBuckets
             }
 
             Button("Use This Route") {}
@@ -907,39 +851,78 @@ private struct RouteSelectorScaffold: View {
                 .disabled(selectedRoute == nil)
         }
         .task {
-            pastRoutes = await services.routeSuggestions()
-            await loadNearbyRoutes()
-            selectedRouteID = nearbyRoutes.first?.id ?? pastRoutes.first?.id
+            await load()
+        }
+    }
+
+    // MARK: - Buckets
+
+    private var displayed: [RouteSuggestion] {
+        RouteSuggestionRanker.filter(allSuggestions, targetDistanceKm: distanceFilter)
+    }
+
+    private var benchmarks: [RouteSuggestion] {
+        displayed.filter { $0.kind == .benchmark }
+    }
+
+    private var myRoutes: [RouteSuggestion] {
+        displayed.filter { $0.kind == .saved || $0.kind == .past }
+    }
+
+    private var generatedNearby: [RouteSuggestion] {
+        displayed.filter { $0.kind == .generated }
+    }
+
+    @ViewBuilder
+    private var routeBuckets: some View {
+        let hasAny = !benchmarks.isEmpty || !myRoutes.isEmpty || !generatedNearby.isEmpty
+
+        if !hasAny {
+            RouteDiscoveryEmptyCard(
+                title: "No matching routes",
+                message: "Try a different distance filter.",
+                systemImage: "slider.horizontal.3"
+            )
+        } else {
+            if !benchmarks.isEmpty {
+                RouteDiscoverySectionHeader(title: "Benchmarks", count: benchmarks.count)
+                ForEach(benchmarks) { r in
+                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
+                        selectedRouteID = r.id
+                    }
+                }
+            }
+
+            if !myRoutes.isEmpty {
+                RouteDiscoverySectionHeader(title: "My Routes", count: myRoutes.count)
+                ForEach(myRoutes) { r in
+                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
+                        selectedRouteID = r.id
+                    }
+                }
+            }
+
+            if !generatedNearby.isEmpty {
+                RouteDiscoverySectionHeader(title: "Generated Nearby", count: generatedNearby.count)
+                ForEach(generatedNearby) { r in
+                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
+                        selectedRouteID = r.id
+                    }
+                }
+            }
         }
     }
 
     private var selectedRoute: RouteSuggestion? {
-        allRoutes.first(where: { $0.id == selectedRouteID }) ?? allRoutes.first
+        allSuggestions.first(where: { $0.id == selectedRouteID }) ?? allSuggestions.first
     }
 
-    private var allRoutes: [RouteSuggestion] {
-        nearbyRoutes + pastRoutes
-    }
-
-    private var routeDetail: String {
-        guard let route = selectedRoute else { return "Route suggestions use real recorded GPS data." }
-        return "\(String(format: "%.1f", route.distanceKm)) km | \(route.elevationGainMeters) m gain | \(route.estimatedDurationMinutes) min"
-    }
-
-    private func loadNearbyRoutes() async {
-        isLoadingNearby = true
-        locationUnavailable = false
-        defer { isLoadingNearby = false }
-
-        guard let coordinate = await LocationLookupService.shared.currentLocation() else {
-            nearbyRoutes = []
-            locationUnavailable = true
-            return
-        }
-
-        nearbyRoutes = await services.nearbyLoopRoutes(around: coordinate, distancesKm: [3, 5, 8, 10])
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        allSuggestions = await services.rankedRouteSuggestions(targetDistanceKm: nil)
         if selectedRouteID == nil {
-            selectedRouteID = nearbyRoutes.first?.id ?? pastRoutes.first?.id
+            selectedRouteID = allSuggestions.first?.id
         }
     }
 }

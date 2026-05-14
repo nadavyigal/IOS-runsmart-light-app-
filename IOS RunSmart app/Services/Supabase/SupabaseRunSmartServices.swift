@@ -561,6 +561,77 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return suggestions
     }
 
+    func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion] {
+        let saved = store.loadSavedRoutes()
+        let benchmarks = store.loadBenchmarkRoutes()
+        let benchmarkRouteIDs = Set(benchmarks.map(\.savedRouteID))
+        let calendar = Calendar.current
+        var suggestions: [RouteSuggestion] = []
+
+        for route in saved {
+            let isBenchmark = benchmarkRouteIDs.contains(route.id)
+            let kind: RouteKind = isBenchmark ? .benchmark : .saved
+            let reason = RouteSuggestionRanker.reason(
+                kind: kind, distanceKm: route.distanceKm,
+                targetDistanceKm: targetDistanceKm,
+                isFavorite: route.isFavorite, daysSinceLastRun: nil
+            )
+            suggestions.append(RouteSuggestion(
+                id: route.id.uuidString, name: route.name,
+                distanceKm: route.distanceKm,
+                elevationGainMeters: route.elevationGainMeters,
+                estimatedDurationMinutes: max(1, Int((route.distanceKm * 360).rounded() / 60)),
+                points: route.points, kind: kind,
+                recommendationReason: reason,
+                savedRouteID: route.id, isFavorite: route.isFavorite
+            ))
+        }
+
+        if let userID = currentUserID {
+            let activities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 30)
+                .filter { activity in
+                    guard let run = activity.toRecordedRun() else { return false }
+                    return !store.isRunHidden(run)
+                }
+            let buckets = [3, 5, 8, 10, 15]
+            var pickedByBucket: [Int: DBGarminActivity] = [:]
+            for activity in activities {
+                guard let m = activity.distanceM, m > 0 else { continue }
+                let km = m / 1000
+                let bucket = buckets.min(by: { abs(Double($0) - km) < abs(Double($1) - km) }) ?? Int(km.rounded())
+                if pickedByBucket[bucket] == nil { pickedByBucket[bucket] = activity }
+            }
+            for (bucket, activity) in pickedByBucket.sorted(by: { $0.key < $1.key }) {
+                guard let m = activity.distanceM else { continue }
+                let km = m / 1000
+                let days: Int? = {
+                    guard let start = activity.startTime else { return nil }
+                    let fmt = ISO8601DateFormatter()
+                    fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                    let date = fmt.date(from: start) ?? ISO8601DateFormatter().date(from: start)
+                    return date.flatMap { calendar.dateComponents([.day], from: $0, to: Date()).day }
+                }()
+                let reason = RouteSuggestionRanker.reason(
+                    kind: .past, distanceKm: km,
+                    targetDistanceKm: targetDistanceKm,
+                    isFavorite: false, daysSinceLastRun: days
+                )
+                suggestions.append(RouteSuggestion(
+                    id: "garmin-\(activity.id)",
+                    name: "\(bucket)K · from Garmin",
+                    distanceKm: km,
+                    elevationGainMeters: Int(activity.elevationGainM ?? 0),
+                    estimatedDurationMinutes: max(1, Int((activity.durationS ?? (km * 360)) / 60)),
+                    points: [], kind: .past,
+                    recommendationReason: reason, savedRouteID: nil, isFavorite: false
+                ))
+            }
+        }
+
+        let filtered = RouteSuggestionRanker.filter(suggestions, targetDistanceKm: targetDistanceKm)
+        return RouteSuggestionRanker.rank(filtered, targetDistanceKm: targetDistanceKm)
+    }
+
     func savedRoutes() async -> [SavedRoute] {
         store.loadSavedRoutes()
     }
@@ -648,13 +719,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
         if provider == "Garmin Connect" {
             let status = await fetchGarminConnection(userID: userID)
-            if var run = await GarminBridge.shared
-                .recentActivities(authUserID: userID, limit: 3)
-                .compactMap({ $0.toRecordedRun() })
-                .first {
-                if let activityID = run.providerActivityID, run.routePoints.isEmpty {
-                    run.routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activityID)
+            let activities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 10)
+            if let run = await GarminImportProcessor.newestNormalizedRun(
+                from: activities,
+                isHidden: store.isRunHidden,
+                routePointLoader: { activityID in
+                    await GarminBridge.shared.activityRoutePoints(activityID: activityID)
                 }
+            ) {
                 _ = await processCompletedActivity(run)
             }
             return status
@@ -807,11 +879,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     private func saveRouteMatch(for run: RecordedRun) -> RecordedRun {
-        guard let match = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes()) else {
-            return run
-        }
         var matchedRun = run
-        matchedRun.routeMatchResult = match
+        matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes())
         store.saveRun(matchedRun)
         return matchedRun
     }

@@ -221,6 +221,8 @@ struct RecordedRun: Identifiable, Codable, Hashable {
 enum RouteKind: String, Codable, Hashable {
     case past
     case generated
+    case saved
+    case benchmark
 }
 
 struct RouteSuggestion: Identifiable, Codable, Hashable {
@@ -231,6 +233,9 @@ struct RouteSuggestion: Identifiable, Codable, Hashable {
     var estimatedDurationMinutes: Int
     var points: [RunRoutePoint]
     var kind: RouteKind
+    var recommendationReason: String? = nil
+    var savedRouteID: UUID? = nil
+    var isFavorite: Bool = false
 }
 
 // MARK: - Saved Routes & Benchmarks
