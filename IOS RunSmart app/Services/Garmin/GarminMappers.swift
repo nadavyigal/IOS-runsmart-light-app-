@@ -45,17 +45,20 @@ extension DBGarminActivity {
     }
 
     func toRecordedRun() -> RecordedRun? {
-        guard let startStr = startTime,
+        let trimmedActivityID = activityId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedActivityID.isEmpty,
+              isRunningSport,
+              let startStr = startTime,
               let startDate = parseISO8601(startStr),
-              let durationS = durationS, durationS > 0 else { return nil }
+              let durationS = durationS, durationS > 0,
+              let distanceM = distanceM, distanceM > 0 else { return nil }
 
-        let distanceM = distanceM ?? 0
         let endDate = startDate.addingTimeInterval(durationS)
-        let pace = distanceM > 0 ? durationS / (distanceM / 1000) : 0
+        let pace = durationS / (distanceM / 1000)
 
         return RecordedRun(
             id: UUID(),
-            providerActivityID: activityId,
+            providerActivityID: trimmedActivityID,
             source: .garmin,
             startedAt: startDate,
             endedAt: endDate,
@@ -74,6 +77,12 @@ extension DBGarminActivity {
         if let d = f.date(from: str) { return d }
         f.formatOptions = [.withInternetDateTime]
         return f.date(from: str)
+    }
+
+    private var isRunningSport: Bool {
+        guard let sport else { return false }
+        let normalized = sport.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "run" || normalized.contains("run") || normalized.contains("running")
     }
 }
 

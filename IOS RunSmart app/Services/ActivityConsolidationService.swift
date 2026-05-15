@@ -37,8 +37,9 @@ enum ActivityConsolidationService {
 
     static func groups(for runs: [RecordedRun], calendar: Calendar = .current) -> [ActivityConsolidationGroup] {
         var groups: [[RecordedRun]] = []
+        let candidates = removingLikelyFragments(from: uniqueStoredRuns(runs), calendar: calendar)
 
-        for run in uniqueStoredRuns(runs).sorted(by: { $0.startedAt < $1.startedAt }) {
+        for run in candidates.sorted(by: { $0.startedAt < $1.startedAt }) {
             if let index = groups.firstIndex(where: { group in
                 group.contains(where: { matches($0, run, calendar: calendar) })
             }) {
@@ -69,10 +70,10 @@ enum ActivityConsolidationService {
         let sameLocalDay = calendar.isDate(lhs.startedAt, inSameDayAs: rhs.startedAt)
 
         return sameLocalDay &&
-            startDelta <= 10 * 60 &&
-            overlap >= -120 &&
-            distanceDelta <= distanceTolerance &&
-            durationDelta <= durationTolerance
+            startDelta <= 30 * 60 &&
+            overlap >= -5 * 60 &&
+            distanceDelta <= max(distanceTolerance, min(lhs.distanceMeters, rhs.distanceMeters) * 0.10) &&
+            durationDelta <= max(durationTolerance, min(lhs.movingTimeSeconds, rhs.movingTimeSeconds) * 0.15)
     }
 
     static func isUserVisibleRun(_ run: RecordedRun) -> Bool {
@@ -96,6 +97,34 @@ enum ActivityConsolidationService {
             }
         }
         return Array(bestByKey.values)
+    }
+
+    private static func removingLikelyFragments(from runs: [RecordedRun], calendar: Calendar) -> [RecordedRun] {
+        runs.filter { run in
+            !runs.contains { longer in
+                isLikelyFragment(run, of: longer, calendar: calendar)
+            }
+        }
+    }
+
+    private static func isLikelyFragment(_ candidate: RecordedRun, of longer: RecordedRun, calendar: Calendar) -> Bool {
+        guard candidate.source == .garmin, longer.source == .garmin else { return false }
+        guard !isSameStoredRun(candidate, longer) else { return false }
+        guard calendar.isDate(candidate.startedAt, inSameDayAs: longer.startedAt) else { return false }
+        guard longer.distanceMeters >= max(candidate.distanceMeters * 2.5, candidate.distanceMeters + 1_000) else { return false }
+        guard longer.movingTimeSeconds >= candidate.movingTimeSeconds * 1.5 else { return false }
+
+        let overlap = min(candidate.endedAt, longer.endedAt).timeIntervalSince(max(candidate.startedAt, longer.startedAt))
+        if overlap >= 0 { return true }
+
+        let nearestBoundaryDelta = [
+            abs(candidate.startedAt.timeIntervalSince(longer.startedAt)),
+            abs(candidate.startedAt.timeIntervalSince(longer.endedAt)),
+            abs(candidate.endedAt.timeIntervalSince(longer.startedAt)),
+            abs(candidate.endedAt.timeIntervalSince(longer.endedAt))
+        ].min() ?? .infinity
+
+        return nearestBoundaryDelta <= 30 * 60
     }
 
     private static func mergedCanonicalRun(from runs: [RecordedRun], groupID: String) -> RecordedRun {

@@ -18,6 +18,7 @@ Review this file at the start of future tasks.
 - For route matching tests, keep possible-match fixtures close enough to represent GPS noise or small deviations; far parallel routes should remain no-match.
 - For local-calendar month boundary tests, construct dates with the test `Calendar` and `DateComponents`; do not use opaque epoch constants.
 - Route discovery controls must connect to service behavior or clearly present as unavailable; do not ship decorative filters that leave results unchanged.
+- Raw connected-service activities must go through the same mapper, hidden-run, fragment, and consolidation rules before display that they use before persistence.
 
 ## Lesson Log
 
@@ -104,3 +105,10 @@ Trigger: Production syncNow processed only the newest Garmin run; Supabase syncN
 Lesson: generateRunReportIfMissing is idempotent for report generation, but processCompletedActivity still calls routeMatch and workout-completion on every run, so repeated calls for the same providerActivityID waste CPU and can produce redundant notifications.
 
 Future rule: Before calling processCompletedActivity in any Garmin sync path, filter out runs whose providerActivityID already exists in the local store.
+
+### 2026-05-15 - Connected-Service Lists Must Use Canonical Activity Rules
+Trigger: Garmin recent activity UI could show raw short fragments even though import/consolidation logic treated activities more carefully.
+
+Lesson: A raw provider row is not necessarily a user-visible workout; UI lists, report lists, and persistence need the same validity, hidden-run, dedupe, and fragment rules.
+
+Future rule: Never render connected-service activity rows directly from provider tables. Normalize to canonical `RecordedRun` candidates first, then map back to display rows only for surviving provider IDs.

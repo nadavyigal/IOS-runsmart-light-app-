@@ -140,14 +140,15 @@ final class RunSmartReadinessTests: XCTestCase {
         startTime: String,
         durationS: Double = 1_500,
         distanceM: Double = 5_000,
-        avgHr: Int? = nil
+        avgHr: Int? = nil,
+        sport: String? = "running"
     ) -> DBGarminActivity {
         DBGarminActivity(
             id: id,
             authUserId: UUID(uuidString: "11111111-1111-1111-1111-111111111111"),
             activityId: activityID,
             startTime: startTime,
-            sport: "running",
+            sport: sport,
             durationS: durationS,
             distanceM: distanceM,
             avgHr: avgHr,
@@ -687,6 +688,81 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(runs.first?.providerActivityID, "garmin-duplicate")
         XCTAssertEqual(runs.first?.averageHeartRateBPM, 151)
         XCTAssertEqual(routeLoadCount, 1)
+    }
+
+    func testGarminMapperRejectsInvalidAndNonRunningActivities() {
+        let valid = makeGarminActivity(
+            id: 8,
+            activityID: "valid-run",
+            startTime: "2026-05-14T06:00:00Z",
+            durationS: 3_128,
+            distanceM: 9_310,
+            avgHr: 142
+        )
+        let missingStart = makeGarminActivity(id: 9, activityID: "missing-start", startTime: "")
+        let missingDuration = makeGarminActivity(id: 10, activityID: "missing-duration", startTime: "2026-05-14T06:00:00Z", durationS: 0)
+        let nonRunning = makeGarminActivity(id: 11, activityID: "bike", startTime: "2026-05-14T06:00:00Z", sport: "cycling")
+        let missingProvider = makeGarminActivity(id: 12, activityID: "  ", startTime: "2026-05-14T06:00:00Z")
+
+        let run = valid.toRecordedRun()
+
+        XCTAssertEqual(run?.providerActivityID, "valid-run")
+        XCTAssertEqual(run?.source, .garmin)
+        XCTAssertEqual(run?.distanceMeters, 9_310)
+        XCTAssertEqual(run?.movingTimeSeconds, 3_128)
+        XCTAssertEqual(run?.averageHeartRateBPM, 142)
+        XCTAssertNil(missingStart.toRecordedRun())
+        XCTAssertNil(missingDuration.toRecordedRun())
+        XCTAssertNil(nonRunning.toRecordedRun())
+        XCTAssertNil(missingProvider.toRecordedRun())
+    }
+
+    func testGarminImportProcessorFiltersFragmentsNearLongerRun() async {
+        let realRun = makeGarminActivity(
+            id: 13,
+            activityID: "garmin-real-9k",
+            startTime: "2026-05-14T06:30:00Z",
+            durationS: 3_128,
+            distanceM: 9_310
+        )
+        let shortFragments = [
+            makeGarminActivity(id: 14, activityID: "fragment-17", startTime: "2026-05-14T06:20:00Z", durationS: 600, distanceM: 1_700),
+            makeGarminActivity(id: 15, activityID: "fragment-26", startTime: "2026-05-14T06:28:00Z", durationS: 900, distanceM: 2_600),
+            makeGarminActivity(id: 16, activityID: "fragment-27", startTime: "2026-05-14T06:34:00Z", durationS: 920, distanceM: 2_700)
+        ]
+
+        let runs = await GarminImportProcessor.normalizedRuns(
+            from: shortFragments + [realRun],
+            isHidden: { _ in false },
+            routePointLoader: { _ in [] }
+        )
+
+        XCTAssertEqual(runs.map(\.providerActivityID), ["garmin-real-9k"])
+    }
+
+    func testGarminImportProcessorKeepsSeparateShortRunOutsideLongRunWindow() async {
+        let shortRealRun = makeGarminActivity(
+            id: 17,
+            activityID: "short-real",
+            startTime: "2026-05-14T05:00:00Z",
+            durationS: 720,
+            distanceM: 1_800
+        )
+        let longerRun = makeGarminActivity(
+            id: 18,
+            activityID: "longer-real",
+            startTime: "2026-05-14T07:00:00Z",
+            durationS: 3_128,
+            distanceM: 9_310
+        )
+
+        let runs = await GarminImportProcessor.normalizedRuns(
+            from: [longerRun, shortRealRun],
+            isHidden: { _ in false },
+            routePointLoader: { _ in [] }
+        )
+
+        XCTAssertEqual(runs.map(\.providerActivityID), ["longer-real", "short-real"])
     }
 
     // MARK: - Story D: Garmin batch processing idempotency
@@ -1262,6 +1338,34 @@ final class RunSmartReadinessTests: XCTestCase {
 
         XCTAssertEqual(SupabaseRunSmartServices.reportRunID(for: healthOnly), SupabaseRunSmartServices.reportRunID(for: afterGarmin))
         XCTAssertEqual(afterGarmin.source, .garmin)
+    }
+
+    func testActivityConsolidationMergesRunSmartAndGarminWithinMorningWindow() {
+        let start = makeDate("2026-05-14").addingTimeInterval(6 * 3600 + 30 * 60)
+        let points = makeRoutePoints(count: 18)
+        let runSmart = makeRun(
+            source: .runSmart,
+            startedAt: start,
+            distanceMeters: 9_430,
+            movingTimeSeconds: 3_211,
+            routePoints: points
+        )
+        let garmin = makeRun(
+            providerActivityID: "garmin-real-morning",
+            source: .garmin,
+            startedAt: start.addingTimeInterval(24 * 60),
+            distanceMeters: 9_310,
+            movingTimeSeconds: 3_128,
+            heartRate: 142
+        )
+
+        let consolidated = ActivityConsolidationService.consolidatedRuns([runSmart, garmin])
+
+        XCTAssertEqual(consolidated.count, 1)
+        XCTAssertEqual(consolidated[0].source, .garmin)
+        XCTAssertEqual(consolidated[0].providerActivityID, "garmin-real-morning")
+        XCTAssertEqual(consolidated[0].averageHeartRateBPM, 142)
+        XCTAssertEqual(consolidated[0].routePoints, points)
     }
 
     func testWorkoutMatchSelectsSameDayIncompleteWorkout() {

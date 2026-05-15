@@ -1,6 +1,41 @@
 # Task State
 
 ## Current Task
+Critical TestFlight bug investigation in progress: recorded-run save/summary, Garmin import normalization, duplicate activity consolidation, and report save/fallback behavior. Route benchmark epic is paused until this is fixed.
+
+## Critical Bug - Run Save And Garmin Merge Investigation
+As a TestFlight runner, I want a real completed run to save once, display real metrics, merge with Garmin when it is the same workout, and produce a useful coach report so RunSmart activity history stays trustworthy.
+
+### Scope
+- Fix in-app run finish/save/report visibility issues.
+- Normalize Garmin activities before showing or processing them.
+- Merge/dedupe same-workout Garmin, HealthKit, and RunSmart runs.
+- Filter likely Garmin fragments without hiding separate real short runs.
+- Improve report/save failure messaging and deterministic report fallback.
+- Do not implement route benchmark epic work, new tabs, or screen redesigns.
+
+### Checklist
+- [x] Post-run summary shows actual distance, time, and pace for a valid recorded run.
+- [x] Done closes the post-run summary/sheet and the run remains visible.
+- [x] Garmin mapping rejects invalid/non-running records.
+- [x] Garmin fragments overlapping or adjacent to a longer real run do not appear as separate activities.
+- [x] Garmin + RunSmart versions of the same workout merge into one canonical activity.
+- [x] Run reports have useful deterministic coach notes if backend AI generation is unavailable.
+- [x] Save failure path has safer copy and debug diagnostics.
+- [x] Focused tests and simulator build pass.
+
+### Validation
+- Simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Focused run-save/Garmin merge regression tests passed on iPhone 17 simulator.
+- Nearby Garmin import, batch, and consolidation tests passed on iPhone 17 simulator.
+- Full test pass succeeded:
+  `xcodebuild -quiet -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,id=A24FA1E8-AD0C-46DB-85B7-651A24B1BB38" test`
+- Manual physical-device GPS/Garmin TestFlight QA still required.
+
+---
+
+## Previous Task
 Stories A, B, C, and D are all implemented. Physical-device QA (Story E) remains before TestFlight.
 
 ## Story A - Backend Route Persistence - Implemented
