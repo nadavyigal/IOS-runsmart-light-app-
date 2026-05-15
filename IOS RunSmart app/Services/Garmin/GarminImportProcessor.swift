@@ -38,4 +38,28 @@ enum GarminImportProcessor {
             routePointLoader: routePointLoader
         ).first
     }
+
+    static func normalizedActivities(
+        from activities: [DBGarminActivity],
+        isHidden: HiddenRunChecker
+    ) -> [DBGarminActivity] {
+        let visibleRuns = activities
+            .compactMap { $0.toRecordedRun() }
+            .filter { !isHidden($0) }
+        let visibleProviderIDs = Set(
+            ActivityConsolidationService
+                .consolidatedRuns(visibleRuns)
+                .compactMap(\.providerActivityID)
+        )
+        var seen = Set<String>()
+        return activities
+            .filter { activity in
+                guard visibleProviderIDs.contains(activity.activityId), !seen.contains(activity.activityId) else { return false }
+                seen.insert(activity.activityId)
+                return true
+            }
+            .sorted { lhs, rhs in
+                (lhs.startDate ?? .distantPast) > (rhs.startDate ?? .distantPast)
+            }
+    }
 }

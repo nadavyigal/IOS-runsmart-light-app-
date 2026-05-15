@@ -432,9 +432,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     private func recentRuns(limit: Int) async -> [RecordedRun] {
         var runs = store.visibleRuns(store.loadRuns())
         if let userID = currentUserID {
-            let garminRuns = store.visibleRuns(await GarminBridge.shared
-                .recentActivities(authUserID: userID, limit: limit)
-                .compactMap { $0.toRecordedRun() })
+            let activities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: limit * 2)
+            let garminRuns = await GarminImportProcessor.normalizedRuns(
+                from: activities,
+                isHidden: store.isRunHidden,
+                routePointLoader: { _ in [] }
+            )
             runs.append(contentsOf: garminRuns)
         }
 
@@ -852,13 +855,15 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             return existing
         }
 
+        let recent = Array((await recentRuns()).prefix(5))
+        let upcoming = Array((await nextWorkouts(limit: 3)))
+        let fallback = Self.fallbackRunReport(for: run, recentRuns: recent, upcomingWorkouts: upcoming)
         guard let token = try? await supabase.auth.session.accessToken else {
-            return nil
+            store.saveRunReport(fallback)
+            return fallback
         }
 
         do {
-            let recent = Array((await recentRuns()).prefix(5))
-            let upcoming = Array((await nextWorkouts(limit: 3)))
             let request = Self.reportRequest(for: run, recentRuns: recent, upcomingWorkouts: upcoming)
             let encoder = JSONEncoder()
             let body = try encoder.encode(request)
@@ -877,7 +882,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             if !(error is CancellationError) {
                 print("[SupabaseServices] run report generation error:", error)
             }
-            return nil
+            store.saveRunReport(fallback)
+            return fallback
         }
     }
 
@@ -890,6 +896,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
         let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: await recentRuns(limit: 100)))
+        await upsertCompletedRunIfPossible(canonical)
         store.refreshBenchmarkStats()
         async let reportTask = generateRunReportIfMissing(for: canonical)
         async let completedTask = completeMatchingWorkout(for: canonical)
@@ -1133,6 +1140,32 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     private func completeMatchingWorkout(for run: RecordedRun) async -> WorkoutSummary? {
         guard let userID = currentUserID else { return nil }
         return await planRepo.completeBestMatchingWorkout(authUserID: userID, for: run)
+    }
+
+    private func upsertCompletedRunIfPossible(_ run: RecordedRun) async {
+        guard let userID = currentUserID else { return }
+        let identity = await planRepo.identity(authUserID: userID)
+        guard let profileID = identity.numericUserID else {
+            print("[SupabaseServices] completed run local-only: missing numeric profile id")
+            return
+        }
+
+        do {
+            try await supabase
+                .from("runs")
+                .upsert(
+                    DBRunInsert(run: run, profileID: profileID, kind: .easy, notes: "Completed activity from \(run.source.rawValue)"),
+                    onConflict: "source_provider,source_activity_id"
+                )
+                .execute()
+            var synced = run
+            synced.syncedAt = Date()
+            store.saveRun(synced)
+        } catch {
+            if !(error is CancellationError) {
+                print("[SupabaseServices] completed run upsert error:", error)
+            }
+        }
     }
 
     private func upsertHealthKitRuns(_ runs: [RecordedRun]) async -> Int {
@@ -1562,6 +1595,78 @@ extension SupabaseRunSmartServices {
             structuredNextWorkout: nil,
             isGenerated: false
         )
+    }
+
+    static func fallbackRunReport(
+        for run: RecordedRun,
+        recentRuns: [RecordedRun],
+        upcomingWorkouts: [WorkoutSummary]
+    ) -> RunReportDetail {
+        let runID = reportRunID(for: run)
+        let distanceKm = run.distanceMeters / 1_000
+        let pace = RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm)
+        let effort = fallbackEffort(for: run)
+        let planned = upcomingWorkouts.first { Calendar.current.isDate($0.scheduledDate, inSameDayAs: run.startedAt) }
+        let nextWorkout = upcomingWorkouts.first { $0.scheduledDate > run.startedAt } ?? upcomingWorkouts.first
+        let comparison: String
+        if let planned {
+            comparison = "Compared with today's planned \(planned.title), this completed \(String(format: "%.1f", distanceKm)) km run gives the plan real activity data to work from."
+        } else {
+            comparison = "No planned workout was close enough to mark complete, so this counts as an extra completed run in your recent load."
+        }
+        let recentKm = recentRuns.reduce(0.0) { $0 + $1.distanceMeters } / 1_000
+
+        return RunReportDetail(
+            id: "report-\(runID)",
+            runID: runID,
+            title: "\(run.source.rawValue) Run Report",
+            dateLabel: run.startedAt.formatted(date: .abbreviated, time: .omitted),
+            source: run.source.rawValue,
+            distance: String(format: "%.2f km", distanceKm),
+            duration: RunRecorder.timeLabel(run.movingTimeSeconds),
+            averagePace: pace,
+            averageHeartRate: run.averageHeartRateBPM.map { "\($0) bpm" } ?? "—",
+            coachScore: nil,
+            notes: CoachRunNotes(
+                summary: "Completed \(String(format: "%.1f", distanceKm)) km in \(RunRecorder.timeLabel(run.movingTimeSeconds)) at \(pace)/km. \(comparison)",
+                effort: "Effort looks \(effort) from pace, duration, and distance. Use how it felt to adjust the next session if needed.",
+                recovery: "This adds to recent load (\(String(format: "%.1f", recentKm)) km in the current report context). Keep the next run controlled if legs feel heavy.",
+                nextSessionNudge: nextWorkout.map { "Next recommended: \($0.title), \($0.distance)." } ?? "Next recommended: an easy aerobic run or recovery day based on how you feel tomorrow.",
+                keyInsights: [
+                    "Benefit: aerobic endurance and weekly consistency.",
+                    planned == nil ? "Plan impact: logged as extra training load." : "Plan impact: compared against today's planned workout.",
+                    nextWorkout.map { "Next: \($0.title)." } ?? "Next: keep effort easy unless recovery is strong."
+                ],
+                pacing: "Average pace: \(pace)/km.",
+                biomechanics: nil,
+                recoveryTimeline: [
+                    "Today: hydrate and refuel.",
+                    "Next 24h: choose easy effort if soreness is elevated."
+                ]
+            ),
+            structuredNextWorkout: nextWorkout.map {
+                StructuredNextWorkout(
+                    title: $0.title,
+                    dateLabel: $0.scheduledDate.formatted(date: .abbreviated, time: .omitted),
+                    distance: $0.distance,
+                    target: $0.intensity ?? $0.detail,
+                    notes: "Recommended from deterministic RunSmart report fallback."
+                )
+            },
+            isGenerated: true
+        )
+    }
+
+    private static func fallbackEffort(for run: RecordedRun) -> String {
+        let pace = run.averagePaceSecondsPerKm
+        if let heartRate = run.averageHeartRateBPM {
+            if heartRate >= 165 { return "hard" }
+            if heartRate >= 145 { return "moderate" }
+            return "easy"
+        }
+        if pace <= 300 || run.movingTimeSeconds >= 75 * 60 { return "moderate" }
+        if pace >= 420 { return "easy" }
+        return "steady"
     }
 
     static func report(from insight: DBAIInsight, run: RecordedRun) -> RunReportDetail? {
