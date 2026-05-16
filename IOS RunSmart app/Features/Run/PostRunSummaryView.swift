@@ -47,7 +47,7 @@ struct PostRunSummaryView: View {
                 SplitPreviewCard(splits: splitRows)
                 RecoveryPlanCard()
 
-                if let run, !run.routePoints.isEmpty {
+                if let run, run.routePoints.count >= RouteMatchingService.minimumRoutePoints {
                     Button {
                         showSaveRouteSheet = true
                     } label: {
@@ -194,6 +194,12 @@ private struct PostActivityPlanCard: View {
                             }
                             .buttonStyle(.plain)
                             .disabled(isSavingSuggestedWorkout || saveState == .saved)
+
+                            if saveState == .failed {
+                                Text(saveFailureMessage)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.accentHeart)
+                            }
                         }
                     } else {
                         PostRunDetailLine(label: "Next Run", value: report.notes.nextSessionNudge)
@@ -222,6 +228,14 @@ private struct PostActivityPlanCard: View {
             return "Matched to \(workout.title) on your training plan and marked complete. Future suggested workouts still wait for your approval."
         }
         return "No scheduled workout was close enough to mark complete, so this stays as an extra run in your training history."
+    }
+
+    private var saveFailureMessage: String {
+#if DEBUG
+        return "Could not add this suggested workout to your training plan. Your run report is saved. Check the Xcode console for [TrainingPlanRepo] saveSuggestedWorkout details."
+#else
+        return "Could not add this suggested workout to your training plan. Your run report is saved; check your connection and try again."
+#endif
     }
 
     private func save(_ next: StructuredNextWorkout, report: RunReportDetail) async {

@@ -38,6 +38,31 @@ Implemented Story: Unified Training Context + AI Coach Context Integration.
 ### Next Recommended Action
 Complete the still-open physical-device outdoor/background/battery QA before external TestFlight. A future backend story can replace the deterministic Coach fallback with an authenticated AI Coach endpoint using `TrainingContextSnapshot` as the native source contract.
 
+## 2026-05-16
+
+### Task Summary
+Committed the unified training context story, opened the GitHub PR, merged the base branch into `routes`, and resolved Agent OS status-file conflicts.
+
+### Files Changed
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Kept the story commit scoped to the Coach/training context files.
+- Merged `origin/runsmart-lite-build` into `routes` because the PR initially reported conflicts against the default branch.
+- Resolved conflicts by preserving the completed Coach story, base run-save/Garmin fix status, and the still-open physical-device QA blocker.
+
+### Validation
+- PR #13 opened from `routes` to `runsmart-lite-build`.
+- PR rebuild passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Installed and launched the rebuilt simulator app on the booted iPhone 17 Pro:
+  `xcrun simctl install booted ".../IOS RunSmart app.app" && xcrun simctl launch booted com.runsmart.lite`
+
+### Next Recommended Action
+Review the PR and complete the physical-device outdoor/background/battery QA before external TestFlight.
+
 ## 2026-05-15
 
 ### Task Summary
@@ -126,6 +151,46 @@ Used the Agent OS to triage the remaining open task notes after Story 10.
 
 ### Next Recommended Action
 Run the physical-device outdoor recording check for background continuation and battery delta before external TestFlight.
+
+## 2026-05-15
+
+### Task Summary
+Investigated and fixed the critical TestFlight run persistence/Garmin import issue on `fix/run-save-garmin-merge-investigation`.
+
+### Files Changed
+- `IOS RunSmart app/Services/Garmin/GarminMappers.swift`
+- `IOS RunSmart app/Services/Garmin/GarminImportProcessor.swift`
+- `IOS RunSmart app/Services/ActivityConsolidationService.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Features/Run/PostRunSummaryView.swift`
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Kept route benchmark epic work paused; only touched activity save/import/report behavior.
+- Treated Garmin import display and persistence as the same normalization problem: only valid running activities with provider IDs, valid start time, duration, and distance can map to `RecordedRun`.
+- Added fragment filtering for short Garmin activities that overlap or sit directly beside a longer Garmin run from the same period, while preserving separate short real runs outside that window.
+- Relaxed same-workout merge tolerances so RunSmart GPS and Garmin versions of the same morning run can consolidate even when starts differ by up to 30 minutes.
+- Added deterministic run-report fallback notes when backend AI report generation is unavailable, and kept local-first save behavior instead of pretending remote sync succeeded.
+- Changed suggested-workout save failure copy so it does not imply the activity/report failed to save.
+
+### Validation
+- Simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Focused regression tests passed:
+  Garmin mapper validation, Garmin fragment filtering, short-real-run preservation, and RunSmart/Garmin merge.
+- Nearby Garmin/import/consolidation tests passed.
+- Full iPhone 17 simulator test pass succeeded:
+  `xcodebuild -quiet -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,id=A24FA1E8-AD0C-46DB-85B7-651A24B1BB38" test`
+
+### Remaining Manual QA
+- Record a short outdoor GPS run on a physical device.
+- Pause, resume, finish, and confirm the summary metrics and Done behavior.
+- Sync Garmin and confirm one canonical activity appears in Report/Recent Runs.
+- Confirm suspected Garmin fragments do not appear as separate runs.
+- Confirm any suggested-workout save failure names the plan-save problem and leaves the report visible.
 
 ## 2026-05-12
 

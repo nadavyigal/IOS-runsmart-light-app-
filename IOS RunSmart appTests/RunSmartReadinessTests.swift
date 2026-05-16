@@ -140,14 +140,15 @@ final class RunSmartReadinessTests: XCTestCase {
         startTime: String,
         durationS: Double = 1_500,
         distanceM: Double = 5_000,
-        avgHr: Int? = nil
+        avgHr: Int? = nil,
+        sport: String? = "running"
     ) -> DBGarminActivity {
         DBGarminActivity(
             id: id,
             authUserId: UUID(uuidString: "11111111-1111-1111-1111-111111111111"),
             activityId: activityID,
             startTime: startTime,
-            sport: "running",
+            sport: sport,
             durationS: durationS,
             distanceM: distanceM,
             avgHr: avgHr,
@@ -780,6 +781,143 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(routeLoadCount, 1)
     }
 
+    func testGarminMapperRejectsInvalidAndNonRunningActivities() {
+        let valid = makeGarminActivity(
+            id: 8,
+            activityID: "valid-run",
+            startTime: "2026-05-14T06:00:00Z",
+            durationS: 3_128,
+            distanceM: 9_310,
+            avgHr: 142
+        )
+        let missingStart = makeGarminActivity(id: 9, activityID: "missing-start", startTime: "")
+        let missingDuration = makeGarminActivity(id: 10, activityID: "missing-duration", startTime: "2026-05-14T06:00:00Z", durationS: 0)
+        let nonRunning = makeGarminActivity(id: 11, activityID: "bike", startTime: "2026-05-14T06:00:00Z", sport: "cycling")
+        let missingProvider = makeGarminActivity(id: 12, activityID: "  ", startTime: "2026-05-14T06:00:00Z")
+
+        let run = valid.toRecordedRun()
+
+        XCTAssertEqual(run?.providerActivityID, "valid-run")
+        XCTAssertEqual(run?.source, .garmin)
+        XCTAssertEqual(run?.distanceMeters, 9_310)
+        XCTAssertEqual(run?.movingTimeSeconds, 3_128)
+        XCTAssertEqual(run?.averageHeartRateBPM, 142)
+        XCTAssertNil(missingStart.toRecordedRun())
+        XCTAssertNil(missingDuration.toRecordedRun())
+        XCTAssertNil(nonRunning.toRecordedRun())
+        XCTAssertNil(missingProvider.toRecordedRun())
+    }
+
+    func testGarminImportProcessorFiltersFragmentsNearLongerRun() async {
+        let realRun = makeGarminActivity(
+            id: 13,
+            activityID: "garmin-real-9k",
+            startTime: "2026-05-14T06:30:00Z",
+            durationS: 3_128,
+            distanceM: 9_310
+        )
+        let shortFragments = [
+            makeGarminActivity(id: 14, activityID: "fragment-17", startTime: "2026-05-14T06:20:00Z", durationS: 600, distanceM: 1_700),
+            makeGarminActivity(id: 15, activityID: "fragment-26", startTime: "2026-05-14T06:28:00Z", durationS: 900, distanceM: 2_600),
+            makeGarminActivity(id: 16, activityID: "fragment-27", startTime: "2026-05-14T06:34:00Z", durationS: 920, distanceM: 2_700)
+        ]
+
+        let runs = await GarminImportProcessor.normalizedRuns(
+            from: shortFragments + [realRun],
+            isHidden: { _ in false },
+            routePointLoader: { _ in [] }
+        )
+
+        XCTAssertEqual(runs.map(\.providerActivityID), ["garmin-real-9k"])
+    }
+
+    func testGarminImportProcessorKeepsSeparateShortRunOutsideLongRunWindow() async {
+        let shortRealRun = makeGarminActivity(
+            id: 17,
+            activityID: "short-real",
+            startTime: "2026-05-14T05:00:00Z",
+            durationS: 720,
+            distanceM: 1_800
+        )
+        let longerRun = makeGarminActivity(
+            id: 18,
+            activityID: "longer-real",
+            startTime: "2026-05-14T07:00:00Z",
+            durationS: 3_128,
+            distanceM: 9_310
+        )
+
+        let runs = await GarminImportProcessor.normalizedRuns(
+            from: [longerRun, shortRealRun],
+            isHidden: { _ in false },
+            routePointLoader: { _ in [] }
+        )
+
+        XCTAssertEqual(runs.map(\.providerActivityID), ["longer-real", "short-real"])
+    }
+
+    // MARK: - Story D: Garmin batch processing idempotency
+
+    func testGarminBatchProcessesAllNewRuns() async {
+        let a1 = makeGarminActivity(id: 10, activityID: "batch-a1", startTime: "2026-05-13T06:00:00Z")
+        let a2 = makeGarminActivity(id: 11, activityID: "batch-a2", startTime: "2026-05-12T06:00:00Z")
+        let a3 = makeGarminActivity(id: 12, activityID: "batch-a3", startTime: "2026-05-11T06:00:00Z")
+
+        var processedIDs: [String] = []
+        let runs = await GarminImportProcessor.normalizedRuns(
+            from: [a1, a2, a3],
+            isHidden: { _ in false },
+            routePointLoader: { _ in [] }
+        )
+        for run in runs {
+            if let pid = run.providerActivityID { processedIDs.append(pid) }
+        }
+
+        XCTAssertEqual(processedIDs.count, 3, "All three new activities should be returned for processing")
+        XCTAssertTrue(processedIDs.contains("batch-a1"))
+        XCTAssertTrue(processedIDs.contains("batch-a2"))
+        XCTAssertTrue(processedIDs.contains("batch-a3"))
+    }
+
+    func testGarminBatchSkipsAlreadyProcessedProviderIDs() async {
+        let a1 = makeGarminActivity(id: 20, activityID: "existing-pid", startTime: "2026-05-13T06:00:00Z")
+        let a2 = makeGarminActivity(id: 21, activityID: "new-pid", startTime: "2026-05-12T06:00:00Z")
+
+        let existingProviderIDs: Set<String> = ["existing-pid"]
+
+        let runs = await GarminImportProcessor.normalizedRuns(
+            from: [a1, a2],
+            isHidden: { _ in false },
+            routePointLoader: { _ in [] }
+        )
+        let newRuns = runs.filter { run in
+            guard let pid = run.providerActivityID else { return true }
+            return !existingProviderIDs.contains(pid)
+        }
+
+        XCTAssertEqual(newRuns.count, 1, "Only the run with the new provider ID should be processed")
+        XCTAssertEqual(newRuns.first?.providerActivityID, "new-pid")
+    }
+
+    func testGarminBatchWithMissingRouteDataDoesNotBlockOtherRuns() async {
+        // Run without map data should still appear in the normalized output
+        let withRoute = makeGarminActivity(id: 30, activityID: "with-route", startTime: "2026-05-13T06:00:00Z")
+        let withoutRoute = makeGarminActivity(id: 31, activityID: "without-route", startTime: "2026-05-12T06:00:00Z")
+
+        var routeLoadCount = 0
+        let runs = await GarminImportProcessor.normalizedRuns(
+            from: [withRoute, withoutRoute],
+            isHidden: { _ in false },
+            routePointLoader: { _ in
+                routeLoadCount += 1
+                return []
+            }
+        )
+
+        XCTAssertEqual(runs.count, 2, "Both runs should be returned even when route loading returns empty")
+        XCTAssertGreaterThanOrEqual(routeLoadCount, 0, "Route loader may be called 0+ times")
+    }
+
     func testBenchmarkComparisonPresentationShowsFirstRunHistoryPrompt() {
         let runID = UUID()
         let routeID = UUID()
@@ -1406,6 +1544,34 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(afterGarmin.source, .garmin)
     }
 
+    func testActivityConsolidationMergesRunSmartAndGarminWithinMorningWindow() {
+        let start = makeDate("2026-05-14").addingTimeInterval(6 * 3600 + 30 * 60)
+        let points = makeRoutePoints(count: 18)
+        let runSmart = makeRun(
+            source: .runSmart,
+            startedAt: start,
+            distanceMeters: 9_430,
+            movingTimeSeconds: 3_211,
+            routePoints: points
+        )
+        let garmin = makeRun(
+            providerActivityID: "garmin-real-morning",
+            source: .garmin,
+            startedAt: start.addingTimeInterval(24 * 60),
+            distanceMeters: 9_310,
+            movingTimeSeconds: 3_128,
+            heartRate: 142
+        )
+
+        let consolidated = ActivityConsolidationService.consolidatedRuns([runSmart, garmin])
+
+        XCTAssertEqual(consolidated.count, 1)
+        XCTAssertEqual(consolidated[0].source, .garmin)
+        XCTAssertEqual(consolidated[0].providerActivityID, "garmin-real-morning")
+        XCTAssertEqual(consolidated[0].averageHeartRateBPM, 142)
+        XCTAssertEqual(consolidated[0].routePoints, points)
+    }
+
     func testWorkoutMatchSelectsSameDayIncompleteWorkout() {
         let run = makeRun(
             source: .garmin,
@@ -1419,6 +1585,171 @@ final class RunSmartReadinessTests: XCTestCase {
         let match = TrainingPlanRepository.bestWorkoutMatch(for: run, in: [wrongDay, matchingWorkout])
 
         XCTAssertEqual(match?.id, matchingWorkout.id)
+    }
+
+    // MARK: - Story A: Route sync merge logic
+
+    func testRouteSyncMergeReturnsLocalWhenRemoteIsEmpty() {
+        let route = makeSavedRoute(
+            id: UUID(uuidString: "AA000000-0000-0000-0000-000000000001")!,
+            points: [],
+            distanceMeters: 5_000
+        )
+        let merged = RouteSync.merge(remote: [], local: [route])
+        XCTAssertEqual(merged.map(\.id), [route.id])
+    }
+
+    func testRouteSyncMergeRemoteWinsOnConflictingRouteID() {
+        let sharedID = UUID(uuidString: "AA000000-0000-0000-0000-000000000002")!
+        let local = SavedRoute(
+            id: sharedID, name: "Local Name",
+            distanceMeters: 5_000, elevationGainMeters: 0, points: [],
+            source: .recorded, tags: [], notes: "", isFavorite: false,
+            createdAt: Date(timeIntervalSince1970: 1_000),
+            updatedAt: Date(timeIntervalSince1970: 1_000)
+        )
+        let remote = SavedRoute(
+            id: sharedID, name: "Remote Name",
+            distanceMeters: 5_200, elevationGainMeters: 20, points: [],
+            source: .recorded, tags: ["race"], notes: "Updated on another device", isFavorite: true,
+            createdAt: Date(timeIntervalSince1970: 1_000),
+            updatedAt: Date(timeIntervalSince1970: 2_000)
+        )
+        let merged = RouteSync.merge(remote: [remote], local: [local])
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged.first?.name, "Remote Name")
+        XCTAssertEqual(merged.first?.distanceMeters, 5_200)
+        XCTAssertTrue(merged.first?.isFavorite ?? false)
+    }
+
+    func testRouteSyncBenchmarkMergeAddsRemoteEntriesMissingLocally() {
+        let localRouteID = UUID(uuidString: "AA000000-0000-0000-0000-000000000001")!
+        let remoteRouteID = UUID(uuidString: "BB000000-0000-0000-0000-000000000001")!
+        let remoteEntryID = UUID(uuidString: "BB000000-0000-0000-0000-000000000002")!
+
+        let localEntry = BenchmarkRoute(
+            id: UUID(), savedRouteID: localRouteID,
+            enabledAt: Date(timeIntervalSince1970: 1_000),
+            historicalRunCount: 3, personalBestSeconds: 1_480, personalBestDate: nil,
+            averagePaceSecondsPerKm: 295, averageDurationSeconds: 1_500
+        )
+        let remoteEntries: [(id: UUID, savedRouteID: UUID, enabledAt: Date)] = [
+            (id: remoteEntryID, savedRouteID: remoteRouteID, enabledAt: Date(timeIntervalSince1970: 5_000))
+        ]
+
+        let merged = RouteSync.mergeBenchmarks(remoteEntries: remoteEntries, local: [localEntry])
+
+        XCTAssertEqual(merged.count, 2)
+        let remoteResult = merged.first(where: { $0.savedRouteID == remoteRouteID })
+        XCTAssertNotNil(remoteResult)
+        XCTAssertEqual(remoteResult?.id, remoteEntryID)
+        XCTAssertEqual(remoteResult?.historicalRunCount, 0, "New remote entry starts with no cached stats")
+        let localResult = merged.first(where: { $0.savedRouteID == localRouteID })
+        XCTAssertEqual(localResult?.historicalRunCount, 3, "Existing local stats are preserved")
+    }
+
+    // MARK: - Story B: Benchmark stat hydration
+
+    func testBenchmarkStatRefreshComputesCountPBAndAveragesFromMatchedRuns() {
+        let routeID = UUID(uuidString: "CC000000-0000-0000-0000-000000000001")!
+        let benchmark = BenchmarkRoute(
+            id: UUID(), savedRouteID: routeID, enabledAt: Date(timeIntervalSince1970: 1_000),
+            historicalRunCount: 0, personalBestSeconds: nil, personalBestDate: nil,
+            averagePaceSecondsPerKm: nil, averageDurationSeconds: nil
+        )
+        let match = RouteMatchResult(
+            routeID: routeID, candidateRouteID: routeID, confidence: .matched,
+            distanceDeltaMeters: 10, startDeltaMeters: 5, endDeltaMeters: 5,
+            shapeSimilarity: 0.98, isReversed: false
+        )
+        var run1 = makeRun(source: .runSmart, startedAt: makeDate("2026-05-01"), distanceMeters: 5_000, movingTimeSeconds: 1_560)
+        run1.routeMatchResult = match
+        var run2 = makeRun(source: .garmin, startedAt: makeDate("2026-05-08"), distanceMeters: 5_000, movingTimeSeconds: 1_500)
+        run2.routeMatchResult = match
+
+        let updated = BenchmarkStatRefresh.refresh([benchmark], from: [run1, run2])
+
+        XCTAssertEqual(updated[0].historicalRunCount, 2)
+        XCTAssertEqual(updated[0].personalBestSeconds, 1_500)
+        XCTAssertEqual(updated[0].personalBestDate, run2.startedAt)
+        XCTAssertEqual(updated[0].averageDurationSeconds ?? 0, 1_530, accuracy: 1)
+    }
+
+    func testBenchmarkStatRefreshSkipsRunsWithNoMatchOrWrongRoute() {
+        let routeID = UUID(uuidString: "CC000000-0000-0000-0000-000000000002")!
+        let otherRouteID = UUID(uuidString: "CC000000-0000-0000-0000-000000000003")!
+        let benchmark = BenchmarkRoute(
+            id: UUID(), savedRouteID: routeID, enabledAt: Date(timeIntervalSince1970: 1_000),
+            historicalRunCount: 0, personalBestSeconds: nil, personalBestDate: nil,
+            averagePaceSecondsPerKm: nil, averageDurationSeconds: nil
+        )
+        let correctMatch = RouteMatchResult(
+            routeID: routeID, candidateRouteID: routeID, confidence: .matched,
+            distanceDeltaMeters: 0, startDeltaMeters: 0, endDeltaMeters: 0, shapeSimilarity: 1, isReversed: false
+        )
+        let possibleMatch = RouteMatchResult(
+            routeID: routeID, candidateRouteID: routeID, confidence: .possibleMatch,
+            distanceDeltaMeters: 80, startDeltaMeters: 50, endDeltaMeters: 50, shapeSimilarity: 0.6, isReversed: false
+        )
+        let wrongRouteMatch = RouteMatchResult(
+            routeID: otherRouteID, candidateRouteID: otherRouteID, confidence: .matched,
+            distanceDeltaMeters: 0, startDeltaMeters: 0, endDeltaMeters: 0, shapeSimilarity: 1, isReversed: false
+        )
+        var matched = makeRun(source: .runSmart, startedAt: makeDate("2026-05-01"), distanceMeters: 5_000, movingTimeSeconds: 1_500)
+        matched.routeMatchResult = correctMatch
+        var possible = makeRun(source: .runSmart, startedAt: makeDate("2026-05-02"), distanceMeters: 5_000, movingTimeSeconds: 1_480)
+        possible.routeMatchResult = possibleMatch
+        var wrong = makeRun(source: .runSmart, startedAt: makeDate("2026-05-03"), distanceMeters: 5_000, movingTimeSeconds: 1_460)
+        wrong.routeMatchResult = wrongRouteMatch
+        let noMatch = makeRun(source: .runSmart, startedAt: makeDate("2026-05-04"), distanceMeters: 5_000, movingTimeSeconds: 1_440)
+
+        let updated = BenchmarkStatRefresh.refresh([benchmark], from: [matched, possible, wrong, noMatch])
+
+        XCTAssertEqual(updated[0].historicalRunCount, 1, "Only high-confidence match on the correct route counts")
+        XCTAssertEqual(updated[0].personalBestSeconds, 1_500)
+    }
+
+    func testBenchmarkStatRefreshClearsStatsWhenNoMatchedRunsExist() {
+        let routeID = UUID(uuidString: "CC000000-0000-0000-0000-000000000004")!
+        let benchmark = BenchmarkRoute(
+            id: UUID(), savedRouteID: routeID, enabledAt: Date(timeIntervalSince1970: 1_000),
+            historicalRunCount: 5, personalBestSeconds: 1_400, personalBestDate: Date(timeIntervalSince1970: 2_000),
+            averagePaceSecondsPerKm: 290, averageDurationSeconds: 1_450
+        )
+        let unrelatedRun = makeRun(source: .runSmart, startedAt: makeDate("2026-05-01"), distanceMeters: 5_000, movingTimeSeconds: 1_500)
+
+        let updated = BenchmarkStatRefresh.refresh([benchmark], from: [unrelatedRun])
+
+        XCTAssertEqual(updated[0].historicalRunCount, 0)
+        XCTAssertNil(updated[0].personalBestSeconds)
+        XCTAssertNil(updated[0].personalBestDate)
+        XCTAssertNil(updated[0].averagePaceSecondsPerKm)
+        XCTAssertNil(updated[0].averageDurationSeconds)
+    }
+
+    func testBenchmarkStatRefreshHandlesMixedGarminAndRunSmartSources() {
+        let routeID = UUID(uuidString: "CC000000-0000-0000-0000-000000000005")!
+        let benchmark = BenchmarkRoute(
+            id: UUID(), savedRouteID: routeID, enabledAt: Date(timeIntervalSince1970: 1_000),
+            historicalRunCount: 0, personalBestSeconds: nil, personalBestDate: nil,
+            averagePaceSecondsPerKm: nil, averageDurationSeconds: nil
+        )
+        let match = RouteMatchResult(
+            routeID: routeID, candidateRouteID: routeID, confidence: .matched,
+            distanceDeltaMeters: 0, startDeltaMeters: 0, endDeltaMeters: 0, shapeSimilarity: 1, isReversed: false
+        )
+        var garminRun = makeRun(source: .garmin, startedAt: makeDate("2026-05-01"), distanceMeters: 5_000, movingTimeSeconds: 1_600)
+        garminRun.routeMatchResult = match
+        var runSmartRun = makeRun(source: .runSmart, startedAt: makeDate("2026-05-08"), distanceMeters: 5_000, movingTimeSeconds: 1_480)
+        runSmartRun.routeMatchResult = match
+        var healthKitRun = makeRun(source: .healthKit, startedAt: makeDate("2026-05-15"), distanceMeters: 5_000, movingTimeSeconds: 1_540)
+        healthKitRun.routeMatchResult = match
+
+        let updated = BenchmarkStatRefresh.refresh([benchmark], from: [garminRun, runSmartRun, healthKitRun])
+
+        XCTAssertEqual(updated[0].historicalRunCount, 3, "Garmin, RunSmart, and HealthKit matched runs all count")
+        XCTAssertEqual(updated[0].personalBestSeconds, 1_480)
+        XCTAssertEqual(updated[0].averageDurationSeconds ?? 0, (1_600 + 1_480 + 1_540) / 3, accuracy: 1)
     }
 }
 

@@ -15,6 +15,9 @@ struct SaveRouteSheet: View {
     @State private var saveResult: SaveResult?
 
     private let availableTags = ["Easy", "Workout", "Hilly", "Flat", "Scenic", "Loop", "Out & Back", "Race Prep"]
+    private var hasEnoughRouteData: Bool {
+        run.routePoints.count >= RouteMatchingService.minimumRoutePoints
+    }
 
     var body: some View {
         NavigationStack {
@@ -64,7 +67,7 @@ struct SaveRouteSheet: View {
                                 .fontWeight(.semibold)
                         }
                     }
-                    .disabled(routeName.trimmingCharacters(in: .whitespaces).isEmpty || isSaving || saveResult == .saved)
+                    .disabled(routeName.trimmingCharacters(in: .whitespaces).isEmpty || !hasEnoughRouteData || isSaving || saveResult == .saved)
                 }
             }
         }
@@ -226,7 +229,7 @@ struct SaveRouteSheet: View {
         HStack(spacing: 10) {
             Image(systemName: result == .saved ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .foregroundStyle(result == .saved ? Color.accentSuccess : Color.accentHeart)
-            Text(result == .saved ? "Route saved to your library." : "Failed to save. Try again.")
+            Text(result.message)
                 .font(.bodyMD)
                 .foregroundStyle(result == .saved ? Color.accentSuccess : Color.accentHeart)
             Spacer()
@@ -248,6 +251,10 @@ struct SaveRouteSheet: View {
     private func save() async {
         let trimmedName = routeName.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return }
+        guard hasEnoughRouteData else {
+            saveResult = .insufficientData
+            return
+        }
 
         isSaving = true
         defer { isSaving = false }
@@ -271,6 +278,18 @@ struct SaveRouteSheet: View {
     enum SaveResult {
         case saved
         case failed
+        case insufficientData
+
+        var message: String {
+            switch self {
+            case .saved:
+                return "Route saved to your library."
+            case .failed:
+                return "Failed to save. Try again."
+            case .insufficientData:
+                return "This activity does not have enough GPS points to save as a repeatable route."
+            }
+        }
     }
 }
 

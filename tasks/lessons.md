@@ -21,6 +21,8 @@ Review this file at the start of future tasks.
 - If a simulator XCTest run stalls during launch, stop it, record the exact launch error, and keep the completed build as separate validation instead of claiming a test pass.
 - For physical-device QA, confirm the device is unlocked and capture starting battery percentage before attempting app launch; build/install success is not launch, outdoor, background, or battery evidence.
 - Do not put awaited fallback calls inside nil-coalescing expressions; branch explicitly before `await` because `??` uses a synchronous autoclosure.
+- Route discovery controls must connect to service behavior or clearly present as unavailable; do not ship decorative filters that leave results unchanged.
+- Raw connected-service activities must go through the same mapper, hidden-run, fragment, and consolidation rules before display that they use before persistence.
 
 ## Lesson Log
 
@@ -114,3 +116,31 @@ Trigger: The first focused training-context test build failed because `trainingC
 Lesson: Swift async fallback work needs an explicit branch before awaiting.
 
 Future rule: Do not put awaited fallback calls inside nil-coalescing expressions; branch explicitly before `await` because `??` uses a synchronous autoclosure.
+
+### 2026-05-14 - Route Discovery Controls Need Real Wiring
+Trigger: QA found Route Creator elevation/surface controls and generated-route buckets that did not affect loaded suggestions.
+
+Lesson: Premium route UI loses trust quickly when controls look functional but are disconnected from route generation/ranking.
+
+Future rule: For discovery/filter controls, verify each visible control changes service inputs, ranking, or explicit unavailable-state copy before marking the story complete.
+
+### 2026-05-14 - MapKit Failure Should Not Hide Saved Routes
+Trigger: First draft of MapKit failure state replaced the entire route list, hiding saved/past routes that were still available.
+
+Lesson: Partial failures (generated routes unavailable) should degrade gracefully; unaffected buckets (Benchmarks, My Routes) must still render.
+
+Future rule: Show failure/retry state only inside the affected section (Generated Nearby), not as a full-screen replacement. Saved and past routes must remain visible when only generated-route fetch fails.
+
+### 2026-05-14 - Garmin Sync Idempotency Needs Explicit providerActivityID Guard
+Trigger: Production syncNow processed only the newest Garmin run; Supabase syncNow processed all but had no cross-sync duplicate guard.
+
+Lesson: generateRunReportIfMissing is idempotent for report generation, but processCompletedActivity still calls routeMatch and workout-completion on every run, so repeated calls for the same providerActivityID waste CPU and can produce redundant notifications.
+
+Future rule: Before calling processCompletedActivity in any Garmin sync path, filter out runs whose providerActivityID already exists in the local store.
+
+### 2026-05-15 - Connected-Service Lists Must Use Canonical Activity Rules
+Trigger: Garmin recent activity UI could show raw short fragments even though import/consolidation logic treated activities more carefully.
+
+Lesson: A raw provider row is not necessarily a user-visible workout; UI lists, report lists, and persistence need the same validity, hidden-run, dedupe, and fragment rules.
+
+Future rule: Never render connected-service activity rows directly from provider tables. Normalize to canonical `RecordedRun` candidates first, then map back to display rows only for surviving provider IDs.

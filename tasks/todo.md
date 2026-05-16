@@ -3,6 +3,8 @@
 ## Current Task
 Story complete: Unified Training Context + AI Coach Context Integration.
 
+Base branch run-save/Garmin merge fix is merged into `routes`; PR conflict resolution is in progress.
+
 Physical-device build and install passed on connected iPhone; app launch/manual outdoor background/battery QA is still blocked until the device is unlocked and a real outdoor run is recorded.
 
 ## Story - Unified Training Context + AI Coach Context Integration - 2026-05-16
@@ -40,8 +42,34 @@ As a runner, I want Coach to understand my current training state so its answers
   `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testTrainingContextIncludesSummariesAndLimitsPrivateRouteData" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testTrainingContextReportsMissingDataLimitations" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testCoachFallbackResponseUsesEntryPointSpecificContext" test`
 - Generic simulator build passed:
   `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- PR rebuild passed after commit:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Simulator launch passed on booted iPhone 17 Pro:
+  `xcrun simctl install booted ".../IOS RunSmart app.app" && xcrun simctl launch booted com.runsmart.lite`
 - First focused test attempt failed during compile because an async context load was placed inside a `??` expression; fixed by branching before awaiting.
 - Build/test still emit pre-existing AppIcon unassigned-child warnings and older resume-era actor-isolation warning noise.
+
+## Critical Bug - Run Save And Garmin Merge Investigation - Merged From Base
+As a TestFlight runner, I want a real completed run to save once, display real metrics, merge with Garmin when it is the same workout, and produce a useful coach report so RunSmart activity history stays trustworthy.
+
+### Status
+- [x] Post-run summary shows actual distance, time, and pace for a valid recorded run.
+- [x] Done closes the post-run summary/sheet and the run remains visible.
+- [x] Garmin mapping rejects invalid/non-running records.
+- [x] Garmin fragments overlapping or adjacent to a longer real run do not appear as separate activities.
+- [x] Garmin + RunSmart versions of the same workout merge into one canonical activity.
+- [x] Run reports have useful deterministic coach notes if backend AI generation is unavailable.
+- [x] Save failure path has safer copy and debug diagnostics.
+- [x] Focused tests and simulator build pass.
+
+### Validation
+- Simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Focused run-save/Garmin merge regression tests passed on iPhone 17 simulator.
+- Nearby Garmin import, batch, and consolidation tests passed on iPhone 17 simulator.
+- Full test pass succeeded:
+  `xcodebuild -quiet -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,id=A24FA1E8-AD0C-46DB-85B7-651A24B1BB38" test`
+- Manual physical-device GPS/Garmin TestFlight QA still required.
 
 ## Physical Device Outdoor Background Battery QA - 2026-05-15
 

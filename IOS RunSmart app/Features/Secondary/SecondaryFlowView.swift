@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 
 enum SecondaryDestination: Hashable, Identifiable {
@@ -920,9 +921,38 @@ private struct RouteSelectorScaffold: View {
     private func load() async {
         isLoading = true
         defer { isLoading = false }
-        allSuggestions = await services.rankedRouteSuggestions(targetDistanceKm: nil)
+        async let rankedTask = services.rankedRouteSuggestions(targetDistanceKm: nil)
+        let location = await LocationLookupService.shared.currentLocation()
+        let generated = await generatedSuggestions(around: location)
+        let ranked = await rankedTask
+        allSuggestions = mergedSuggestions(ranked + generated)
         if selectedRouteID == nil {
             selectedRouteID = allSuggestions.first?.id
+        }
+    }
+
+    private func generatedSuggestions(around location: CLLocationCoordinate2D?) async -> [RouteSuggestion] {
+        guard let location else { return [] }
+        let generated = await services.nearbyLoopRoutes(around: location, distancesKm: [5, 8, 10])
+        return generated.map { suggestion in
+            var enriched = suggestion
+            enriched.recommendationReason = RouteSuggestionRanker.reason(
+                kind: .generated,
+                distanceKm: suggestion.distanceKm,
+                targetDistanceKm: nil,
+                isFavorite: false,
+                daysSinceLastRun: nil
+            )
+            return enriched
+        }
+    }
+
+    private func mergedSuggestions(_ suggestions: [RouteSuggestion]) -> [RouteSuggestion] {
+        var seen = Set<String>()
+        return suggestions.filter { suggestion in
+            guard !seen.contains(suggestion.id) else { return false }
+            seen.insert(suggestion.id)
+            return true
         }
     }
 }
@@ -989,7 +1019,7 @@ private struct RunReportScaffold: View {
                     .frame(height: 210)
             }
 
-            if !routePoints.isEmpty {
+            if routePoints.count >= RouteMatchingService.minimumRoutePoints {
                 Button {
                     showSaveRouteSheet = true
                 } label: {
@@ -1016,7 +1046,7 @@ private struct RunReportScaffold: View {
                 HStack(spacing: 8) {
                     Image(systemName: "map")
                         .foregroundStyle(Color.textSecondary)
-                    Text("No Garmin map data for this activity. Route saving, matching, and benchmark comparisons need GPS points; the run report still works.")
+                    Text(routePoints.isEmpty ? "No Garmin map data for this activity. Route saving, matching, and benchmark comparisons need GPS points; the run report still works." : "This Garmin map has too few GPS points to save as a repeatable route; the run report still works.")
                         .font(.caption)
                         .foregroundStyle(Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1301,7 +1331,7 @@ private struct RunReportNextWorkoutCard: View {
                     .disabled(isSaving || saveState == .saved)
 
                     if saveState == .failed {
-                        Text("Could not save this workout. Check your connection and try again.")
+                        Text(saveFailureMessage)
                             .font(.caption)
                             .foregroundStyle(Color.accentHeart)
                     }
@@ -1312,6 +1342,14 @@ private struct RunReportNextWorkoutCard: View {
                 }
             }
         }
+    }
+
+    private var saveFailureMessage: String {
+#if DEBUG
+        return "Could not add this suggested workout to your training plan. Your run report is saved. Check the Xcode console for [TrainingPlanRepo] saveSuggestedWorkout details."
+#else
+        return "Could not add this suggested workout to your training plan. Your run report is saved; check your connection and try again."
+#endif
     }
 
     private func save(_ next: StructuredNextWorkout) async {
@@ -1397,6 +1435,7 @@ private struct LapMarkerScaffold: View {
 }
 
 private struct PostRunSummaryScaffold: View {
+    @Environment(\.dismiss) private var dismiss
     var run: RecordedRun?
 
     private var distanceLabel: String {
@@ -1423,13 +1462,13 @@ private struct PostRunSummaryScaffold: View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Run Complete")
+                    SectionLabel(title: run == nil ? "Run Not Saved" : "Run Complete")
                     HStack {
                         MetricBadge(title: "Distance", value: distanceLabel)
                         MetricBadge(title: "Avg Pace", value: paceLabel)
                         MetricBadge(title: "Time", value: timeLabel)
                     }
-                    Text("Run saved. Great work — your coach will factor this into next week's plan.")
+                    Text(statusCopy)
                         .font(.callout)
                         .foregroundStyle(.white.opacity(0.84))
                 }
@@ -1442,9 +1481,18 @@ private struct PostRunSummaryScaffold: View {
                 }
             }
 
-            Button("Done") {}
+            Button("Done") {
+                dismiss()
+            }
                 .buttonStyle(NeonButtonStyle())
         }
+    }
+
+    private var statusCopy: String {
+        if run == nil {
+            return "RunSmart could not find completed run metrics for this summary. Return to the Run tab and try finishing again."
+        }
+        return "Run saved. Great work - your coach will factor this into the plan."
     }
 }
 
@@ -1861,6 +1909,7 @@ private struct ConnectedServiceDetailScaffold: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
     var serviceName: String
+    private let store = RunSmartLocalStore.shared
     @State private var status: ConnectedDeviceStatus?
     @State private var isWorking = false
     @State private var recentActivities: [DBGarminActivity] = []
@@ -2015,7 +2064,8 @@ private struct ConnectedServiceDetailScaffold: View {
         let statuses = await services.deviceStatuses()
         status = statuses.first(where: { $0.provider == serviceName })
         if serviceName == "Garmin Connect", let userID = session.currentUserID {
-            recentActivities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 10)
+            let activities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 20)
+            recentActivities = Array(GarminImportProcessor.normalizedActivities(from: activities, isHidden: store.isRunHidden).prefix(10))
         }
         if serviceName == "HealthKit" {
             let runs = await services.recentRuns()
