@@ -39,6 +39,13 @@ extension PlanProviding {
 protocol CoachChatting {
     func recentMessages() async -> [CoachMessage]
     func send(message: String) async -> CoachMessage
+    func send(message: String, context: TrainingContextSnapshot) async -> CoachMessage
+}
+
+extension CoachChatting {
+    func send(message: String, context: TrainingContextSnapshot) async -> CoachMessage {
+        TrainingContextCoachResponder.response(to: message, context: context)
+    }
 }
 
 protocol ProfileProviding {
@@ -52,6 +59,10 @@ protocol RunLogging {
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun
     func removeRun(_ run: RecordedRun) async -> Bool
     func finishRun() async
+}
+
+protocol TrainingContextProviding {
+    func trainingContext(for entryPoint: CoachEntryPoint) async -> TrainingContextSnapshot
 }
 
 protocol WebParityProviding {
@@ -100,6 +111,252 @@ extension WebParityProviding {
 
     func latestRunReports() async -> [RunReportSummary] {
         await latestRunReports(limit: 3)
+    }
+}
+
+extension TrainingContextProviding where Self: TodayProviding & PlanProviding & ProfileProviding & RunLogging & WebParityProviding & RouteProviding {
+    func trainingContext(for entryPoint: CoachEntryPoint) async -> TrainingContextSnapshot {
+        async let runnerTask = runnerProfile()
+        async let todayTask = todayRecommendation()
+        async let activePlanTask = activeTrainingPlan()
+        async let weekTask = weeklyPlan()
+        async let nextTask = nextWorkouts(limit: 3)
+        async let recoveryTask = recoverySnapshot()
+        async let wellnessTask = wellnessSnapshot()
+        async let runsTask = recentRuns()
+        async let routesTask = rankedRouteSuggestions(targetDistanceKm: nil)
+        async let reportsTask = latestRunReports(limit: 3)
+
+        let (runner, today, activePlan, week, next, recovery, wellness, runs, routes, reports) = await (
+            runnerTask,
+            todayTask,
+            activePlanTask,
+            weekTask,
+            nextTask,
+            recoveryTask,
+            wellnessTask,
+            runsTask,
+            routesTask,
+            reportsTask
+        )
+
+        let limitedRuns = Array(runs.prefix(5))
+        let limitedRoutes = Array(routes.prefix(3))
+        let limitedReports = Array(reports.prefix(3))
+        let runSources = Array(Set(limitedRuns.map(\.source.rawValue))).sorted()
+
+        let planSummary = TrainingContextPlanSummary(
+            activePlanTitle: activePlan?.title,
+            planType: activePlan?.planType,
+            totalWeeks: activePlan?.totalWeeks,
+            weeklyWorkoutCount: week.count,
+            upcomingWorkouts: next.prefix(3).map(Self.workoutContext)
+        )
+        let activitySummary = TrainingContextActivitySummary(
+            recentRunCount: runs.count,
+            recentRuns: limitedRuns.map(Self.runContext),
+            sources: runSources,
+            averageWeeklyDistanceKm: TrainingDataBaseline.averageWeeklyDistanceKm(from: runs)
+        )
+
+        return TrainingContextSnapshot(
+            generatedAt: Date(),
+            entryPoint: entryPoint,
+            runner: TrainingContextRunnerSummary(
+                name: runner.name,
+                goal: runner.goal,
+                level: runner.level,
+                streak: runner.streak,
+                totalRuns: runner.totalRuns,
+                totalDistanceKm: runner.totalDistance,
+                totalTime: runner.totalTime
+            ),
+            today: TrainingContextTodaySummary(
+                readiness: today.readiness,
+                readinessLabel: today.readinessLabel,
+                workoutTitle: today.workoutTitle,
+                distance: today.distance,
+                pace: today.pace,
+                coachMessage: today.coachMessage,
+                weeklyProgress: today.weeklyProgress,
+                recovery: today.recovery,
+                hrv: today.hrv
+            ),
+            plan: planSummary,
+            recovery: TrainingContextRecoverySummary(
+                readiness: recovery.readiness,
+                bodyBattery: recovery.bodyBattery,
+                sleep: recovery.sleep,
+                hrv: recovery.hrv,
+                stress: recovery.stress,
+                recommendation: recovery.recommendation
+            ),
+            wellness: TrainingContextWellnessSummary(
+                calories: wellness.calories,
+                hydration: wellness.hydration,
+                soreness: wellness.soreness,
+                mood: wellness.mood,
+                checkInStatus: wellness.checkInStatus
+            ),
+            activity: activitySummary,
+            routes: limitedRoutes.map(Self.routeContext),
+            reports: limitedReports.map(Self.reportContext),
+            limitations: Self.limitations(
+                today: today,
+                activePlan: activePlan,
+                week: week,
+                next: next,
+                recovery: recovery,
+                wellness: wellness,
+                runs: runs,
+                routes: routes,
+                reports: reports
+            )
+        )
+    }
+
+    private static func workoutContext(_ workout: WorkoutSummary) -> TrainingContextWorkoutSummary {
+        TrainingContextWorkoutSummary(
+            id: workout.id,
+            scheduledDate: workout.scheduledDate,
+            title: workout.title,
+            kind: workout.kind,
+            distance: workout.distance,
+            detail: workout.detail,
+            isToday: workout.isToday,
+            isComplete: workout.isComplete
+        )
+    }
+
+    private static func runContext(_ run: RecordedRun) -> TrainingContextRunSummary {
+        TrainingContextRunSummary(
+            id: run.id,
+            source: run.source,
+            startedAt: run.startedAt,
+            distanceKm: (run.distanceMeters / 1_000 * 10).rounded() / 10,
+            movingTimeSeconds: run.movingTimeSeconds,
+            paceLabel: RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm),
+            averageHeartRateBPM: run.averageHeartRateBPM,
+            hasRoute: !run.routePoints.isEmpty,
+            routePointCount: run.routePoints.count
+        )
+    }
+
+    private static func routeContext(_ route: RouteSuggestion) -> TrainingContextRouteSummary {
+        TrainingContextRouteSummary(
+            id: route.id,
+            name: route.name,
+            distanceKm: route.distanceKm,
+            elevationGainMeters: route.elevationGainMeters,
+            estimatedDurationMinutes: route.estimatedDurationMinutes,
+            kind: route.kind,
+            recommendationReason: route.recommendationReason,
+            isFavorite: route.isFavorite,
+            hasGeometry: !route.points.isEmpty
+        )
+    }
+
+    private static func reportContext(_ report: RunReportSummary) -> TrainingContextReportSummary {
+        TrainingContextReportSummary(
+            id: report.id,
+            title: report.title,
+            dateLabel: report.dateLabel,
+            distance: report.distance,
+            pace: report.pace,
+            score: report.score,
+            insight: report.insight,
+            hasGeneratedReport: report.hasGeneratedReport
+        )
+    }
+
+    private static func limitations(
+        today: TodayRecommendation,
+        activePlan: TrainingPlanSnapshot?,
+        week: [WorkoutSummary],
+        next: [WorkoutSummary],
+        recovery: RecoverySnapshot,
+        wellness: WellnessSnapshot,
+        runs: [RecordedRun],
+        routes: [RouteSuggestion],
+        reports: [RunReportSummary]
+    ) -> [String] {
+        var values: [String] = []
+        if today.readiness <= 0 {
+            values.append("Readiness is not available yet.")
+        }
+        if activePlan == nil && week.isEmpty && next.isEmpty {
+            values.append("No active training plan is available yet.")
+        }
+        if runs.isEmpty {
+            values.append("No recent runs are available yet.")
+        }
+        if recovery.readiness <= 0 && isBlank(recovery.sleep) && isBlank(recovery.hrv) {
+            values.append("Recovery data is limited until Garmin or HealthKit syncs.")
+        }
+        if isBlank(wellness.mood) && wellness.checkInStatus == WellnessSnapshot.empty.checkInStatus {
+            values.append("No wellness check-in is available yet.")
+        }
+        if routes.isEmpty {
+            values.append("No saved or suggested routes are available yet.")
+        }
+        if reports.isEmpty {
+            values.append("No run reports are available yet.")
+        }
+        return values
+    }
+
+    private static func isBlank(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty || trimmed == "--" || trimmed == "—" || trimmed.lowercased() == "loading"
+    }
+}
+
+enum TrainingContextCoachResponder {
+    static func response(to message: String, context: TrainingContextSnapshot) -> CoachMessage {
+        let text: String
+        switch context.entryPoint {
+        case .today:
+            if context.today.readiness > 0 {
+                text = "Today I see readiness at \(context.today.readiness) (\(context.today.readinessLabel)). \(nextWorkoutSentence(context))"
+            } else {
+                text = "Today context is limited. Add a plan, recent run, or recovery signal and I can give a sharper recommendation."
+            }
+        case .plan:
+            if let next = context.plan.upcomingWorkouts.first {
+                text = "For the plan, your next workout is \(next.title) at \(next.distance). I would keep the week anchored around that unless recovery changes."
+            } else if let plan = context.plan.activePlanTitle {
+                text = "I can see your \(plan) plan, but there are no upcoming workouts loaded yet."
+            } else {
+                text = "I do not see an active plan yet. Set a goal or sync plan data before making workout changes."
+            }
+        case .run:
+            if let run = context.activity.recentRuns.first {
+                text = "Your latest run was \(String(format: "%.1f", run.distanceKm)) km at \(run.paceLabel) /km. I would use that with recovery before changing the next session."
+            } else {
+                text = "I do not see a recent run yet. Record, import, or manually add one so I can coach from actual activity."
+            }
+        case .report:
+            if let report = context.reports.first {
+                text = "Your latest report says: \(report.insight) Use that trend alongside the next planned workout."
+            } else {
+                text = "No run report is available yet. Finish a run or import an activity to unlock report-aware coaching."
+            }
+        case .profile:
+            text = "I have your goal as \(context.runner.goal) and your level as \(context.runner.level). Training changes should stay aligned with that profile."
+        }
+
+        _ = message
+        return CoachMessage(text: text, time: "Now", isUser: false)
+    }
+
+    private static func nextWorkoutSentence(_ context: TrainingContextSnapshot) -> String {
+        if let next = context.plan.upcomingWorkouts.first {
+            return "Next up: \(next.title) \(next.distance)."
+        }
+        if !context.today.workoutTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Today's recommendation is \(context.today.workoutTitle) \(context.today.distance)."
+        }
+        return "I do not see a loaded workout yet."
     }
 }
 

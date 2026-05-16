@@ -5,6 +5,7 @@ Review this file at the start of future tasks.
 ## Active Rules
 - Keep `AGENTS.md`, `CLAUDE.md`, and `CODEX.md` as routers, not manuals.
 - Load only the files needed for the current workflow.
+- Use app-repo `tasks/todo.md`, `tasks/lessons.md`, and `tasks/session-log.md` as the single source of truth; outer wrapper status files should only point here.
 - Do not assume the project is already a clean RunSmart app; verify whether files still use resume-builder names.
 - Do not change app feature code when the task is to install or update the operating layer only.
 - Before TestFlight claims, verify signing, bundle id, archive status, permissions, privacy strings, and smoke tests.
@@ -17,6 +18,9 @@ Review this file at the start of future tasks.
 - Before opening Xcode, prefer the RunSmart-named project/workspace and verify it has a readable `project.pbxproj`; if it is broken, state that clearly and open the closest buildable project only as a fallback.
 - For route matching tests, keep possible-match fixtures close enough to represent GPS noise or small deviations; far parallel routes should remain no-match.
 - For local-calendar month boundary tests, construct dates with the test `Calendar` and `DateComponents`; do not use opaque epoch constants.
+- If a simulator XCTest run stalls during launch, stop it, record the exact launch error, and keep the completed build as separate validation instead of claiming a test pass.
+- For physical-device QA, confirm the device is unlocked and capture starting battery percentage before attempting app launch; build/install success is not launch, outdoor, background, or battery evidence.
+- Do not put awaited fallback calls inside nil-coalescing expressions; branch explicitly before `await` because `??` uses a synchronous autoclosure.
 
 ## Lesson Log
 
@@ -82,3 +86,31 @@ Trigger: The first Story 6 month-boundary test used hard-coded epoch values that
 Lesson: Epoch literals make calendar-boundary tests hard to audit and easy to get wrong.
 
 Future rule: Use the same `Calendar`, `TimeZone`, and `DateComponents` in tests that assert local month, week, or day behavior.
+
+### 2026-05-15 - Simulator XCTest Launch Stalls Are Not Test Passes
+Trigger: Full iPhone 17 XCTest validation stalled after build/signing and ended with `NSMachErrorDomain Code=-308` when interrupted.
+
+Lesson: A successful app build and a completed XCTest run are separate validation signals; a simulator launch failure should be reported as blocked, not folded into a pass.
+
+Future rule: If a simulator XCTest run stalls during launch, stop it, record the exact launch error, and keep the completed build as separate validation instead of claiming a test pass.
+
+### 2026-05-15 - App Repo Task Memory Is Canonical
+Trigger: The workspace contained outer wrapper task files plus app-repo task files and loose duplicate `todo` copies, causing agents to read stale state.
+
+Lesson: In a nested workspace, duplicated Agent OS memory becomes misleading faster than code changes.
+
+Future rule: Treat `IOS RunSmart app/tasks/todo.md`, `tasks/lessons.md`, and `tasks/session-log.md` as canonical; keep outer task files as pointers only and remove loose duplicate task copies when found.
+
+### 2026-05-15 - Physical Device QA Needs Unlock And Battery Baseline
+Trigger: Device build and install succeeded, but `devicectl` launch failed because the connected iPhone was locked and no starting battery percentage had been recorded.
+
+Lesson: Physical-device readiness has separate evidence layers: build, install, launch, hands-on outdoor recording, background continuation, and battery delta.
+
+Future rule: Before starting physical-device manual QA, confirm the phone is unlocked and record starting battery percentage; do not treat build/install success as outdoor/background/battery validation.
+
+### 2026-05-16 - Await Before Nil-Coalescing
+Trigger: The first focused training-context test build failed because `trainingContext ?? await services.trainingContext(...)` placed an async call inside the synchronous autoclosure used by `??`.
+
+Lesson: Swift async fallback work needs an explicit branch before awaiting.
+
+Future rule: Do not put awaited fallback calls inside nil-coalescing expressions; branch explicitly before `await` because `??` uses a synchronous autoclosure.

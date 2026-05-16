@@ -175,6 +175,170 @@ struct CoachMessage: Identifiable {
     var isUser: Bool
 }
 
+enum CoachEntryPoint: String, CaseIterable, Identifiable, Hashable {
+    case today
+    case plan
+    case run
+    case report
+    case profile
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .today: "Today"
+        case .plan: "Plan"
+        case .run: "Run"
+        case .report: "Report"
+        case .profile: "Profile"
+        }
+    }
+
+    var contextLabel: String {
+        "\(displayName) context"
+    }
+
+    init(label: String) {
+        let normalized = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "plan", "workout", "training plan":
+            self = .plan
+        case "run", "post-run", "post run":
+            self = .run
+        case "report", "reports", "progress":
+            self = .report
+        case "profile", "settings":
+            self = .profile
+        default:
+            self = .today
+        }
+    }
+}
+
+struct TrainingContextSnapshot: Hashable {
+    var generatedAt: Date
+    var entryPoint: CoachEntryPoint
+    var runner: TrainingContextRunnerSummary
+    var today: TrainingContextTodaySummary
+    var plan: TrainingContextPlanSummary
+    var recovery: TrainingContextRecoverySummary
+    var wellness: TrainingContextWellnessSummary
+    var activity: TrainingContextActivitySummary
+    var routes: [TrainingContextRouteSummary]
+    var reports: [TrainingContextReportSummary]
+    var limitations: [String]
+
+    var contextChips: [String] {
+        var chips: [String] = []
+        if today.readiness > 0 { chips.append("Readiness \(today.readiness)") }
+        if let title = plan.activePlanTitle, !title.isEmpty { chips.append(title) }
+        if activity.recentRunCount > 0 { chips.append("\(activity.recentRunCount) recent runs") }
+        if !routes.isEmpty { chips.append("\(routes.count) routes") }
+        if !reports.isEmpty { chips.append("\(reports.count) reports") }
+        return chips.isEmpty ? ["Limited context"] : chips
+    }
+}
+
+struct TrainingContextRunnerSummary: Hashable {
+    var name: String
+    var goal: String
+    var level: String
+    var streak: String
+    var totalRuns: Int
+    var totalDistanceKm: Int
+    var totalTime: String
+}
+
+struct TrainingContextTodaySummary: Hashable {
+    var readiness: Int
+    var readinessLabel: String
+    var workoutTitle: String
+    var distance: String
+    var pace: String
+    var coachMessage: String
+    var weeklyProgress: String
+    var recovery: String
+    var hrv: String
+}
+
+struct TrainingContextPlanSummary: Hashable {
+    var activePlanTitle: String?
+    var planType: String?
+    var totalWeeks: Int?
+    var weeklyWorkoutCount: Int
+    var upcomingWorkouts: [TrainingContextWorkoutSummary]
+}
+
+struct TrainingContextWorkoutSummary: Identifiable, Hashable {
+    var id: UUID
+    var scheduledDate: Date
+    var title: String
+    var kind: WorkoutKind
+    var distance: String
+    var detail: String
+    var isToday: Bool
+    var isComplete: Bool
+}
+
+struct TrainingContextRecoverySummary: Hashable {
+    var readiness: Int
+    var bodyBattery: Int
+    var sleep: String
+    var hrv: String
+    var stress: String
+    var recommendation: String
+}
+
+struct TrainingContextWellnessSummary: Hashable {
+    var calories: String
+    var hydration: String
+    var soreness: String
+    var mood: String
+    var checkInStatus: String
+}
+
+struct TrainingContextActivitySummary: Hashable {
+    var recentRunCount: Int
+    var recentRuns: [TrainingContextRunSummary]
+    var sources: [String]
+    var averageWeeklyDistanceKm: Double?
+}
+
+struct TrainingContextRunSummary: Identifiable, Hashable {
+    var id: UUID
+    var source: RunSmartDataSource
+    var startedAt: Date
+    var distanceKm: Double
+    var movingTimeSeconds: TimeInterval
+    var paceLabel: String
+    var averageHeartRateBPM: Int?
+    var hasRoute: Bool
+    var routePointCount: Int
+}
+
+struct TrainingContextRouteSummary: Identifiable, Hashable {
+    var id: String
+    var name: String
+    var distanceKm: Double
+    var elevationGainMeters: Int
+    var estimatedDurationMinutes: Int
+    var kind: RouteKind
+    var recommendationReason: String?
+    var isFavorite: Bool
+    var hasGeometry: Bool
+}
+
+struct TrainingContextReportSummary: Identifiable, Hashable {
+    var id: String
+    var title: String
+    var dateLabel: String
+    var distance: String
+    var pace: String
+    var score: Int
+    var insight: String
+    var hasGeneratedReport: Bool
+}
+
 struct Achievement: Identifiable {
     let id = UUID()
     var title: String

@@ -29,7 +29,7 @@ struct TodayTabView: View {
 
                 TodayCoachHeroCard(
                     message: recommendation.coachMessage,
-                    onCoach: { router.openCoach(context: "Today") }
+                    onCoach: { router.openCoach(context: .today) }
                 )
                 .runSmartStaggeredAppear(index: 0)
 
@@ -54,20 +54,20 @@ struct TodayTabView: View {
                 TodayQuickActions(
                     onRecord: { router.startRun(with: todayWorkout) },
                     onAddActivity: { router.open(.addActivity) },
-                    onCoach: { router.openCoach(context: "Today") }
+                    onCoach: { router.openCoach(context: .today) }
                 )
                 .runSmartStaggeredAppear(index: 3)
 
                 InsightCard(
                     title: "Coach Insight",
                     message: recommendation.coachMessage,
-                    action: { router.openCoach(context: "Today") }
+                    action: { router.openCoach(context: .today) }
                 )
                 .runSmartStaggeredAppear(index: 4)
 
                 if !coachMessages.isEmpty {
                     TodayConversationPreview(messages: coachMessages) {
-                        router.openCoach(context: "Today")
+                        router.openCoach(context: .today)
                     }
                     .runSmartStaggeredAppear(index: 5)
                 }

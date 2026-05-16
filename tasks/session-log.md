@@ -1,5 +1,132 @@
 # Session Log
 
+## 2026-05-16
+
+### Task Summary
+Implemented Story: Unified Training Context + AI Coach Context Integration.
+
+### Files Changed
+- `docs/specs/training-context-coach.md`
+- `IOS RunSmart app/Models/RunSmartModels.swift`
+- `IOS RunSmart app/Services/RunSmartServices.swift`
+- `IOS RunSmart app/Core/RunSmartServiceProviding.swift`
+- `IOS RunSmart app/App/RunSmartLiteAppShell.swift`
+- `IOS RunSmart app/Features/Coach/CoachFlowView.swift`
+- `IOS RunSmart app/Features/Today/TodayTabView.swift`
+- `IOS RunSmart app/Features/Plan/PlanTabView.swift`
+- `IOS RunSmart app/Features/Profile/ProfileTabView.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Added a native summarized `TrainingContextSnapshot` instead of a backend-coupled payload.
+- Added typed `CoachEntryPoint` routing while preserving the string `openCoach(context:)` compatibility helper.
+- Kept `send(message:)` as a compatibility API and routed Coach UI through `send(message:context:)`.
+- Used deterministic context-aware fallback responses; no live AI endpoint, Supabase schema, permissions, or TestFlight changes were added.
+- Kept raw GPS route coordinates out of Coach context by summarizing routes and runs only.
+
+### Validation
+- Focused training context tests passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testTrainingContextIncludesSummariesAndLimitsPrivateRouteData" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testTrainingContextReportsMissingDataLimitations" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testCoachFallbackResponseUsesEntryPointSpecificContext" test`
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- First focused test attempt failed during compile because Swift does not allow an awaited call in the right side of `??`; fixed by using an explicit branch.
+- Existing warning noise remains: AppIcon unassigned children and older resume-era actor-isolation warnings.
+
+### Next Recommended Action
+Complete the still-open physical-device outdoor/background/battery QA before external TestFlight. A future backend story can replace the deterministic Coach fallback with an authenticated AI Coach endpoint using `TrainingContextSnapshot` as the native source contract.
+
+## 2026-05-15
+
+### Task Summary
+Attempted the next physical-device validation lane before external TestFlight. Re-verified connected iPhone discovery, built and installed the Debug app on the device, then stopped short of claiming outdoor/background/battery readiness because the device was locked and no manual run evidence was available.
+
+### Files Changed
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Treated build/install as passed device evidence, but kept manual outdoor/background/battery QA open.
+- Did not change app feature code.
+- Did not claim TestFlight readiness or archive/upload readiness.
+- Preserved route/benchmark/Garmin limitations as documented beta risks until a real saved/finished run is validated.
+
+### Validation
+- `xcrun xctrace list devices` showed `Nadav.Yigal's iPhone (26.4.2) (00008110-00192DDA2143801E)`.
+- `xcrun devicectl list devices` showed `Nadav.Yigal's iPhone`, identifier `4A1D6EF2-8945-55B8-931A-46980B2A27E2`, state `available (paired)`, model `iPhone 13 (iPhone14,5)`.
+- `xcodebuild -list -project "IOS RunSmart app.xcodeproj"` succeeded and listed scheme `IOS RunSmart app`.
+- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS,id=00008110-00192DDA2143801E" build` succeeded.
+- Build evidence: `** BUILD SUCCEEDED **`, signing identity `Apple Development: nadav.yigal@gmail.com (V2D7D57MXR)`, provisioning profile `iOS Team Provisioning Profile: com.runsmart.lite`, bundle id `com.runsmart.lite`.
+- Device detail check confirmed physical iPhone 13, iOS 26.4.2, developer mode enabled, paired over local network.
+- `xcrun devicectl device install app --device 4A1D6EF2-8945-55B8-931A-46980B2A27E2 ".../IOS RunSmart app.app"` succeeded for bundle id `com.runsmart.lite`.
+- `xcrun devicectl device process launch --device 4A1D6EF2-8945-55B8-931A-46980B2A27E2 com.runsmart.lite` failed because the iPhone was locked: `Unable to launch com.runsmart.lite because the device was not, or could not be, unlocked`.
+- Static inspection confirmed the app has location usage strings and `UIBackgroundModes = location`; `RunRecorder` requests when-in-use location, disables automatic pauses, allows background location updates, and shows the background location indicator.
+
+### Next Recommended Action
+Unlock the connected iPhone, record starting battery percentage, launch RunSmart, complete a real outdoor run with at least 5 minutes locked/backgrounded, then record ending battery percentage, duration, distance, GPS behavior, and any permission issues before starting archive/upload readiness.
+
+## 2026-05-15
+
+### Task Summary
+Consolidated Agent OS status around a single app-repo source of truth and ran only the next validation lane for physical-device readiness.
+
+### Files Changed
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+- `../tasks/todo.md`
+- `../tasks/session-log.md`
+- `../tasks/lessons.md`
+- `../AGENTS.md`
+- `../CODEX.md`
+- `../CLAUDE.md`
+
+### Files Removed
+- `tasks/todo 2.md`
+- `tasks/todo 3.md`
+
+### Decisions Made
+- Canonical task memory now lives only in the app repo: `IOS RunSmart app/tasks/todo.md`, `tasks/lessons.md`, and `tasks/session-log.md`.
+- Outer wrapper `tasks/*.md` files are pointer stubs, not status sources.
+- Did not change feature code.
+- Treated the next validation task as the physical-device validation lane. The automatable device build passed; the real outdoor background/battery run still requires manual use on the connected iPhone.
+
+### Validation
+- `xcrun xctrace list devices` showed `Nadav.Yigal’s iPhone (26.4.2) (00008110-00192DDA2143801E)`.
+- `xcrun devicectl list devices` showed `Nadav.Yigal’s iPhone`, identifier `4A1D6EF2-8945-55B8-931A-46980B2A27E2`, state `connected`, model `iPhone 13 (iPhone14,5)`.
+- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS,id=00008110-00192DDA2143801E" build` succeeded.
+- Physical-device build evidence: `** BUILD SUCCEEDED **`, signing identity `Apple Development: nadav.yigal@gmail.com (V2D7D57MXR)`, provisioning profile `iOS Team Provisioning Profile: com.runsmart.lite`, bundle id `com.runsmart.lite`.
+- Build still emits pre-existing AppIcon warning noise and older resume-era actor-isolation warnings.
+
+### Next Recommended Action
+On the connected iPhone, run an outdoor recording session, background the app during the run, then record whether GPS/background continuation worked and the before/after battery percentage before external TestFlight.
+
+## 2026-05-15
+
+### Task Summary
+Used the Agent OS to triage the remaining open task notes after Story 10.
+
+### Files Changed
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Treated the historical `RunSmartTab` ambiguity and `GlassCard` redeclaration notes as compile-blocker checks because the current task file already marked route Stories 1-10 complete.
+- Did not change app source because the active RunSmart simulator build no longer reproduces either compile blocker.
+- Left the physical-device battery/background run check open because it cannot be truthfully completed in the simulator.
+
+### Validation
+- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build` succeeded.
+- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" test` was attempted, but XCTest launch stalled and ended with `NSMachErrorDomain Code=-308` after interruption.
+- The build still emits pre-existing AppIcon unassigned-child warnings and older resume-era actor-isolation warning noise.
+
+### Next Recommended Action
+Run the physical-device outdoor recording check for background continuation and battery delta before external TestFlight.
+
 ## 2026-05-12
 
 ### Task Summary

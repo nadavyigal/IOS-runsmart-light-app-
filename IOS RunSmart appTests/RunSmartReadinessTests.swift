@@ -214,6 +214,97 @@ final class RunSmartReadinessTests: XCTestCase {
         )
     }
 
+    private func makeRouteSuggestion(
+        id: String,
+        name: String,
+        distanceKm: Double,
+        kind: RouteKind = .saved,
+        points: [RunRoutePoint] = []
+    ) -> RouteSuggestion {
+        RouteSuggestion(
+            id: id,
+            name: name,
+            distanceKm: distanceKm,
+            elevationGainMeters: 24,
+            estimatedDurationMinutes: Int(distanceKm * 6),
+            points: points,
+            kind: kind,
+            recommendationReason: "Matches today's distance",
+            savedRouteID: nil,
+            isFavorite: true
+        )
+    }
+
+    private struct TrainingContextTestServices: RunSmartServiceProviding {
+        var today = TodayRecommendation(
+            readiness: 82,
+            readinessLabel: "Ready",
+            workoutTitle: "Tempo Builder",
+            distance: "8.0 km",
+            pace: "5:20 /km",
+            elevation: "--",
+            coachMessage: "Keep it controlled.",
+            weeklyProgress: "18 / 32 km",
+            streak: "4 days",
+            recovery: "7h 20m",
+            hrv: "Stable"
+        )
+        var runner = RunnerProfile(name: "Alex", goal: "10K PR", streak: "4 day streak", level: "Intermediate", totalRuns: 42, totalDistance: 310, totalTime: "31h")
+        var activePlan: TrainingPlanSnapshot? = TrainingPlanSnapshot(id: UUID(), title: "10K Build", startDate: Date(timeIntervalSince1970: 1_000), endDate: Date(timeIntervalSince1970: 900_000), totalWeeks: 8, planType: "speed")
+        var weekWorkouts: [WorkoutSummary] = []
+        var upcoming: [WorkoutSummary] = []
+        var recovery = RecoverySnapshot(readiness: 78, bodyBattery: 72, sleep: "7h 20m", hrv: "Stable", stress: "Low", recommendation: "Ready for controlled work.")
+        var wellness = WellnessSnapshot(calories: "2,100", hydration: "Good", soreness: "Mild", mood: "Focused", checkInStatus: "Checked in today.")
+        var runs: [RecordedRun] = []
+        var routes: [RouteSuggestion] = []
+        var reports: [RunReportSummary] = []
+
+        func todayRecommendation() async -> TodayRecommendation { today }
+        func weeklyPlan() async -> [WorkoutSummary] { weekWorkouts }
+        func activeTrainingPlan() async -> TrainingPlanSnapshot? { activePlan }
+        func planWorkouts(from startDate: Date, to endDate: Date) async -> [WorkoutSummary] { weekWorkouts }
+        func nextWorkouts(limit: Int) async -> [WorkoutSummary] { Array(upcoming.prefix(limit)) }
+        func saveTrainingGoal(_ request: TrainingGoalRequest) async -> Bool { true }
+        func regenerateTrainingPlan(_ request: TrainingGoalRequest) async -> Bool { true }
+        func moveWorkout(workoutID: UUID, to date: Date) async -> Bool { true }
+        func pushWorkoutTomorrow(workoutID: UUID) async -> Bool { true }
+        func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool { true }
+        func removeWorkout(workoutID: UUID) async -> Bool { true }
+        func saveSuggestedWorkout(_ suggestion: StructuredNextWorkout, from report: RunReportDetail) async -> Bool { true }
+        func recentMessages() async -> [CoachMessage] { [] }
+        func send(message: String) async -> CoachMessage { CoachMessage(text: "compat", time: "Now", isUser: false) }
+        func runnerProfile() async -> RunnerProfile { runner }
+        func achievements() async -> [Achievement] { [] }
+        func currentRunMetrics() async -> [MetricTile] { [] }
+        func recentRuns() async -> [RecordedRun] { runs }
+        func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
+            RecordedRun(id: UUID(), providerActivityID: nil, source: .runSmart, startedAt: date, endedAt: date, distanceMeters: distanceKm * 1_000, movingTimeSeconds: Double(durationMinutes * 60), averagePaceSecondsPerKm: 300, averageHeartRateBPM: averageHeartRateBPM, routePoints: [], syncedAt: nil)
+        }
+        func removeRun(_ run: RecordedRun) async -> Bool { true }
+        func finishRun() async {}
+        func recoverySnapshot() async -> RecoverySnapshot { recovery }
+        func wellnessSnapshot() async -> WellnessSnapshot { wellness }
+        func latestRunReports(limit: Int) async -> [RunReportSummary] { Array(reports.prefix(limit)) }
+        func trainingLoadSnapshot() async -> TrainingLoadSnapshot { .loading }
+        func routeSuggestions() async -> [RouteSuggestion] { routes }
+        func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion] { [] }
+        func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion] { routes }
+        func savedRoutes() async -> [SavedRoute] { [] }
+        func saveRoute(_ route: SavedRoute) async -> Bool { true }
+        func deleteRoute(_ routeID: UUID) async -> Bool { true }
+        func updateRoute(_ route: SavedRoute) async -> Bool { true }
+        func benchmarkRoutes() async -> [BenchmarkRoute] { [] }
+        func enableBenchmark(for routeID: UUID) async -> Bool { true }
+        func disableBenchmark(for routeID: UUID) async -> Bool { true }
+        func deviceStatuses() async -> [ConnectedDeviceStatus] { [] }
+        func connect(provider: String) async -> ConnectedDeviceStatus { ConnectedDeviceStatus(provider: provider, state: .connected, lastSuccessfulSync: nil, permissions: [], message: nil) }
+        func syncNow(provider: String) async -> ConnectedDeviceStatus { ConnectedDeviceStatus(provider: provider, state: .connected, lastSuccessfulSync: nil, permissions: [], message: nil) }
+        func disconnect(provider: String) async -> ConnectedDeviceStatus { ConnectedDeviceStatus(provider: provider, state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: nil) }
+        func requestHealthAccess() async -> ConnectedDeviceStatus { ConnectedDeviceStatus(provider: "HealthKit", state: .connected, lastSuccessfulSync: nil, permissions: [], message: nil) }
+        func syncHealthData() async -> ConnectedDeviceStatus { ConnectedDeviceStatus(provider: "HealthKit", state: .connected, lastSuccessfulSync: nil, permissions: [], message: nil) }
+        func saveToHealth(_ run: RecordedRun) async {}
+    }
+
     func testPlanWeeksGroupByCalendarWeekAndTotalDistance() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.firstWeekday = 1
@@ -916,6 +1007,119 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(recorder.routePoints.count, 30)
         XCTAssertGreaterThan(recorder.distanceMeters, 200)
         recorder.discard()
+    }
+
+    func testTrainingContextIncludesSummariesAndLimitsPrivateRouteData() async throws {
+        let routePoints = makeRoutePoints(count: 3)
+        let runs = (0..<6).map { index in
+            makeRun(
+                source: index.isMultiple(of: 2) ? .garmin : .runSmart,
+                startedAt: makeDate("2026-05-0\(min(index + 1, 9))"),
+                distanceMeters: Double(5_000 + (index * 500)),
+                movingTimeSeconds: Double(1_500 + (index * 60)),
+                heartRate: 145 + index,
+                routePoints: routePoints
+            )
+        }
+        let workouts = [
+            makeWorkout(date: "2026-05-07", kind: .tempo, title: "Tempo Builder", distance: "8.0 km"),
+            makeWorkout(date: "2026-05-09", kind: .easy, title: "Easy Run", distance: "5.0 km"),
+            makeWorkout(date: "2026-05-11", kind: .long, title: "Long Run", distance: "12.0 km")
+        ]
+        let reports = (0..<4).map { index in
+            RunReportSummary(
+                id: "report-\(index)",
+                title: "Run \(index)",
+                dateLabel: "May \(index + 1)",
+                distance: "5.\(index) km",
+                pace: "5:1\(index) /km",
+                score: 80 + index,
+                insight: "Insight \(index)"
+            )
+        }
+        let routes = (0..<4).map { index in
+            makeRouteSuggestion(id: "route-\(index)", name: "Route \(index)", distanceKm: Double(5 + index), points: routePoints)
+        }
+        let service = TrainingContextTestServices(
+            weekWorkouts: workouts,
+            upcoming: workouts,
+            runs: runs,
+            routes: routes,
+            reports: reports
+        )
+
+        let context = await service.trainingContext(for: .today)
+
+        XCTAssertEqual(context.runner.goal, "10K PR")
+        XCTAssertEqual(context.today.readiness, 82)
+        XCTAssertEqual(context.plan.activePlanTitle, "10K Build")
+        XCTAssertEqual(context.plan.upcomingWorkouts.count, 3)
+        XCTAssertEqual(context.recovery.recommendation, "Ready for controlled work.")
+        XCTAssertEqual(context.wellness.checkInStatus, "Checked in today.")
+        XCTAssertEqual(context.activity.recentRunCount, 6)
+        XCTAssertEqual(context.activity.recentRuns.count, 5)
+        XCTAssertEqual(context.routes.count, 3)
+        XCTAssertEqual(context.reports.count, 3)
+        XCTAssertEqual(context.activity.recentRuns.first?.routePointCount, 3)
+        XCTAssertTrue(context.routes.allSatisfy(\.hasGeometry))
+
+        let routeFieldNames = Mirror(reflecting: try XCTUnwrap(context.routes.first)).children.compactMap(\.label).joined(separator: ",")
+        XCTAssertFalse(routeFieldNames.contains("latitude"))
+        XCTAssertFalse(routeFieldNames.contains("longitude"))
+        XCTAssertFalse(routeFieldNames.contains("points"))
+    }
+
+    func testTrainingContextReportsMissingDataLimitations() async {
+        var service = TrainingContextTestServices()
+        service.today = TodayRecommendation.placeholder
+        service.activePlan = nil
+        service.weekWorkouts = []
+        service.upcoming = []
+        service.recovery = .loading
+        service.wellness = .empty
+        service.runs = []
+        service.routes = []
+        service.reports = []
+
+        let context = await service.trainingContext(for: .plan)
+
+        XCTAssertTrue(context.limitations.contains("Readiness is not available yet."))
+        XCTAssertTrue(context.limitations.contains("No active training plan is available yet."))
+        XCTAssertTrue(context.limitations.contains("No recent runs are available yet."))
+        XCTAssertTrue(context.limitations.contains("Recovery data is limited until Garmin or HealthKit syncs."))
+        XCTAssertTrue(context.limitations.contains("No wellness check-in is available yet."))
+        XCTAssertTrue(context.limitations.contains("No saved or suggested routes are available yet."))
+        XCTAssertTrue(context.limitations.contains("No run reports are available yet."))
+    }
+
+    func testCoachFallbackResponseUsesEntryPointSpecificContext() async {
+        let run = makeRun(
+            source: .runSmart,
+            startedAt: makeDate("2026-05-01"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500,
+            routePoints: []
+        )
+        let service = TrainingContextTestServices(
+            upcoming: [makeWorkout(date: "2026-05-07", kind: .tempo, title: "Tempo Builder", distance: "8.0 km")],
+            runs: [run],
+            reports: [
+                RunReportSummary(id: "report", title: "Tempo", dateLabel: "Today", distance: "5 km", pace: "5:00 /km", score: 88, insight: "Pace stayed controlled.")
+            ]
+        )
+
+        let todayContext = await service.trainingContext(for: .today)
+        let runContext = await service.trainingContext(for: .run)
+        let reportContext = await service.trainingContext(for: .report)
+
+        let todayResponse = await service.send(message: "What should I do?", context: todayContext)
+        let runResponse = await service.send(message: "How was that?", context: runContext)
+        let reportResponse = await service.send(message: "Any trend?", context: reportContext)
+
+        XCTAssertTrue(todayResponse.text.contains("readiness at 82"))
+        XCTAssertTrue(runResponse.text.contains("latest run was 5.0 km"))
+        XCTAssertTrue(reportResponse.text.contains("Pace stayed controlled."))
+        XCTAssertNotEqual(todayResponse.text, runResponse.text)
     }
 
     func testTrainingDataAverageWeeklyDistanceUsesRecentFourWeekWindow() {

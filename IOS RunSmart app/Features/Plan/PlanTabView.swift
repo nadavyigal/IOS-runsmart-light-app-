@@ -57,7 +57,7 @@ struct PlanTabView: View {
                         name: session.onboardingProfile.displayName,
                         goal: goal,
                         recovery: recovery,
-                        onCoach: { router.openCoach(context: "Plan") }
+                        onCoach: { router.openCoach(context: .plan) }
                     )
                     .runSmartStaggeredAppear(index: 0)
 
@@ -107,13 +107,13 @@ struct PlanTabView: View {
                     InsightCard(
                         title: "Coach Notes",
                         message: recovery.recommendation,
-                        action: { router.openCoach(context: "Plan") }
+                        action: { router.openCoach(context: .plan) }
                     )
                     .runSmartStaggeredAppear(index: 4)
 
                     PlanActionGrid(
                         onAdd: { router.open(.addActivity) },
-                        onCoach: { router.openCoach(context: "Plan") }
+                        onCoach: { router.openCoach(context: .plan) }
                     )
 
                     if viewMode == .progress {
