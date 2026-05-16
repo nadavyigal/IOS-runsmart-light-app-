@@ -1,6 +1,6 @@
 # Session Log
 
-## 2026-05-16
+## 2026-05-16 - Training Context Story
 
 ### Task Summary
 Implemented Story: Unified Training Context + AI Coach Context Integration.
@@ -38,7 +38,7 @@ Implemented Story: Unified Training Context + AI Coach Context Integration.
 ### Next Recommended Action
 Complete the still-open physical-device outdoor/background/battery QA before external TestFlight. A future backend story can replace the deterministic Coach fallback with an authenticated AI Coach endpoint using `TrainingContextSnapshot` as the native source contract.
 
-## 2026-05-16
+## 2026-05-16 - Commit PR And Rebuild
 
 ### Task Summary
 Committed the unified training context story, opened the GitHub PR, merged the base branch into `routes`, and resolved Agent OS status-file conflicts.
@@ -63,7 +63,7 @@ Committed the unified training context story, opened the GitHub PR, merged the b
 ### Next Recommended Action
 Review the PR and complete the physical-device outdoor/background/battery QA before external TestFlight.
 
-## 2026-05-15
+## 2026-05-15 - Physical Device Debug Install
 
 ### Task Summary
 Attempted the next physical-device validation lane before external TestFlight. Re-verified connected iPhone discovery, built and installed the Debug app on the device, then stopped short of claiming outdoor/background/battery readiness because the device was locked and no manual run evidence was available.
@@ -80,20 +80,20 @@ Attempted the next physical-device validation lane before external TestFlight. R
 - Preserved route/benchmark/Garmin limitations as documented beta risks until a real saved/finished run is validated.
 
 ### Validation
-- `xcrun xctrace list devices` showed `Nadav.Yigal's iPhone (26.4.2) (00008110-00192DDA2143801E)`.
-- `xcrun devicectl list devices` showed `Nadav.Yigal's iPhone`, identifier `4A1D6EF2-8945-55B8-931A-46980B2A27E2`, state `available (paired)`, model `iPhone 13 (iPhone14,5)`.
+- `xcrun xctrace list devices` showed `<REDACTED_DEVICE_NAME> (26.4.2) (<REDACTED_UDID>)`.
+- `xcrun devicectl list devices` showed `<REDACTED_DEVICE_NAME>`, identifier `<REDACTED_COREDEVICE_ID>`, state `available (paired)`, model `iPhone 13 (iPhone14,5)`.
 - `xcodebuild -list -project "IOS RunSmart app.xcodeproj"` succeeded and listed scheme `IOS RunSmart app`.
-- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS,id=00008110-00192DDA2143801E" build` succeeded.
-- Build evidence: `** BUILD SUCCEEDED **`, signing identity `Apple Development: nadav.yigal@gmail.com (V2D7D57MXR)`, provisioning profile `iOS Team Provisioning Profile: com.runsmart.lite`, bundle id `com.runsmart.lite`.
+- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS,id=<REDACTED_UDID>" build` succeeded.
+- Build evidence: `** BUILD SUCCEEDED **`, signing identity `Apple Development: <REDACTED_EMAIL> (<REDACTED_TEAM_ID>)`, provisioning profile `iOS Team Provisioning Profile: com.runsmart.lite`, bundle id `com.runsmart.lite`.
 - Device detail check confirmed physical iPhone 13, iOS 26.4.2, developer mode enabled, paired over local network.
-- `xcrun devicectl device install app --device 4A1D6EF2-8945-55B8-931A-46980B2A27E2 ".../IOS RunSmart app.app"` succeeded for bundle id `com.runsmart.lite`.
-- `xcrun devicectl device process launch --device 4A1D6EF2-8945-55B8-931A-46980B2A27E2 com.runsmart.lite` failed because the iPhone was locked: `Unable to launch com.runsmart.lite because the device was not, or could not be, unlocked`.
+- `xcrun devicectl device install app --device <REDACTED_COREDEVICE_ID> ".../IOS RunSmart app.app"` succeeded for bundle id `com.runsmart.lite`.
+- `xcrun devicectl device process launch --device <REDACTED_COREDEVICE_ID> com.runsmart.lite` failed because the iPhone was locked: `Unable to launch com.runsmart.lite because the device was not, or could not be, unlocked`.
 - Static inspection confirmed the app has location usage strings and `UIBackgroundModes = location`; `RunRecorder` requests when-in-use location, disables automatic pauses, allows background location updates, and shows the background location indicator.
 
 ### Next Recommended Action
 Unlock the connected iPhone, record starting battery percentage, launch RunSmart, complete a real outdoor run with at least 5 minutes locked/backgrounded, then record ending battery percentage, duration, distance, GPS behavior, and any permission issues before starting archive/upload readiness.
 
-## 2026-05-15
+## 2026-05-15 - Agent OS Source Of Truth
 
 ### Task Summary
 Consolidated Agent OS status around a single app-repo source of truth and ran only the next validation lane for physical-device readiness.
@@ -120,16 +120,16 @@ Consolidated Agent OS status around a single app-repo source of truth and ran on
 - Treated the next validation task as the physical-device validation lane. The automatable device build passed; the real outdoor background/battery run still requires manual use on the connected iPhone.
 
 ### Validation
-- `xcrun xctrace list devices` showed `Nadav.Yigal’s iPhone (26.4.2) (00008110-00192DDA2143801E)`.
-- `xcrun devicectl list devices` showed `Nadav.Yigal’s iPhone`, identifier `4A1D6EF2-8945-55B8-931A-46980B2A27E2`, state `connected`, model `iPhone 13 (iPhone14,5)`.
-- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS,id=00008110-00192DDA2143801E" build` succeeded.
-- Physical-device build evidence: `** BUILD SUCCEEDED **`, signing identity `Apple Development: nadav.yigal@gmail.com (V2D7D57MXR)`, provisioning profile `iOS Team Provisioning Profile: com.runsmart.lite`, bundle id `com.runsmart.lite`.
+- `xcrun xctrace list devices` showed `<REDACTED_DEVICE_NAME> (26.4.2) (<REDACTED_UDID>)`.
+- `xcrun devicectl list devices` showed `<REDACTED_DEVICE_NAME>`, identifier `<REDACTED_COREDEVICE_ID>`, state `connected`, model `iPhone 13 (iPhone14,5)`.
+- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS,id=<REDACTED_UDID>" build` succeeded.
+- Physical-device build evidence: `** BUILD SUCCEEDED **`, signing identity `Apple Development: <REDACTED_EMAIL> (<REDACTED_TEAM_ID>)`, provisioning profile `iOS Team Provisioning Profile: com.runsmart.lite`, bundle id `com.runsmart.lite`.
 - Build still emits pre-existing AppIcon warning noise and older resume-era actor-isolation warnings.
 
 ### Next Recommended Action
 On the connected iPhone, run an outdoor recording session, background the app during the run, then record whether GPS/background continuation worked and the before/after battery percentage before external TestFlight.
 
-## 2026-05-15
+## 2026-05-15 - Open Task Triage
 
 ### Task Summary
 Used the Agent OS to triage the remaining open task notes after Story 10.
@@ -152,7 +152,7 @@ Used the Agent OS to triage the remaining open task notes after Story 10.
 ### Next Recommended Action
 Run the physical-device outdoor recording check for background continuation and battery delta before external TestFlight.
 
-## 2026-05-15
+## 2026-05-15 - Run Save And Garmin Merge Fix
 
 ### Task Summary
 Investigated and fixed the critical TestFlight run persistence/Garmin import issue on `fix/run-save-garmin-merge-investigation`.

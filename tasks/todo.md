@@ -74,9 +74,10 @@ As a TestFlight runner, I want a real completed run to save once, display real m
 ## Physical Device Outdoor Background Battery QA - 2026-05-15
 
 ### Device
-- `Nadav.Yigal's iPhone` / iPhone 13 (`iPhone14,5`) / iOS 26.4.2.
-- Device UDID: `00008110-00192DDA2143801E`.
-- CoreDevice identifier: `4A1D6EF2-8945-55B8-931A-46980B2A27E2`.
+- `<REDACTED_DEVICE_NAME>` / iPhone 13 (`iPhone14,5`) / iOS 26.4.2.
+- Device UDID: `<REDACTED_UDID>`.
+- CoreDevice identifier: `<REDACTED_COREDEVICE_ID>`.
+- Full device identifiers are kept out of git-tracked task memory and should remain in private/local QA notes only.
 
 ### Status
 - [x] Connected physical iPhone discovered by `xcrun xctrace list devices`.
@@ -93,13 +94,13 @@ As a TestFlight runner, I want a real completed run to save once, display real m
 - [ ] Route/benchmark/Garmin limitations rechecked after a saved/finished run.
 
 ### Validation Evidence
-- `xcrun xctrace list devices` showed `Nadav.Yigal's iPhone (26.4.2) (00008110-00192DDA2143801E)`.
-- `xcrun devicectl list devices` showed `Nadav.Yigal's iPhone`, identifier `4A1D6EF2-8945-55B8-931A-46980B2A27E2`, state `available (paired)`, model `iPhone 13 (iPhone14,5)`.
+- `xcrun xctrace list devices` showed `<REDACTED_DEVICE_NAME> (26.4.2) (<REDACTED_UDID>)`.
+- `xcrun devicectl list devices` showed `<REDACTED_DEVICE_NAME>`, identifier `<REDACTED_COREDEVICE_ID>`, state `available (paired)`, model `iPhone 13 (iPhone14,5)`.
 - `xcodebuild -list -project "IOS RunSmart app.xcodeproj"` succeeded and listed scheme `IOS RunSmart app`.
-- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS,id=00008110-00192DDA2143801E" build` succeeded.
-- Build evidence: `** BUILD SUCCEEDED **`; signing identity `Apple Development: nadav.yigal@gmail.com (V2D7D57MXR)`; provisioning profile `iOS Team Provisioning Profile: com.runsmart.lite`; bundle id `com.runsmart.lite`; HealthKit, associated domains, and background location entitlements were present.
-- `xcrun devicectl device install app --device 4A1D6EF2-8945-55B8-931A-46980B2A27E2 ".../IOS RunSmart app.app"` succeeded for bundle id `com.runsmart.lite`.
-- `xcrun devicectl device process launch --device 4A1D6EF2-8945-55B8-931A-46980B2A27E2 com.runsmart.lite` failed because the device was locked: `Unable to launch com.runsmart.lite because the device was not, or could not be, unlocked`.
+- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS,id=<REDACTED_UDID>" build` succeeded.
+- Build evidence: `** BUILD SUCCEEDED **`; signing identity `Apple Development: <REDACTED_EMAIL> (<REDACTED_TEAM_ID>)`; provisioning profile `iOS Team Provisioning Profile: com.runsmart.lite`; bundle id `com.runsmart.lite`; HealthKit, associated domains, and background location entitlements were present.
+- `xcrun devicectl device install app --device <REDACTED_COREDEVICE_ID> ".../IOS RunSmart app.app"` succeeded for bundle id `com.runsmart.lite`.
+- `xcrun devicectl device process launch --device <REDACTED_COREDEVICE_ID> com.runsmart.lite` failed because the device was locked: `Unable to launch com.runsmart.lite because the device was not, or could not be, unlocked`.
 
 ### Manual QA Steps Still Required
 - Unlock the connected iPhone and launch `RunSmart`.
@@ -116,7 +117,7 @@ As a TestFlight runner, I want a real completed run to save once, display real m
 ## Agent OS Source Of Truth - 2026-05-15
 
 ### Status
-- [x] Canonical app repo is `/Users/nadavyigal/Documents/Projects /IOS RunSmart light /IOS RunSmart app`.
+- [x] Canonical app repo is `<LOCAL_APP_REPO_PATH>`.
 - [x] Canonical status files are `tasks/todo.md`, `tasks/lessons.md`, and `tasks/session-log.md` in the app repo.
 - [x] Outer wrapper `tasks/*.md` files are pointer stubs only.
 - [x] Removed duplicate loose task files `tasks/todo 2.md` and `tasks/todo 3.md`.
@@ -137,7 +138,7 @@ As a TestFlight runner, I want a real completed run to save once, display real m
 - [x] `RunSmartTab` ambiguity is not present in the active simulator build.
 - [x] `GlassCard` redeclaration is not present in the active simulator build.
 - [x] Active simulator build succeeds for `IOS RunSmart app`.
-- [x] Connected physical device is visible: `Nadav.Yigal’s iPhone` / iPhone 13 / iOS 26.4.2.
+- [x] Connected physical device is visible: `<REDACTED_DEVICE_NAME>` / iPhone 13 / iOS 26.4.2.
 - [x] Physical-device Debug build succeeds for bundle id `com.runsmart.lite`.
 - [ ] Manual outdoor/background recording and battery-delta check completed before external TestFlight.
 
@@ -147,13 +148,13 @@ As a TestFlight runner, I want a real completed run to save once, display real m
 - Full iPhone 17 XCTest run was attempted but did not complete because the simulator launch worker stalled and ended with `NSMachErrorDomain Code=-308` after interruption.
 - Device discovery passed:
   `xcrun xctrace list devices`
-  Evidence: `Nadav.Yigal’s iPhone (26.4.2) (00008110-00192DDA2143801E)`.
+  Evidence: `<REDACTED_DEVICE_NAME> (26.4.2) (<REDACTED_UDID>)`.
 - Device list passed:
   `xcrun devicectl list devices`
-  Evidence: `Nadav.Yigal’s iPhone`, identifier `4A1D6EF2-8945-55B8-931A-46980B2A27E2`, state `connected`, model `iPhone 13 (iPhone14,5)`.
+  Evidence: `<REDACTED_DEVICE_NAME>`, identifier `<REDACTED_COREDEVICE_ID>`, state `connected`, model `iPhone 13 (iPhone14,5)`.
 - Physical-device build passed:
-  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS,id=00008110-00192DDA2143801E" build`
-  Evidence: `** BUILD SUCCEEDED **`; signing identity `Apple Development: nadav.yigal@gmail.com (V2D7D57MXR)`; provisioning profile `iOS Team Provisioning Profile: com.runsmart.lite`; bundle id `com.runsmart.lite`.
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS,id=<REDACTED_UDID>" build`
+  Evidence: `** BUILD SUCCEEDED **`; signing identity `Apple Development: <REDACTED_EMAIL> (<REDACTED_TEAM_ID>)`; provisioning profile `iOS Team Provisioning Profile: com.runsmart.lite`; bundle id `com.runsmart.lite`.
 - Build still reports pre-existing AppIcon unassigned-child warnings and older resume-era actor-isolation warning noise.
 
 ## Route Feature Story 10 - TestFlight Polish And Privacy Review

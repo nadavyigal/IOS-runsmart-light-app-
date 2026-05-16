@@ -23,6 +23,7 @@ Review this file at the start of future tasks.
 - Do not put awaited fallback calls inside nil-coalescing expressions; branch explicitly before `await` because `??` uses a synchronous autoclosure.
 - Route discovery controls must connect to service behavior or clearly present as unavailable; do not ship decorative filters that leave results unchanged.
 - Raw connected-service activities must go through the same mapper, hidden-run, fragment, and consolidation rules before display that they use before persistence.
+- Redact personal device names, UDIDs, CoreDevice identifiers, emails, team IDs, and local absolute paths before committing task memory or QA evidence.
 
 ## Lesson Log
 
@@ -116,6 +117,13 @@ Trigger: The first focused training-context test build failed because `trainingC
 Lesson: Swift async fallback work needs an explicit branch before awaiting.
 
 Future rule: Do not put awaited fallback calls inside nil-coalescing expressions; branch explicitly before `await` because `??` uses a synchronous autoclosure.
+
+### 2026-05-16 - Redact Device QA Evidence In Task Memory
+Trigger: PR review flagged git-tracked task docs containing a personal device name, UDID, CoreDevice identifier, signing email/team ID, and local absolute path.
+
+Lesson: QA evidence can be useful without storing raw personal or device identifiers in repo history.
+
+Future rule: Redact personal device names, UDIDs, CoreDevice identifiers, emails, team IDs, and local absolute paths before committing task memory or QA evidence; keep full values only in private/local notes.
 
 ### 2026-05-14 - Route Discovery Controls Need Real Wiring
 Trigger: QA found Route Creator elevation/surface controls and generated-route buckets that did not affect loaded suggestions.
