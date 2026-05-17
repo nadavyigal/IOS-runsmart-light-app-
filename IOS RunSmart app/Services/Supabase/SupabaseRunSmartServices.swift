@@ -3,6 +3,10 @@ import SwiftUI
 import Supabase
 import MapKit
 
+enum RunSmartCoachPersistenceError: Error {
+    case conversationCreateReturnedNoRow
+}
+
 // MARK: - SupabaseRunSmartServices
 
 final class SupabaseRunSmartServices: RunSmartServiceProviding {
@@ -343,6 +347,24 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func send(message: String) async -> CoachMessage {
         CoachMessage(text: message, time: "Just now", isUser: true)
+    }
+
+    func send(message: String, context: TrainingContextSnapshot) async -> CoachMessage {
+        let fallback = TrainingContextCoachResponder.response(to: message, context: context)
+        guard let userID = currentUserID else {
+            return fallback
+        }
+
+        do {
+            let conversation = try await coachConversation(for: userID)
+            try await insertCoachTurn(conversationID: conversation.id, userMessage: message, assistantMessage: fallback.text)
+            return fallback
+        } catch {
+            if !(error is CancellationError) {
+                print("[SupabaseServices] send coach message persistence error:", error)
+            }
+            return fallback
+        }
     }
 
     // MARK: ProfileProviding
@@ -773,9 +795,19 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 }
             )
             let existingIDs = Set(store.loadRuns().compactMap(\.providerActivityID))
-            for run in runs where !existingIDs.contains(run.providerActivityID ?? "") {
+            let newRuns = runs.filter { run in
+                guard let providerID = run.providerActivityID else { return true }
+                return !existingIDs.contains(providerID)
+            }
+            for run in newRuns {
                 _ = await processCompletedActivity(run)
             }
+            saveFirstSyncReviewIfNeeded(
+                provider: .garmin,
+                status: status,
+                importedRuns: newRuns,
+                skippedDuplicateCount: max(0, runs.count - newRuns.count)
+            )
             return status
         }
         return await syncHealthData()
@@ -809,11 +841,41 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             }
         }
         store.saveDeviceStatus(status)
+        saveFirstSyncReviewIfNeeded(
+            provider: .healthKit,
+            status: status,
+            importedRuns: result.runs,
+            skippedDuplicateCount: result.skippedDuplicates
+        )
         return status
     }
 
     func saveToHealth(_ run: RecordedRun) async {
         await healthSync.save(run)
+    }
+
+    func firstSyncReview(provider: String) async -> FirstSyncReview? {
+        guard let provider = FirstSyncReviewProvider(serviceName: provider) else { return nil }
+        return store.firstSyncReview(provider: provider)
+    }
+
+    func markFirstSyncReviewSeen(provider: String) async {
+        guard let provider = FirstSyncReviewProvider(serviceName: provider) else { return }
+        store.markFirstSyncReviewSeen(provider: provider)
+    }
+
+    private func saveFirstSyncReviewIfNeeded(
+        provider: FirstSyncReviewProvider,
+        status: ConnectedDeviceStatus,
+        importedRuns: [RecordedRun],
+        skippedDuplicateCount: Int
+    ) {
+        guard status.state == .connected, !store.hasSeenFirstSyncReview(provider: provider) else { return }
+        store.saveFirstSyncReview(FirstSyncReview.make(
+            provider: provider,
+            importedRuns: importedRuns,
+            skippedDuplicateCount: skippedDuplicateCount
+        ))
     }
 
     // MARK: WebParityProviding
@@ -1291,6 +1353,56 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 .value
             return messages.first?.content
         } catch { return nil }
+    }
+
+    private func coachConversation(for userID: UUID) async throws -> DBConversation {
+        let existing: [DBConversation] = try await supabase
+            .from("conversations")
+            .select()
+            .eq("profile_id", value: userID.uuidString)
+            .order("created_at", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+
+        if let conversation = existing.first {
+            return conversation
+        }
+
+        let inserted: [DBConversation] = try await supabase
+            .from("conversations")
+            .insert(DBConversationInsert(profileId: userID.uuidString))
+            .select()
+            .execute()
+            .value
+
+        guard let conversation = inserted.first else {
+            throw RunSmartCoachPersistenceError.conversationCreateReturnedNoRow
+        }
+        return conversation
+    }
+
+    private func insertCoachTurn(conversationID: UUID, userMessage: String, assistantMessage: String) async throws {
+        let userCreatedAt = ISO8601DateFormatter().string(from: Date())
+        let assistantCreatedAt = ISO8601DateFormatter().string(from: Date().addingTimeInterval(0.001))
+
+        try await supabase
+            .from("conversation_messages")
+            .insert([
+                DBMessageInsert(
+                    conversationId: conversationID.uuidString,
+                    role: "user",
+                    content: userMessage,
+                    createdAt: userCreatedAt
+                ),
+                DBMessageInsert(
+                    conversationId: conversationID.uuidString,
+                    role: "assistant",
+                    content: assistantMessage,
+                    createdAt: assistantCreatedAt
+                )
+            ])
+            .execute()
     }
 
     private func recentWeeklyKm(runs: [RecordedRun]) -> Double {

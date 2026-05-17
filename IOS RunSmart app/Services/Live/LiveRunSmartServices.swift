@@ -247,6 +247,14 @@ struct LiveRunSmartServices: RunSmartServiceProviding {
         await ProductionRunSmartServices().disconnect(provider: provider)
     }
 
+    func firstSyncReview(provider: String) async -> FirstSyncReview? {
+        await ProductionRunSmartServices().firstSyncReview(provider: provider)
+    }
+
+    func markFirstSyncReviewSeen(provider: String) async {
+        await ProductionRunSmartServices().markFirstSyncReviewSeen(provider: provider)
+    }
+
     func requestHealthAccess() async -> ConnectedDeviceStatus {
         await ProductionRunSmartServices().requestHealthAccess()
     }

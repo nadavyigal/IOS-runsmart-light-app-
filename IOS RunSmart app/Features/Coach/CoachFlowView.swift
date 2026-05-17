@@ -113,6 +113,7 @@ struct CoachFlowView: View {
                             .background(Color.accentPrimary.opacity(0.10), in: Capsule())
                     }
                     .buttonStyle(.plain)
+                    .disabled(isTyping)
                 }
             }
             .padding(.horizontal, 20)
@@ -153,6 +154,7 @@ struct CoachFlowView: View {
                 .background(Color.surfaceCard)
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.border))
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .disabled(isTyping)
             Button { RunSmartHaptics.light() } label: {
                 Image(systemName: "mic.fill")
                     .foregroundStyle(Color.textSecondary)
@@ -160,6 +162,7 @@ struct CoachFlowView: View {
                     .background(Color.surfaceCard, in: Circle())
             }
             .buttonStyle(.plain)
+            .disabled(isTyping)
             Button { send(draft) } label: {
                 Image(systemName: "arrow.up")
                     .font(.headline.bold())
@@ -168,13 +171,14 @@ struct CoachFlowView: View {
                     .background(Color.accentPrimary, in: Circle())
             }
             .buttonStyle(.plain)
+            .disabled(isTyping || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(20)
     }
 
     private func send(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty, !isTyping else { return }
         messages.append(CoachMessage(text: trimmed, time: "Now", isUser: true))
         draft = ""
         isTyping = true

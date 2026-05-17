@@ -137,6 +137,36 @@ final class RunSmartLocalStore {
         ]
     }
 
+    func saveFirstSyncReview(_ review: FirstSyncReview) {
+        var reviews = loadFirstSyncReviews()
+        reviews.removeAll { $0.provider == review.provider }
+        reviews.append(review)
+        save(reviews, key: "runsmart.firstSync.reviews")
+    }
+
+    func firstSyncReview(provider: FirstSyncReviewProvider) -> FirstSyncReview? {
+        loadFirstSyncReviews().first { $0.provider == provider }
+    }
+
+    func hasSeenFirstSyncReview(provider: FirstSyncReviewProvider) -> Bool {
+        firstSyncReview(provider: provider)?.seen ?? false
+    }
+
+    func markFirstSyncReviewSeen(provider: FirstSyncReviewProvider) {
+        var review = firstSyncReview(provider: provider) ?? FirstSyncReview.make(
+            provider: provider,
+            importedRuns: [],
+            skippedDuplicateCount: 0,
+            seen: true
+        )
+        review.seen = true
+        saveFirstSyncReview(review)
+    }
+
+    private func loadFirstSyncReviews() -> [FirstSyncReview] {
+        load([FirstSyncReview].self, key: "runsmart.firstSync.reviews") ?? []
+    }
+
     func saveHealthKitDailySnapshot(_ snapshot: HealthKitDailySnapshot) {
         save(snapshot, key: "runsmart.healthkit.dailySnapshot")
     }
@@ -602,6 +632,13 @@ protocol DeviceSyncing {
     func connect(provider: String) async -> ConnectedDeviceStatus
     func syncNow(provider: String) async -> ConnectedDeviceStatus
     func disconnect(provider: String) async -> ConnectedDeviceStatus
+    func firstSyncReview(provider: String) async -> FirstSyncReview?
+    func markFirstSyncReviewSeen(provider: String) async
+}
+
+extension DeviceSyncing {
+    func firstSyncReview(provider: String) async -> FirstSyncReview? { nil }
+    func markFirstSyncReviewSeen(provider: String) async {}
 }
 
 protocol HealthSyncing {
@@ -943,6 +980,12 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
                 _ = await processCompletedActivity(run)
             }
             store.saveDeviceStatus(result.status)
+            saveFirstSyncReviewIfNeeded(
+                provider: .garmin,
+                status: result.status,
+                importedRuns: newRuns,
+                skippedDuplicateCount: max(0, result.runs.count - newRuns.count)
+            )
             return result.status
         }
         if provider == "HealthKit" {
@@ -971,11 +1014,41 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
                 NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
             }
         }
+        saveFirstSyncReviewIfNeeded(
+            provider: .healthKit,
+            status: result.status,
+            importedRuns: result.runs,
+            skippedDuplicateCount: result.skippedDuplicates
+        )
         return result.status
     }
 
     func saveToHealth(_ run: RecordedRun) async {
         await health.save(run)
+    }
+
+    func firstSyncReview(provider: String) async -> FirstSyncReview? {
+        guard let provider = FirstSyncReviewProvider(serviceName: provider) else { return nil }
+        return store.firstSyncReview(provider: provider)
+    }
+
+    func markFirstSyncReviewSeen(provider: String) async {
+        guard let provider = FirstSyncReviewProvider(serviceName: provider) else { return }
+        store.markFirstSyncReviewSeen(provider: provider)
+    }
+
+    private func saveFirstSyncReviewIfNeeded(
+        provider: FirstSyncReviewProvider,
+        status: ConnectedDeviceStatus,
+        importedRuns: [RecordedRun],
+        skippedDuplicateCount: Int
+    ) {
+        guard status.state == .connected, !store.hasSeenFirstSyncReview(provider: provider) else { return }
+        store.saveFirstSyncReview(FirstSyncReview.make(
+            provider: provider,
+            importedRuns: importedRuns,
+            skippedDuplicateCount: skippedDuplicateCount
+        ))
     }
 
     private func deviceSubtitle(_ provider: String) -> String {

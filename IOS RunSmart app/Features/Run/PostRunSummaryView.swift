@@ -42,6 +42,12 @@ struct PostRunSummaryView: View {
                 RPESelector(value: $rpe)
 
                 CoachAnalysisCard(run: run, rpe: rpe)
+                PostRunLearningCard(
+                    run: run,
+                    outcome: outcome,
+                    report: outcome?.report,
+                    isProcessing: isProcessing
+                )
                 PostActivityPlanCard(outcome: outcome, isProcessing: isProcessing)
                 BenchmarkComparisonLoaderView(run: outcome?.canonicalRun ?? run)
                 SplitPreviewCard(splits: splitRows)

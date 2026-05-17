@@ -19,11 +19,15 @@ Review this file at the start of future tasks.
 - For route matching tests, keep possible-match fixtures close enough to represent GPS noise or small deviations; far parallel routes should remain no-match.
 - For local-calendar month boundary tests, construct dates with the test `Calendar` and `DateComponents`; do not use opaque epoch constants.
 - If a simulator XCTest run stalls during launch, stop it, record the exact launch error, and keep the completed build as separate validation instead of claiming a test pass.
+- If focused XCTest builds but fails at simulator install/launch with CoreSimulator error 405 and NSMach -308, treat it as simulator infrastructure failure and rely on build-for-testing plus app build until the simulator is reset.
 - For physical-device QA, confirm the device is unlocked and capture starting battery percentage before attempting app launch; build/install success is not launch, outdoor, background, or battery evidence.
 - Do not put awaited fallback calls inside nil-coalescing expressions; branch explicitly before `await` because `??` uses a synchronous autoclosure.
 - Route discovery controls must connect to service behavior or clearly present as unavailable; do not ship decorative filters that leave results unchanged.
 - Raw connected-service activities must go through the same mapper, hidden-run, fragment, and consolidation rules before display that they use before persistence.
 - Redact personal device names, UDIDs, CoreDevice identifiers, emails, team IDs, and local absolute paths before committing task memory or QA evidence.
+- When asserting JSON key sets from `Dictionary<String, Any>`, materialize optional keys explicitly before building a `Set`; avoid overload-prone `String.init` mapping.
+- Do not run multiple Xcode builds against the same DerivedData concurrently; build database locks are false failures, so run validation sequentially unless separate DerivedData paths are configured.
+- When adding optional behavior to a shared service protocol, provide default extension fallbacks or update every test double in the same pass before validation.
 
 ## Lesson Log
 
@@ -124,6 +128,34 @@ Trigger: PR review flagged git-tracked task docs containing a personal device na
 Lesson: QA evidence can be useful without storing raw personal or device identifiers in repo history.
 
 Future rule: Redact personal device names, UDIDs, CoreDevice identifiers, emails, team IDs, and local absolute paths before committing task memory or QA evidence; keep full values only in private/local notes.
+
+### 2026-05-17 - XCTest JSON Key Materialization
+Trigger: The first focused Coach persistence test build failed because optional dictionary keys were passed into `Set` in a shape Swift could not type-check, then `String.init` mapping introduced overload ambiguity.
+
+Lesson: JSON payload tests should materialize `[String]` keys plainly before comparing sets.
+
+Future rule: When asserting JSON key sets from `Dictionary<String, Any>`, materialize optional keys explicitly before building a `Set`; avoid overload-prone `String.init` mapping.
+
+### 2026-05-17 - Sequential Xcode Validation
+Trigger: A build-for-testing/build validation attempt failed with an Xcode build database lock because two xcodebuild processes were running against the same DerivedData.
+
+Lesson: Concurrent Xcode validation can create infrastructure failures unrelated to the code under test.
+
+Future rule: Do not run multiple Xcode builds against the same DerivedData concurrently; build database locks are false failures, so run validation sequentially unless separate DerivedData paths are configured.
+
+### 2026-05-17 - Focused XCTest Simulator Install Failure
+Trigger: Focused Sprint 2 XCTest built the app and test bundle, then failed during simulator install/launch with `com.apple.CoreSimulator.SimError Code=405` and `NSMachErrorDomain Code=-308`.
+
+Lesson: A focused XCTest can validate compile/link but still fail before test execution because the simulator install worker is unhealthy.
+
+Future rule: If focused XCTest builds but fails at simulator install/launch with CoreSimulator error 405 and NSMach -308, treat it as simulator infrastructure failure and rely on build-for-testing plus app build until the simulator is reset.
+
+### 2026-05-17 - Shared Service Protocol Additions Need Fallbacks
+Trigger: Sprint 4 build-for-testing initially failed because a training-context test double did not implement newly added first-sync review APIs on `DeviceSyncing`.
+
+Lesson: Optional service behavior can break unrelated tests when it is added to a shared protocol without defaults.
+
+Future rule: When adding optional behavior to a shared service protocol, provide default extension fallbacks or update every test double in the same pass before validation.
 
 ### 2026-05-14 - Route Discovery Controls Need Real Wiring
 Trigger: QA found Route Creator elevation/surface controls and generated-route buckets that did not affect loaded suggestions.

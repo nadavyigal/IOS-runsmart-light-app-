@@ -499,6 +499,18 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
         ConnectedDeviceStatus(provider: provider, state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: "Preview disconnected")
     }
 
+    func firstSyncReview(provider: String) async -> FirstSyncReview? {
+        guard let provider = FirstSyncReviewProvider(serviceName: provider) else { return nil }
+        return FirstSyncReview.make(
+            provider: provider,
+            importedRuns: [],
+            skippedDuplicateCount: 0,
+            seen: true
+        )
+    }
+
+    func markFirstSyncReviewSeen(provider: String) async {}
+
     func requestHealthAccess() async -> ConnectedDeviceStatus {
         ConnectedDeviceStatus(provider: "HealthKit", state: .connected, lastSuccessfulSync: nil, permissions: ["Preview"], message: "Preview HealthKit")
     }

@@ -11,6 +11,8 @@ struct PlanTabView: View {
     @State private var displayedMonth: Date = Date()
     @State private var isLoadingMonthWorkouts: Bool = true
     @State private var recentRuns: [RecordedRun] = []
+    @State private var activePlan: TrainingPlanSnapshot?
+    @State private var todayRecommendation: TodayRecommendation = .placeholder
     @State private var goal: GoalSummary = .loading
     @State private var challenge: ChallengeSummary = .loading
     @State private var recovery: RecoverySnapshot = .loading
@@ -61,15 +63,22 @@ struct PlanTabView: View {
                     )
                     .runSmartStaggeredAppear(index: 0)
 
+                    PlanExplanationCard(
+                        title: planExplanation.isOnTrack ? "Plan is on track" : "Plan adjusted because...",
+                        explanation: planExplanation,
+                        onAction: { handleExplanationAction(planExplanation) }
+                    )
+                    .runSmartStaggeredAppear(index: 1)
+
                     if let currentWeek {
                         PlanCurrentWeekSection(week: currentWeek) { workout in
                             navPath.append(.workoutDetail(workout))
                         }
-                        .runSmartStaggeredAppear(index: 1)
+                        .runSmartStaggeredAppear(index: 2)
                     }
 
                     SegmentedPillPicker(values: PlanViewMode.allCases, selection: $viewMode) { $0.rawValue }
-                        .runSmartStaggeredAppear(index: 2)
+                        .runSmartStaggeredAppear(index: 3)
 
                     switch viewMode {
                     case .month:
@@ -102,14 +111,14 @@ struct PlanTabView: View {
                     } onAll: {
                         viewMode = .weekly
                     }
-                    .runSmartStaggeredAppear(index: 3)
+                    .runSmartStaggeredAppear(index: 4)
 
                     InsightCard(
                         title: "Coach Notes",
                         message: recovery.recommendation,
                         action: { router.openCoach(context: .plan) }
                     )
-                    .runSmartStaggeredAppear(index: 4)
+                    .runSmartStaggeredAppear(index: 5)
 
                     PlanActionGrid(
                         onAdd: { router.open(.addActivity) },
@@ -160,16 +169,28 @@ struct PlanTabView: View {
         async let weekTask = services.weeklyPlan()
         async let nextTask = services.nextWorkouts(limit: 3)
         async let runsTask = services.recentRuns()
+        async let planTask = services.activeTrainingPlan()
+        async let todayTask = services.todayRecommendation()
         async let goalTask = services.activeGoal()
         async let challengeTask = services.activeChallenge()
         async let recoveryTask = services.recoverySnapshot()
         async let loadTask = services.trainingLoadSnapshot()
-        let (ww, nw, runs, g, ch, rec, load) = await (
-            weekTask, nextTask, runsTask, goalTask, challengeTask, recoveryTask, loadTask
+        let (ww, nw, runs, plan, today, g, ch, rec, load) = await (
+            weekTask,
+            nextTask,
+            runsTask,
+            planTask,
+            todayTask,
+            goalTask,
+            challengeTask,
+            recoveryTask,
+            loadTask
         )
         weekWorkouts = ww
         nextWorkouts = nw
         recentRuns = runs
+        activePlan = plan
+        todayRecommendation = today
         goal = g
         challenge = ch
         recovery = rec
@@ -189,6 +210,48 @@ struct PlanTabView: View {
 
     private var header: some View {
         RunSmartTopBar(title: "Plan")
+    }
+
+    private var plannedTodayWorkout: WorkoutSummary? {
+        nextWorkouts.first(where: { $0.isToday }) ?? weekWorkouts.first(where: { Calendar.current.isDateInToday($0.scheduledDate) })
+    }
+
+    private var planExplanation: PlanExplanation {
+        PlanExplanation.make(
+            activePlan: activePlan,
+            todayWorkout: plannedTodayWorkout,
+            weekWorkouts: weekWorkouts,
+            nextWorkouts: nextWorkouts,
+            recentRuns: recentRuns,
+            recovery: recovery,
+            recommendation: todayRecommendation
+        )
+    }
+
+    private func handleExplanationAction(_ explanation: PlanExplanation) {
+        switch explanation.trigger {
+        case .missedWorkout:
+            if let workout = weekWorkouts
+                .filter({ !$0.isComplete && $0.scheduledDate < Calendar.current.startOfDay(for: Date()) })
+                .sorted(by: { $0.scheduledDate > $1.scheduledDate })
+                .first {
+                navPath.append(.reschedule(workout))
+            } else {
+                navPath.append(.planAdjustment)
+            }
+        case .lowRecovery:
+            if let workout = plannedTodayWorkout ?? nextWorkouts.first {
+                navPath.append(.amendWorkout(workout))
+            } else {
+                navPath.append(.planAdjustment)
+            }
+        case .extraRun:
+            navPath.append(.planAdjustment)
+        case .normal where explanation.action == "Set a goal":
+            navPath.append(.goalWizard)
+        default:
+            router.openCoach(context: .plan)
+        }
     }
 }
 

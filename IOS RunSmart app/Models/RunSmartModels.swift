@@ -159,6 +159,254 @@ struct TodayRecommendation {
     var hrv: String = "--"
 }
 
+enum PlanExplanationTrigger: String, Hashable {
+    case normal
+    case completedRun = "completed_run"
+    case missedWorkout = "missed_workout"
+    case extraRun = "extra_run"
+    case lowRecovery = "low_recovery"
+    case importedActivity = "imported_activity"
+    case manualEdit = "manual_edit"
+
+    var displayName: String {
+        switch self {
+        case .normal: "Plan is on track"
+        case .completedRun: "Recent run logged"
+        case .missedWorkout: "Missed workout"
+        case .extraRun: "Extra run added"
+        case .lowRecovery: "Low recovery"
+        case .importedActivity: "Imported activity"
+        case .manualEdit: "Manual edit"
+        }
+    }
+}
+
+enum PlanExplanationSource: String, Hashable {
+    case heuristic
+    case ai = "AI"
+    case fallback
+
+    var displayName: String {
+        switch self {
+        case .heuristic: "Heuristic"
+        case .ai: "AI"
+        case .fallback: "Fallback"
+        }
+    }
+}
+
+struct PlanExplanation: Hashable {
+    var trigger: PlanExplanationTrigger
+    var evidence: String
+    var recommendation: String
+    var action: String?
+    var source: PlanExplanationSource
+
+    var isOnTrack: Bool {
+        trigger == .normal || trigger == .completedRun || trigger == .importedActivity || trigger == .manualEdit
+    }
+
+    static func make(
+        activePlan: TrainingPlanSnapshot?,
+        todayWorkout: WorkoutSummary?,
+        weekWorkouts: [WorkoutSummary],
+        nextWorkouts: [WorkoutSummary],
+        recentRuns: [RecordedRun],
+        recovery: RecoverySnapshot,
+        recommendation: TodayRecommendation,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> PlanExplanation {
+        let plannedWorkouts = uniqueWorkouts([weekWorkouts, nextWorkouts])
+        let hasPlan = activePlan != nil || !plannedWorkouts.isEmpty
+        let latestRun = recentRuns.sorted { $0.startedAt > $1.startedAt }.first
+        let recentRun = latestRun.flatMap { run -> (RecordedRun, Int)? in
+            guard let daysAgo = calendar.dateComponents([.day], from: calendar.startOfDay(for: run.startedAt), to: calendar.startOfDay(for: now)).day else { return nil }
+            return (run, daysAgo)
+        }
+        let missedWorkout = plannedWorkouts
+            .filter { workout in
+                !workout.isComplete &&
+                isWorkout(workout) &&
+                calendar.startOfDay(for: workout.scheduledDate) < calendar.startOfDay(for: now)
+            }
+            .sorted { $0.scheduledDate > $1.scheduledDate }
+            .first
+        let resolvedTodayWorkout = todayWorkout ?? plannedWorkouts.first(where: { calendar.isDate($0.scheduledDate, inSameDayAs: now) })
+        let isRestDay = resolvedTodayWorkout.map { !isWorkout($0) } ?? isRestRecommendation(recommendation)
+
+        if !hasPlan {
+            return PlanExplanation(
+                trigger: .normal,
+                evidence: "No active training plan is loaded yet.",
+                recommendation: "Start with an easy run or set a goal so Coach can explain a specific workout.",
+                action: "Set a goal",
+                source: .fallback
+            )
+        }
+
+        if isLowRecovery(recovery, recommendation: recommendation) {
+            return PlanExplanation(
+                trigger: .lowRecovery,
+                evidence: lowRecoveryEvidence(recovery, recommendation: recommendation),
+                recommendation: "Keep today easy, shorten the session, or use the planned rest day.",
+                action: "Amend workout",
+                source: .heuristic
+            )
+        }
+
+        if let missedWorkout {
+            return PlanExplanation(
+                trigger: .missedWorkout,
+                evidence: "You still have \(missedWorkout.title) from \(relativeDayLabel(missedWorkout.scheduledDate, now: now, calendar: calendar)).",
+                recommendation: "No stress. Move it forward only if your legs feel fresh; otherwise keep the week gentle.",
+                action: "Reschedule",
+                source: .heuristic
+            )
+        }
+
+        if let (run, daysAgo) = recentRun, daysAgo <= 2 {
+            let runLabel = runDistanceLabel(run)
+            if run.source != .runSmart {
+                return PlanExplanation(
+                    trigger: .importedActivity,
+                    evidence: "Imported \(runLabel) from \(run.source.rawValue) \(relativeRunLabel(daysAgo: daysAgo)).",
+                    recommendation: isRestDay ? "That load supports keeping today as recovery." : "Coach is keeping today conservative because that imported activity already counts.",
+                    action: nil,
+                    source: .heuristic
+                )
+            }
+
+            if let today = resolvedTodayWorkout, !calendar.isDate(run.startedAt, inSameDayAs: today.scheduledDate) {
+                return PlanExplanation(
+                    trigger: .extraRun,
+                    evidence: "You added a \(runLabel) run \(relativeRunLabel(daysAgo: daysAgo)) outside the planned slot.",
+                    recommendation: "Keep the next workout controlled so weekly load does not jump.",
+                    action: "Review plan",
+                    source: .heuristic
+                )
+            }
+
+            return PlanExplanation(
+                trigger: .completedRun,
+                evidence: "Recent \(runLabel) run is already in your training history.",
+                recommendation: isRestDay ? "Today can stay as recovery." : "The plan can stay steady unless recovery changes.",
+                action: nil,
+                source: .heuristic
+            )
+        }
+
+        if let (run, daysAgo) = recentRun, run.source != .runSmart {
+            return PlanExplanation(
+                trigger: .importedActivity,
+                evidence: "An older \(runDistanceLabel(run)) \(run.source.rawValue) activity is available from \(daysAgo) days ago.",
+                recommendation: "It informs your background load, but it is old enough that today stays based on the current plan.",
+                action: nil,
+                source: .heuristic
+            )
+        }
+
+        if isRestDay {
+            return PlanExplanation(
+                trigger: .normal,
+                evidence: "No run is scheduled for today.",
+                recommendation: "Use the rest day to absorb the week and keep the next workout higher quality.",
+                action: nil,
+                source: .heuristic
+            )
+        }
+
+        let workoutTitle = resolvedTodayWorkout?.title ?? recommendation.workoutTitle
+        let workoutDistance = resolvedTodayWorkout?.distance ?? recommendation.distance
+        return PlanExplanation(
+            trigger: .normal,
+            evidence: "\(workoutTitle) \(workoutDistance) matches your current plan and available recovery signals.",
+            recommendation: "Run it as planned and keep the effort honest.",
+            action: nil,
+            source: .heuristic
+        )
+    }
+
+    private static func isLowRecovery(_ recovery: RecoverySnapshot, recommendation: TodayRecommendation) -> Bool {
+        let recoveryText = [recovery.hrv, recovery.sleep, recovery.stress, recovery.recommendation, recommendation.readinessLabel, recommendation.recovery, recommendation.hrv]
+            .joined(separator: " ")
+            .lowercased()
+        return (recovery.readiness > 0 && recovery.readiness < 45) ||
+            (recovery.bodyBattery > 0 && recovery.bodyBattery < 35) ||
+            recommendation.readiness < 45 ||
+            recoveryText.contains("low") ||
+            recoveryText.contains("lower") ||
+            recoveryText.contains("tired")
+    }
+
+    private static func lowRecoveryEvidence(_ recovery: RecoverySnapshot, recommendation: TodayRecommendation) -> String {
+        if recovery.readiness > 0 {
+            return "Recovery readiness is \(recovery.readiness) and Coach sees \(recovery.hrv.lowercased()) HRV."
+        }
+        if recovery.bodyBattery > 0 {
+            return "Body battery is \(recovery.bodyBattery) with \(recovery.hrv.lowercased()) HRV."
+        }
+        return "Today's readiness is \(recommendation.readiness) (\(recommendation.readinessLabel))."
+    }
+
+    private static func isRestRecommendation(_ recommendation: TodayRecommendation) -> Bool {
+        let joined = "\(recommendation.workoutTitle) \(recommendation.distance)".lowercased()
+        return joined.contains("rest") || joined.contains("--")
+    }
+
+    private static func uniqueWorkouts(_ collections: [[WorkoutSummary]]) -> [WorkoutSummary] {
+        var seen = Set<String>()
+        return collections
+            .flatMap { $0 }
+            .filter { workout in
+                let key = [
+                    workout.id.uuidString,
+                    ISO8601DateFormatter.shortDate.string(from: workout.scheduledDate),
+                    workout.title,
+                    workout.distance
+                ].joined(separator: "|")
+                let fallbackKey = [
+                    ISO8601DateFormatter.shortDate.string(from: workout.scheduledDate),
+                    workout.title,
+                    workout.distance
+                ].joined(separator: "|")
+                guard !seen.contains(key), !seen.contains(fallbackKey) else { return false }
+                seen.insert(key)
+                seen.insert(fallbackKey)
+                return true
+            }
+    }
+
+    private static func isWorkout(_ workout: WorkoutSummary) -> Bool {
+        distanceKm(from: workout.distance) > 0 || !workout.distance.localizedCaseInsensitiveContains("rest")
+    }
+
+    private static func distanceKm(from label: String) -> Double {
+        let allowed = CharacterSet.decimalDigits.union(CharacterSet(charactersIn: "."))
+        let token = label
+            .components(separatedBy: allowed.inverted)
+            .first { !$0.isEmpty } ?? ""
+        return Double(token) ?? 0
+    }
+
+    private static func runDistanceLabel(_ run: RecordedRun) -> String {
+        String(format: "%.1f km", run.distanceMeters / 1_000)
+    }
+
+    private static func relativeRunLabel(daysAgo: Int) -> String {
+        if daysAgo == 0 { return "today" }
+        if daysAgo == 1 { return "yesterday" }
+        return "\(daysAgo) days ago"
+    }
+
+    private static func relativeDayLabel(_ date: Date, now: Date, calendar: Calendar) -> String {
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: now)).day ?? 0
+        if days == 1 { return "yesterday" }
+        if days > 1 { return "\(days) days ago" }
+        return "earlier today"
+    }
+}
+
 struct MetricTile: Identifiable {
     let id = UUID()
     var title: String
@@ -619,6 +867,165 @@ struct ConnectedDeviceStatus: Identifiable, Codable, Hashable {
     var lastSuccessfulSync: Date?
     var permissions: [String]
     var message: String?
+}
+
+enum FirstSyncReviewProvider: String, Codable, Hashable {
+    case garmin
+    case healthKit
+
+    var displayName: String {
+        switch self {
+        case .garmin: "Garmin"
+        case .healthKit: "HealthKit"
+        }
+    }
+
+    var serviceName: String {
+        switch self {
+        case .garmin: "Garmin Connect"
+        case .healthKit: "HealthKit"
+        }
+    }
+
+    init?(serviceName: String) {
+        if serviceName == "Garmin Connect" || serviceName == "Garmin" {
+            self = .garmin
+        } else if serviceName == "HealthKit" {
+            self = .healthKit
+        } else {
+            return nil
+        }
+    }
+}
+
+enum FirstSyncNextAction: String, Codable, Hashable {
+    case today
+    case report
+    case plan
+
+    var title: String {
+        switch self {
+        case .today: "Open Today"
+        case .report: "Review Reports"
+        case .plan: "Review Plan"
+        }
+    }
+}
+
+struct FirstSyncActivitySummary: Identifiable, Codable, Hashable {
+    var id: String
+    var title: String
+    var dateLabel: String
+    var distanceLabel: String
+    var hasRoute: Bool
+
+    nonisolated static func from(_ run: RecordedRun) -> FirstSyncActivitySummary {
+        FirstSyncActivitySummary(
+            id: run.providerActivityID ?? run.id.uuidString,
+            title: "\(run.source.rawValue) run",
+            dateLabel: run.startedAt.formatted(date: .abbreviated, time: .shortened),
+            distanceLabel: String(format: "%.1f km", run.distanceMeters / 1_000),
+            hasRoute: !run.routePoints.isEmpty
+        )
+    }
+}
+
+struct FirstSyncReview: Identifiable, Codable, Hashable {
+    var id: String { provider.rawValue }
+    var provider: FirstSyncReviewProvider
+    var importedCount: Int
+    var skippedDuplicateCount: Int
+    var routeAvailabilityCount: Int
+    var routeLessCount: Int
+    var recentImportedActivities: [FirstSyncActivitySummary]
+    var coachCanUse: [String]
+    var nextAction: FirstSyncNextAction
+    var seen: Bool
+    var createdAt: Date
+
+    var summary: String {
+        if importedCount == 0, skippedDuplicateCount == 0 {
+            return "No new running activities were available from \(provider.displayName) yet."
+        }
+        if importedCount == 0, skippedDuplicateCount > 0 {
+            return "RunSmart found \(skippedDuplicateCount) already saved or hidden \(activityWord(skippedDuplicateCount)) and did not create duplicates."
+        }
+        let skipped = skippedDuplicateCount > 0 ? " and skipped \(skippedDuplicateCount) duplicate or hidden \(activityWord(skippedDuplicateCount))" : ""
+        return "Imported \(importedCount) \(activityWord(importedCount))\(skipped)."
+    }
+
+    var routeSummary: String {
+        if importedCount == 0 {
+            return "No route data changed in this sync."
+        }
+        if routeAvailabilityCount == 0 {
+            return "\(provider.displayName) did not provide GPS routes for these imports, so route maps and saved-route matching stay limited."
+        }
+        if routeLessCount == 0 {
+            return "Routes are available for all imported activities."
+        }
+        return "Routes are available for \(routeAvailabilityCount) imported \(activityWord(routeAvailabilityCount)); \(routeLessCount) imported \(activityWord(routeLessCount)) came without route data."
+    }
+
+    static func make(
+        provider: FirstSyncReviewProvider,
+        importedRuns: [RecordedRun],
+        skippedDuplicateCount: Int,
+        seen: Bool = false,
+        createdAt: Date = Date()
+    ) -> FirstSyncReview {
+        let routeCount = importedRuns.filter { !$0.routePoints.isEmpty }.count
+        let routeLess = max(0, importedRuns.count - routeCount)
+        let next: FirstSyncNextAction
+        if importedRuns.isEmpty {
+            next = .today
+        } else if importedRuns.contains(where: { !$0.routePoints.isEmpty }) {
+            next = .report
+        } else {
+            next = .plan
+        }
+        return FirstSyncReview(
+            provider: provider,
+            importedCount: importedRuns.count,
+            skippedDuplicateCount: skippedDuplicateCount,
+            routeAvailabilityCount: routeCount,
+            routeLessCount: routeLess,
+            recentImportedActivities: importedRuns
+                .sorted { $0.startedAt > $1.startedAt }
+                .prefix(3)
+                .map(FirstSyncActivitySummary.from),
+            coachCanUse: coachUseItems(provider: provider, importedRuns: importedRuns),
+            nextAction: next,
+            seen: seen,
+            createdAt: createdAt
+        )
+    }
+
+    private static func coachUseItems(provider: FirstSyncReviewProvider, importedRuns: [RecordedRun]) -> [String] {
+        var items: [String] = []
+        if importedRuns.isEmpty {
+            items.append("Connection status and future sync checks")
+            if provider == .healthKit {
+                items.append("Health wellness signals when permission allows")
+            }
+            return items
+        }
+        items.append("Recent distance, pace, and training history")
+        if importedRuns.contains(where: { $0.averageHeartRateBPM != nil }) {
+            items.append("Heart-rate context from imported workouts")
+        }
+        if importedRuns.contains(where: { !$0.routePoints.isEmpty }) {
+            items.append("Route-aware run review when GPS route data exists")
+        }
+        if provider == .healthKit {
+            items.append("Health wellness signals when permission allows")
+        }
+        return items
+    }
+
+    private func activityWord(_ count: Int) -> String {
+        count == 1 ? "activity" : "activities"
+    }
 }
 
 enum RunRecordingPhase: String {

@@ -994,11 +994,18 @@ private struct RunReportScaffold: View {
             }
 
             if let report {
+                PostRunLearningCard(run: garminRunWithRoutePoints, outcome: nil, report: report)
                 RunReportCoachNotesCard(report: report)
                 BenchmarkComparisonLoaderView(run: garminRunWithRoutePoints)
                 RunReportRichSignalsCard(report: report)
                 RunReportNextWorkoutCard(report: report)
             } else {
+                PostRunLearningCard(
+                    run: garminRunWithRoutePoints,
+                    outcome: nil,
+                    report: nil,
+                    isProcessing: isGenerating
+                )
                 GlassCard {
                     VStack(alignment: .leading, spacing: 12) {
                         SectionLabel(title: "Coach Report")
@@ -1168,6 +1175,7 @@ private struct RunReportDetailScaffold: View {
                 }
             }
             RunReportCoachNotesCard(report: report)
+            PostRunLearningCard(run: reportRun, outcome: nil, report: report, isProcessing: isGenerating)
             BenchmarkComparisonLoaderView(run: reportRun)
             if !report.hasGeneratedReport {
                 generateReportCard
@@ -1914,6 +1922,7 @@ private struct ConnectedServiceDetailScaffold: View {
     @State private var isWorking = false
     @State private var recentActivities: [DBGarminActivity] = []
     @State private var healthRuns: [RecordedRun] = []
+    @State private var firstSyncReview: FirstSyncReview?
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -1963,6 +1972,14 @@ private struct ConnectedServiceDetailScaffold: View {
                         .buttonStyle(NeonButtonStyle(isDestructive: true))
                         .disabled(isWorking)
                 }
+            }
+
+            if let firstSyncReview, !firstSyncReview.seen {
+                FirstSyncReviewCard(
+                    review: firstSyncReview,
+                    onNextAction: handleFirstSyncNextAction,
+                    onDismiss: markFirstSyncReviewSeen
+                )
             }
 
             if serviceName == "Garmin Connect" {
@@ -2071,6 +2088,129 @@ private struct ConnectedServiceDetailScaffold: View {
             let runs = await services.recentRuns()
             healthRuns = runs.filter { $0.source == .healthKit }
         }
+        firstSyncReview = await services.firstSyncReview(provider: serviceName)
+    }
+
+    private func markFirstSyncReviewSeen() {
+        Task {
+            await services.markFirstSyncReviewSeen(provider: serviceName)
+            firstSyncReview = await services.firstSyncReview(provider: serviceName)
+        }
+    }
+
+    private func handleFirstSyncNextAction() {
+        guard let action = firstSyncReview?.nextAction else { return }
+        Task {
+            await services.markFirstSyncReviewSeen(provider: serviceName)
+            await MainActor.run {
+                switch action {
+                case .today:
+                    router.selectedTab = .today
+                case .report:
+                    router.selectedTab = .report
+                case .plan:
+                    router.selectedTab = .plan
+                }
+                router.activeSheet = nil
+            }
+        }
+    }
+}
+
+private struct FirstSyncReviewCard: View {
+    var review: FirstSyncReview
+    var onNextAction: () -> Void
+    var onDismiss: () -> Void
+
+    var body: some View {
+        GlassCard(glow: Color.accentPrimary) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.accentPrimary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        SectionLabel(title: "\(review.provider.displayName) first sync")
+                        Text(review.summary)
+                            .font(.callout)
+                            .foregroundStyle(Color.textPrimary)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    DetailLine(label: "Imported", value: "\(review.importedCount)")
+                    DetailLine(label: "Skipped", value: "\(review.skippedDuplicateCount) duplicate or hidden")
+                    DetailLine(label: "Routes", value: "\(review.routeAvailabilityCount) available / \(review.routeLessCount) route-less")
+                }
+
+                Text(review.routeSummary)
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+
+                if !review.recentImportedActivities.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Recent imports")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.textSecondary)
+                        ForEach(review.recentImportedActivities) { activity in
+                            FirstSyncActivityRow(activity: activity)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Coach can now use")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.textSecondary)
+                    ForEach(review.coachCanUse, id: \.self) { item in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: "sparkle")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(Color.accentPrimary)
+                            Text(item)
+                                .font(.caption)
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    Button(review.nextAction.title, action: onNextAction)
+                        .buttonStyle(NeonButtonStyle())
+                    Button("Got it", action: onDismiss)
+                        .buttonStyle(.plain)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(Color.textSecondary)
+                }
+            }
+        }
+    }
+}
+
+private struct FirstSyncActivityRow: View {
+    var activity: FirstSyncActivitySummary
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: activity.hasRoute ? "map.fill" : "map")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(activity.hasRoute ? Color.accentPrimary : Color.textTertiary)
+                .frame(width: 28, height: 28)
+                .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(activity.title)
+                    .font(.caption.weight(.semibold))
+                Text(activity.dateLabel)
+                    .font(.caption2)
+                    .foregroundStyle(Color.textTertiary)
+            }
+            Spacer()
+            Text(activity.distanceLabel)
+                .font(.caption.weight(.semibold))
+        }
+        .padding(8)
+        .background(.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
