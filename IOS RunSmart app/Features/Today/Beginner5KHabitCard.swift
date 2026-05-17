@@ -8,15 +8,21 @@ enum HabitState: Equatable {
 }
 
 struct Beginner5KHabitTrack {
-    var currentWeek: Int
-    var totalWeeks: Int
-    var completedThisWeek: Int
-    var plannedThisWeek: Int
-    var state: HabitState
-    var progressLabel: String
-    var confidenceLabel: String
-    var nextActionTitle: String
-    var nextActionDetail: String
+    let currentWeek: Int
+    let totalWeeks: Int
+    let completedThisWeek: Int
+    let plannedThisWeek: Int
+    let state: HabitState
+    let progressLabel: String
+    let confidenceLabel: String
+    let nextActionTitle: String
+    let nextActionDetail: String
+
+    private static let weekdayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE"
+        return f
+    }()
 
     var stateMessage: String {
         switch state {
@@ -31,7 +37,7 @@ struct Beginner5KHabitTrack {
 
     static func isBeginnerFirst5K(profile: OnboardingProfile) -> Bool {
         if profile.goal == "First 5K" { return true }
-        let advancedGoals = ["10K PR", "Half Marathon", "Marathon"]
+        let advancedGoals = ["10K PR", "Half Marathon", "Marathon", "Get Faster"]
         if advancedGoals.contains(profile.goal) { return false }
         return profile.experience == "Getting started"
     }
@@ -65,7 +71,6 @@ struct Beginner5KHabitTrack {
             runningWorkouts: runningWorkouts,
             completedThisWeek: completedThisWeek,
             plannedThisWeek: plannedThisWeek,
-            weekWorkouts: weekWorkouts,
             now: now,
             calendar: calendar
         )
@@ -110,9 +115,7 @@ struct Beginner5KHabitTrack {
                 } else if calendar.isDateInTomorrow(next.scheduledDate) {
                     dayLabel = "tomorrow"
                 } else {
-                    let f = DateFormatter()
-                    f.dateFormat = "EEEE"
-                    dayLabel = f.string(from: next.scheduledDate)
+                    dayLabel = Beginner5KHabitTrack.weekdayFormatter.string(from: next.scheduledDate)
                 }
                 nextActionTitle = "Run \(dayLabel)"
                 nextActionDetail = "\(next.title) · \(next.distance)"
@@ -141,7 +144,6 @@ struct Beginner5KHabitTrack {
         runningWorkouts: [WorkoutSummary],
         completedThisWeek: Int,
         plannedThisWeek: Int,
-        weekWorkouts: [WorkoutSummary],
         now: Date,
         calendar: Calendar
     ) -> HabitState {
