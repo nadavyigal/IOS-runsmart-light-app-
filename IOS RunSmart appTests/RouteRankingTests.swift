@@ -139,4 +139,103 @@ final class RouteRankingTests: XCTestCase {
         XCTAssertTrue(flat.lowercased().contains("flat"), "Flat reason should mention flat: \(flat)")
         XCTAssertTrue(hilly.lowercased().contains("hill") || hilly.lowercased().contains("elevation"), "Hilly reason should mention elevation: \(hilly)")
     }
+
+    // MARK: - Today route recommendation
+
+    func testRouteRecommendationPrefersWorkoutDistanceOverKindPriorityWhenFitIsBetter() {
+        let benchmarkTooLong = RouteSuggestion(
+            id: "benchmark",
+            name: "Benchmark Long",
+            distanceKm: 14.0,
+            elevationGainMeters: 60,
+            estimatedDurationMinutes: 78,
+            points: makePoints(),
+            kind: .benchmark
+        )
+        let savedMatch = RouteSuggestion(
+            id: "saved",
+            name: "Saved Match",
+            distanceKm: 8.1,
+            elevationGainMeters: 35,
+            estimatedDurationMinutes: 44,
+            points: makePoints(),
+            kind: .saved,
+            isFavorite: true
+        )
+        let workout = makeWorkout(kind: .tempo, distance: "8 km")
+
+        let recommendation = RouteSuggestionRanker.recommendation(
+            from: [benchmarkTooLong, savedMatch],
+            workout: workout
+        )
+
+        XCTAssertEqual(recommendation.route?.id, "saved")
+        XCTAssertGreaterThan(recommendation.fitScore, 70)
+        XCTAssertNil(recommendation.warning)
+        XCTAssertTrue(recommendation.reason.lowercased().contains("pace"))
+    }
+
+    func testRouteRecommendationWarnsWhenRouteHasNoPoints() {
+        let garminBucket = RouteSuggestion(
+            id: "garmin",
+            name: "5K from Garmin",
+            distanceKm: 5.0,
+            elevationGainMeters: 20,
+            estimatedDurationMinutes: 30,
+            points: [],
+            kind: .past
+        )
+
+        let recommendation = RouteSuggestionRanker.recommendation(
+            from: [garminBucket],
+            workout: makeWorkout(kind: .easy, distance: "5 km")
+        )
+
+        XCTAssertEqual(recommendation.route?.id, "garmin")
+        XCTAssertTrue(recommendation.warning?.contains("No route map points") == true)
+    }
+
+    func testRouteRecommendationEmptyStateIsUseful() {
+        let recommendation = RouteSuggestionRanker.recommendation(
+            from: [],
+            workout: makeWorkout(kind: .easy, distance: "5 km")
+        )
+
+        XCTAssertFalse(recommendation.isAvailable)
+        XCTAssertEqual(recommendation.unavailableReason, .noRoutes)
+        XCTAssertTrue(recommendation.reason.contains("GPS run"))
+    }
+
+    func testDistanceParserHandlesMilesAndKilometers() {
+        XCTAssertEqual(RouteSuggestionRanker.distanceKm(from: "8 km"), 8.0)
+        XCTAssertEqual(RouteSuggestionRanker.distanceKm(from: "3.1 miles") ?? 0, 4.989, accuracy: 0.01)
+    }
+
+    private func makeWorkout(kind: WorkoutKind, distance: String) -> WorkoutSummary {
+        WorkoutSummary(
+            id: UUID(),
+            scheduledDate: Date(),
+            planID: nil,
+            weekday: "Mon",
+            date: "Today",
+            kind: kind,
+            title: kind.rawValue,
+            distance: distance,
+            detail: "",
+            isToday: true,
+            isComplete: false
+        )
+    }
+
+    private func makePoints() -> [RunRoutePoint] {
+        (0..<8).map { index in
+            RunRoutePoint(
+                latitude: 32.0 + Double(index) * 0.001,
+                longitude: 34.0 + Double(index) * 0.001,
+                timestamp: Date().addingTimeInterval(Double(index) * 60),
+                horizontalAccuracy: 8,
+                altitude: nil
+            )
+        }
+    }
 }

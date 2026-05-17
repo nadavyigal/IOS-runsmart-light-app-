@@ -37,6 +37,7 @@ struct RunTabView: View {
                 PreRunView(
                     metrics: metrics,
                     plannedWorkout: router.plannedWorkout,
+                    selectedRoute: router.plannedRoute,
                     phase: recorder.phase,
                     gpsStatus: gpsStatus,
                     gpsDetail: gpsDetail,

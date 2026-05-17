@@ -607,6 +607,7 @@ protocol RouteProviding {
     func routeSuggestions() async -> [RouteSuggestion]
     func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion]
     func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion]
+    func routeRecommendation(for workout: WorkoutSummary?, fallbackDistanceLabel: String?) async -> RouteRecommendation
     func savedRoutes() async -> [SavedRoute]
     func saveRoute(_ route: SavedRoute) async -> Bool
     func deleteRoute(_ routeID: UUID) async -> Bool
@@ -625,6 +626,10 @@ extension RouteProviding {
     func enableBenchmark(for routeID: UUID) async -> Bool { false }
     func disableBenchmark(for routeID: UUID) async -> Bool { false }
     func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion] { [] }
+    func routeRecommendation(for workout: WorkoutSummary?, fallbackDistanceLabel: String?) async -> RouteRecommendation {
+        let routes = await rankedRouteSuggestions(targetDistanceKm: nil)
+        return RouteSuggestionRanker.recommendation(from: routes, workout: workout, fallbackDistanceLabel: fallbackDistanceLabel)
+    }
 }
 
 protocol DeviceSyncing {

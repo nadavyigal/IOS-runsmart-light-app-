@@ -7,6 +7,7 @@ struct TodayTabView: View {
 
     @State private var recommendation = TodayRecommendation.placeholder
     @State private var routes: [RouteSuggestion] = []
+    @State private var routeRecommendation = RouteRecommendation.unavailable(.noRoutes)
     @State private var weekWorkouts: [WorkoutSummary] = []
     @State private var nextWorkouts: [WorkoutSummary] = []
     @State private var runReports: [RunReportSummary] = []
@@ -46,7 +47,7 @@ struct TodayTabView: View {
                 TodayWorkoutRecommendationCard(
                     recommendation: recommendation,
                     workout: todayWorkout,
-                    route: routes.first,
+                    route: routeRecommendation.route ?? routes.first,
                     onStart: { router.startRun(with: todayWorkout) },
                     onModify: { router.open(.planAdjustment) },
                     onSkip: { router.open(.reschedule(todayWorkout)) },
@@ -54,16 +55,24 @@ struct TodayTabView: View {
                 )
                 .runSmartStaggeredAppear(index: 2)
 
+                TodayRouteRecommendationCard(
+                    recommendation: routeRecommendation,
+                    workout: todayWorkout,
+                    onUseRoute: { route in router.startRun(with: todayWorkout, route: route) },
+                    onBrowseRoutes: { router.open(.routeSelector) }
+                )
+                .runSmartStaggeredAppear(index: 3)
+
                 PlanExplanationCard(
                     title: "Why this workout?",
                     explanation: todayExplanation,
                     onAction: { handleExplanationAction(todayExplanation) }
                 )
-                .runSmartStaggeredAppear(index: 3)
+                .runSmartStaggeredAppear(index: 4)
 
                 if Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
                     Beginner5KHabitCard(track: habitTrack)
-                        .runSmartStaggeredAppear(index: 4)
+                        .runSmartStaggeredAppear(index: 5)
                 }
 
                 TodayQuickActions(
@@ -71,30 +80,30 @@ struct TodayTabView: View {
                     onAddActivity: { router.open(.addActivity) },
                     onCoach: { router.openCoach(context: .today) }
                 )
-                .runSmartStaggeredAppear(index: 4)
+                .runSmartStaggeredAppear(index: 6)
 
                 InsightCard(
                     title: "Coach Insight",
                     message: recommendation.coachMessage,
                     action: { router.openCoach(context: .today) }
                 )
-                .runSmartStaggeredAppear(index: 5)
+                .runSmartStaggeredAppear(index: 7)
 
                 if !coachMessages.isEmpty {
                     TodayConversationPreview(messages: coachMessages) {
                         router.openCoach(context: .today)
                     }
-                    .runSmartStaggeredAppear(index: 6)
+                    .runSmartStaggeredAppear(index: 8)
                 }
 
                 quickStats
-                    .runSmartStaggeredAppear(index: 7)
+                    .runSmartStaggeredAppear(index: 9)
 
                 if !nextWorkouts.isEmpty {
                     UpcomingRunsCard(workouts: nextWorkouts) { workout in
                         router.open(.workoutDetail(workout))
                     }
-                    .runSmartStaggeredAppear(index: 8)
+                    .runSmartStaggeredAppear(index: 10)
                 }
 
                 if !runReports.isEmpty {
@@ -103,11 +112,11 @@ struct TodayTabView: View {
                             router.open(.runReportDetail(detail))
                         }
                     }
-                    .runSmartStaggeredAppear(index: 9)
+                    .runSmartStaggeredAppear(index: 11)
                 }
 
                 WeatherConditionsCard()
-                    .runSmartStaggeredAppear(index: 10)
+                    .runSmartStaggeredAppear(index: 12)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
@@ -127,7 +136,6 @@ struct TodayTabView: View {
 
     private func loadData() async {
         async let recommendationTask = services.todayRecommendation()
-        async let routesTask = services.routeSuggestions()
         async let weekTask = services.weeklyPlan()
         async let nextWorkoutsTask = services.nextWorkouts(limit: 3)
         async let reportsTask = services.latestRunReports(limit: 3)
@@ -135,9 +143,8 @@ struct TodayTabView: View {
         async let activePlanTask = services.activeTrainingPlan()
         async let runsTask = services.recentRuns()
         async let recoveryTask = services.recoverySnapshot()
-        let (rec, rts, week, nw, reports, messages, plan, runs, recov) = await (
+        let (rec, week, nw, reports, messages, plan, runs, recov) = await (
             recommendationTask,
-            routesTask,
             weekTask,
             nextWorkoutsTask,
             reportsTask,
@@ -146,8 +153,11 @@ struct TodayTabView: View {
             runsTask,
             recoveryTask
         )
+        let workout = Self.resolvedTodayWorkout(recommendation: rec, nextWorkouts: nw, weekWorkouts: week)
+        let rts = await services.rankedRouteSuggestions(targetDistanceKm: nil)
         recommendation = rec
         routes = rts
+        routeRecommendation = RouteSuggestionRanker.recommendation(from: rts, workout: workout, fallbackDistanceLabel: rec.distance)
         weekWorkouts = week
         nextWorkouts = nw
         runReports = reports
@@ -155,6 +165,32 @@ struct TodayTabView: View {
         activePlan = plan
         recentRuns = runs
         recovery = recov
+    }
+
+    private static func resolvedTodayWorkout(
+        recommendation: TodayRecommendation,
+        nextWorkouts: [WorkoutSummary],
+        weekWorkouts: [WorkoutSummary]
+    ) -> WorkoutSummary {
+        if let real = nextWorkouts.first(where: { $0.isToday }) ??
+            weekWorkouts.first(where: { Calendar.current.isDateInToday($0.scheduledDate) }) ??
+            nextWorkouts.first {
+            return real
+        }
+
+        return WorkoutSummary(
+            id: UUID(),
+            scheduledDate: Date(),
+            planID: nil,
+            weekday: "",
+            date: "",
+            kind: .easy,
+            title: recommendation.workoutTitle,
+            distance: recommendation.distance,
+            detail: recommendation.coachMessage,
+            isToday: true,
+            isComplete: false
+        )
     }
 
     private var header: some View {
@@ -350,6 +386,132 @@ struct PlanExplanationCard: View {
                     .buttonStyle(.plain)
                 }
             }
+        }
+    }
+}
+
+private struct TodayRouteRecommendationCard: View {
+    var recommendation: RouteRecommendation
+    var workout: WorkoutSummary
+    var onUseRoute: (RouteSuggestion) -> Void
+    var onBrowseRoutes: () -> Void
+
+    var body: some View {
+        RunSmartPanel(cornerRadius: 20, padding: 16, accent: .accentRecovery) {
+            VStack(alignment: .leading, spacing: 13) {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: recommendation.isAvailable ? "map.fill" : "map")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.black)
+                        .frame(width: 34, height: 34)
+                        .background(Color.accentRecovery, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Route for Today")
+                            .font(.bodyLG.weight(.semibold))
+                            .foregroundStyle(Color.textPrimary)
+                        Text(workout.title)
+                            .font(.labelSM)
+                            .foregroundStyle(Color.textSecondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if recommendation.isAvailable {
+                        StatusChip(text: "\(recommendation.fitScore)% fit", tint: .accentRecovery)
+                    }
+                }
+
+                if let route = recommendation.route {
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text(route.name)
+                            .font(.headingMD)
+                            .foregroundStyle(Color.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text(recommendation.reason)
+                            .font(.bodyMD)
+                            .foregroundStyle(Color.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack(spacing: 8) {
+                            routeChip(text: String(format: "%.1f km", route.distanceKm), symbol: "point.topleft.down.curvedto.point.bottomright.up")
+                            routeChip(text: difficultyLabel(for: route), symbol: "speedometer")
+                            routeChip(text: route.points.isEmpty ? "Map limited" : "Map ready", symbol: route.points.isEmpty ? "exclamationmark.triangle" : "checkmark.circle")
+                        }
+
+                        if let warning = recommendation.warning {
+                            Label(warning, systemImage: "info.circle")
+                                .font(.caption)
+                                .foregroundStyle(Color.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Button { onUseRoute(route) } label: {
+                            HStack {
+                                Text("Use This Route")
+                                    .font(.bodyMD.weight(.bold))
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .foregroundStyle(Color.black)
+                            .padding(.horizontal, 14)
+                            .frame(height: 46)
+                            .background(Color.accentRecovery, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else {
+                    let unavailable = recommendation.unavailableReason ?? .noRoutes
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(unavailable.title)
+                            .font(.headingMD)
+                            .foregroundStyle(Color.textPrimary)
+                        Text(unavailable.message)
+                            .font(.bodyMD)
+                            .foregroundStyle(Color.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button(action: onBrowseRoutes) {
+                            HStack {
+                                Text("Browse Routes")
+                                    .font(.bodyMD.weight(.bold))
+                                Spacer()
+                                Image(systemName: "map")
+                            }
+                            .foregroundStyle(Color.accentRecovery)
+                            .padding(.horizontal, 12)
+                            .frame(height: 44)
+                            .background(Color.accentRecovery.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.accentRecovery.opacity(0.28), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private func routeChip(text: String, symbol: String) -> some View {
+        Label(text, systemImage: symbol)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.textSecondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
+            .padding(.horizontal, 9)
+            .frame(height: 30)
+            .background(Color.surfaceBase.opacity(0.42), in: Capsule())
+    }
+
+    private func difficultyLabel(for route: RouteSuggestion) -> String {
+        switch route.elevationGainMeters {
+        case ...50:
+            return "Easy"
+        case ...150:
+            return "Rolling"
+        default:
+            return "Hilly"
         }
     }
 }

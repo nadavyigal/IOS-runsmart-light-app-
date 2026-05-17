@@ -1,7 +1,93 @@
 # Task State
 
 ## Current Task
-Sprint 5 complete: Beginner 5K Habit Track + Guided Cue Preview.
+Sprint 6B complete: Return Loop + Share Cards + TestFlight Readiness.
+
+## Sprint 6B - Return Loop + Share Cards + TestFlight Readiness - 2026-05-17
+
+As a beta runner, I want calm return reminders, private progress sharing, and honest beta copy so RunSmart is safer to expand through TestFlight.
+
+### Expected Files
+- `IOS RunSmart app/Core/Push/PushService.swift`
+- `IOS RunSmart app/App/RunSmartLiteAppShell.swift`
+- `IOS RunSmart app/Services/Production/RunSmartProductionServices.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Features/Run/PostRunSummaryView.swift`
+- `IOS RunSmart app/Features/Routes/BenchmarkComparisonCard.swift`
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift`
+- `IOS RunSmart app/Features/Profile/ProfileTabView.swift`
+- `IOS RunSmart app/Features/Auth/SignInView.swift`
+- `IOS RunSmart app/Features/Onboarding/OnboardingView.swift`
+- `RunSmartInfo.plist`
+- `docs/qa/testflight-checklist.md`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Checklist
+- [x] Add/update local notification scheduler for workout due, missed workout recovery, rest day/recovery, and weekly recap placeholder.
+- [x] Respect user notification preferences and denial state.
+- [x] Cancel relevant workout reminder when a workout is completed.
+- [x] Route notification opens to Today, Plan, or Report where current navigation supports it.
+- [x] Add reusable private progress share card and share utility.
+- [x] Add share buttons to run report, benchmark comparison, and habit/milestone surface where available.
+- [x] Ensure share defaults do not expose raw coordinates or exact route maps.
+- [x] Clean unsupported live AI, medical, and overpromising integration copy.
+- [x] Review permission copy for location, HealthKit, notifications, and Garmin.
+- [x] Create or update TestFlight/physical-device QA checklist.
+- [x] App builds successfully.
+
+### Scope Guard
+- No remote push, social feed, leaderboard, public sharing backend, live in-run AI claim, or Hebrew localization.
+
+### Validation
+- Generic simulator build-for-testing passed and compiled the new Sprint 6B reminder/share tests:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Static copy scan checked live AI, real-time plan adaptation, medical/diagnosis wording, notification/reminder copy, Garmin/HealthKit, and location permission copy.
+- Manual QA required: permission accepted, permission denied, schedule tomorrow workout, complete workout before reminder, missed workout reminder, rest day reminder, report share, benchmark share, share cancel, sign-in copy, onboarding copy, location permission, HealthKit permission, and Garmin flow.
+- No event analytics wrapper was found; Sprint 6B did not add analytics events.
+
+## Sprint 6A - Routes + Benchmark Coaching - 2026-05-17
+
+As a runner, I want RunSmart to recommend a route for today's workout and explain benchmark route comparisons safely.
+
+### Expected Files
+- `IOS RunSmart app/Models/RunSmartModels.swift`
+- `IOS RunSmart app/Services/RouteSuggestionRanker.swift`
+- `IOS RunSmart app/Services/RunSmartServices.swift`
+- `IOS RunSmart app/Services/Production/RunSmartProductionServices.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Features/Today/TodayTabView.swift`
+- `IOS RunSmart app/Features/Run/RunTabView.swift`
+- `IOS RunSmart app/Features/Run/PreRunView.swift`
+- `IOS RunSmart app/Features/Routes/BenchmarkComparisonCard.swift`
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift`
+- `IOS RunSmart appTests/RouteRankingTests.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Checklist
+- [x] Add a route recommendation model with route, reason, fit score, warning, and unavailable state.
+- [x] Rank saved/generated/benchmark routes by today's workout distance and intent.
+- [x] Add a Today recommended route card with conservative route copy and useful empty state.
+- [x] Carry the selected route into the Run pre-start flow where the existing architecture supports it.
+- [x] Improve benchmark comparison states for first run, matched comparison, PB, monthly average, weak GPS, and no benchmark.
+- [x] Keep route copy conservative when route points are missing.
+- [x] App builds successfully.
+
+### Scope Guard
+- No public route marketplace, Strava segments, social leaderboards, map overhaul, or live AI during runs.
+
+### Validation
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Generic simulator build-for-testing passed and compiled the new Sprint 6A route ranking and benchmark readiness tests:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Manual QA required: saved route, benchmark route, generated route if available, no route, no GPS permission, route without points, first benchmark run, second run on same route, imported matching Garmin run, and weak GPS.
+- Existing `BenchmarkRouteAnalyticsService` is a comparison computation helper, not an event-tracking wrapper; Sprint 6A did not add analytics events.
 
 ## Sprint 5 - Beginner 5K Habit Track + Guided Cue Preview - 2026-05-17
 

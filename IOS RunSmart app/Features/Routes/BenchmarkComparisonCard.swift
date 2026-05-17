@@ -4,12 +4,17 @@ struct BenchmarkComparisonLoaderView: View {
     @Environment(\.runSmartServices) private var services
     var run: RecordedRun?
 
-    @State private var comparison: BenchmarkRouteComparison?
+    @State private var state: BenchmarkComparisonLoadState = .empty
 
     var body: some View {
         Group {
-            if let comparison {
+            switch state {
+            case .empty:
+                EmptyView()
+            case .comparison(let comparison):
                 BenchmarkComparisonCard(comparison: comparison)
+            case .status(let status):
+                BenchmarkComparisonStatusCard(status: status)
             }
         }
         .task(id: run?.id) {
@@ -19,7 +24,17 @@ struct BenchmarkComparisonLoaderView: View {
 
     private func loadComparison() async {
         guard var run else {
-            comparison = nil
+            state = .empty
+            return
+        }
+
+        if run.routePoints.isEmpty {
+            state = .status(.noRouteData)
+            return
+        }
+
+        if run.routePoints.count < RouteMatchingService.minimumRoutePoints {
+            state = .status(.weakGPS)
             return
         }
 
@@ -27,7 +42,108 @@ struct BenchmarkComparisonLoaderView: View {
             run.routeMatchResult = await services.matchRoute(for: run)
         }
 
-        comparison = await services.benchmarkComparison(for: run)
+        guard let match = run.routeMatchResult else {
+            state = .status(.noBenchmark)
+            return
+        }
+
+        switch match.confidence {
+        case .possibleMatch:
+            state = .status(.weakGPS)
+            return
+        case .noMatch:
+            state = .status(.noBenchmark)
+            return
+        case .matched:
+            break
+        }
+
+        if let comparison = await services.benchmarkComparison(for: run) {
+            state = .comparison(comparison)
+        } else {
+            state = .status(.noBenchmark)
+        }
+    }
+}
+
+enum BenchmarkComparisonLoadState: Hashable {
+    case empty
+    case comparison(BenchmarkRouteComparison)
+    case status(BenchmarkComparisonStatus)
+}
+
+enum BenchmarkComparisonStatus: Hashable {
+    case noRouteData
+    case weakGPS
+    case noBenchmark
+
+    var title: String {
+        switch self {
+        case .noRouteData:
+            return "No benchmark comparison"
+        case .weakGPS:
+            return "Benchmark confidence is low"
+        case .noBenchmark:
+            return "No benchmark route matched"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .noRouteData:
+            return "This activity does not include enough map data for route matching. The run is saved, but RunSmart will not compare it to a benchmark."
+        case .weakGPS:
+            return "GPS shape was not strong enough for a trustworthy benchmark comparison, so RunSmart is not showing pace or PB deltas."
+        case .noBenchmark:
+            return "Save this route as a benchmark, or run an existing benchmark route, to unlock repeatable comparisons."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .noRouteData:
+            return "map"
+        case .weakGPS:
+            return "location.slash"
+        case .noBenchmark:
+            return "flag"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .weakGPS:
+            return .accentEnergy
+        case .noRouteData, .noBenchmark:
+            return .textSecondary
+        }
+    }
+}
+
+private struct BenchmarkComparisonStatusCard: View {
+    var status: BenchmarkComparisonStatus
+
+    var body: some View {
+        RunSmartPanel(cornerRadius: 22, padding: 16, accent: status.tint) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: status.symbol)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(status.tint)
+                    .frame(width: 34, height: 34)
+                    .background(status.tint.opacity(0.12), in: Circle())
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(status.title)
+                        .font(.headingMD)
+                        .foregroundStyle(Color.textPrimary)
+                    Text(status.message)
+                        .font(.bodyMD)
+                        .foregroundStyle(Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -89,6 +205,8 @@ struct BenchmarkComparisonCard: View {
                         .foregroundStyle(Color.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                ProgressShareButton(payload: .benchmark(comparison))
             }
         }
         .accessibilityElement(children: .contain)

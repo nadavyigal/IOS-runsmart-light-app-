@@ -42,6 +42,13 @@ struct PostRunSummaryView: View {
                 RPESelector(value: $rpe)
 
                 CoachAnalysisCard(run: run, rpe: rpe)
+                if let report = outcome?.report {
+                    ProgressShareCard(payload: .runReport(report))
+                    ProgressShareButton(payload: .runReport(report))
+                } else if let run {
+                    ProgressShareCard(payload: fallbackSharePayload(for: run))
+                    ProgressShareButton(payload: fallbackSharePayload(for: run))
+                }
                 PostRunLearningCard(
                     run: run,
                     outcome: outcome,
@@ -137,6 +144,21 @@ struct PostRunSummaryView: View {
             let pace = max(1, run.averagePaceSecondsPerKm + drift)
             return SplitRow(km: km, pace: RunRecorder.paceLabel(secondsPerKm: pace))
         }
+    }
+
+    private func fallbackSharePayload(for run: RecordedRun) -> ProgressSharePayload {
+        ProgressSharePayload(
+            kind: .runReport,
+            title: "Run saved",
+            subtitle: run.startedAt.formatted(date: .abbreviated, time: .omitted),
+            metrics: [
+                ProgressShareMetric(title: "Distance", value: distanceLabel),
+                ProgressShareMetric(title: "Time", value: timeLabel),
+                ProgressShareMetric(title: "Avg Pace", value: paceLabel)
+            ],
+            insight: "RunSmart saved this activity for private progress tracking.",
+            privacyNote: "Private share: no map, raw coordinates, or exact route are included."
+        )
     }
 }
 

@@ -47,7 +47,7 @@ struct OnboardingView: View {
     }
 
     private var goalStep: some View {
-        OnboardingStepShell(title: "Goal", subtitle: "Pick the result your AI coach should build around.", symbol: "target") {
+        OnboardingStepShell(title: "Goal", subtitle: "Pick the result your RunSmart coach should build around.", symbol: "target") {
             TextField("Your name", text: $profile.displayName)
                 .textFieldStyle(OnboardingFieldStyle())
             OnboardingChoiceGrid(options: goals, selection: $profile.goal)
@@ -95,10 +95,13 @@ struct OnboardingView: View {
     private var privacyStep: some View {
         OnboardingStepShell(title: "Privacy", subtitle: "Choose coaching tone and data signals. You can connect devices later.", symbol: "lock.shield.fill") {
             OnboardingChoiceGrid(options: tones, selection: $profile.coachingTone)
-            Toggle("Workout reminders", isOn: $profile.notificationsEnabled)
+            Toggle("Smart return reminders", isOn: $profile.notificationsEnabled)
                 .tint(Color.accentPrimary)
-            DevicePreviewRow(title: "Garmin Connect", detail: "Import runs, HRV, sleep, and body battery.", symbol: "link.circle.fill")
-            DevicePreviewRow(title: "HealthKit", detail: "Read and write completed workouts.", symbol: "heart.fill")
+            Text("Reminders are local, low-frequency, and can be turned off from Profile.")
+                .font(.caption)
+                .foregroundStyle(Color.textSecondary)
+            DevicePreviewRow(title: "Garmin Connect", detail: "Import supported runs and wellness signals after you connect Garmin.", symbol: "link.circle.fill")
+            DevicePreviewRow(title: "HealthKit", detail: "Read workout and health signals you approve; write completed GPS runs when allowed.", symbol: "heart.fill")
             RookieChallengeCallout()
             OnboardingPrimaryButton(title: "Confirm Privacy", symbol: "arrow.right", action: advance)
         }

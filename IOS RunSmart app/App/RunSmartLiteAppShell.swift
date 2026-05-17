@@ -18,6 +18,7 @@ final class AppRouter: ObservableObject {
     @Published var selectedTab: RunSmartTab = AppRouter.initialTab()
     @Published var activeSheet: RunSmartSheet?
     @Published var plannedWorkout: WorkoutSummary?
+    @Published var plannedRoute: RouteSuggestion?
 
     private static func initialTab() -> RunSmartTab {
 #if DEBUG
@@ -43,11 +44,24 @@ final class AppRouter: ObservableObject {
         activeSheet = .secondary(destination)
     }
 
-    func startRun(with workout: WorkoutSummary? = nil) {
+    func startRun(with workout: WorkoutSummary? = nil, route: RouteSuggestion? = nil) {
         RunSmartHaptics.medium()
         plannedWorkout = workout
+        plannedRoute = route
         activeSheet = nil
         selectedTab = .run
+    }
+
+    func openNotificationDestination(_ destination: RunSmartNotificationDestination) {
+        activeSheet = nil
+        switch destination {
+        case .today:
+            selectedTab = .today
+        case .plan:
+            selectedTab = .plan
+        case .report:
+            selectedTab = .report
+        }
     }
 }
 
@@ -118,10 +132,23 @@ struct RunSmartLiteAppShell: View {
             showPlanGenerationNotice(status)
         }
         .task {
+            PushService.shared.configureNavigation { destination in
+                router.openNotificationDestination(destination)
+            }
             try? await Task.sleep(nanoseconds: 900_000_000)
             withAnimation(.easeOut(duration: 0.32)) {
                 isShowingLaunch = false
             }
+        }
+        .task(id: session.hasCompletedOnboarding) {
+            guard session.isAuthenticated, session.hasCompletedOnboarding else { return }
+            await refreshReturnLoopReminders()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanDidChange)) { _ in
+            Task { await refreshReturnLoopReminders() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
+            Task { await refreshReturnLoopReminders() }
         }
         .task(id: session.hasCompletedOnboarding) {
             guard session.isAuthenticated, session.hasCompletedOnboarding, !didPresentMorningCheckin else { return }
@@ -171,6 +198,20 @@ struct RunSmartLiteAppShell: View {
                 }
             }
         }
+    }
+
+    private func refreshReturnLoopReminders() async {
+        guard session.isAuthenticated, session.hasCompletedOnboarding else { return }
+        async let workoutsTask = services.nextWorkouts(limit: 8)
+        async let runsTask = services.recentRuns()
+        async let recoveryTask = services.recoverySnapshot()
+        let (workouts, runs, recovery) = await (workoutsTask, runsTask, recoveryTask)
+        await PushService.shared.scheduleReturnLoopReminders(
+            profile: session.onboardingProfile,
+            workouts: workouts,
+            recentRuns: runs,
+            recovery: recovery
+        )
     }
 }
 

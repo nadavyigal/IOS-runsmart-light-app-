@@ -966,7 +966,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
         await MainActor.run {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
-            if completed != nil {
+            if let completed {
+                PushService.shared.cancelWorkoutReminder(workoutID: completed.id)
                 NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
             }
         }
