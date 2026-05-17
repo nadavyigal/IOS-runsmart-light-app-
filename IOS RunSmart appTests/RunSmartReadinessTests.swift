@@ -2116,6 +2116,18 @@ final class RunSmartReadinessTests: XCTestCase {
         )
         XCTAssertEqual(track.state, .weekComplete)
     }
+
+    // MARK: - Sprint 5: Cue Preview
+
+    func testPreRunCueMissingStructureHandledGracefully() {
+        let workout = makeWorkout(date: "2026-05-17", kind: .tempo, title: "Tempo Run", distance: "6.0 km")
+        // workoutStructure is nil by default from makeWorkout
+        XCTAssertNil(workout.workoutStructure, "Fixture should have nil workoutStructure")
+        // makeSteps falls back to derived steps for tempo — must not crash and must return non-empty
+        let steps = StructuredWorkoutFactory.makeSteps(for: workout)
+        XCTAssertNotNil(steps)
+        XCTAssertFalse(steps?.isEmpty ?? true, "Derived tempo steps should not be empty")
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {

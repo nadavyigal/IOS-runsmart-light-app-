@@ -49,6 +49,8 @@ struct PreRunView: View {
                             RunOptionButton(title: "Route", symbol: "map.fill", tint: .accentRecovery, action: onRoute)
                             RunOptionButton(title: "Audio", symbol: "speaker.wave.2.fill", tint: .accentPrimary, action: onAudio)
                         }
+
+                        PreRunCueTimeline(plannedWorkout: plannedWorkout)
                     }
                 }
 
@@ -213,5 +215,117 @@ struct GPSStatusPill: View {
         default:
             return .accentPrimary
         }
+    }
+}
+
+private struct PreRunCueTimeline: View {
+    var plannedWorkout: WorkoutSummary?
+    @State private var isExpanded = false
+
+    var body: some View {
+        if let workout = plannedWorkout {
+            plannedCues(for: workout)
+        } else {
+            freeRunIntent
+        }
+    }
+
+    private var freeRunIntent: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "waveform.path")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.accentPrimary)
+                .frame(width: 30, height: 30)
+                .background(Color.accentPrimary.opacity(0.12), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Pacing intent")
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Text("Run by feel, no pressure. Listen to your body.")
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.surfaceBase.opacity(0.34), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.border, lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func plannedCues(for workout: WorkoutSummary) -> some View {
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "list.bullet.clipboard")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                    Text("See workout breakdown")
+                        .font(.bodyMD.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.textSecondary)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .padding(.horizontal, 12)
+                .frame(height: 48)
+                .background(Color.surfaceBase.opacity(0.34), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                VStack(spacing: 8) {
+                    let steps = StructuredWorkoutFactory.makeSteps(for: workout)
+                    if let steps, !steps.isEmpty {
+                        ForEach(steps) { step in
+                            CueStepRow(step: step)
+                        }
+                    } else {
+                        Text("Workout details will appear once the structure loads.")
+                            .font(.bodyMD)
+                            .foregroundStyle(Color.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 8)
+                    }
+                }
+                .padding(.top, 6)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+}
+
+private struct CueStepRow: View {
+    var step: WorkoutStep
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(step.tint)
+                .frame(width: 9, height: 9)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(step.title)
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Text("\(step.duration) · \(step.target)")
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color.surfaceCard.opacity(0.58), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
