@@ -25,6 +25,32 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(DBProfileReference.string("abc").debugValue, "string:abc")
     }
 
+    func testCoachPersistenceInsertRowsUseOnlyThreadRoleAndContent() throws {
+        let conversation = DBConversationInsert(profileId: "11111111-1111-1111-1111-111111111111")
+        let message = DBMessageInsert(
+            conversationId: "22222222-2222-2222-2222-222222222222",
+            role: "assistant",
+            content: "Today I see readiness at 82. Next up: Tempo Builder 8.0 km.",
+            createdAt: "2026-05-17T07:00:00Z"
+        )
+
+        let conversationObject = try JSONSerialization.jsonObject(with: JSONEncoder().encode(conversation)) as? [String: Any]
+        let messageObject = try JSONSerialization.jsonObject(with: JSONEncoder().encode(message)) as? [String: Any]
+        let conversationKeys = Set(conversationObject?.keys.map { $0 } ?? [])
+        let messageKeys = Set(messageObject?.keys.map { $0 } ?? [])
+
+        XCTAssertEqual(conversationObject?["profile_id"] as? String, "11111111-1111-1111-1111-111111111111")
+        XCTAssertEqual(conversationKeys, ["profile_id"])
+        XCTAssertEqual(messageObject?["conversation_id"] as? String, "22222222-2222-2222-2222-222222222222")
+        XCTAssertEqual(messageObject?["role"] as? String, "assistant")
+        XCTAssertEqual(messageObject?["content"] as? String, "Today I see readiness at 82. Next up: Tempo Builder 8.0 km.")
+        XCTAssertEqual(messageObject?["created_at"] as? String, "2026-05-17T07:00:00Z")
+        XCTAssertEqual(messageKeys, ["conversation_id", "role", "content", "created_at"])
+        XCTAssertNil(messageObject?["context"])
+        XCTAssertNil(messageObject?["latitude"])
+        XCTAssertNil(messageObject?["longitude"])
+    }
+
     private func makeDate(_ value: String) -> Date {
         ISO8601DateFormatter.shortDate.date(from: value)!
     }
@@ -112,6 +138,83 @@ final class RunSmartReadinessTests: XCTestCase {
                 altitude: nil
             )
         }
+    }
+
+    func testFirstSyncReviewExplainsDuplicateOnlySync() {
+        let review = FirstSyncReview.make(
+            provider: .garmin,
+            importedRuns: [],
+            skippedDuplicateCount: 4,
+            createdAt: makeDate("2026-05-17")
+        )
+
+        XCTAssertEqual(review.provider, .garmin)
+        XCTAssertEqual(review.importedCount, 0)
+        XCTAssertEqual(review.skippedDuplicateCount, 4)
+        XCTAssertEqual(review.routeAvailabilityCount, 0)
+        XCTAssertEqual(review.routeLessCount, 0)
+        XCTAssertEqual(review.nextAction, .today)
+        XCTAssertTrue(review.summary.contains("did not create duplicates"))
+        XCTAssertTrue(review.routeSummary.contains("No route data changed"))
+    }
+
+    func testFirstSyncReviewExplainsRouteLessImportsHonestly() {
+        let run = makeRun(
+            providerActivityID: "hk-route-less",
+            source: .healthKit,
+            startedAt: makeDate("2026-05-15"),
+            distanceMeters: 6_200,
+            movingTimeSeconds: 2_200
+        )
+
+        let review = FirstSyncReview.make(
+            provider: .healthKit,
+            importedRuns: [run],
+            skippedDuplicateCount: 0,
+            createdAt: makeDate("2026-05-17")
+        )
+
+        XCTAssertEqual(review.importedCount, 1)
+        XCTAssertEqual(review.routeAvailabilityCount, 0)
+        XCTAssertEqual(review.routeLessCount, 1)
+        XCTAssertEqual(review.nextAction, .plan)
+        XCTAssertTrue(review.routeSummary.contains("did not provide GPS routes"))
+        XCTAssertTrue(review.coachCanUse.contains("Recent distance, pace, and training history"))
+    }
+
+    func testFirstSyncReviewCountsRoutesAndRecentActivities() {
+        let routedRun = makeRun(
+            providerActivityID: "garmin-routed",
+            source: .garmin,
+            startedAt: makeDate("2026-05-16"),
+            distanceMeters: 8_000,
+            movingTimeSeconds: 2_760,
+            heartRate: 148,
+            routePoints: makeRoutePoints(count: 12)
+        )
+        let routeLessRun = makeRun(
+            providerActivityID: "garmin-route-less",
+            source: .garmin,
+            startedAt: makeDate("2026-05-14"),
+            distanceMeters: 4_000,
+            movingTimeSeconds: 1_400
+        )
+
+        let review = FirstSyncReview.make(
+            provider: .garmin,
+            importedRuns: [routeLessRun, routedRun],
+            skippedDuplicateCount: 1,
+            createdAt: makeDate("2026-05-17")
+        )
+
+        XCTAssertEqual(review.importedCount, 2)
+        XCTAssertEqual(review.skippedDuplicateCount, 1)
+        XCTAssertEqual(review.routeAvailabilityCount, 1)
+        XCTAssertEqual(review.routeLessCount, 1)
+        XCTAssertEqual(review.recentImportedActivities.map(\.id), ["garmin-routed", "garmin-route-less"])
+        XCTAssertEqual(review.nextAction, .report)
+        XCTAssertTrue(review.coachCanUse.contains("Heart-rate context from imported workouts"))
+        XCTAssertTrue(review.coachCanUse.contains("Route-aware run review when GPS route data exists"))
     }
 
     private func makeSavedRoute(
@@ -367,6 +470,129 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(display.steps.isEmpty)
     }
 
+    func testPlanExplanationExplainsTodayWorkoutOnTrack() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = makeDate("2026-05-07").addingTimeInterval(9 * 3600)
+        let workout = makeWorkout(date: "2026-05-07", kind: .tempo, title: "Tempo Builder", distance: "8.0 km")
+        let explanation = PlanExplanation.make(
+            activePlan: TrainingPlanSnapshot(id: UUID(), title: "10K Build", startDate: makeDate("2026-05-01"), endDate: makeDate("2026-06-30"), totalWeeks: 8, planType: "10K"),
+            todayWorkout: workout,
+            weekWorkouts: [workout],
+            nextWorkouts: [workout],
+            recentRuns: [],
+            recovery: RecoverySnapshot(readiness: 76, bodyBattery: 70, sleep: "7h", hrv: "Stable", stress: "Low", recommendation: "Ready."),
+            recommendation: TodayRecommendation(readiness: 80, readinessLabel: "Ready", workoutTitle: "Tempo Builder", distance: "8.0 km", pace: "5:20 /km", elevation: "--", coachMessage: "Go controlled."),
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(explanation.trigger, .normal)
+        XCTAssertTrue(explanation.evidence.contains("Tempo Builder"))
+        XCTAssertNil(explanation.action)
+        XCTAssertEqual(explanation.source, .heuristic)
+    }
+
+    func testPlanExplanationHandlesNoPlanAndRestDay() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = makeDate("2026-05-07").addingTimeInterval(9 * 3600)
+        let noPlan = PlanExplanation.make(
+            activePlan: nil,
+            todayWorkout: nil,
+            weekWorkouts: [],
+            nextWorkouts: [],
+            recentRuns: [],
+            recovery: .loading,
+            recommendation: TodayRecommendation(readiness: 0, readinessLabel: "Loading", workoutTitle: "Rest Day", distance: "--", pace: "--:--", elevation: "--", coachMessage: ""),
+            now: now,
+            calendar: calendar
+        )
+        let rest = makeWorkout(date: "2026-05-07", kind: .recovery, title: "Recovery", distance: "Rest")
+        let restDay = PlanExplanation.make(
+            activePlan: TrainingPlanSnapshot(id: UUID(), title: "Base", startDate: makeDate("2026-05-01"), endDate: makeDate("2026-05-31"), totalWeeks: 4, planType: "base"),
+            todayWorkout: rest,
+            weekWorkouts: [rest],
+            nextWorkouts: [rest],
+            recentRuns: [],
+            recovery: RecoverySnapshot(readiness: 70, bodyBattery: 65, sleep: "7h", hrv: "Stable", stress: "Low", recommendation: "Recover."),
+            recommendation: TodayRecommendation(readiness: 70, readinessLabel: "Ready", workoutTitle: "Rest Day", distance: "--", pace: "--:--", elevation: "--", coachMessage: ""),
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(noPlan.source, .fallback)
+        XCTAssertEqual(noPlan.action, "Set a goal")
+        XCTAssertEqual(restDay.trigger, .normal)
+        XCTAssertTrue(restDay.evidence.contains("No run is scheduled"))
+    }
+
+    func testPlanExplanationPrioritizesSupportiveMissedWorkoutCopy() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = makeDate("2026-05-07").addingTimeInterval(9 * 3600)
+        let missed = makeWorkout(date: "2026-05-06", kind: .easy, title: "Easy Run", distance: "5.0 km")
+        let today = makeWorkout(date: "2026-05-07", kind: .tempo, title: "Tempo Builder", distance: "8.0 km")
+
+        let explanation = PlanExplanation.make(
+            activePlan: TrainingPlanSnapshot(id: UUID(), title: "10K Build", startDate: makeDate("2026-05-01"), endDate: makeDate("2026-06-30"), totalWeeks: 8, planType: "10K"),
+            todayWorkout: today,
+            weekWorkouts: [missed, today],
+            nextWorkouts: [today],
+            recentRuns: [],
+            recovery: RecoverySnapshot(readiness: 72, bodyBattery: 68, sleep: "7h", hrv: "Stable", stress: "Low", recommendation: "Ready."),
+            recommendation: TodayRecommendation(readiness: 72, readinessLabel: "Ready", workoutTitle: "Tempo Builder", distance: "8.0 km", pace: "5:20 /km", elevation: "--", coachMessage: ""),
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(explanation.trigger, .missedWorkout)
+        XCTAssertTrue(explanation.recommendation.contains("No stress"))
+        XCTAssertEqual(explanation.action, "Reschedule")
+    }
+
+    func testPlanExplanationUsesRecentImportedAndLowRecoverySignals() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = makeDate("2026-05-07").addingTimeInterval(9 * 3600)
+        let today = makeWorkout(date: "2026-05-07", kind: .easy, title: "Easy Run", distance: "5.0 km")
+        let imported = makeRun(
+            providerActivityID: "garmin-1",
+            source: .garmin,
+            startedAt: makeDate("2026-05-06").addingTimeInterval(8 * 3600),
+            distanceMeters: 6_400,
+            movingTimeSeconds: 2_200
+        )
+
+        let importedExplanation = PlanExplanation.make(
+            activePlan: TrainingPlanSnapshot(id: UUID(), title: "10K Build", startDate: makeDate("2026-05-01"), endDate: makeDate("2026-06-30"), totalWeeks: 8, planType: "10K"),
+            todayWorkout: today,
+            weekWorkouts: [today],
+            nextWorkouts: [today],
+            recentRuns: [imported],
+            recovery: RecoverySnapshot(readiness: 74, bodyBattery: 70, sleep: "7h", hrv: "Stable", stress: "Low", recommendation: "Ready."),
+            recommendation: TodayRecommendation(readiness: 74, readinessLabel: "Ready", workoutTitle: "Easy Run", distance: "5.0 km", pace: "6:00 /km", elevation: "--", coachMessage: ""),
+            now: now,
+            calendar: calendar
+        )
+        let lowRecovery = PlanExplanation.make(
+            activePlan: TrainingPlanSnapshot(id: UUID(), title: "10K Build", startDate: makeDate("2026-05-01"), endDate: makeDate("2026-06-30"), totalWeeks: 8, planType: "10K"),
+            todayWorkout: today,
+            weekWorkouts: [today],
+            nextWorkouts: [today],
+            recentRuns: [imported],
+            recovery: RecoverySnapshot(readiness: 32, bodyBattery: 24, sleep: "5h", hrv: "Lower", stress: "High", recommendation: "Keep it easy."),
+            recommendation: TodayRecommendation(readiness: 36, readinessLabel: "Low energy", workoutTitle: "Easy Run", distance: "5.0 km", pace: "6:00 /km", elevation: "--", coachMessage: ""),
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(importedExplanation.trigger, .importedActivity)
+        XCTAssertTrue(importedExplanation.evidence.contains("Garmin"))
+        XCTAssertEqual(lowRecovery.trigger, .lowRecovery)
+        XCTAssertEqual(lowRecovery.action, "Amend workout")
+    }
+
     func testRunReportPayloadDecodesRichWebShape() throws {
         let json = """
         {
@@ -417,6 +643,79 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(report.hasGeneratedReport)
         XCTAssertFalse(report.summary.hasGeneratedReport)
         XCTAssertEqual(report.notes.summary, "No coach report yet.")
+    }
+
+    func testPostRunLearningCardUsesFallbackReportAndSuggestedWorkoutAction() {
+        let run = makeRun(
+            source: .runSmart,
+            startedAt: Date(timeIntervalSince1970: 2_000),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500,
+            routePoints: makeRoutePoints()
+        )
+        let report = RunReportDetail(
+            id: "report-1",
+            runID: run.id.uuidString,
+            title: "RunSmart Run Report",
+            dateLabel: "May 17, 2026",
+            source: "RunSmart",
+            distance: "5.00 km",
+            duration: "25:00",
+            averagePace: "5:00",
+            averageHeartRate: "150 bpm",
+            coachScore: nil,
+            notes: CoachRunNotes(
+                summary: "Completed a steady aerobic run.",
+                effort: "Moderate",
+                recovery: "Keep tomorrow easy.",
+                nextSessionNudge: "Next recommended: Easy 6 km."
+            ),
+            structuredNextWorkout: StructuredNextWorkout(title: "Easy 6 km", dateLabel: "May 18", distance: "6.0 km", target: "Easy", notes: nil),
+            isGenerated: true
+        )
+        let plan = TrainingPlanSnapshot(
+            id: UUID(),
+            title: "10K Build",
+            startDate: Date(timeIntervalSince1970: 1_000),
+            endDate: Date(timeIntervalSince1970: 90_000),
+            totalWeeks: 8,
+            planType: "10K"
+        )
+
+        let model = PostRunLearningCardModel.make(run: run, outcome: nil, report: report, activePlan: plan)
+
+        XCTAssertEqual(model.source, .fallback)
+        XCTAssertEqual(model.planImpact, .needsReview)
+        XCTAssertEqual(model.nextActionTitle, "Save suggested next run")
+        if case .saveSuggestedWorkout(let next, let actionReport) = model.action {
+            XCTAssertEqual(next.title, "Easy 6 km")
+            XCTAssertEqual(actionReport.id, report.id)
+        } else {
+            XCTFail("Expected suggested workout action")
+        }
+    }
+
+    func testPostRunLearningCardHandlesNoActivePlanAndShortRun() {
+        let run = makeRun(
+            source: .healthKit,
+            startedAt: Date(timeIntervalSince1970: 2_000),
+            distanceMeters: 300,
+            movingTimeSeconds: 120,
+            routePoints: []
+        )
+
+        let model = PostRunLearningCardModel.make(run: run, outcome: nil, report: nil, activePlan: nil)
+
+        XCTAssertEqual(model.source, .heuristic)
+        XCTAssertEqual(model.planImpact, .unavailable)
+        XCTAssertTrue(model.happened.contains("short"))
+        XCTAssertTrue(model.learned.contains("too short"))
+        XCTAssertEqual(model.nextActionTitle, "Create a plan first")
+        if case .unavailable(let title) = model.action {
+            XCTAssertEqual(title, "Create a plan first")
+        } else {
+            XCTFail("Expected unavailable action")
+        }
     }
 
     func testRouteMatchingReturnsHighConfidenceForSameRoute() {
@@ -1750,6 +2049,72 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(updated[0].historicalRunCount, 3, "Garmin, RunSmart, and HealthKit matched runs all count")
         XCTAssertEqual(updated[0].personalBestSeconds, 1_480)
         XCTAssertEqual(updated[0].averageDurationSeconds ?? 0, (1_600 + 1_480 + 1_540) / 3, accuracy: 1)
+    }
+
+    // MARK: - Sprint 5: Beginner 5K Habit Track
+
+    func testBeginnerHabitTrackDetectsFirst5KGoal() {
+        var profile = OnboardingProfile.empty
+        profile.goal = "First 5K"
+        profile.experience = "Building base"
+        XCTAssertTrue(Beginner5KHabitTrack.isBeginnerFirst5K(profile: profile))
+    }
+
+    func testBeginnerHabitTrackNonBeginnerIgnored() {
+        var profile = OnboardingProfile.empty
+        profile.goal = "10K PR"
+        profile.experience = "Getting started"
+        XCTAssertFalse(Beginner5KHabitTrack.isBeginnerFirst5K(profile: profile))
+    }
+
+    func testBeginnerHabitTrackRestDayState() {
+        let recovery = makeWorkout(date: "2026-05-17", kind: .recovery, title: "Recovery Jog")
+        let track = Beginner5KHabitTrack.make(
+            weekWorkouts: [recovery],
+            activePlan: nil,
+            now: makeDate("2026-05-17")
+        )
+        XCTAssertEqual(track.state, .restDay)
+    }
+
+    func testBeginnerHabitTrackMissedCopyIsNonShaming() {
+        let missed = makeWorkout(date: "2026-05-16", kind: .easy, title: "Easy Run")
+        let track = Beginner5KHabitTrack.make(
+            weekWorkouts: [missed],
+            activePlan: nil,
+            now: makeDate("2026-05-17")
+        )
+        XCTAssertEqual(track.state, .missedRecently)
+        let shameWords = ["fail", "missed", "skip", "shame", "bad"]
+        for word in shameWords {
+            XCTAssertFalse(
+                track.stateMessage.lowercased().contains(word),
+                "Missed copy should not contain shame word: '\(word)'"
+            )
+        }
+    }
+
+    func testBeginnerHabitTrackWeekCompleteState() {
+        let w1 = WorkoutSummary(
+            id: UUID(), scheduledDate: makeDate("2026-05-13"), planID: nil,
+            weekday: "", date: "", kind: .easy, title: "Easy Run",
+            distance: "3.0 km", detail: "", isToday: false, isComplete: true,
+            durationMinutes: nil, targetPaceSecondsPerKm: nil,
+            intensity: nil, trainingPhase: nil, workoutStructure: nil
+        )
+        let w2 = WorkoutSummary(
+            id: UUID(), scheduledDate: makeDate("2026-05-15"), planID: nil,
+            weekday: "", date: "", kind: .easy, title: "Easy Run",
+            distance: "5.0 km", detail: "", isToday: false, isComplete: true,
+            durationMinutes: nil, targetPaceSecondsPerKm: nil,
+            intensity: nil, trainingPhase: nil, workoutStructure: nil
+        )
+        let track = Beginner5KHabitTrack.make(
+            weekWorkouts: [w1, w2],
+            activePlan: nil,
+            now: makeDate("2026-05-17")
+        )
+        XCTAssertEqual(track.state, .weekComplete)
     }
 }
 
