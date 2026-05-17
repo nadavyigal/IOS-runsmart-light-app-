@@ -1275,6 +1275,13 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(BenchmarkComparisonPresentation.deltaLabel(current: 1_480, baseline: 1_520), "-0:40")
     }
 
+    func testBenchmarkStatusCopyAvoidsMisleadingWeakGPSComparison() {
+        XCTAssertEqual(BenchmarkComparisonStatus.weakGPS.title, "Benchmark confidence is low")
+        XCTAssertTrue(BenchmarkComparisonStatus.weakGPS.message.contains("not showing pace or PB deltas"))
+        XCTAssertTrue(BenchmarkComparisonStatus.noRouteData.message.contains("does not include enough map data"))
+        XCTAssertTrue(BenchmarkComparisonStatus.noBenchmark.message.contains("Save this route as a benchmark"))
+    }
+
     func testSuggestedWorkoutParsingDefaultsToPlanFriendlyValues() {
         XCTAssertEqual(TrainingPlanRepository.suggestedWorkoutType(title: "Long Run 12 km"), "long")
         XCTAssertEqual(TrainingPlanRepository.suggestedWorkoutType(title: "Threshold intervals"), "intervals")
@@ -2127,6 +2134,78 @@ final class RunSmartReadinessTests: XCTestCase {
         let steps = StructuredWorkoutFactory.makeSteps(for: workout)
         XCTAssertNotNil(steps)
         XCTAssertFalse(steps?.isEmpty ?? true, "Derived tempo steps should not be empty")
+    }
+
+    // MARK: - Sprint 6B: Return Loop + Share Cards
+
+    func testReturnReminderCopyIsCalmAndNonShaming() {
+        for reminderType in RunSmartReminderType.allCases {
+            let content = RunSmartReminderContent.content(for: reminderType, workoutTitle: "Easy Run")
+            let combined = "\(content.title) \(content.body)".lowercased()
+            for word in ["fail", "failed", "shame", "bad", "lazy", "guilt"] {
+                XCTAssertFalse(combined.contains(word), "\(reminderType) copy should avoid shame word: \(word)")
+            }
+        }
+    }
+
+    func testReturnReminderPlanRespectsDisabledPreference() {
+        let workout = makeWorkout(date: "2026-05-18", kind: .easy, title: "Easy Run")
+        let plan = RunSmartReminderPlan.make(
+            profile: OnboardingProfile.empty,
+            workouts: [workout],
+            recentRuns: [],
+            recovery: .loading,
+            now: makeDate("2026-05-17")
+        )
+        XCTAssertTrue(plan.requests.isEmpty)
+        XCTAssertTrue(plan.shouldCancelExisting)
+    }
+
+    func testReturnReminderPlanSchedulesTomorrowWorkoutWhenEnabled() {
+        var profile = OnboardingProfile.empty
+        profile.notificationsEnabled = true
+        let workoutID = UUID(uuidString: "00000000-0000-0000-0000-000000006B01")!
+        let workout = makeWorkout(id: workoutID, date: "2026-05-18", kind: .easy, title: "Easy Run")
+
+        let plan = RunSmartReminderPlan.make(
+            profile: profile,
+            workouts: [workout],
+            recentRuns: [],
+            recovery: .loading,
+            now: makeDate("2026-05-17")
+        )
+
+        XCTAssertTrue(plan.requests.contains { $0.type == .workoutDue && $0.workoutID == workoutID })
+        XCTAssertTrue(plan.requests.contains { $0.type == .weeklyRecap })
+    }
+
+    func testProgressSharePayloadExcludesRawCoordinatesByDefault() {
+        let payload = ProgressSharePayload.runReport(
+            RunReportDetail(
+                id: "report-1",
+                runID: "run-1",
+                title: "Morning Run",
+                dateLabel: "May 17",
+                source: "RunSmart",
+                distance: "5.0 km",
+                duration: "28:20",
+                averagePace: "5:40 /km",
+                averageHeartRate: "142 bpm",
+                coachScore: 82,
+                notes: CoachRunNotes(
+                    summary: "Steady aerobic run.",
+                    effort: "Controlled",
+                    recovery: "Easy day next",
+                    nextSessionNudge: "Keep the next run relaxed."
+                ),
+                structuredNextWorkout: nil
+            )
+        )
+
+        XCTAssertFalse(payload.shareText.lowercased().contains("latitude"))
+        XCTAssertFalse(payload.shareText.lowercased().contains("longitude"))
+        XCTAssertFalse(payload.shareText.lowercased().contains("coordinate"))
+        XCTAssertTrue(payload.privacyNote.lowercased().contains("no map"))
     }
 }
 

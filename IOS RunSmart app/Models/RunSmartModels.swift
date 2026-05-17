@@ -650,6 +650,56 @@ struct RouteSuggestion: Identifiable, Codable, Hashable {
     var isFavorite: Bool = false
 }
 
+enum RouteRecommendationUnavailableReason: String, Codable, Hashable {
+    case noRoutes
+    case noWorkoutDistance
+    case noRouteNearWorkout
+
+    nonisolated var title: String {
+        switch self {
+        case .noRoutes:
+            return "No routes ready yet"
+        case .noWorkoutDistance:
+            return "No planned distance yet"
+        case .noRouteNearWorkout:
+            return "No close route match"
+        }
+    }
+
+    nonisolated var message: String {
+        switch self {
+        case .noRoutes:
+            return "Record a GPS run, save a Garmin route, or generate a nearby loop to get coached route picks."
+        case .noWorkoutDistance:
+            return "Pick a route from your library, or start the run and let GPS record today's path."
+        case .noRouteNearWorkout:
+            return "Your saved routes are not close to today's workout distance. Choose manually or generate a better fit."
+        }
+    }
+}
+
+struct RouteRecommendation: Codable, Hashable {
+    var route: RouteSuggestion?
+    var reason: String
+    var fitScore: Int
+    var warning: String?
+    var unavailableReason: RouteRecommendationUnavailableReason?
+
+    var isAvailable: Bool {
+        route != nil
+    }
+
+    nonisolated static func unavailable(_ reason: RouteRecommendationUnavailableReason) -> RouteRecommendation {
+        RouteRecommendation(
+            route: nil,
+            reason: reason.message,
+            fitScore: 0,
+            warning: nil,
+            unavailableReason: reason
+        )
+    }
+}
+
 // MARK: - Saved Routes & Benchmarks
 
 enum RouteSource: String, Codable, Hashable {

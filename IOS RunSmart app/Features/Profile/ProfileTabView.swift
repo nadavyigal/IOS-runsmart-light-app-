@@ -128,7 +128,7 @@ struct ProfileTabView: View {
                     Text("Adaptive. Motivating. Data-driven.")
                         .font(.bodyLG)
                         .foregroundStyle(Color.textSecondary)
-                    Text("I analyze your data, adapt your plan in real-time, and coach you to be your best.")
+                    Text("I use your recent training to give personal coaching before and after runs, with adaptive plan guidance you control.")
                         .font(.bodyMD)
                         .foregroundStyle(Color.textSecondary)
                         .lineLimit(3)
@@ -164,8 +164,8 @@ struct ProfileTabView: View {
             VStack(alignment: .leading, spacing: 12) {
                 SectionLabel(title: "Coach Settings")
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    ProfileActionTile(title: "Voice Coaching", value: session.onboardingProfile.notificationsEnabled ? "On" : "Off", symbol: "speaker.wave.2.fill") {
-                        navPath.append(.voiceCoaching)
+                    ProfileActionTile(title: "Run Reminders", value: session.onboardingProfile.notificationsEnabled ? "On" : "Off", symbol: "bell.badge.fill") {
+                        navPath.append(.reminders)
                     }
                     ProfileActionTile(title: "Coaching Tone", value: session.onboardingProfile.coachingTone, symbol: "waveform") {
                         navPath.append(.coachingTone)
@@ -282,6 +282,14 @@ struct ProfileTabView: View {
                         }
                     }
                 }
+                if let achievement = achievements.first {
+                    ProgressShareButton(payload: .milestone(
+                        title: achievement.title,
+                        subtitle: achievement.subtitle,
+                        value: runner.streak,
+                        insight: "A private RunSmart milestone worth keeping."
+                    ))
+                }
             }
         }
     }
@@ -312,7 +320,7 @@ struct ProfileTabView: View {
         VStack(spacing: 12) {
             ProfileSettingsSection(title: "Coach Settings", rows: [
                 .init(title: "Tone", value: session.onboardingProfile.coachingTone, symbol: "sparkles", destination: .coachingTone),
-                .init(title: "Voice Coaching", value: session.onboardingProfile.notificationsEnabled ? "On" : "Off", symbol: "speaker.wave.2.fill", destination: .voiceCoaching),
+                .init(title: "Run Reminders", value: session.onboardingProfile.notificationsEnabled ? "On" : "Off", symbol: "bell.badge.fill", destination: .reminders),
                 .init(title: "Goal & Plan", value: session.onboardingProfile.goal.isEmpty ? "Not set" : session.onboardingProfile.goal, symbol: "target", destination: .goalWizard),
                 .init(title: "Challenges", value: challenge.isActive ? challenge.dayLabel : "Adopt", symbol: "trophy.fill", destination: .challenges),
                 .init(title: "Weekly Recap", value: "Ready", symbol: "calendar.badge.checkmark", destination: .weeklyRecap)

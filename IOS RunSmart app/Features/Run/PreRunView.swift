@@ -3,6 +3,7 @@ import SwiftUI
 struct PreRunView: View {
     var metrics: [MetricTile]
     var plannedWorkout: WorkoutSummary?
+    var selectedRoute: RouteSuggestion?
     var phase: RunRecordingPhase
     var gpsStatus: String
     var gpsDetail: String
@@ -48,6 +49,10 @@ struct PreRunView: View {
                         HStack(spacing: 10) {
                             RunOptionButton(title: "Route", symbol: "map.fill", tint: .accentRecovery, action: onRoute)
                             RunOptionButton(title: "Audio", symbol: "speaker.wave.2.fill", tint: .accentPrimary, action: onAudio)
+                        }
+
+                        if let selectedRoute {
+                            SelectedPreRunRouteCard(route: selectedRoute)
                         }
 
                         PreRunCueTimeline(plannedWorkout: plannedWorkout)
@@ -107,6 +112,43 @@ struct PreRunView: View {
         default:
             return "Start Run"
         }
+    }
+}
+
+private struct SelectedPreRunRouteCard: View {
+    var route: RouteSuggestion
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: route.points.isEmpty ? "map" : "map.fill")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Color.accentRecovery)
+                .frame(width: 32, height: 32)
+                .background(Color.accentRecovery.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Route selected")
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Text(routeSummary)
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.surfaceBase.opacity(0.34), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.border, lineWidth: 1))
+    }
+
+    private var routeSummary: String {
+        let distance = String(format: "%.1f km", route.distanceKm)
+        let elevation = "\(route.elevationGainMeters)m gain"
+        let mapState = route.points.isEmpty ? "no saved map points" : "map ready"
+        return "\(route.name) - \(distance) - \(elevation) - \(mapState)"
     }
 }
 

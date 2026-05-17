@@ -18,6 +18,7 @@ final class SupabaseSession: ObservableObject {
     let supabase = SupabaseManager.client
 
     private(set) var onboardingProfile: OnboardingProfile = .empty
+    private let notificationPreferenceKey = "runsmart.notifications.enabled"
 
     init() {
         Task { await initialize() }
@@ -85,7 +86,7 @@ final class SupabaseSession: ObservableObject {
                     preferredDays: p.preferredTimes,
                     units: "Metric",
                     coachingTone: p.coachingStyle ?? "Motivating",
-                    notificationsEnabled: false
+                    notificationsEnabled: UserDefaults.standard.object(forKey: notificationPreferenceKey) as? Bool ?? false
                 )
             } else {
                 profile = nil
@@ -106,6 +107,7 @@ final class SupabaseSession: ObservableObject {
             return
         }
         onboardingProfile = onboarding
+        UserDefaults.standard.set(onboarding.notificationsEnabled, forKey: notificationPreferenceKey)
         // email comes from the Apple JWT the auth server decoded — always present after sign-in
         let email = supabase.auth.currentUser?.email ?? ""
         let insert = DBProfileInsert(
@@ -171,6 +173,15 @@ final class SupabaseSession: ObservableObject {
 
     func signOut() async {
         try? await supabase.auth.signOut()
+    }
+
+    func setNotificationsEnabled(_ enabled: Bool) {
+        onboardingProfile.notificationsEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: notificationPreferenceKey)
+        objectWillChange.send()
+        if !enabled {
+            PushService.shared.cancelAllRunSmartReminders()
+        }
     }
 
     private func clearSessionState() {

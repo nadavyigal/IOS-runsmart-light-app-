@@ -213,7 +213,7 @@ struct SecondaryFlowView: View {
         case .lapMarker:
             "Capture a split and annotate the effort."
         case .voiceCoaching:
-            "Set how active Coach Spark should be during runs."
+            "Manage reminder and cue preferences for planned training."
         case .coachingTone:
             "Pick the coach personality for future guidance."
         case .trainingData:
@@ -813,6 +813,7 @@ private struct AddActivityScaffold: View {
 
 private struct RouteSelectorScaffold: View {
     @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var router: AppRouter
     @State private var allSuggestions: [RouteSuggestion] = []
     @State private var selectedRouteID: String?
     @State private var isLoading = false
@@ -847,7 +848,12 @@ private struct RouteSelectorScaffold: View {
                 routeBuckets
             }
 
-            Button("Use This Route") {}
+            Button {
+                guard let selectedRoute else { return }
+                router.startRun(with: router.plannedWorkout, route: selectedRoute)
+            } label: {
+                Text(selectedRoute == nil ? "No Route Available" : "Use This Route")
+            }
                 .buttonStyle(NeonButtonStyle())
                 .disabled(selectedRoute == nil)
         }
@@ -1175,6 +1181,8 @@ private struct RunReportDetailScaffold: View {
                 }
             }
             RunReportCoachNotesCard(report: report)
+            ProgressShareCard(payload: .runReport(report))
+            ProgressShareButton(payload: .runReport(report))
             PostRunLearningCard(run: reportRun, outcome: nil, report: report, isProcessing: isGenerating)
             BenchmarkComparisonLoaderView(run: reportRun)
             if !report.hasGeneratedReport {
@@ -1889,15 +1897,30 @@ private struct GoalFocusEditor: View {
 }
 
 private struct ReminderPreferencesScaffold: View {
+    @EnvironmentObject private var session: SupabaseSession
+
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Reminders")
-                    PreferenceRow(title: "Workout reminder", value: "7:00 AM", symbol: "bell")
-                    PreferenceRow(title: "Recovery check-in", value: "Evening", symbol: "moon")
-                    PreferenceRow(title: "Shoe mileage alert", value: "At 500 km", symbol: "shoeprints.fill")
-                    PreferenceRow(title: "Weekly recap", value: "Sunday", symbol: "calendar")
+                    Toggle(isOn: Binding(
+                        get: { session.onboardingProfile.notificationsEnabled },
+                        set: { session.setNotificationsEnabled($0) }
+                    )) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Smart return reminders")
+                                .font(.bodyMD.weight(.semibold))
+                            Text("Low-frequency prompts for planned runs, gentle recovery, and weekly recap.")
+                                .font(.caption)
+                                .foregroundStyle(Color.mutedText)
+                        }
+                    }
+                    .tint(Color.lime)
+                    PreferenceRow(title: "Workout due", value: session.onboardingProfile.notificationsEnabled ? "Morning" : "Off", symbol: "bell")
+                    PreferenceRow(title: "Recovery re-plan", value: session.onboardingProfile.notificationsEnabled ? "Evening if needed" : "Off", symbol: "arrow.triangle.2.circlepath")
+                    PreferenceRow(title: "Rest day reminder", value: session.onboardingProfile.notificationsEnabled ? "Late morning" : "Off", symbol: "moon")
+                    PreferenceRow(title: "Weekly recap", value: session.onboardingProfile.notificationsEnabled ? "Sunday" : "Off", symbol: "calendar")
                 }
             }
 

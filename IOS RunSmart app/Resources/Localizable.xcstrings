@@ -1,0 +1,1788 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    " " : {
+
+    },
+    "-" : {
+
+    },
+    "—" : {
+
+    },
+    "· %@" : {
+
+    },
+    "/ 100" : {
+
+    },
+    "%@ - %@ - %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ - %2$@ - %3$@"
+          }
+        }
+      }
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%@ context" : {
+
+    },
+    "%@ km - %lldm gain - %lld min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ km - %2$lldm gain - %3$lld min"
+          }
+        }
+      }
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, %lld percent" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld percent"
+          }
+        }
+      }
+    },
+    "%@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%@: %@. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@. %3$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "%lld / 5000" : {
+
+    },
+    "%lld credits" : {
+
+    },
+    "%lld days" : {
+
+    },
+    "%lld free checks remaining" : {
+
+    },
+    "%lld free checks remaining this week." : {
+
+    },
+    "%lld m" : {
+
+    },
+    "%lld more recommendations unlock with full optimization." : {
+
+    },
+    "%lld of %lld changes selected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld changes selected"
+          }
+        }
+      }
+    },
+    "%lld run days per week" : {
+
+    },
+    "%lld saved report%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld saved report%2$@"
+          }
+        }
+      }
+    },
+    "%lld splits" : {
+
+    },
+    "%lld." : {
+
+    },
+    "%lld/10" : {
+
+    },
+    "%lld%%" : {
+
+    },
+    "%lld%% match" : {
+
+    },
+    "• %@" : {
+
+    },
+    "+%lld" : {
+
+    },
+    "+%lldpts" : {
+
+    },
+    "+12%" : {
+
+    },
+    "2" : {
+
+    },
+    "3" : {
+
+    },
+    "13-90 years" : {
+
+    },
+    "20°C · 11 km/h wind · 54% humidity" : {
+
+    },
+    "21-Day Rookie Challenge" : {
+
+    },
+    "31.4" : {
+
+    },
+    "82" : {
+
+    },
+    "100 credits" : {
+
+    },
+    "500 credits" : {
+
+    },
+    "2500 credits" : {
+
+    },
+    "A dedicated place for weekly structure, goals, and upcoming sessions." : {
+
+    },
+    "A lightweight starter block for confidence, consistency, and safe progression." : {
+
+    },
+    "A separate home for recent runs, trends, adherence, and recovery history." : {
+
+    },
+    "Accent Color" : {
+
+    },
+    "Accept" : {
+
+    },
+    "Accepted: %lld  •  Rejected: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Accepted: %1$lld  •  Rejected: %2$lld"
+          }
+        }
+      }
+    },
+    "Account" : {
+
+    },
+    "Actions" : {
+
+    },
+    "Active" : {
+
+    },
+    "Active account" : {
+
+    },
+    "Adaptive. Motivating. Data-driven." : {
+
+    },
+    "Add a workout to your plan, generate a guided version, or use it to keep this week's progress accurate." : {
+
+    },
+    "Add Job" : {
+
+    },
+    "Add Missing Activity" : {
+
+    },
+    "Adopt Challenge" : {
+
+    },
+    "After" : {
+
+    },
+    "After (est.)" : {
+
+    },
+    "After %@" : {
+
+    },
+    "Age" : {
+
+    },
+    "AI - GPS - RunSmart" : {
+
+    },
+    "AI Chat" : {
+
+    },
+    "AI Optimized" : {
+
+    },
+    "AI POWERED" : {
+
+    },
+    "AI rewrites for this specific job" : {
+
+    },
+    "AI rewrites your resume to beat ATS filters for any job." : {
+
+    },
+    "Analyzing resume…" : {
+
+    },
+    "Analyzing…" : {
+
+    },
+    "app_name" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RunSmart"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "RunSmart"
+          }
+        }
+      }
+    },
+    "Apple" : {
+
+    },
+    "Application" : {
+
+    },
+    "Applied" : {
+
+    },
+    "Apply a professional template to your optimized resume." : {
+
+    },
+    "Apply Design" : {
+
+    },
+    "Apply is temporarily unavailable — a server update is required. Changes will be available again once the update is complete." : {
+
+    },
+    "Approve Garmin Check-In" : {
+
+    },
+    "Approve Garmin readiness?" : {
+
+    },
+    "Ask AI to tweak your optimized resume…" : {
+
+    },
+    "Ask Coach anything..." : {
+
+    },
+    "ATS" : {
+
+    },
+    "ATS %lld%%" : {
+
+    },
+    "ATS breakdown" : {
+
+    },
+    "ATS score" : {
+
+    },
+    "ATS Score" : {
+
+    },
+    "ATS score %lld percent" : {
+
+    },
+    "Attach Optimized Resume" : {
+
+    },
+    "Attach resume" : {
+
+    },
+    "Attached resume" : {
+
+    },
+    "Attaching…" : {
+
+    },
+    "Auth provider" : {
+
+    },
+    "Average heart rate (optional)" : {
+
+    },
+    "Back" : {
+
+    },
+    "Badges are designed for shareable moments and long-term motivation." : {
+
+    },
+    "Balance" : {
+
+    },
+    "Before" : {
+
+    },
+    "Before %@" : {
+
+    },
+    "Benchmark comparison for %@" : {
+
+    },
+    "Benchmark Route" : {
+
+    },
+    "Build a route for the workout" : {
+
+    },
+    "Building your report and matching this run to your plan..." : {
+
+    },
+    "By continuing you agree to our Terms of Service and Privacy Policy." : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Challenges" : {
+
+    },
+    "Change" : {
+
+    },
+    "Change from original: %@" : {
+
+    },
+    "Change Resume" : {
+
+    },
+    "Changes save to the active Supabase workout and refresh Today and Plan." : {
+
+    },
+    "Chat unavailable" : {
+
+    },
+    "Chat with Coach" : {
+
+    },
+    "Check ATS Score" : {
+
+    },
+    "Checking keyword match and ATS signals" : {
+
+    },
+    "Close" : {
+
+    },
+    "COACH ANALYSIS" : {
+
+    },
+    "Coach can use readiness, plan week, recent runs, routes, and wellness summaries." : {
+
+    },
+    "Coach cue" : {
+
+    },
+    "Coach details will appear once the workout structure is available." : {
+
+    },
+    "Coach Spark" : {
+
+    },
+    "Coach Spark checks load spacing before suggesting a new day." : {
+
+    },
+    "COLLAPSE" : {
+
+    },
+    "Coming soon" : {
+
+    },
+    "Company" : {
+
+    },
+    "Compare" : {
+
+    },
+    "Comparisons get sharper after one more matched run on this benchmark route." : {
+
+    },
+    "Complete a challenge to level up your running." : {
+
+    },
+    "Completed workouts and progress trends will appear here once running data is approved and connected." : {
+
+    },
+    "Connect a goal and recent activity to receive a short daily training recommendation." : {
+
+    },
+    "Connections" : {
+
+    },
+    "Continue Editing" : {
+
+    },
+    "Copied to clipboard" : {
+
+    },
+    "Copy share text" : {
+
+    },
+    "Copy Text" : {
+
+    },
+    "Could not remove that run. Check your connection and try again." : {
+
+    },
+    "Could not save check-in. Try again in a moment." : {
+
+    },
+    "Could not save this amendment. Check the console for the Supabase error." : {
+
+    },
+    "Could not save this workout. Check your connection and try again." : {
+
+    },
+    "Create a full coach report from this real activity and save it under Recent Run Reports." : {
+
+    },
+    "Create or sync a plan to see weekly workouts here." : {
+
+    },
+    "Created %@" : {
+
+    },
+    "Credit Packs" : {
+
+    },
+    "Credits" : {
+
+    },
+    "Cue audio will play during a run with your selected coach tone." : {
+
+    },
+    "Customize" : {
+
+    },
+    "Date" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Delete Activity" : {
+
+    },
+    "Delete this activity?" : {
+
+    },
+    "Design" : {
+
+    },
+    "design_apply_cta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply Design"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "החל עיצוב"
+          }
+        }
+      }
+    },
+    "Designed_Resume.pdf" : {
+
+    },
+    "Diff Review" : {
+
+    },
+    "Discard this workout?" : {
+
+    },
+    "Discard Workout" : {
+
+    },
+    "Disconnect %@" : {
+
+    },
+    "Distance" : {
+
+    },
+    "Distance: %@" : {
+
+    },
+    "Done" : {
+
+    },
+    "Download PDF" : {
+
+    },
+    "Downloading…" : {
+
+    },
+    "Duration: %lld min" : {
+
+    },
+    "e.g. Make it more concise and add leadership examples…" : {
+
+    },
+    "e.g. Morning Park Loop" : {
+
+    },
+    "Edit Section" : {
+
+    },
+    "Edit training data" : {
+
+    },
+    "Edits from refine, chat, and expert tools will appear here." : {
+
+    },
+    "Effort" : {
+
+    },
+    "Effort distribution" : {
+
+    },
+    "Email" : {
+
+    },
+    "Enable Location" : {
+
+    },
+    "Enabled" : {
+
+    },
+    "Enter an age between 13 and 90." : {
+
+    },
+    "Estimated effort %@" : {
+
+    },
+    "Estimated from the saved workout targets." : {
+
+    },
+    "Evidence gaps (%lld)" : {
+
+    },
+    "EXPAND" : {
+
+    },
+    "Expert Analysis" : {
+
+    },
+    "Expert analysis unavailable" : {
+
+    },
+    "Expert modes" : {
+
+    },
+    "Export" : {
+
+    },
+    "export_download_pdf" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download PDF"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "הורד PDF"
+          }
+        }
+      }
+    },
+    "Failed to save. Try again." : {
+
+    },
+    "Favorite" : {
+
+    },
+    "Finding runnable loops near you..." : {
+
+    },
+    "Finish" : {
+
+    },
+    "Focus: %@ - Build Aerobic Endurance" : {
+
+    },
+    "Font" : {
+
+    },
+    "Font Style" : {
+
+    },
+    "Free ATS Preview" : {
+
+    },
+    "FREE CHECK" : {
+
+    },
+    "From the saved plan structure." : {
+
+    },
+    "Garmin metrics are not fresh enough to approve. Use the manual check-in below." : {
+
+    },
+    "Garmin route data is not available for this activity. Route saving requires GPS map data." : {
+
+    },
+    "Generate" : {
+
+    },
+    "Generate loop routes around your current location." : {
+
+    },
+    "Generate Nearby Loops" : {
+
+    },
+    "Generate Report" : {
+
+    },
+    "Generate Route" : {
+
+    },
+    "Generating..." : {
+
+    },
+    "Get Credits" : {
+
+    },
+    "Goal & Plan" : {
+
+    },
+    "Goal saved locally, but the web coach did not generate a plan. Check the console and try again." : {
+
+    },
+    "Goal setup and generated workouts will live here when the approved planning model is connected." : {
+
+    },
+    "Goals saved!" : {
+
+    },
+    "Good %@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Good %1$@, %2$@"
+          }
+        }
+      }
+    },
+    "Good conditions for a controlled tempo run." : {
+
+    },
+    "GPS route" : {
+
+    },
+    "GPS tracking will connect here after location permissions, real-device validation, and background behavior are approved." : {
+
+    },
+    "Green light for quality work. Keep the first third controlled and use breathing as the limiter." : {
+
+    },
+    "Health and location permissions will be requested only when the approved RunSmart tracking and integration stories are implemented." : {
+
+    },
+    "Hi %@ 👋" : {
+
+    },
+    "High-level gauges from your latest optimization summary. Run Improve with a job description connected for granular ATS wiring." : {
+
+    },
+    "History" : {
+
+    },
+    "home_score_excellent" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excellent — ready to apply"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "מצוין — מוכן להגשה"
+          }
+        }
+      }
+    },
+    "home_score_good" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Good — a few improvements left"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "טוב — כמה שיפורים נותרו"
+          }
+        }
+      }
+    },
+    "home_score_needs_work" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs work — let's improve it"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "דורש שיפור — בואו נשפר"
+          }
+        }
+      }
+    },
+    "How ready do you feel before today’s training?" : {
+
+    },
+    "How your training trend looks right now." : {
+
+    },
+    "https://www.linkedin.com/jobs/view/..." : {
+
+    },
+    "I use your recent training to give personal coaching before and after runs, with adaptive plan guidance you control." : {
+
+    },
+    "Import PDF or DOCX" : {
+
+    },
+    "Import Resume" : {
+
+    },
+    "improve_optimize_cta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optimize for This Job"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "אופטימיזציה לתפקיד זה"
+          }
+        }
+      }
+    },
+    "Include" : {
+
+    },
+    "Intermediate and advanced plans need a weekly distance baseline." : {
+
+    },
+    "Keep Activity" : {
+
+    },
+    "Keep Workout" : {
+
+    },
+    "Key Insights" : {
+
+    },
+    "km" : {
+
+    },
+    "km / week" : {
+
+    },
+    "km %lld" : {
+
+    },
+    "KM SPLITS" : {
+
+    },
+    "LinkedIn or Job Link" : {
+
+    },
+    "LinkedIn or job post URL" : {
+
+    },
+    "Loading designs…" : {
+
+    },
+    "Loading optimization history..." : {
+
+    },
+    "Loading resume…" : {
+
+    },
+    "Location is unavailable. Enable location access to generate loops near you." : {
+
+    },
+    "Log manual run" : {
+
+    },
+    "Main issues" : {
+
+    },
+    "Make Benchmark" : {
+
+    },
+    "Manual run entry stays unavailable until the run data model is approved." : {
+
+    },
+    "Map appears when GPS points are available" : {
+
+    },
+    "Mark as a favorite route." : {
+
+    },
+    "Mark as Applied" : {
+
+    },
+    "Marking…" : {
+
+    },
+    "Master Resume" : {
+
+    },
+    "Member since" : {
+
+    },
+    "Missing Keywords" : {
+
+    },
+    "Modification History" : {
+
+    },
+    "Modify" : {
+
+    },
+    "Momentum Snapshot" : {
+
+    },
+    "Most training is easy, with enough tempo stimulus to move the goal forward." : {
+
+    },
+    "Moving time" : {
+
+    },
+    "My resume" : {
+
+    },
+    "Needs your input" : {
+
+    },
+    "No active run" : {
+
+    },
+    "No active training plan" : {
+
+    },
+    "No activities synced yet. Tap Sync Now above once Garmin is connected." : {
+
+    },
+    "No coach report yet." : {
+
+    },
+    "No coach report yet. Report generation failed, but you can retry from this real activity." : {
+
+    },
+    "No designs yet" : {
+
+    },
+    "No Health workouts imported yet. Tap Sync Now after granting Health access." : {
+
+    },
+    "No matching optimizations" : {
+
+    },
+    "No modifications yet" : {
+
+    },
+    "No optimizations" : {
+
+    },
+    "No optimizations yet" : {
+
+    },
+    "No plan yet" : {
+
+    },
+    "No run report yet" : {
+
+    },
+    "No scheduled workouts found for this month." : {
+
+    },
+    "No selected run" : {
+
+    },
+    "No templates in this category yet." : {
+
+    },
+    "No verified coach conversation yet. Ask a question to start a new thread with your current RunSmart context." : {
+
+    },
+    "No verified runs yet. Start a GPS run, add a manual run, or connect Garmin to import real activity." : {
+
+    },
+    "Not yet exported" : {
+
+    },
+    "Notes" : {
+
+    },
+    "NOTES" : {
+
+    },
+    "Now: rehydrate and refuel with a light snack." : {
+
+    },
+    "Off" : {
+
+    },
+    "OK" : {
+
+    },
+    "One clear next action for today's training." : {
+
+    },
+    "Open in Safari" : {
+
+    },
+    "Open Share Sheet" : {
+
+    },
+    "Opens the ATS breakdown pillars." : {
+
+    },
+    "Opens the four ATS pillars with animations." : {
+
+    },
+    "Optimization id missing — return and run Optimize first." : {
+
+    },
+    "Optimization not available." : {
+
+    },
+    "Optimization Review" : {
+
+    },
+    "Optimize" : {
+
+    },
+    "Optimize Resume" : {
+
+    },
+    "Optimized Resume" : {
+
+    },
+    "Optimized_Resume.pdf" : {
+
+    },
+    "Optimizing your resume..." : {
+
+    },
+    "Optional notes about this route" : {
+
+    },
+    "Or paste job description here" : {
+
+    },
+    "Or paste the job description" : {
+
+    },
+    "Original" : {
+
+    },
+    "Overview" : {
+
+    },
+    "Pace" : {
+
+    },
+    "Pace seconds: %lld" : {
+
+    },
+    "Pace: %lld:%@ /km" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Pace: %1$lld:%2$@ /km"
+          }
+        }
+      }
+    },
+    "Paste the job description here if the link is unavailable…" : {
+
+    },
+    "PDF generated and ready" : {
+
+    },
+    "PDF or DOCX" : {
+
+    },
+    "PDF ready" : {
+
+    },
+    "PDF Ready" : {
+
+    },
+    "PDF up to 5 MB" : {
+
+    },
+    "PLAN" : {
+
+    },
+    "Plan adherence" : {
+
+    },
+    "Plan changes now write to your real RunSmart training plan. Open a workout to move, remove, or start it; use the goal wizard to regenerate the block from the web coach." : {
+
+    },
+    "PLAN UPDATE" : {
+
+    },
+    "Preview" : {
+
+    },
+    "Preview & Export" : {
+
+    },
+    "Priority actions" : {
+
+    },
+    "Privacy" : {
+
+    },
+    "profile_my_applications" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My Applications"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "המועמדויות שלי"
+          }
+        }
+      }
+    },
+    "profile_sign_out" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Out"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "התנתק"
+          }
+        }
+      }
+    },
+    "Progress history" : {
+
+    },
+    "Quick access in your route library." : {
+
+    },
+    "Quick wins" : {
+
+    },
+    "Quick Wins" : {
+
+    },
+    "Re-scan resume" : {
+
+    },
+    "Re-scanning…" : {
+
+    },
+    "Ready for full optimization." : {
+
+    },
+    "READY TO TRAIN" : {
+
+    },
+    "Recent Activity" : {
+
+    },
+    "Recent Exports" : {
+
+    },
+    "Recommended Next Run" : {
+
+    },
+    "Record a GPS run first, then RunSmart can suggest real routes from your activity history." : {
+
+    },
+    "Recovery Timeline" : {
+
+    },
+    "Redesign Resume" : {
+
+    },
+    "Refinement Instruction" : {
+
+    },
+    "Regenerate" : {
+
+    },
+    "Reject" : {
+
+    },
+    "Remove Benchmark" : {
+
+    },
+    "Remove from favorites." : {
+
+    },
+    "Remove run" : {
+
+    },
+    "Remove Run" : {
+
+    },
+    "Remove this run?" : {
+
+    },
+    "Rendering preview…" : {
+
+    },
+    "REPORT" : {
+
+    },
+    "Report generation failed. Check your connection and try again." : {
+
+    },
+    "Resume Health Score" : {
+
+    },
+    "Resume PDF" : {
+
+    },
+    "Resume Preview" : {
+
+    },
+    "Return after running Optimize to unlock expert workflows." : {
+
+    },
+    "Revert" : {
+
+    },
+    "Review" : {
+
+    },
+    "Review Changes" : {
+
+    },
+    "Review changes before approving" : {
+
+    },
+    "Review effort distribution across recent training." : {
+
+    },
+    "Role" : {
+
+    },
+    "Route" : {
+
+    },
+    "ROUTE NAME" : {
+
+    },
+    "Route saved to your library." : {
+
+    },
+    "RS" : {
+
+    },
+    "Run" : {
+
+    },
+    "RUN" : {
+
+    },
+    "Run a scan and optimization to see it here." : {
+
+    },
+    "Run expert workflows for this optimization" : {
+
+    },
+    "Run Optimize first to attach a version here." : {
+
+    },
+    "Run saved. Great work — your coach will factor this into next week's plan." : {
+
+    },
+    "Run this route to start tracking your benchmark progress." : {
+
+    },
+    "Runner identity, earned over time" : {
+
+    },
+    "Runner profile" : {
+
+    },
+    "Runner Setup" : {
+
+    },
+    "Runs per week" : {
+
+    },
+    "RunSmart" : {
+
+    },
+    "RunSmart Coach" : {
+
+    },
+    "RunSmart launch logo" : {
+
+    },
+    "RunSmart/manual runs are deleted from RunSmart. Garmin runs are hidden in RunSmart but stay in Garmin." : {
+
+    },
+    "Save" : {
+
+    },
+    "Save Amendment" : {
+
+    },
+    "Save Check-In" : {
+
+    },
+    "Save goal and generate plan" : {
+
+    },
+    "Save Goals" : {
+
+    },
+    "Save Route" : {
+
+    },
+    "Save Run" : {
+
+    },
+    "Save the route from this run to your route library." : {
+
+    },
+    "Save this Garmin route to your route library." : {
+
+    },
+    "Save Training Data" : {
+
+    },
+    "Saved %@ km to your training history." : {
+
+    },
+    "Saved resume" : {
+
+    },
+    "Saved to your applications!" : {
+
+    },
+    "Saved to your history" : {
+
+    },
+    "Saving" : {
+
+    },
+    "Saving goal" : {
+
+    },
+    "scan_analyze_cta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyze Resume"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "ניתוח קורות חיים"
+          }
+        }
+      }
+    },
+    "scan_import_resume" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Resume"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "ייבוא קורות חיים"
+          }
+        }
+      }
+    },
+    "Scores are still loading." : {
+
+    },
+    "Search job title or company" : {
+
+    },
+    "Search title or company" : {
+
+    },
+    "See all" : {
+
+    },
+    "See how your resume performs against a job before you apply." : {
+
+    },
+    "Send message" : {
+
+    },
+    "Set a running goal to see your workout, readiness cue, and coach note here." : {
+
+    },
+    "Share link" : {
+
+    },
+    "Share score" : {
+
+    },
+    "Sign in to Optimize" : {
+
+    },
+    "Sign in to save your running setup" : {
+
+    },
+    "Sign in to unlock full optimization." : {
+
+    },
+    "Sign in to unlock full resume optimization." : {
+
+    },
+    "Sign in to view history" : {
+
+    },
+    "Sign Out" : {
+
+    },
+    "Signing out returns you to the sign-in screen, where you can register a new account or switch users." : {
+
+    },
+    "Skip" : {
+
+    },
+    "Soon" : {
+
+    },
+    "Spacing" : {
+
+    },
+    "Splits appear after at least 500m of GPS distance." : {
+
+    },
+    "Start" : {
+
+    },
+    "Start a GPS run on the Run tab to capture splits and lap markers." : {
+
+    },
+    "Start GPS run" : {
+
+    },
+    "Start moving" : {
+
+    },
+    "Start This Workout" : {
+
+    },
+    "Start Workout" : {
+
+    },
+    "Status" : {
+
+    },
+    "Stop tracking progress on this route." : {
+
+    },
+    "StoreKit wiring is scaffolded and intentionally left minimal in this pass." : {
+
+    },
+    "Strong week ahead%@. Your recovery is %@ and last week's tempo looked solid. We're building fitness with a %@ focus." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Strong week ahead%1$@. Your recovery is %2$@ and last week's tempo looked solid. We're building fitness with a %3$@ focus."
+          }
+        }
+      }
+    },
+    "Subscores" : {
+
+    },
+    "Suggested" : {
+
+    },
+    "Suggested resume updates (%lld)" : {
+
+    },
+    "tab_design" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Design"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "עיצוב"
+          }
+        }
+      }
+    },
+    "tab_home" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "בית"
+          }
+        }
+      }
+    },
+    "tab_improve" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Improve"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "שיפור"
+          }
+        }
+      }
+    },
+    "tab_profile" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "פרופיל"
+          }
+        }
+      }
+    },
+    "tab_scan" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "סריקה"
+          }
+        }
+      }
+    },
+    "TAGS" : {
+
+    },
+    "Tailor a resume first, then come here to apply a professional template." : {
+
+    },
+    "Tailor Resume" : {
+
+    },
+    "Talk to Coach" : {
+
+    },
+    "Tap any section to refine with custom instructions" : {
+
+    },
+    "Tap Download to generate PDF" : {
+
+    },
+    "Tap to change" : {
+
+    },
+    "Target · %@" : {
+
+    },
+    "Target date" : {
+
+    },
+    "Templates" : {
+
+    },
+    "TEMPLATES" : {
+
+    },
+    "The future home for GPS tracking, manual logs, and post-run review." : {
+
+    },
+    "This is a real activity, but no generated coach report has been saved yet." : {
+
+    },
+    "This removes the current timer, distance, and route." : {
+
+    },
+    "This removes the run from RunSmart. It will not delete anything from Garmin." : {
+
+    },
+    "This review was already applied on the web or another device." : {
+
+    },
+    "This Week" : {
+
+    },
+    "Tip %lld" : {
+
+    },
+    "TODAY" : {
+
+    },
+    "Today's Workout" : {
+
+    },
+    "Top Fixes" : {
+
+    },
+    "Top Issues" : {
+
+    },
+    "Top signals" : {
+
+    },
+    "Total Workouts: %lld" : {
+
+    },
+    "Track" : {
+
+    },
+    "Track your progress each time you run this route." : {
+
+    },
+    "Training ahead" : {
+
+    },
+    "Training data could not be saved to your RunSmart profile. Check your connection and try again." : {
+
+    },
+    "Training data saved." : {
+
+    },
+    "Try Again" : {
+
+    },
+    "Try another job title or company." : {
+
+    },
+    "Typing…" : {
+
+    },
+    "Undo" : {
+
+    },
+    "Unfavorite" : {
+
+    },
+    "Upcoming from Your Coach" : {
+
+    },
+    "Upcoming week" : {
+
+    },
+    "URL or paste description" : {
+
+    },
+    "Use Estimate" : {
+
+    },
+    "Use Tailor to generate the full optimized resume." : {
+
+    },
+    "Use This Route" : {
+
+    },
+    "Verified RunSmart activity" : {
+
+    },
+    "View all" : {
+
+    },
+    "View ATS breakdown" : {
+
+    },
+    "We'll build your plan around it." : {
+
+    },
+    "Week by week" : {
+
+    },
+    "Weekly completion, distance trend, and recovery history will appear here after run data is connected." : {
+
+    },
+    "Weekly Review" : {
+
+    },
+    "WELCOME TO RUNSMART" : {
+
+    },
+    "What's your\nrunning goal?" : {
+
+    },
+    "Workout Breakdown" : {
+
+    },
+    "Workout breakdown unavailable for this plan item." : {
+
+    },
+    "Smart return reminders" : {
+
+    },
+    "You completed 4 of 5 planned sessions. The missed strength day is not critical; keep Sunday easy." : {
+
+    },
+    "Personal coaching before and after runs.\nSmart reports. Adaptive plan guidance." : {
+
+    },
+    "Your coach is ready when you are." : {
+
+    },
+    "Your files are secure and never shared without permission." : {
+
+    },
+    "Your name" : {
+
+    },
+    "Your optimized resumes and PDF downloads are linked to your account." : {
+
+    },
+    "Your resume data is encrypted end-to-end." : {
+
+    },
+    "Your resume is encrypted and never shared." : {
+
+    },
+    "Your weekly run structure will appear here after goal setup is connected." : {
+
+    },
+    "Zone Analysis" : {
+
+    }
+  },
+  "version" : "1.0"
+}

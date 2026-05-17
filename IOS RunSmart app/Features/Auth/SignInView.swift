@@ -30,16 +30,16 @@ struct SignInView: View {
                             .font(.system(size: 38, weight: .black, design: .rounded))
                             .foregroundStyle(.white)
 
-                        Text("Your AI-powered running coach.\nPersonalized plans. Real results.")
+                        Text("Personal coaching before and after runs.\nSmart reports. Adaptive plan guidance.")
                             .font(.subheadline)
                             .foregroundStyle(Color.mutedText)
                             .multilineTextAlignment(.center)
                     }
 
                     VStack(spacing: 12) {
-                        FeaturePill(symbol: "waveform", text: "Live AI coaching during runs")
+                        FeaturePill(symbol: "waveform", text: "Run guidance and cue previews")
                         FeaturePill(symbol: "calendar", text: "Personalized training plans")
-                        FeaturePill(symbol: "heart.fill", text: "Garmin + HealthKit integration")
+                        FeaturePill(symbol: "heart.fill", text: "Garmin + HealthKit signals when connected")
                     }
                 }
 
