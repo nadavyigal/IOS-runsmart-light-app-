@@ -1,5 +1,41 @@
 # Session Log
 
+## 2026-05-17 - Beginner 5K Habit Track + Cue Preview Sprint 5
+
+### Task Summary
+Implemented Sprint 5 by adding a compact Beginner5KHabitCard for First 5K users on Today and a collapsible PreRunCueTimeline in PreRunView. Both features are purely derived from existing loaded data with no new service methods.
+
+### Files Changed
+- `IOS RunSmart app/Features/Today/Beginner5KHabitCard.swift` (created)
+- `IOS RunSmart app/Features/Today/TodayTabView.swift`
+- `IOS RunSmart app/Features/Run/PreRunView.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Used Approach A (pure derived model) — no new service protocol methods.
+- Detection: `profile.goal == "First 5K"` is primary; `experience == "Getting started"` with no advanced goal ("10K PR", "Half Marathon", "Marathon", "Get Faster") is secondary fallback.
+- State resolution order: weekComplete → missedRecently → restDay → onTrack.
+- `.recovery` and `.strength` WorkoutKind treated as non-running (so a recovery-only day = restDay for the habit card).
+- Missed workout copy avoids shame keywords (fail, miss, skip, shame, bad) — verified by test.
+- Rest day message focuses on recovery adaptation, not absence.
+- `DateFormatter` extracted to static let to avoid allocation in hot path.
+- PreRunCueTimeline uses `StructuredWorkoutFactory.makeSteps` which already exists; collapsed by default to keep small iPhone layout clean.
+- Free run shows "Pacing intent" panel rather than claiming AI coaching.
+- Goal string vocabulary updated: added `"Get Faster"` (GoalWizardView) alongside `"10K PR"` (OnboardingView) to the advanced goals exclusion list.
+- No analytics wrapper found; Sprint 5 did not add analytics events.
+
+### Validation
+- Generic simulator build passed.
+- Generic simulator build-for-testing passed and compiled 6 new Sprint 5 tests.
+- Manual QA required before TestFlight.
+
+### Next Recommended Sprint
+Sprint 6: Plan Adjustment Review Queue — persist one suggested adjustment from completed or imported runs, show apply/dismiss on Today and Plan, and route mutations through existing amend/reschedule flows without automatic plan adaptation.
+
+---
+
 ## 2026-05-17 - First Sync Review Sprint 4
 
 ### Task Summary

@@ -1,7 +1,49 @@
 # Task State
 
 ## Current Task
-Story complete: Sprint 4 First Sync Review for Garmin + HealthKit.
+Sprint 5 complete: Beginner 5K Habit Track + Guided Cue Preview.
+
+## Sprint 5 - Beginner 5K Habit Track + Guided Cue Preview - 2026-05-17
+
+As a beginner runner, I want to see a habit track on Today and a cue preview before planned runs so I know exactly what to do next.
+
+### Expected Files
+- `IOS RunSmart app/Features/Today/Beginner5KHabitCard.swift`
+- `IOS RunSmart app/Features/Today/TodayTabView.swift`
+- `IOS RunSmart app/Features/Run/PreRunView.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Checklist
+- [x] Add `Beginner5KHabitTrack` model with detection, state resolution, and factory.
+- [x] Add `Beginner5KHabitCard` view showing progress dots, state message, next action, confidence label.
+- [x] Show card on Today only for First 5K / Getting started users.
+- [x] Non-beginner never sees the card.
+- [x] Missed workout copy is non-shaming.
+- [x] Rest day explains recovery.
+- [x] Add `PreRunCueTimeline` with collapsible workout steps for planned runs.
+- [x] Free run shows pacing intent panel.
+- [x] Missing workout structure handled gracefully.
+- [x] App builds successfully.
+
+### Scope Guard
+- No plan rewrite, C25K engine, live audio coaching, route recommendation, notifications, or shame-based streaks.
+- No new service protocol methods.
+
+### Validation
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Generic simulator build-for-testing passed and compiled 6 new Sprint 5 tests:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Manual QA required: First 5K beginner, intermediate user, missed workout, rest day, completed easy run, easy planned run, tempo run, free run, small iPhone.
+- No analytics wrapper found; Sprint 5 did not add analytics events.
+
+---
+
+## Sprint 4 - First Sync Review for Garmin + HealthKit - 2026-05-17
+
+As a runner, I want a clear first-sync review after Garmin or HealthKit imports so I trust what RunSmart imported, skipped, and can now use.
 
 ## Sprint 4 - First Sync Review for Garmin + HealthKit - 2026-05-17
 
