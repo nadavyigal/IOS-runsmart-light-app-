@@ -133,7 +133,7 @@ struct ProfileTabView: View {
                         .foregroundStyle(Color.textSecondary)
                         .lineLimit(3)
 
-                    Button { router.openCoach(context: "Profile") } label: {
+                    Button { router.openCoach(context: .profile) } label: {
                         Label("Chat with Coach", systemImage: "text.bubble")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(Color.accentPrimary)

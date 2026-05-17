@@ -1,6 +1,297 @@
 # Session Log
 
-## 2026-05-15
+## 2026-05-17 - First Sync Review Sprint 4
+
+### Task Summary
+Implemented Sprint 4 by adding a first-sync review for Garmin and HealthKit. After the first successful sync, the connected-service detail surface can show what was imported, what was skipped as duplicate, whether route data is available, what Coach can now use, and one safe next action.
+
+### Files Changed
+- `IOS RunSmart app/Models/RunSmartModels.swift`
+- `IOS RunSmart app/Services/RunSmartServices.swift`
+- `IOS RunSmart app/Services/Production/RunSmartProductionServices.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Services/Live/LiveRunSmartServices.swift`
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Added `FirstSyncReview` models for provider, imported count, skipped duplicate count, route availability count, route-less count, recent imported activities, Coach capabilities, next action, seen state, and honest summary copy.
+- Stored first-sync review state in the local production store per provider, with service APIs to fetch and mark the review seen.
+- Garmin and HealthKit sync paths now create the review only after a successful connected sync and without rewriting import, duplicate, or route-processing logic.
+- The connected-service detail scaffold shows the review once, supports dismiss, and routes next actions to existing Today, Report, or Plan tabs when available.
+- Empty, duplicate-only, route-less, mixed-route, and normal imports are explained with conservative claims. HealthKit/Garmin route availability is based only on imported run route points.
+- No analytics wrapper was found, so `first_sync_review_viewed`, `first_sync_provider_connected`, `first_sync_import_count`, and `first_sync_next_action_tapped` were not added.
+
+### Validation
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Generic simulator build-for-testing passed and compiled the new `FirstSyncReview` tests:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- The first build-for-testing attempt failed because a test double did not conform to newly added `DeviceSyncing` methods; fixed by adding default protocol extension fallbacks, then reran successfully.
+- Focused simulator test execution was not run because recent repo validation repeatedly hit simulator install/launch infrastructure failures; build-for-testing was used for compile/link coverage.
+- Manual QA remains required for Garmin first sync, HealthKit first sync, permission denied, no data, duplicate-only import, route-less import, and normal import with activities.
+
+### Next Recommended Action
+Sprint 5 should implement a Plan Adjustment Review Queue: persist one suggested adjustment from completed or imported runs, show apply/dismiss on Today and Plan, and route mutations through existing amend/reschedule/regenerate flows without automatic plan adaptation.
+
+## 2026-05-17 - Plan Explanation Surfaces Sprint 3
+
+### Task Summary
+Implemented Sprint 3 by adding a lightweight heuristic `PlanExplanation` model and compact explanation cards on Today and Plan. The cards explain why today's workout is recommended and whether the plan is on track or needs a small review, using existing plan, workout, run/import, missed-workout, and recovery data only.
+
+### Files Changed
+- `IOS RunSmart app/Models/RunSmartModels.swift`
+- `IOS RunSmart app/Features/Today/TodayTabView.swift`
+- `IOS RunSmart app/Features/Plan/PlanTabView.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Added `PlanExplanationTrigger` values for normal, completed run, missed workout, extra run, low recovery, imported activity, and manual edit, plus source values for heuristic, AI, and fallback.
+- Kept Sprint 3 heuristic-only; no new plan engine, live AI, route recommendation, notifications, or adaptation workflow was added.
+- Today now loads active plan, recent runs, and recovery alongside existing recommendation data so the "Why this workout?" card can handle no plan, rest day, missed workout, imported activity, recent run, and low recovery states.
+- Plan now shows a compact "Plan is on track" or "Plan adjusted because..." card above the weekly schedule.
+- The card shows at most one recommended action and routes only to existing surfaces: reschedule, amend workout, plan adjustment, goal wizard, or Coach.
+- No analytics wrapper was found, so `plan_explanation_viewed`, `plan_adjustment_suggested`, `plan_adjustment_applied`, and `plan_adjustment_dismissed` were not added.
+
+### Validation
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Generic simulator build-for-testing passed and compiled the new `PlanExplanation` tests:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Focused simulator test execution was not run because recent repo validation repeatedly hit simulator install/launch infrastructure failures; build-for-testing was used for compile/link coverage.
+- Build still reports pre-existing AppIcon unassigned-child warnings and older resume-era actor-isolation warning noise.
+
+### Next Recommended Action
+Sprint 4 should add a small plan-adjustment review queue: persist one suggested adjustment after missed/recent/imported activity, let the runner apply or dismiss it, and keep the actual plan mutation behind existing move/amend/regenerate actions.
+
+## 2026-05-17 - Post-Run Coach Learning Card Sprint 2
+
+### Task Summary
+Implemented Sprint 2 by adding a compact post-run learning card that explains what happened, what Coach learned, plan impact, one next action, and source. The card uses existing run/report/outcome data only; no live Coach backend AI, plan adaptation execution, route recommendation, notifications, Hebrew, share cards, or live-run AI was added.
+
+### Files Changed
+- `IOS RunSmart app/Features/Run/PostRunLearningCard.swift`
+- `IOS RunSmart app/Features/Run/PostRunSummaryView.swift`
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Added `PostRunLearningCardModel` as the presentation model/factory so copy and plan-impact decisions are testable without UI.
+- Plan impact resolves to changed, unchanged, unavailable, or needs review from existing `PostActivityOutcome`, active plan, short-run, and report suggestion data.
+- Source resolves to AI, fallback, report, or heuristic from existing report metadata; no new analytics or backend source field was invented.
+- The CTA uses the existing `saveSuggestedWorkout` path when a structured next workout exists; otherwise it renders as clearly unavailable.
+- GPS post-run summary, Garmin/import report flow, and saved report detail flow reuse the same card.
+
+### Validation
+- Generic simulator build-for-testing passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Focused Sprint 2 XCTest attempt built the app and test bundle but failed during simulator install/launch with `com.apple.CoreSimulator.SimError Code=405` and `NSMachErrorDomain Code=-308`; not counted as a test pass.
+- No analytics wrapper was found, so Sprint 2 did not add `post_run_*` events.
+
+### Next Recommended Action
+Sprint 3 should make the learning card actionable across plan surfaces: add a small "review suggested adjustment" queue/state for post-run recommendations without auto-changing the plan.
+
+## 2026-05-17 - Coach Persistence Sprint 1
+
+### Task Summary
+Implemented Sprint 1 Coach Persistence + Safe Response using the existing deterministic `TrainingContextCoachResponder` fallback. No live AI backend endpoint, Edge Function, or Coach UI redesign was added.
+
+### Files Changed
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Services/Supabase/RunSmartSupabaseClient.swift`
+- `IOS RunSmart app/Features/Coach/CoachFlowView.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Supabase services now override `send(message:context:)` while the default protocol fallback remains unchanged for fake/non-Supabase services.
+- The send path reuses the latest current-user row in `conversations`, or creates a new row with `profile_id = currentUserID.uuidString`.
+- The user and assistant messages are inserted together into `conversation_messages` with roles `user` and `assistant`, preserving the existing `recentMessages()` reload path.
+- Assistant content still comes from `TrainingContextCoachResponder.response(...)`; Sprint 1 does not call or name a backend AI endpoint.
+- `docs/runsmart-ios-supabase-backend-plan.md` lists `POST coach_message` as a planned contract, not a confirmed implementation. Existing `/api/v1/chat` code belongs to the resume/optimization chat stack and was not reused for RunSmart Coach.
+- Coach send controls are disabled while a turn is in flight to avoid rapid duplicate persisted turns.
+- No training context payload, raw GPS data, latitude, or longitude is persisted with chat messages.
+
+### Validation
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Generic simulator build-for-testing passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Sprint 1 rerun after duplicate-send guard passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Sprint 1 rerun after duplicate-send guard passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Focused Coach persistence XCTest compiled the app and test bundle, then stalled during simulator launch and was interrupted; not counted as a test pass.
+- Test-only JSON key-set compile errors were fixed.
+- A parallel Xcode build database lock produced one false verification failure; sequential reruns passed.
+
+### Next Recommended Action
+Run signed-in Supabase manual QA for Coach: send a message, close/reopen Coach, confirm user and assistant messages reload in order, then sign out/sign in and confirm ownership isolation. Sprint 1B can add live AI behind an authenticated, confirmed backend contract.
+
+## 2026-05-16 - Training Context Story
+
+### Task Summary
+Implemented Story: Unified Training Context + AI Coach Context Integration.
+
+### Files Changed
+- `docs/specs/training-context-coach.md`
+- `IOS RunSmart app/Models/RunSmartModels.swift`
+- `IOS RunSmart app/Services/RunSmartServices.swift`
+- `IOS RunSmart app/Core/RunSmartServiceProviding.swift`
+- `IOS RunSmart app/App/RunSmartLiteAppShell.swift`
+- `IOS RunSmart app/Features/Coach/CoachFlowView.swift`
+- `IOS RunSmart app/Features/Today/TodayTabView.swift`
+- `IOS RunSmart app/Features/Plan/PlanTabView.swift`
+- `IOS RunSmart app/Features/Profile/ProfileTabView.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Added a native summarized `TrainingContextSnapshot` instead of a backend-coupled payload.
+- Added typed `CoachEntryPoint` routing while preserving the string `openCoach(context:)` compatibility helper.
+- Kept `send(message:)` as a compatibility API and routed Coach UI through `send(message:context:)`.
+- Used deterministic context-aware fallback responses; no live AI endpoint, Supabase schema, permissions, or TestFlight changes were added.
+- Kept raw GPS route coordinates out of Coach context by summarizing routes and runs only.
+
+### Validation
+- Focused training context tests passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testTrainingContextIncludesSummariesAndLimitsPrivateRouteData" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testTrainingContextReportsMissingDataLimitations" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testCoachFallbackResponseUsesEntryPointSpecificContext" test`
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- First focused test attempt failed during compile because Swift does not allow an awaited call in the right side of `??`; fixed by using an explicit branch.
+- Existing warning noise remains: AppIcon unassigned children and older resume-era actor-isolation warnings.
+
+### Next Recommended Action
+Complete the still-open physical-device outdoor/background/battery QA before external TestFlight. A future backend story can replace the deterministic Coach fallback with an authenticated AI Coach endpoint using `TrainingContextSnapshot` as the native source contract.
+
+## 2026-05-16 - Commit PR And Rebuild
+
+### Task Summary
+Committed the unified training context story, opened the GitHub PR, merged the base branch into `routes`, and resolved Agent OS status-file conflicts.
+
+### Files Changed
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Kept the story commit scoped to the Coach/training context files.
+- Merged `origin/runsmart-lite-build` into `routes` because the PR initially reported conflicts against the default branch.
+- Resolved conflicts by preserving the completed Coach story, base run-save/Garmin fix status, and the still-open physical-device QA blocker.
+
+### Validation
+- PR #13 opened from `routes` to `runsmart-lite-build`.
+- PR rebuild passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Installed and launched the rebuilt simulator app on the booted iPhone 17 Pro:
+  `xcrun simctl install booted ".../IOS RunSmart app.app" && xcrun simctl launch booted com.runsmart.lite`
+
+### Next Recommended Action
+Review the PR and complete the physical-device outdoor/background/battery QA before external TestFlight.
+
+## 2026-05-15 - Physical Device Debug Install
+
+### Task Summary
+Attempted the next physical-device validation lane before external TestFlight. Re-verified connected iPhone discovery, built and installed the Debug app on the device, then stopped short of claiming outdoor/background/battery readiness because the device was locked and no manual run evidence was available.
+
+### Files Changed
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Treated build/install as passed device evidence, but kept manual outdoor/background/battery QA open.
+- Did not change app feature code.
+- Did not claim TestFlight readiness or archive/upload readiness.
+- Preserved route/benchmark/Garmin limitations as documented beta risks until a real saved/finished run is validated.
+
+### Validation
+- `xcrun xctrace list devices` showed `<REDACTED_DEVICE_NAME> (26.4.2) (<REDACTED_UDID>)`.
+- `xcrun devicectl list devices` showed `<REDACTED_DEVICE_NAME>`, identifier `<REDACTED_COREDEVICE_ID>`, state `available (paired)`, model `iPhone 13 (iPhone14,5)`.
+- `xcodebuild -list -project "IOS RunSmart app.xcodeproj"` succeeded and listed scheme `IOS RunSmart app`.
+- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS,id=<REDACTED_UDID>" build` succeeded.
+- Build evidence: `** BUILD SUCCEEDED **`, signing identity `Apple Development: <REDACTED_EMAIL> (<REDACTED_TEAM_ID>)`, provisioning profile `iOS Team Provisioning Profile: com.runsmart.lite`, bundle id `com.runsmart.lite`.
+- Device detail check confirmed physical iPhone 13, iOS 26.4.2, developer mode enabled, paired over local network.
+- `xcrun devicectl device install app --device <REDACTED_COREDEVICE_ID> ".../IOS RunSmart app.app"` succeeded for bundle id `com.runsmart.lite`.
+- `xcrun devicectl device process launch --device <REDACTED_COREDEVICE_ID> com.runsmart.lite` failed because the iPhone was locked: `Unable to launch com.runsmart.lite because the device was not, or could not be, unlocked`.
+- Static inspection confirmed the app has location usage strings and `UIBackgroundModes = location`; `RunRecorder` requests when-in-use location, disables automatic pauses, allows background location updates, and shows the background location indicator.
+
+### Next Recommended Action
+Unlock the connected iPhone, record starting battery percentage, launch RunSmart, complete a real outdoor run with at least 5 minutes locked/backgrounded, then record ending battery percentage, duration, distance, GPS behavior, and any permission issues before starting archive/upload readiness.
+
+## 2026-05-15 - Agent OS Source Of Truth
+
+### Task Summary
+Consolidated Agent OS status around a single app-repo source of truth and ran only the next validation lane for physical-device readiness.
+
+### Files Changed
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+- `../tasks/todo.md`
+- `../tasks/session-log.md`
+- `../tasks/lessons.md`
+- `../AGENTS.md`
+- `../CODEX.md`
+- `../CLAUDE.md`
+
+### Files Removed
+- `tasks/todo 2.md`
+- `tasks/todo 3.md`
+
+### Decisions Made
+- Canonical task memory now lives only in the app repo: `IOS RunSmart app/tasks/todo.md`, `tasks/lessons.md`, and `tasks/session-log.md`.
+- Outer wrapper `tasks/*.md` files are pointer stubs, not status sources.
+- Did not change feature code.
+- Treated the next validation task as the physical-device validation lane. The automatable device build passed; the real outdoor background/battery run still requires manual use on the connected iPhone.
+
+### Validation
+- `xcrun xctrace list devices` showed `<REDACTED_DEVICE_NAME> (26.4.2) (<REDACTED_UDID>)`.
+- `xcrun devicectl list devices` showed `<REDACTED_DEVICE_NAME>`, identifier `<REDACTED_COREDEVICE_ID>`, state `connected`, model `iPhone 13 (iPhone14,5)`.
+- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS,id=<REDACTED_UDID>" build` succeeded.
+- Physical-device build evidence: `** BUILD SUCCEEDED **`, signing identity `Apple Development: <REDACTED_EMAIL> (<REDACTED_TEAM_ID>)`, provisioning profile `iOS Team Provisioning Profile: com.runsmart.lite`, bundle id `com.runsmart.lite`.
+- Build still emits pre-existing AppIcon warning noise and older resume-era actor-isolation warnings.
+
+### Next Recommended Action
+On the connected iPhone, run an outdoor recording session, background the app during the run, then record whether GPS/background continuation worked and the before/after battery percentage before external TestFlight.
+
+## 2026-05-15 - Open Task Triage
+
+### Task Summary
+Used the Agent OS to triage the remaining open task notes after Story 10.
+
+### Files Changed
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Treated the historical `RunSmartTab` ambiguity and `GlassCard` redeclaration notes as compile-blocker checks because the current task file already marked route Stories 1-10 complete.
+- Did not change app source because the active RunSmart simulator build no longer reproduces either compile blocker.
+- Left the physical-device battery/background run check open because it cannot be truthfully completed in the simulator.
+
+### Validation
+- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build` succeeded.
+- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" test` was attempted, but XCTest launch stalled and ended with `NSMachErrorDomain Code=-308` after interruption.
+- The build still emits pre-existing AppIcon unassigned-child warnings and older resume-era actor-isolation warning noise.
+
+### Next Recommended Action
+Run the physical-device outdoor recording check for background continuation and battery delta before external TestFlight.
+
+## 2026-05-15 - Run Save And Garmin Merge Fix
 
 ### Task Summary
 Investigated and fixed the critical TestFlight run persistence/Garmin import issue on `fix/run-save-garmin-merge-investigation`.

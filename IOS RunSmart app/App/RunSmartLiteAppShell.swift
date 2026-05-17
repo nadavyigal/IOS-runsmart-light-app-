@@ -2,12 +2,12 @@ import SwiftUI
 import Combine
 
 enum RunSmartSheet: Identifiable {
-    case coach(String)
+    case coach(CoachEntryPoint)
     case secondary(SecondaryDestination)
 
     var id: String {
         switch self {
-        case .coach(let context): "coach-\(context)"
+        case .coach(let context): "coach-\(context.rawValue)"
         case .secondary(let dest): "secondary-\(dest.id)"
         }
     }
@@ -31,8 +31,12 @@ final class AppRouter: ObservableObject {
         return .today
     }
 
-    func openCoach(context: String) {
+    func openCoach(context: CoachEntryPoint) {
         activeSheet = .coach(context)
+    }
+
+    func openCoach(context: String) {
+        openCoach(context: CoachEntryPoint(label: context))
     }
 
     func open(_ destination: SecondaryDestination) {
@@ -130,7 +134,7 @@ struct RunSmartLiteAppShell: View {
         .sheet(item: $router.activeSheet) { sheet in
             switch sheet {
             case .coach(let context):
-                CoachFlowView(context: context)
+                CoachFlowView(entryPoint: context)
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
                     .environmentObject(router)

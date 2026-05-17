@@ -11,6 +11,9 @@ struct TodayTabView: View {
     @State private var nextWorkouts: [WorkoutSummary] = []
     @State private var runReports: [RunReportSummary] = []
     @State private var coachMessages: [CoachMessage] = []
+    @State private var activePlan: TrainingPlanSnapshot?
+    @State private var recentRuns: [RecordedRun] = []
+    @State private var recovery: RecoverySnapshot = .loading
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -29,7 +32,7 @@ struct TodayTabView: View {
 
                 TodayCoachHeroCard(
                     message: recommendation.coachMessage,
-                    onCoach: { router.openCoach(context: "Today") }
+                    onCoach: { router.openCoach(context: .today) }
                 )
                 .runSmartStaggeredAppear(index: 0)
 
@@ -51,35 +54,47 @@ struct TodayTabView: View {
                 )
                 .runSmartStaggeredAppear(index: 2)
 
+                PlanExplanationCard(
+                    title: "Why this workout?",
+                    explanation: todayExplanation,
+                    onAction: { handleExplanationAction(todayExplanation) }
+                )
+                .runSmartStaggeredAppear(index: 3)
+
+                if Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
+                    Beginner5KHabitCard(track: habitTrack)
+                        .runSmartStaggeredAppear(index: 4)
+                }
+
                 TodayQuickActions(
                     onRecord: { router.startRun(with: todayWorkout) },
                     onAddActivity: { router.open(.addActivity) },
-                    onCoach: { router.openCoach(context: "Today") }
+                    onCoach: { router.openCoach(context: .today) }
                 )
-                .runSmartStaggeredAppear(index: 3)
+                .runSmartStaggeredAppear(index: 4)
 
                 InsightCard(
                     title: "Coach Insight",
                     message: recommendation.coachMessage,
-                    action: { router.openCoach(context: "Today") }
+                    action: { router.openCoach(context: .today) }
                 )
-                .runSmartStaggeredAppear(index: 4)
+                .runSmartStaggeredAppear(index: 5)
 
                 if !coachMessages.isEmpty {
                     TodayConversationPreview(messages: coachMessages) {
-                        router.openCoach(context: "Today")
+                        router.openCoach(context: .today)
                     }
-                    .runSmartStaggeredAppear(index: 5)
+                    .runSmartStaggeredAppear(index: 6)
                 }
 
                 quickStats
-                    .runSmartStaggeredAppear(index: 6)
+                    .runSmartStaggeredAppear(index: 7)
 
                 if !nextWorkouts.isEmpty {
                     UpcomingRunsCard(workouts: nextWorkouts) { workout in
                         router.open(.workoutDetail(workout))
                     }
-                    .runSmartStaggeredAppear(index: 7)
+                    .runSmartStaggeredAppear(index: 8)
                 }
 
                 if !runReports.isEmpty {
@@ -88,11 +103,11 @@ struct TodayTabView: View {
                             router.open(.runReportDetail(detail))
                         }
                     }
-                    .runSmartStaggeredAppear(index: 8)
+                    .runSmartStaggeredAppear(index: 9)
                 }
 
                 WeatherConditionsCard()
-                    .runSmartStaggeredAppear(index: 9)
+                    .runSmartStaggeredAppear(index: 10)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
@@ -117,13 +132,29 @@ struct TodayTabView: View {
         async let nextWorkoutsTask = services.nextWorkouts(limit: 3)
         async let reportsTask = services.latestRunReports(limit: 3)
         async let messagesTask = services.recentMessages()
-        let (rec, rts, week, nw, reports, messages) = await (recommendationTask, routesTask, weekTask, nextWorkoutsTask, reportsTask, messagesTask)
+        async let activePlanTask = services.activeTrainingPlan()
+        async let runsTask = services.recentRuns()
+        async let recoveryTask = services.recoverySnapshot()
+        let (rec, rts, week, nw, reports, messages, plan, runs, recov) = await (
+            recommendationTask,
+            routesTask,
+            weekTask,
+            nextWorkoutsTask,
+            reportsTask,
+            messagesTask,
+            activePlanTask,
+            runsTask,
+            recoveryTask
+        )
         recommendation = rec
         routes = rts
         weekWorkouts = week
         nextWorkouts = nw
         runReports = reports
         coachMessages = messages
+        activePlan = plan
+        recentRuns = runs
+        recovery = recov
     }
 
     private var header: some View {
@@ -184,6 +215,51 @@ struct TodayTabView: View {
         )
     }
 
+    private var plannedTodayWorkout: WorkoutSummary? {
+        nextWorkouts.first(where: { $0.isToday }) ?? weekWorkouts.first(where: { Calendar.current.isDateInToday($0.scheduledDate) })
+    }
+
+    private var todayExplanation: PlanExplanation {
+        PlanExplanation.make(
+            activePlan: activePlan,
+            todayWorkout: plannedTodayWorkout,
+            weekWorkouts: weekWorkouts,
+            nextWorkouts: nextWorkouts,
+            recentRuns: recentRuns,
+            recovery: recovery,
+            recommendation: recommendation
+        )
+    }
+
+    private var habitTrack: Beginner5KHabitTrack {
+        Beginner5KHabitTrack.make(
+            weekWorkouts: weekWorkouts,
+            activePlan: activePlan
+        )
+    }
+
+    private func handleExplanationAction(_ explanation: PlanExplanation) {
+        switch explanation.trigger {
+        case .missedWorkout:
+            if let workout = weekWorkouts
+                .filter({ !$0.isComplete && $0.scheduledDate < Calendar.current.startOfDay(for: Date()) })
+                .sorted(by: { $0.scheduledDate > $1.scheduledDate })
+                .first {
+                router.open(.reschedule(workout))
+            } else {
+                router.open(.planAdjustment)
+            }
+        case .lowRecovery:
+            router.open(.amendWorkout(todayWorkout))
+        case .extraRun:
+            router.open(.planAdjustment)
+        case .normal where explanation.action == "Set a goal":
+            router.open(.goalWizard)
+        default:
+            router.openCoach(context: .today)
+        }
+    }
+
     private var displayName: String {
         let name = session.onboardingProfile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         return name.isEmpty ? "Runner" : name
@@ -197,6 +273,84 @@ struct TodayTabView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         return "\(formatter.string(from: start)) - \(formatter.string(from: end))"
+    }
+}
+
+struct PlanExplanationCard: View {
+    var title: String
+    var explanation: PlanExplanation
+    var onAction: (() -> Void)?
+
+    private var tint: Color {
+        switch explanation.trigger {
+        case .lowRecovery, .missedWorkout: .accentAmber
+        case .extraRun, .importedActivity, .completedRun: .accentRecovery
+        case .normal, .manualEdit: .accentPrimary
+        }
+    }
+
+    private var symbol: String {
+        switch explanation.trigger {
+        case .lowRecovery: "heart.text.square.fill"
+        case .missedWorkout: "calendar.badge.exclamationmark"
+        case .extraRun, .completedRun, .importedActivity: "figure.run.circle.fill"
+        case .manualEdit: "slider.horizontal.3"
+        case .normal: "checkmark.seal.fill"
+        }
+    }
+
+    var body: some View {
+        RunSmartPanel(cornerRadius: 20, padding: 16, accent: tint) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: symbol)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.black)
+                        .frame(width: 34, height: 34)
+                        .background(tint, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.bodyLG.weight(.semibold))
+                            .foregroundStyle(Color.textPrimary)
+                        Text("\(explanation.trigger.displayName) · \(explanation.source.displayName)")
+                            .font(.labelSM)
+                            .foregroundStyle(Color.textSecondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                Text(explanation.evidence)
+                    .font(.bodyMD)
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(explanation.recommendation)
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let action = explanation.action, let onAction {
+                    Button(action: onAction) {
+                        HStack {
+                            Text(action)
+                                .font(.bodyMD.weight(.bold))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                        }
+                        .foregroundStyle(tint)
+                        .padding(.horizontal, 12)
+                        .frame(height: 44)
+                        .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(tint.opacity(0.28), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 }
 

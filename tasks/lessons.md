@@ -5,6 +5,7 @@ Review this file at the start of future tasks.
 ## Active Rules
 - Keep `AGENTS.md`, `CLAUDE.md`, and `CODEX.md` as routers, not manuals.
 - Load only the files needed for the current workflow.
+- Use app-repo `tasks/todo.md`, `tasks/lessons.md`, and `tasks/session-log.md` as the single source of truth; outer wrapper status files should only point here.
 - Do not assume the project is already a clean RunSmart app; verify whether files still use resume-builder names.
 - Do not change app feature code when the task is to install or update the operating layer only.
 - Before TestFlight claims, verify signing, bundle id, archive status, permissions, privacy strings, and smoke tests.
@@ -17,8 +18,16 @@ Review this file at the start of future tasks.
 - Before opening Xcode, prefer the RunSmart-named project/workspace and verify it has a readable `project.pbxproj`; if it is broken, state that clearly and open the closest buildable project only as a fallback.
 - For route matching tests, keep possible-match fixtures close enough to represent GPS noise or small deviations; far parallel routes should remain no-match.
 - For local-calendar month boundary tests, construct dates with the test `Calendar` and `DateComponents`; do not use opaque epoch constants.
+- If a simulator XCTest run stalls during launch, stop it, record the exact launch error, and keep the completed build as separate validation instead of claiming a test pass.
+- If focused XCTest builds but fails at simulator install/launch with CoreSimulator error 405 and NSMach -308, treat it as simulator infrastructure failure and rely on build-for-testing plus app build until the simulator is reset.
+- For physical-device QA, confirm the device is unlocked and capture starting battery percentage before attempting app launch; build/install success is not launch, outdoor, background, or battery evidence.
+- Do not put awaited fallback calls inside nil-coalescing expressions; branch explicitly before `await` because `??` uses a synchronous autoclosure.
 - Route discovery controls must connect to service behavior or clearly present as unavailable; do not ship decorative filters that leave results unchanged.
 - Raw connected-service activities must go through the same mapper, hidden-run, fragment, and consolidation rules before display that they use before persistence.
+- Redact personal device names, UDIDs, CoreDevice identifiers, emails, team IDs, and local absolute paths before committing task memory or QA evidence.
+- When asserting JSON key sets from `Dictionary<String, Any>`, materialize optional keys explicitly before building a `Set`; avoid overload-prone `String.init` mapping.
+- Do not run multiple Xcode builds against the same DerivedData concurrently; build database locks are false failures, so run validation sequentially unless separate DerivedData paths are configured.
+- When adding optional behavior to a shared service protocol, provide default extension fallbacks or update every test double in the same pass before validation.
 
 ## Lesson Log
 
@@ -84,6 +93,69 @@ Trigger: The first Story 6 month-boundary test used hard-coded epoch values that
 Lesson: Epoch literals make calendar-boundary tests hard to audit and easy to get wrong.
 
 Future rule: Use the same `Calendar`, `TimeZone`, and `DateComponents` in tests that assert local month, week, or day behavior.
+
+### 2026-05-15 - Simulator XCTest Launch Stalls Are Not Test Passes
+Trigger: Full iPhone 17 XCTest validation stalled after build/signing and ended with `NSMachErrorDomain Code=-308` when interrupted.
+
+Lesson: A successful app build and a completed XCTest run are separate validation signals; a simulator launch failure should be reported as blocked, not folded into a pass.
+
+Future rule: If a simulator XCTest run stalls during launch, stop it, record the exact launch error, and keep the completed build as separate validation instead of claiming a test pass.
+
+### 2026-05-15 - App Repo Task Memory Is Canonical
+Trigger: The workspace contained outer wrapper task files plus app-repo task files and loose duplicate `todo` copies, causing agents to read stale state.
+
+Lesson: In a nested workspace, duplicated Agent OS memory becomes misleading faster than code changes.
+
+Future rule: Treat `IOS RunSmart app/tasks/todo.md`, `tasks/lessons.md`, and `tasks/session-log.md` as canonical; keep outer task files as pointers only and remove loose duplicate task copies when found.
+
+### 2026-05-15 - Physical Device QA Needs Unlock And Battery Baseline
+Trigger: Device build and install succeeded, but `devicectl` launch failed because the connected iPhone was locked and no starting battery percentage had been recorded.
+
+Lesson: Physical-device readiness has separate evidence layers: build, install, launch, hands-on outdoor recording, background continuation, and battery delta.
+
+Future rule: Before starting physical-device manual QA, confirm the phone is unlocked and record starting battery percentage; do not treat build/install success as outdoor/background/battery validation.
+
+### 2026-05-16 - Await Before Nil-Coalescing
+Trigger: The first focused training-context test build failed because `trainingContext ?? await services.trainingContext(...)` placed an async call inside the synchronous autoclosure used by `??`.
+
+Lesson: Swift async fallback work needs an explicit branch before awaiting.
+
+Future rule: Do not put awaited fallback calls inside nil-coalescing expressions; branch explicitly before `await` because `??` uses a synchronous autoclosure.
+
+### 2026-05-16 - Redact Device QA Evidence In Task Memory
+Trigger: PR review flagged git-tracked task docs containing a personal device name, UDID, CoreDevice identifier, signing email/team ID, and local absolute path.
+
+Lesson: QA evidence can be useful without storing raw personal or device identifiers in repo history.
+
+Future rule: Redact personal device names, UDIDs, CoreDevice identifiers, emails, team IDs, and local absolute paths before committing task memory or QA evidence; keep full values only in private/local notes.
+
+### 2026-05-17 - XCTest JSON Key Materialization
+Trigger: The first focused Coach persistence test build failed because optional dictionary keys were passed into `Set` in a shape Swift could not type-check, then `String.init` mapping introduced overload ambiguity.
+
+Lesson: JSON payload tests should materialize `[String]` keys plainly before comparing sets.
+
+Future rule: When asserting JSON key sets from `Dictionary<String, Any>`, materialize optional keys explicitly before building a `Set`; avoid overload-prone `String.init` mapping.
+
+### 2026-05-17 - Sequential Xcode Validation
+Trigger: A build-for-testing/build validation attempt failed with an Xcode build database lock because two xcodebuild processes were running against the same DerivedData.
+
+Lesson: Concurrent Xcode validation can create infrastructure failures unrelated to the code under test.
+
+Future rule: Do not run multiple Xcode builds against the same DerivedData concurrently; build database locks are false failures, so run validation sequentially unless separate DerivedData paths are configured.
+
+### 2026-05-17 - Focused XCTest Simulator Install Failure
+Trigger: Focused Sprint 2 XCTest built the app and test bundle, then failed during simulator install/launch with `com.apple.CoreSimulator.SimError Code=405` and `NSMachErrorDomain Code=-308`.
+
+Lesson: A focused XCTest can validate compile/link but still fail before test execution because the simulator install worker is unhealthy.
+
+Future rule: If focused XCTest builds but fails at simulator install/launch with CoreSimulator error 405 and NSMach -308, treat it as simulator infrastructure failure and rely on build-for-testing plus app build until the simulator is reset.
+
+### 2026-05-17 - Shared Service Protocol Additions Need Fallbacks
+Trigger: Sprint 4 build-for-testing initially failed because a training-context test double did not implement newly added first-sync review APIs on `DeviceSyncing`.
+
+Lesson: Optional service behavior can break unrelated tests when it is added to a shared protocol without defaults.
+
+Future rule: When adding optional behavior to a shared service protocol, provide default extension fallbacks or update every test double in the same pass before validation.
 
 ### 2026-05-14 - Route Discovery Controls Need Real Wiring
 Trigger: QA found Route Creator elevation/surface controls and generated-route buckets that did not affect loaded suggestions.

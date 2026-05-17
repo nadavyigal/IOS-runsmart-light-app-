@@ -220,6 +220,14 @@ struct DBConversation: Codable, Sendable {
     }
 }
 
+struct DBConversationInsert: Encodable, Sendable {
+    let profileId: String
+
+    enum CodingKeys: String, CodingKey {
+        case profileId = "profile_id"
+    }
+}
+
 struct DBMessage: Codable, Sendable {
     let id: UUID
     let conversationId: UUID
@@ -229,6 +237,20 @@ struct DBMessage: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case id
+        case conversationId = "conversation_id"
+        case role
+        case content
+        case createdAt = "created_at"
+    }
+}
+
+struct DBMessageInsert: Encodable, Sendable {
+    let conversationId: String
+    let role: String
+    let content: String
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
         case conversationId = "conversation_id"
         case role
         case content
