@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 enum HabitState: Equatable {
     case onTrack
@@ -166,6 +166,92 @@ struct Beginner5KHabitTrack {
         switch workout.kind {
         case .strength, .recovery: return false
         default: return true
+        }
+    }
+}
+
+struct Beginner5KHabitCard: View {
+    var track: Beginner5KHabitTrack
+
+    private var accentColor: Color {
+        switch track.state {
+        case .restDay:        return .accentRecovery
+        case .missedRecently: return .accentAmber
+        case .weekComplete:   return .accentSuccess
+        case .onTrack:        return .accentPrimary
+        }
+    }
+
+    var body: some View {
+        RunSmartPanel(cornerRadius: 20, padding: 16, accent: accentColor) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: "figure.run.circle.fill")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.black)
+                        .frame(width: 34, height: 34)
+                        .background(accentColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("FIRST 5K")
+                            .font(.labelSM)
+                            .tracking(1.6)
+                            .foregroundStyle(Color.textSecondary)
+                        Text(track.progressLabel)
+                            .font(.bodyMD.weight(.semibold))
+                            .foregroundStyle(Color.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    SessionDots(completed: track.completedThisWeek, total: track.plannedThisWeek, tint: accentColor)
+                }
+
+                Text(track.stateMessage)
+                    .font(.bodyMD)
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(track.nextActionTitle)
+                            .font(.bodyMD.weight(.bold))
+                            .foregroundStyle(Color.textPrimary)
+                        Text(track.nextActionDetail)
+                            .font(.caption)
+                            .foregroundStyle(Color.textSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    Text(track.confidenceLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(accentColor)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(accentColor.opacity(0.12), in: Capsule())
+                        .overlay(Capsule().stroke(accentColor.opacity(0.3), lineWidth: 1))
+                }
+            }
+        }
+    }
+}
+
+private struct SessionDots: View {
+    var completed: Int
+    var total: Int
+    var tint: Color
+
+    var body: some View {
+        let displayTotal = max(total, 1)
+        HStack(spacing: 5) {
+            ForEach(0..<displayTotal, id: \.self) { index in
+                Circle()
+                    .fill(index < completed ? tint : tint.opacity(0.22))
+                    .frame(width: 9, height: 9)
+                    .overlay(Circle().stroke(tint.opacity(index < completed ? 0 : 0.5), lineWidth: 1))
+            }
         }
     }
 }
