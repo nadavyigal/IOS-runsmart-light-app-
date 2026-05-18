@@ -5,6 +5,7 @@ import MapKit
 
 enum RunSmartCoachPersistenceError: Error {
     case conversationCreateReturnedNoRow
+    case emptyAssistantResponse
 }
 
 // MARK: - SupabaseRunSmartServices
@@ -322,11 +323,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             guard let conv = conversations.first else { return [] }
 
             let messages: [DBMessage] = try await supabase
-                .from("conversation_messages")
-                .select()
-                .eq("conversation_id", value: conv.id.uuidString)
-                .order("created_at", ascending: false)
-                .limit(10)
+                .rpc(
+                    "coach_messages_for_conversation",
+                    params: DBCoachMessagesForConversationParams(
+                        conversationID: conv.id.uuidString,
+                        limit: 10,
+                        assistantOnly: false
+                    )
+                )
                 .execute()
                 .value
 
@@ -351,13 +355,37 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func send(message: String, context: TrainingContextSnapshot) async -> CoachMessage {
         let fallback = TrainingContextCoachResponder.response(to: message, context: context)
-        guard let userID = currentUserID else {
+        let clientMessageID = UUID().uuidString
+        guard let userID = currentUserID,
+              let token = try? await supabase.auth.session.accessToken else {
             return fallback
         }
 
         do {
+            let live = try await sendLiveCoachMessage(
+                message,
+                context: context,
+                clientMessageID: clientMessageID,
+                accessToken: token
+            )
+            return live
+        } catch {
+            if !(error is CancellationError) {
+                print("[SupabaseServices] live coach endpoint unavailable, using fallback:", error)
+            }
+        }
+
+        do {
             let conversation = try await coachConversation(for: userID)
-            try await insertCoachTurn(conversationID: conversation.id, userMessage: message, assistantMessage: fallback.text)
+            try await insertCoachTurn(
+                conversationID: conversation.id,
+                userMessage: message,
+                assistantMessage: fallback.text,
+                authUserID: userID.uuidString,
+                clientMessageID: clientMessageID,
+                source: "fallback",
+                entryPoint: context.entryPoint.rawValue
+            )
             return fallback
         } catch {
             if !(error is CancellationError) {
@@ -365,6 +393,39 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             }
             return fallback
         }
+    }
+
+    private func sendLiveCoachMessage(
+        _ message: String,
+        context: TrainingContextSnapshot,
+        clientMessageID: String,
+        accessToken: String
+    ) async throws -> CoachMessage {
+        let request = RunSmartDTO.SendCoachMessageRequest(
+            clientMessageId: clientMessageID,
+            entryPoint: context.entryPoint,
+            message: message,
+            context: context
+        )
+        let body = try JSONEncoder().encode(request)
+        let client = URLSessionRunSmartAPIClient(
+            baseURL: SupabaseManager.functionsBaseURL,
+            accessToken: accessToken,
+            additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
+        )
+        let response = try await client.send(
+            RunSmartAPI.Endpoint(path: "coach_message", method: .post, body: body),
+            as: RunSmartDTO.SendCoachMessageResponse.self
+        )
+        let content = response.assistantMessage.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty else {
+            throw RunSmartCoachPersistenceError.emptyAssistantResponse
+        }
+        return CoachMessage(
+            text: content,
+            time: formatRelativeTime(response.assistantMessage.createdAt).isEmpty ? "Now" : formatRelativeTime(response.assistantMessage.createdAt),
+            isUser: false
+        )
     }
 
     // MARK: ProfileProviding
@@ -1356,12 +1417,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             guard let conv = conversations.first else { return nil }
 
             let messages: [DBMessage] = try await supabase
-                .from("conversation_messages")
-                .select()
-                .eq("conversation_id", value: conv.id.uuidString)
-                .eq("role", value: "assistant")
-                .order("created_at", ascending: false)
-                .limit(1)
+                .rpc(
+                    "coach_messages_for_conversation",
+                    params: DBCoachMessagesForConversationParams(
+                        conversationID: conv.id.uuidString,
+                        limit: 1,
+                        assistantOnly: true
+                    )
+                )
                 .execute()
                 .value
             return messages.first?.content
@@ -1382,12 +1445,26 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             return conversation
         }
 
-        let inserted: [DBConversation] = try await supabase
-            .from("conversations")
-            .insert(DBConversationInsert(profileId: userID.uuidString))
-            .select()
-            .execute()
-            .value
+        let inserted: [DBConversation]
+        do {
+            inserted = try await supabase
+                .from("conversations")
+                .insert(DBConversationInsert(profileId: userID.uuidString, authUserId: userID.uuidString, title: "RunSmart Coach"))
+                .select()
+                .execute()
+                .value
+        } catch {
+            if isLikelyMissingCoachMessageColumns(error) {
+                inserted = try await supabase
+                    .from("conversations")
+                    .insert(DBConversationInsert(profileId: userID.uuidString))
+                    .select()
+                    .execute()
+                    .value
+            } else {
+                throw error
+            }
+        }
 
         guard let conversation = inserted.first else {
             throw RunSmartCoachPersistenceError.conversationCreateReturnedNoRow
@@ -1395,10 +1472,118 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return conversation
     }
 
-    private func insertCoachTurn(conversationID: UUID, userMessage: String, assistantMessage: String) async throws {
+    private func insertCoachTurn(
+        conversationID: UUID,
+        userMessage: String,
+        assistantMessage: String,
+        authUserID: String? = nil,
+        clientMessageID: String? = nil,
+        source: String = "fallback",
+        entryPoint: String? = nil
+    ) async throws {
         let userCreatedAt = ISO8601DateFormatter().string(from: Date())
         let assistantCreatedAt = ISO8601DateFormatter().string(from: Date().addingTimeInterval(0.001))
+        let metadata = entryPoint.map { ["entryPoint": $0] }
 
+        let newRows = [
+            DBMessageInsert(
+                conversationId: conversationID.uuidString,
+                authUserId: authUserID,
+                role: "user",
+                content: userMessage,
+                createdAt: userCreatedAt,
+                clientMessageId: clientMessageID,
+                source: "client",
+                metadata: metadata
+            ),
+            DBMessageInsert(
+                conversationId: conversationID.uuidString,
+                authUserId: authUserID,
+                role: "assistant",
+                content: assistantMessage,
+                createdAt: assistantCreatedAt,
+                clientMessageId: clientMessageID.map { "\($0):assistant" },
+                source: source,
+                metadata: metadata
+            )
+        ]
+
+        do {
+            try await supabase
+                .from("conversation_messages")
+                .insert(newRows)
+                .execute()
+        } catch {
+            if isLikelyMissingCoachMessageColumns(error) {
+                try await insertLegacyCoachTurn(
+                    conversationID: conversationID,
+                    userMessage: userMessage,
+                    assistantMessage: assistantMessage,
+                    userCreatedAt: userCreatedAt,
+                    assistantCreatedAt: assistantCreatedAt
+                )
+                return
+            }
+
+            if let clientMessageID {
+                try await insertFallbackAssistantIfNeeded(
+                    conversationID: conversationID,
+                    assistantMessage: assistantMessage,
+                    createdAt: assistantCreatedAt,
+                    clientMessageID: "\(clientMessageID):assistant",
+                    authUserID: authUserID,
+                    source: source,
+                    metadata: metadata
+                )
+                return
+            }
+
+            throw error
+        }
+    }
+
+    private func insertFallbackAssistantIfNeeded(
+        conversationID: UUID,
+        assistantMessage: String,
+        createdAt: String,
+        clientMessageID: String,
+        authUserID: String?,
+        source: String,
+        metadata: [String: String]?
+    ) async throws {
+        let existing: [DBMessage] = try await supabase
+            .from("conversation_messages")
+            .select()
+            .eq("conversation_id", value: conversationID.uuidString)
+            .eq("client_message_id", value: clientMessageID)
+            .limit(1)
+            .execute()
+            .value
+
+        guard existing.isEmpty else { return }
+
+        try await supabase
+            .from("conversation_messages")
+            .insert(DBMessageInsert(
+                conversationId: conversationID.uuidString,
+                authUserId: authUserID,
+                role: "assistant",
+                content: assistantMessage,
+                createdAt: createdAt,
+                clientMessageId: clientMessageID,
+                source: source,
+                metadata: metadata
+            ))
+            .execute()
+    }
+
+    private func insertLegacyCoachTurn(
+        conversationID: UUID,
+        userMessage: String,
+        assistantMessage: String,
+        userCreatedAt: String,
+        assistantCreatedAt: String
+    ) async throws {
         try await supabase
             .from("conversation_messages")
             .insert([
@@ -1416,6 +1601,11 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 )
             ])
             .execute()
+    }
+
+    private func isLikelyMissingCoachMessageColumns(_ error: Error) -> Bool {
+        let text = String(describing: error).lowercased()
+        return text.contains("client_message_id") || text.contains("source") || text.contains("auth_user_id")
     }
 
     private func recentWeeklyKm(runs: [RecordedRun]) -> Double {

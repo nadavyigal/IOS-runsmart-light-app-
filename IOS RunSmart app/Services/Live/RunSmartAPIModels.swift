@@ -65,9 +65,285 @@ enum RunSmartDTO {
         let role: String
     }
 
-    struct SendCoachMessageRequest: Codable {
-        let threadID: String?
-        let text: String
+    struct SendCoachMessageRequest: Encodable {
+        let conversationId: String?
+        let clientMessageId: String
+        let entryPoint: String
+        let message: String
+        let context: TrainingContextSnapshotDTO
+        let clientTimestamp: String
+
+        init(
+            conversationId: String? = nil,
+            clientMessageId: String,
+            entryPoint: CoachEntryPoint,
+            message: String,
+            context: TrainingContextSnapshot,
+            clientTimestamp: Date = Date()
+        ) {
+            self.conversationId = conversationId
+            self.clientMessageId = clientMessageId
+            self.entryPoint = entryPoint.rawValue
+            self.message = message
+            self.context = TrainingContextSnapshotDTO(context)
+            self.clientTimestamp = ISO8601DateFormatter().string(from: clientTimestamp)
+        }
+    }
+
+    struct TrainingContextSnapshotDTO: Encodable {
+        let generatedAt: String
+        let entryPoint: String
+        let runner: Runner
+        let today: Today
+        let plan: Plan
+        let recovery: Recovery
+        let wellness: Wellness
+        let activity: Activity
+        let routes: [Route]
+        let reports: [Report]
+        let limitations: [String]
+
+        init(_ snapshot: TrainingContextSnapshot) {
+            generatedAt = ISO8601DateFormatter().string(from: snapshot.generatedAt)
+            entryPoint = snapshot.entryPoint.rawValue
+            runner = Runner(snapshot.runner)
+            today = Today(snapshot.today)
+            plan = Plan(snapshot.plan)
+            recovery = Recovery(snapshot.recovery)
+            wellness = Wellness(snapshot.wellness)
+            activity = Activity(snapshot.activity)
+            routes = snapshot.routes.map(Route.init)
+            reports = snapshot.reports.map(Report.init)
+            limitations = snapshot.limitations
+        }
+
+        struct Runner: Encodable {
+            let goal: String
+            let level: String
+            let streak: String
+            let totalRuns: Int
+            let totalDistanceKm: Int
+            let totalTime: String
+
+            init(_ runner: TrainingContextRunnerSummary) {
+                goal = runner.goal
+                level = runner.level
+                streak = runner.streak
+                totalRuns = runner.totalRuns
+                totalDistanceKm = runner.totalDistanceKm
+                totalTime = runner.totalTime
+            }
+        }
+
+        struct Today: Encodable {
+            let readiness: Int
+            let readinessLabel: String
+            let workoutTitle: String
+            let distance: String
+            let pace: String
+            let coachMessage: String
+            let weeklyProgress: String
+            let recovery: String
+            let hrv: String
+
+            init(_ today: TrainingContextTodaySummary) {
+                readiness = today.readiness
+                readinessLabel = today.readinessLabel
+                workoutTitle = today.workoutTitle
+                distance = today.distance
+                pace = today.pace
+                coachMessage = today.coachMessage
+                weeklyProgress = today.weeklyProgress
+                recovery = today.recovery
+                hrv = today.hrv
+            }
+        }
+
+        struct Plan: Encodable {
+            let activePlanTitle: String?
+            let planType: String?
+            let totalWeeks: Int?
+            let weeklyWorkoutCount: Int
+            let upcomingWorkouts: [Workout]
+
+            init(_ plan: TrainingContextPlanSummary) {
+                activePlanTitle = plan.activePlanTitle
+                planType = plan.planType
+                totalWeeks = plan.totalWeeks
+                weeklyWorkoutCount = plan.weeklyWorkoutCount
+                upcomingWorkouts = plan.upcomingWorkouts.map(Workout.init)
+            }
+        }
+
+        struct Workout: Encodable {
+            let id: String
+            let scheduledDate: String
+            let title: String
+            let kind: String
+            let distance: String
+            let detail: String
+            let isToday: Bool
+            let isComplete: Bool
+
+            init(_ workout: TrainingContextWorkoutSummary) {
+                id = workout.id.uuidString
+                scheduledDate = ISO8601DateFormatter.shortDate.string(from: workout.scheduledDate)
+                title = workout.title
+                kind = workout.kind.rawValue
+                distance = workout.distance
+                detail = workout.detail
+                isToday = workout.isToday
+                isComplete = workout.isComplete
+            }
+        }
+
+        struct Recovery: Encodable {
+            let readiness: Int
+            let bodyBattery: Int
+            let sleep: String
+            let hrv: String
+            let stress: String
+            let recommendation: String
+
+            init(_ recovery: TrainingContextRecoverySummary) {
+                readiness = recovery.readiness
+                bodyBattery = recovery.bodyBattery
+                sleep = recovery.sleep
+                hrv = recovery.hrv
+                stress = recovery.stress
+                recommendation = recovery.recommendation
+            }
+        }
+
+        struct Wellness: Encodable {
+            let calories: String
+            let hydration: String
+            let soreness: String
+            let mood: String
+            let checkInStatus: String
+
+            init(_ wellness: TrainingContextWellnessSummary) {
+                calories = wellness.calories
+                hydration = wellness.hydration
+                soreness = wellness.soreness
+                mood = wellness.mood
+                checkInStatus = wellness.checkInStatus
+            }
+        }
+
+        struct Activity: Encodable {
+            let recentRunCount: Int
+            let recentRuns: [Run]
+            let sources: [String]
+            let averageWeeklyDistanceKm: Double?
+
+            init(_ activity: TrainingContextActivitySummary) {
+                recentRunCount = activity.recentRunCount
+                recentRuns = activity.recentRuns.map(Run.init)
+                sources = activity.sources
+                averageWeeklyDistanceKm = activity.averageWeeklyDistanceKm
+            }
+        }
+
+        struct Run: Encodable {
+            let id: String
+            let source: String
+            let startedAt: String
+            let distanceKm: Double
+            let movingTimeSeconds: Int
+            let paceLabel: String
+            let averageHeartRateBPM: Int?
+            let hasRoute: Bool
+            let routePointCount: Int
+
+            init(_ run: TrainingContextRunSummary) {
+                id = run.id.uuidString
+                source = run.source.rawValue
+                startedAt = ISO8601DateFormatter().string(from: run.startedAt)
+                distanceKm = run.distanceKm
+                movingTimeSeconds = Int(run.movingTimeSeconds.rounded())
+                paceLabel = run.paceLabel
+                averageHeartRateBPM = run.averageHeartRateBPM
+                hasRoute = run.hasRoute
+                routePointCount = run.routePointCount
+            }
+        }
+
+        struct Route: Encodable {
+            let id: String
+            let name: String
+            let distanceKm: Double
+            let elevationGainMeters: Int
+            let estimatedDurationMinutes: Int
+            let kind: String
+            let recommendationReason: String?
+            let isFavorite: Bool
+            let hasGeometry: Bool
+
+            init(_ route: TrainingContextRouteSummary) {
+                id = route.id
+                name = route.name
+                distanceKm = route.distanceKm
+                elevationGainMeters = route.elevationGainMeters
+                estimatedDurationMinutes = route.estimatedDurationMinutes
+                kind = route.kind.rawValue
+                recommendationReason = route.recommendationReason
+                isFavorite = route.isFavorite
+                hasGeometry = route.hasGeometry
+            }
+        }
+
+        struct Report: Encodable {
+            let id: String
+            let title: String
+            let dateLabel: String
+            let distance: String
+            let pace: String
+            let score: Int
+            let insight: String
+            let hasGeneratedReport: Bool
+
+            init(_ report: TrainingContextReportSummary) {
+                id = report.id
+                title = report.title
+                dateLabel = report.dateLabel
+                distance = report.distance
+                pace = report.pace
+                score = report.score
+                insight = report.insight
+                hasGeneratedReport = report.hasGeneratedReport
+            }
+        }
+    }
+
+    struct SendCoachMessageResponse: Decodable {
+        let conversationId: String
+        let userMessageId: String
+        let assistantMessage: CoachAssistantMessageDTO
+        let source: String
+        let fallback: Bool
+        let suggestedAction: CoachSuggestedActionDTO?
+        let safetyFlags: [String]?
+        let usage: CoachUsageDTO?
+    }
+
+    struct CoachAssistantMessageDTO: Decodable {
+        let id: String
+        let role: String
+        let content: String
+        let createdAt: String
+    }
+
+    struct CoachSuggestedActionDTO: Decodable {
+        let type: String
+        let title: String
+        let payload: [String: String]?
+    }
+
+    struct CoachUsageDTO: Decodable {
+        let inputTokens: Int?
+        let outputTokens: Int?
+        let totalTokens: Int?
     }
 
     struct RunLogRequest: Codable {
@@ -541,11 +817,18 @@ struct URLSessionRunSmartAPIClient: RunSmartAPIClient {
     let baseURL: URL
     let session: URLSession
     var accessToken: String?
+    var additionalHeaders: [String: String]
 
-    init(baseURL: URL = URLSessionRunSmartAPIClient.configuredBaseURL(), session: URLSession = .shared, accessToken: String? = nil) {
+    init(
+        baseURL: URL = URLSessionRunSmartAPIClient.configuredBaseURL(),
+        session: URLSession = .shared,
+        accessToken: String? = nil,
+        additionalHeaders: [String: String] = [:]
+    ) {
         self.baseURL = baseURL
         self.session = session
         self.accessToken = accessToken
+        self.additionalHeaders = additionalHeaders
     }
 
     nonisolated func send<Response: Decodable>(_ endpoint: RunSmartAPI.Endpoint, as: Response.Type) async throws -> Response {
@@ -564,6 +847,9 @@ struct URLSessionRunSmartAPIClient: RunSmartAPIClient {
         }
         if let accessToken {
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+        for (field, value) in additionalHeaders {
+            request.setValue(value, forHTTPHeaderField: field)
         }
 
         let (data, response) = try await session.data(for: request)

@@ -36,19 +36,6 @@
         }
       }
     },
-    "%@ context" : {
-
-    },
-    "%@ km - %lldm gain - %lld min" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ km - %2$lldm gain - %3$lld min"
-          }
-        }
-      }
-    },
     "%@, %@" : {
       "localizations" : {
         "en" : {
@@ -385,7 +372,7 @@
     "Benchmark Route" : {
 
     },
-    "Build a route for the workout" : {
+    "Browse Routes" : {
 
     },
     "Building your report and matching this run to your plan..." : {
@@ -430,13 +417,16 @@
     "COACH ANALYSIS" : {
 
     },
-    "Coach can use readiness, plan week, recent runs, routes, and wellness summaries." : {
+    "Coach can now use" : {
 
     },
     "Coach cue" : {
 
     },
     "Coach details will appear once the workout structure is available." : {
+
+    },
+    "COACH LEARNED" : {
 
     },
     "Coach Spark" : {
@@ -493,7 +483,7 @@
     "Could not save this amendment. Check your connection and try again." : {
 
     },
-    "Could not save this workout. Check your connection and try again." : {
+    "Couldn't generate a nearby loop. Check your connection and tap Retry." : {
 
     },
     "Create a full coach report from this real activity and save it under Recent Run Reports." : {
@@ -526,7 +516,16 @@
     "Delete Activity" : {
 
     },
+    "Delete Route" : {
+
+    },
+    "Delete saved route?" : {
+
+    },
     "Delete this activity?" : {
+
+    },
+    "Deleting Route" : {
 
     },
     "Design" : {
@@ -606,9 +605,6 @@
     "Email" : {
 
     },
-    "Enable Location" : {
-
-    },
     "Enabled" : {
 
     },
@@ -656,16 +652,19 @@
         }
       }
     },
-    "Failed to save. Try again." : {
-
-    },
     "Favorite" : {
 
     },
-    "Finding runnable loops near you..." : {
+    "Finding routes" : {
+
+    },
+    "Finding routes near you" : {
 
     },
     "Finish" : {
+
+    },
+    "FIRST 5K" : {
 
     },
     "Focus: %@ - Build Aerobic Endurance" : {
@@ -689,16 +688,7 @@
     "Garmin metrics are not fresh enough to approve. Use the manual check-in below." : {
 
     },
-    "Garmin route data is not available for this activity. Route saving requires GPS map data." : {
-
-    },
     "Generate" : {
-
-    },
-    "Generate loop routes around your current location." : {
-
-    },
-    "Generate Nearby Loops" : {
 
     },
     "Generate Report" : {
@@ -736,6 +726,9 @@
       }
     },
     "Good conditions for a controlled tempo run." : {
+
+    },
+    "Got it" : {
 
     },
     "GPS route" : {
@@ -872,6 +865,9 @@
     "KM SPLITS" : {
 
     },
+    "Learning from this run now..." : {
+
+    },
     "LinkedIn or Job Link" : {
 
     },
@@ -881,16 +877,25 @@
     "Loading designs…" : {
 
     },
+    "Loading Garmin route points." : {
+
+    },
     "Loading optimization history..." : {
 
     },
     "Loading resume…" : {
 
     },
-    "Location is unavailable. Enable location access to generate loops near you." : {
+    "Loading saved routes and nearby loops." : {
+
+    },
+    "Loading training context..." : {
 
     },
     "Log manual run" : {
+
+    },
+    "Low-frequency prompts for planned runs, gentle recovery, and weekly recap." : {
 
     },
     "Main issues" : {
@@ -962,6 +967,9 @@
     "No designs yet" : {
 
     },
+    "No Garmin map data for this activity. Route saving, matching, and benchmark comparisons need GPS points; the run report still works." : {
+
+    },
     "No Health workouts imported yet. Tap Sync Now after granting Health access." : {
 
     },
@@ -978,6 +986,9 @@
 
     },
     "No plan yet" : {
+
+    },
+    "No Route Available" : {
 
     },
     "No run report yet" : {
@@ -1086,6 +1097,9 @@
         }
       }
     },
+    "Pacing intent" : {
+
+    },
     "Paste the job description here if the link is unavailable…" : {
 
     },
@@ -1104,6 +1118,9 @@
     "PDF up to 5 MB" : {
 
     },
+    "Personal coaching before and after runs.\nSmart reports. Adaptive plan guidance." : {
+
+    },
     "PLAN" : {
 
     },
@@ -1113,7 +1130,13 @@
     "Plan changes now write to your real RunSmart training plan. Open a workout to move, remove, or start it; use the goal wizard to regenerate the block from the web coach." : {
 
     },
+    "PLAN IMPACT" : {
+
+    },
     "PLAN UPDATE" : {
+
+    },
+    "Precise route data" : {
 
     },
     "Preview" : {
@@ -1192,10 +1215,10 @@
     "Recent Exports" : {
 
     },
-    "Recommended Next Run" : {
+    "Recent imports" : {
 
     },
-    "Record a GPS run first, then RunSmart can suggest real routes from your activity history." : {
+    "Recommended Next Run" : {
 
     },
     "Recovery Timeline" : {
@@ -1207,10 +1230,10 @@
     "Refinement Instruction" : {
 
     },
-    "Regenerate" : {
+    "Reject" : {
 
     },
-    "Reject" : {
+    "Reminders are local, low-frequency, and can be turned off from Profile." : {
 
     },
     "Remove Benchmark" : {
@@ -1226,6 +1249,9 @@
 
     },
     "Remove this run?" : {
+
+    },
+    "Remove this saved route and benchmark tracking from RunSmart." : {
 
     },
     "Rendering preview…" : {
@@ -1270,10 +1296,16 @@
     "Route" : {
 
     },
+    "Route for Today" : {
+
+    },
+    "Route generation unavailable" : {
+
+    },
     "ROUTE NAME" : {
 
     },
-    "Route saved to your library." : {
+    "Route selected" : {
 
     },
     "RS" : {
@@ -1288,13 +1320,13 @@
     "Run a scan and optimization to see it here." : {
 
     },
+    "Run by feel, no pressure. Listen to your body." : {
+
+    },
     "Run expert workflows for this optimization" : {
 
     },
     "Run Optimize first to attach a version here." : {
-
-    },
-    "Run saved. Great work — your coach will factor this into next week's plan." : {
 
     },
     "Run this route to start tracking your benchmark progress." : {
@@ -1360,6 +1392,9 @@
     "Saved resume" : {
 
     },
+    "Saved routes include GPS points. You can delete the RunSmart copy or remove benchmark tracking from route details; Garmin activities are not deleted." : {
+
+    },
     "Saved to your applications!" : {
 
     },
@@ -1421,6 +1456,9 @@
     "See how your resume performs against a job before you apply." : {
 
     },
+    "See workout breakdown" : {
+
+    },
     "Send message" : {
 
     },
@@ -1430,7 +1468,13 @@
     "Share link" : {
 
     },
+    "Share Progress" : {
+
+    },
     "Share score" : {
+
+    },
+    "Shares a private progress summary without raw coordinates or a route map." : {
 
     },
     "Sign in to Optimize" : {
@@ -1455,6 +1499,9 @@
 
     },
     "Skip" : {
+
+    },
+    "Smart return reminders" : {
 
     },
     "Soon" : {
@@ -1633,7 +1680,13 @@
     "The future home for GPS tracking, manual logs, and post-run review." : {
 
     },
+    "This Garmin map has too few GPS points to save as a repeatable route; the run report still works." : {
+
+    },
     "This is a real activity, but no generated coach report has been saved yet." : {
+
+    },
+    "This removes RunSmart's saved route and benchmark tracking. It does not delete the original Garmin activity." : {
 
     },
     "This removes the current timer, distance, and route." : {
@@ -1750,13 +1803,10 @@
     "Workout breakdown unavailable for this plan item." : {
 
     },
-    "Smart return reminders" : {
+    "Workout details will appear once the structure loads." : {
 
     },
     "You completed 4 of 5 planned sessions. The missed strength day is not critical; keep Sunday easy." : {
-
-    },
-    "Personal coaching before and after runs.\nSmart reports. Adaptive plan guidance." : {
 
     },
     "Your coach is ready when you are." : {

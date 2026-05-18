@@ -23,6 +23,9 @@ Review this file at the start of future tasks.
 - For physical-device QA, confirm the device is unlocked and capture starting battery percentage before attempting app launch; build/install success is not launch, outdoor, background, or battery evidence.
 - Do not put awaited fallback calls inside nil-coalescing expressions; branch explicitly before `await` because `??` uses a synchronous autoclosure.
 - Route discovery controls must connect to service behavior or clearly present as unavailable; do not ship decorative filters that leave results unchanged.
+- For RunSmart Supabase Edge Functions, use `SupabaseManager.functionsBaseURL` and the current Supabase publishable key; do not route app-native Coach features through stale ResumeBuilder `BackendConfig.apiBaseURL`.
+- Before copying local API secrets into the iOS workspace, add env file patterns to both wrapper and app `.gitignore`; never print secret values in logs or task memory.
+- After adding owner-scoped Supabase RLS policies, inspect and remove older broad authenticated policies on the same tables; permissive policies combine with restrictive-looking policies and can still expose rows.
 - Raw connected-service activities must go through the same mapper, hidden-run, fragment, and consolidation rules before display that they use before persistence.
 - Redact personal device names, UDIDs, CoreDevice identifiers, emails, team IDs, and local absolute paths before committing task memory or QA evidence.
 - When asserting JSON key sets from `Dictionary<String, Any>`, materialize optional keys explicitly before building a `Set`; avoid overload-prone `String.init` mapping.
@@ -156,6 +159,34 @@ Trigger: Sprint 4 build-for-testing initially failed because a training-context 
 Lesson: Optional service behavior can break unrelated tests when it is added to a shared protocol without defaults.
 
 Future rule: When adding optional behavior to a shared service protocol, provide default extension fallbacks or update every test double in the same pass before validation.
+
+### 2026-05-18 - RunSmart Backend Calls Must Avoid Legacy ResumeBuilder Base URLs
+Trigger: Live Coach needed a new backend endpoint while `BackendConfig.apiBaseURL` still pointed to legacy ResumeBuilder infrastructure.
+
+Lesson: RunSmart-native Supabase operations should use the Supabase project URL/function base directly unless a confirmed RunSmart web API route exists.
+
+Future rule: For RunSmart Supabase Edge Functions, call `SupabaseManager.functionsBaseURL` with the Supabase publishable key and user JWT; do not route app-native Coach features through `BackendConfig.apiBaseURL`.
+
+### 2026-05-18 - Local Env Imports Need Ignore Rules First
+Trigger: User asked to copy RunSmart web API keys into the iOS workspace for backend use.
+
+Lesson: Local env files can accidentally appear as untracked files if ignore rules are missing in the wrapper or nested app repo.
+
+Future rule: Before copying local API secrets into the iOS workspace, add env file patterns to both wrapper and app `.gitignore`; never print secret values in logs or task memory.
+
+### 2026-05-18 - Supabase RLS Policies Combine Permissively
+Trigger: Live Coach migration added owner-scoped conversation/message policies, but the remote database still had older broad authenticated policies on the same tables.
+
+Lesson: Adding safer RLS policies is not enough if existing permissive policies still allow access; Supabase/Postgres policies are ORed for the same command and role.
+
+Future rule: After adding owner-scoped Supabase RLS policies, inspect and remove older broad authenticated policies on the same tables before calling the schema secure.
+
+### 2026-05-18 - Verify PostgREST Reads With Real Auth Tokens
+Trigger: Live Coach SQL/RLS checks passed, but deployed PostgREST reads from `conversation_messages` still returned no rows for a signed-in smoke-test user.
+
+Lesson: SQL simulation and direct table reads can diverge in deployed Supabase flows, especially after schema/RLS evolution.
+
+Future rule: For mobile history reload paths, verify with a real user JWT against the deployed REST/RPC surface. If direct table reads are unreliable, expose a narrow owner-filtered RPC and harden grants before wiring iOS to it.
 
 ### 2026-05-14 - Route Discovery Controls Need Real Wiring
 Trigger: QA found Route Creator elevation/surface controls and generated-route buckets that did not affect loaded suggestions.

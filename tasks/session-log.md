@@ -1,5 +1,135 @@
 # Session Log
 
+## 2026-05-18 - Local RunSmart Web Env Import
+
+### Task Summary
+Copied local RunSmart web environment keys into ignored local env files for the iOS/Supabase Coach work. Secret values were not printed or added to tracked docs.
+
+### Files Changed
+- Outer workspace `.gitignore`
+- App repo `.gitignore`
+- Ignored local-only env files: outer `env.local`, outer `local.env`, app `local.env`
+
+### Decisions Made
+- The user-named web project path exists at `/Users/nadavyigal/Documents/Projects /RunSmart /Running-coach-`, but no real env file was present there; it only had `.env.local.example`.
+- Used the available local web env source at `/Users/nadavyigal/Documents/RunSmart/v0/.env.local`.
+- Added `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `OPENAI_MODEL`, `SUPABASE_PROJECT_REF`, and `SUPABASE_FUNCTIONS_URL` aliases alongside the copied web keys so the Supabase Edge Function can be configured locally.
+- Added env file patterns to `.gitignore` before writing secrets.
+
+### Validation
+- Confirmed required live Coach keys exist in app `local.env`: `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
+- Confirmed outer `env.local` / `local.env` and app `env.local` / `local.env` are ignored by git.
+- `supabase` CLI is not installed, so secrets were not pushed with `supabase secrets set`.
+
+## 2026-05-18 - Live AI Coach Backend Endpoint Sprint 8
+
+### Task Summary
+Implemented the first live AI Coach vertical slice: a Supabase Edge Function named `coach_message`, a companion migration for Coach ownership/idempotency metadata, sanitized iOS Coach DTOs, and an iOS live-first send path that preserves deterministic fallback.
+
+### Files Changed
+- `supabase/functions/coach_message/index.ts`
+- `supabase/config.toml`
+- `supabase/migrations/20260518130000_live_ai_coach_endpoint.sql`
+- `supabase/migrations/20260518133000_tighten_coach_rls_policies.sql`
+- `scripts/deploy-coach-message.sh`
+- `docs/specs/live-ai-coach-endpoint.md`
+- `IOS RunSmart app/Services/Live/RunSmartAPIModels.swift`
+- `IOS RunSmart app/Services/Live/LiveRunSmartServices.swift`
+- `IOS RunSmart app/Services/Supabase/RunSmartSupabaseClient.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Services/RunSmartServices.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Used Supabase Edge Function `coach_message` instead of legacy web API routes because the repo has no RunSmart backend route tree and existing `/api/v1/chat` code is ResumeBuilder-specific.
+- iOS calls `https://dxqglotcyirxzyqaxqln.supabase.co/functions/v1/coach_message` through `SupabaseManager.functionsBaseURL`, not `BackendConfig.apiBaseURL`.
+- The backend authenticates the user JWT, rejects coordinate-like context payloads, persists user and assistant messages, calls OpenAI server-side, and persists deterministic backend fallback if OpenAI is unavailable.
+- iOS sends one `clientMessageId` per turn; backend stores the assistant as `<clientMessageId>:assistant` to avoid duplicate rows across retries.
+- iOS no longer directly inserts the live user row before the backend returns. If live backend fails, iOS uses `TrainingContextCoachResponder` and persists fallback through the existing Supabase path.
+- Local deterministic fallback now handles pain/dizziness/chest pain/fainting/severe symptoms with stop-and-consult guidance.
+- Remote schema migration was applied through Supabase MCP because CLI deploy/auth was not available locally.
+- Existing older broad Coach RLS policies were removed; authenticated users now rely on owner-scoped conversation/message policies, with service-role access preserved for the Edge Function.
+- `supabase/config.toml` sets `coach_message.verify_jwt = false` because the function performs its own JWT validation and returns stable JSON errors for local and deployed requests.
+- Added `scripts/deploy-coach-message.sh` to avoid common deployment mistakes: it reads ignored `local.env`, requires `SUPABASE_ACCESS_TOKEN`, sets only `OPENAI_API_KEY`/`OPENAI_MODEL`, and deploys `coach_message` with `--use-api` so Docker is not required.
+- Added documentation for request/response shape, required secrets, deployment commands, fallback behavior, and known limitations.
+
+### Validation
+- `npx -y deno check supabase/functions/coach_message/index.ts` passed.
+- Supabase MCP migration `live_ai_coach_endpoint` applied successfully.
+- Supabase MCP migration `tighten_coach_rls_policies` applied successfully.
+- Post-migration schema check confirmed `conversations.auth_user_id`, `conversation_messages.client_message_id`, `conversation_messages.source`, existing `metadata`, and existing `created_at`.
+- Post-RLS check confirmed only owner-scoped authenticated policies plus service-role policies remain on Coach conversations/messages.
+- OpenAI Responses API smoke test returned HTTP 200 and text with configured model `gpt-4.1-mini`.
+- Local Deno smoke test for `coach_message` started and returned JSON `401` for a POST missing a bearer token.
+- `npx -y supabase@latest --version` returned `2.99.0`.
+- `npx -y supabase@latest link --project-ref "$SUPABASE_PROJECT_REF"` failed because `SUPABASE_ACCESS_TOKEN` is absent and the CLI is not logged in.
+- Searched local env files under `Documents` for `SUPABASE_ACCESS_TOKEN`/`sbp_`; no Supabase personal access token was found.
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Generic simulator build-for-testing passed and compiled the new live Coach DTO/client/fallback tests:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Build still emits pre-existing AppIntents metadata warning noise.
+
+### Deployment Steps
+- `export SUPABASE_ACCESS_TOKEN=...` or run `npx -y supabase@latest login`
+- Add `SUPABASE_ACCESS_TOKEN=...` to ignored `local.env` or export it in the shell.
+- `scripts/deploy-coach-message.sh`
+
+### Remaining Blockers
+- Run signed-in manual QA: Today Coach live response, thread reload persistence, backend-broken iOS fallback, Report-context question, no duplicate messages, and no raw route coordinates in stored messages/metadata.
+
+## 2026-05-18 - Live AI Coach Deployment Completion
+
+### Task Summary
+Completed the deployed Supabase side of Sprint 8 after `SUPABASE_ACCESS_TOKEN` was added to ignored local env. The `coach_message` Edge Function is now deployed, configured with server-side OpenAI secrets, and remotely smoke-tested.
+
+### Files Changed
+- `.gitignore`
+- `scripts/deploy-coach-message.sh`
+- `supabase/functions/coach_message/index.ts`
+- `supabase/migrations/20260518140000_conversation_messages_auth_user_id.sql`
+- `supabase/migrations/20260518141000_conversation_messages_public_owner_policy.sql`
+- `supabase/migrations/20260518142000_conversation_messages_claim_subject_policy.sql`
+- `supabase/migrations/20260518143000_coach_messages_read_view.sql`
+- `supabase/migrations/20260518144000_coach_messages_security_definer_view.sql`
+- `supabase/migrations/20260518145000_coach_messages_rpc.sql`
+- `supabase/migrations/20260518150000_drop_unused_coach_messages_view.sql`
+- `supabase/migrations/20260518151000_harden_coach_messages_rpc_grants.sql`
+- `IOS RunSmart app/Services/Supabase/RunSmartSupabaseClient.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `docs/specs/live-ai-coach-endpoint.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Kept deployment through Supabase CLI `--use-api` so Docker is not required.
+- Taught `scripts/deploy-coach-message.sh` to read ignored wrapper/app env files and accept the user-provided `UPABASE_ACCESS_TOKEN` typo by mapping it to `SUPABASE_ACCESS_TOKEN`.
+- Added `conversation_messages.auth_user_id` and used it in backend/iOS fallback inserts so message ownership is explicit.
+- Moved iOS Coach history reads to `coach_messages_for_conversation`, an authenticated owner-filtered RPC, because direct REST reads from `conversation_messages` returned no rows in deployed smoke tests even after RLS checks passed in SQL.
+- Dropped the unused `coach_messages` view and revoked anonymous execution from the Coach history RPC.
+
+### Validation
+- `scripts/deploy-coach-message.sh` linked project `dxqglotcyirxzyqaxqln`, set `OPENAI_API_KEY` / `OPENAI_MODEL`, and deployed `coach_message`.
+- Remote authenticated smoke test called deployed `POST /functions/v1/coach_message` and returned HTTP 200 with `source = live_ai`, `fallback = false`, and assistant content.
+- SQL verification confirmed the smoke request persisted one user message and one assistant message with sources `client` and `live_ai`, both owned by the authenticated user.
+- RPC smoke test confirmed `coach_messages_for_conversation` returns the two persisted rows for the signed-in user after grant hardening.
+- Cleanup SQL removed smoke users, conversations, and messages; post-check showed 0 remaining smoke users and 0 orphan Coach rows.
+- Supabase function logs show recent deployed `POST /functions/v1/coach_message` requests returning HTTP 200.
+- `npx -y deno check supabase/functions/coach_message/index.ts` passed.
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Generic simulator build-for-testing passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Focused Coach XCTest attempt compiled the app/test bundle, then failed during simulator install with CoreSimulator 405 / NSMach -308. This matches the existing simulator-infrastructure lesson and is not a Coach compile failure.
+- Supabase advisors still report broader pre-existing project warnings. The new Coach RPC is intentionally executable by authenticated users as a `security definer` function, anonymous execute is revoked, and the SQL body filters by `auth.uid()`.
+
+### Remaining Blockers
+- Manual in-app QA remains: Today Coach live response, thread reload persistence, backend-broken iOS fallback, Report-context question, no duplicate messages, and no raw route coordinates in stored message metadata.
+
 ## 2026-05-18 - Real Run Completion State Fix Sprint 7
 
 ### Task Summary

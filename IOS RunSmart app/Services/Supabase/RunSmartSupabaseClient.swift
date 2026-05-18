@@ -4,11 +4,15 @@ import Supabase
 // MARK: - Client singleton
 
 enum SupabaseManager {
+    static let supabaseURL = URL(string: "https://dxqglotcyirxzyqaxqln.supabase.co")!
+    static let supabasePublishableKey = "sb_publishable_PpDpqkqVaKFnOyoLR7mdyA_UNTeeoqN"
+    static let functionsBaseURL = supabaseURL.appendingPathComponent("functions/v1")
+
     static let client: SupabaseClient = {
         let auth = SupabaseClientOptions.AuthOptions(emitLocalSessionAsInitialSession: true)
         return SupabaseClient(
-            supabaseURL: URL(string: "https://dxqglotcyirxzyqaxqln.supabase.co")!,
-            supabaseKey: "sb_publishable_PpDpqkqVaKFnOyoLR7mdyA_UNTeeoqN",
+            supabaseURL: supabaseURL,
+            supabaseKey: supabasePublishableKey,
             options: SupabaseClientOptions(auth: auth)
         )
     }()
@@ -213,18 +217,24 @@ struct DBWorkout: Codable, Sendable {
 struct DBConversation: Codable, Sendable {
     let id: UUID
     let profileId: UUID
+    let authUserId: UUID?
 
     enum CodingKeys: String, CodingKey {
         case id
         case profileId = "profile_id"
+        case authUserId = "auth_user_id"
     }
 }
 
 struct DBConversationInsert: Encodable, Sendable {
     let profileId: String
+    var authUserId: String? = nil
+    var title: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case profileId = "profile_id"
+        case authUserId = "auth_user_id"
+        case title
     }
 }
 
@@ -246,15 +256,35 @@ struct DBMessage: Codable, Sendable {
 
 struct DBMessageInsert: Encodable, Sendable {
     let conversationId: String
+    var authUserId: String? = nil
     let role: String
     let content: String
     let createdAt: String
+    var clientMessageId: String? = nil
+    var source: String? = nil
+    var metadata: [String: String]? = nil
 
     enum CodingKeys: String, CodingKey {
         case conversationId = "conversation_id"
+        case authUserId = "auth_user_id"
         case role
         case content
         case createdAt = "created_at"
+        case clientMessageId = "client_message_id"
+        case source
+        case metadata
+    }
+}
+
+struct DBCoachMessagesForConversationParams: Encodable, Sendable {
+    let conversationID: String
+    let limit: Int
+    let assistantOnly: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case conversationID = "p_conversation_id"
+        case limit = "p_limit"
+        case assistantOnly = "p_assistant_only"
     }
 }
 
