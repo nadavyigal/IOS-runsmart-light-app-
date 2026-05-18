@@ -1,5 +1,55 @@
 # Session Log
 
+## 2026-05-18 - Real Run Completion State Fix Sprint 7
+
+### Task Summary
+Implemented Sprint 7 by unifying real RunSmart GPS completion around one saved activity/report path, clearing Run tab post-run state after user action, refreshing dependent tabs after completion, and making suggested-next-run failure copy safe for TestFlight users.
+
+### Root Cause
+- The completed-run UX was split between Run tab's inline `finishedRun` summary and router-driven post-run sheets, allowing stale `.postRunSummary(nil)` state to surface "Run not saved" after a valid run.
+- Completed activity processing refreshed plan-dependent UI only on some paths, so Today/Plan could remain stale after unmatched or partially processed runs.
+- Report row opening could fall back to skeleton report details even when a cached/generated report existed.
+- Suggested-workout save failures exposed debug/Xcode-console copy in user-facing UI.
+
+### Files Changed
+- `docs/specs/sprint-7-real-run-completion-state-fix.md`
+- `IOS RunSmart app/App/RunSmartLiteAppShell.swift`
+- `IOS RunSmart app/Features/Run/RunTabView.swift`
+- `IOS RunSmart app/Features/Run/PostRunSummaryView.swift`
+- `IOS RunSmart app/Features/Run/PostRunLearningCard.swift`
+- `IOS RunSmart app/Features/Activity/ActivityTabView.swift`
+- `IOS RunSmart app/Features/Today/TodayTabView.swift`
+- `IOS RunSmart app/Features/Profile/ProfileTabView.swift`
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Services/Supabase/TrainingPlanRepository.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Kept the real GPS finish path single-surface: dismiss stale post-run router sheets before showing inline summary, and clear `finishedRun`, `postActivityOutcome`, and router run context after Keep Activity / Done or Delete.
+- Added `runSmartReportsDidChange` and posted/listened for report refreshes alongside run and plan refreshes so Today, Report, Profile, and report detail screens reload after completion.
+- Cached/generated reports now use the stable `reportRunID(for:)` id; Report tab resolves a saved/generated report before falling back to a skeleton.
+- Today now prefers an uncompleted same-day workout and falls through to the next actionable workout when today's session is already completed.
+- Kept planned-workout matching on the existing `bestWorkoutMatch` gate and added coverage for a 7.05 km / 40:23 same-day easy run.
+- Hardened suggested-workout date parsing for ISO/formatted dates plus `today`, `tomorrow`, and `next weekday` labels.
+- Replaced debug failure copy with: "Your run report is saved. Could not add the suggested workout to your plan; try again later."
+
+### Validation
+- Generic simulator build-for-testing passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Static copy scan found no remaining user-visible `Xcode console`, `Check the console`, or debug suggested-workout save copy.
+- Build still emits pre-existing warning noise around AppIcon unassigned children, AppIntents metadata extraction, and resume-era actor isolation/deprecation warnings.
+
+### Remaining Beta Blockers
+- Physical-device manual QA remains required: record a real GPS run for at least 5 minutes, finish, Keep Activity / Done, verify Run exits idle, Report/Profile agree, Today no longer recommends the same workout, Plan reflects completion or extra-run state, Garmin duplicate handling stays single-activity, and suggested-next-run save behavior is safe.
+- Archive/upload and App Store Connect validation were not run.
+
+---
+
 ## 2026-05-17 - Return Loop + Share Cards + TestFlight Readiness Sprint 6B
 
 ### Task Summary

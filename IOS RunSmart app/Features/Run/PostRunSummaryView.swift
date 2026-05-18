@@ -1,5 +1,9 @@
 import SwiftUI
 
+enum PostRunSuggestedWorkoutSaveCopy {
+    static let failureMessage = "Your run report is saved. Could not add the suggested workout to your plan; try again later."
+}
+
 struct PostRunSummaryView: View {
     @Environment(\.runSmartServices) private var services
     var run: RecordedRun?
@@ -259,11 +263,7 @@ private struct PostActivityPlanCard: View {
     }
 
     private var saveFailureMessage: String {
-#if DEBUG
-        return "Could not add this suggested workout to your training plan. Your run report is saved. Check the Xcode console for [TrainingPlanRepo] saveSuggestedWorkout details."
-#else
-        return "Could not add this suggested workout to your training plan. Your run report is saved; check your connection and try again."
-#endif
+        PostRunSuggestedWorkoutSaveCopy.failureMessage
     }
 
     private func save(_ next: StructuredNextWorkout, report: RunReportDetail) async {

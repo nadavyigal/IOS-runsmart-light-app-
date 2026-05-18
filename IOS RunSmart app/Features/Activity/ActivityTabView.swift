@@ -78,7 +78,7 @@ struct ReportTabView: View {
                             ForEach(runs) { run in
                                 ActivityRow(
                                     run: run,
-                                    onTap: { router.open(.runReportDetail(SupabaseRunSmartServices.reportSkeleton(for: run))) },
+                                    onTap: { openReport(for: run) },
                                     onDelete: { runPendingRemoval = run }
                                 )
                                 if run.id != runs.last?.id {
@@ -141,6 +141,9 @@ struct ReportTabView: View {
                 await reloadRoutes()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
+            Task { await reloadRuns() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRoutesDidChange)) { _ in
             Task { await reloadRoutes() }
         }
@@ -162,6 +165,15 @@ struct ReportTabView: View {
 
     private func reloadRuns() async {
         runs = await services.recentRuns()
+    }
+
+    private func openReport(for run: RecordedRun) {
+        Task {
+            let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
+            await MainActor.run {
+                router.open(.runReportDetail(report))
+            }
+        }
     }
 
     private func remove(_ run: RecordedRun) async {

@@ -1,7 +1,51 @@
 # Task State
 
 ## Current Task
-Sprint 6B complete: Return Loop + Share Cards + TestFlight Readiness.
+Sprint 7 implemented: Real Run Completion State Fix. Physical-device QA remains pending.
+
+## Sprint 7 - Real Run Completion State Fix - 2026-05-18
+
+As a beta runner, I want a real RunSmart GPS run to save once, exit cleanly, appear everywhere, and complete the planned workout when it matches.
+
+### Expected Files
+- `docs/specs/sprint-7-real-run-completion-state-fix.md`
+- `IOS RunSmart app/Features/Run/RunTabView.swift`
+- `IOS RunSmart app/Features/Run/PostRunSummaryView.swift`
+- `IOS RunSmart app/Features/Run/PostRunLearningCard.swift`
+- `IOS RunSmart app/Features/Activity/ActivityTabView.swift`
+- `IOS RunSmart app/Features/Today/TodayTabView.swift`
+- `IOS RunSmart app/Features/Plan/PlanTabView.swift`
+- `IOS RunSmart app/Features/Profile/ProfileTabView.swift`
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Services/Supabase/TrainingPlanRepository.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Checklist
+- [x] Create Sprint 7 spec artifact.
+- [x] Clear Run tab finished-run state after Keep Activity / Done or Delete.
+- [x] Prevent stale router post-run summaries from showing "Run not saved" after valid saves.
+- [x] Persist completed RunSmart GPS runs through the canonical activity/report path.
+- [x] Refresh Today, Plan, Report, and Profile after completed-run processing.
+- [x] Mark matching same-day planned workouts complete.
+- [x] Make Today ignore completed same-day workouts when selecting the next recommendation.
+- [x] Resolve report detail from cached/generated reports instead of skeleton-only activity rows.
+- [x] Remove user-facing Xcode-console copy from suggested-workout failures.
+- [x] Add focused regression coverage.
+- [x] App builds successfully.
+
+### Scope Guard
+- No live AI backend, route marketplace, new notification features, share-card changes, or marketing-copy changes beyond safe error copy.
+
+### Validation
+- Generic simulator build-for-testing passed and compiled the new Sprint 7 regression tests:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Static copy scan found no remaining user-visible "Xcode console", "Check the console", or debug save-suggested-workout copy.
+- Manual QA remains required on a physical iPhone: real GPS run, Keep Activity / Done exit, Report/Profile agreement, Today/Plan completion state, Garmin duplicate handling, and suggested-next-run save.
 
 ## Sprint 6B - Return Loop + Share Cards + TestFlight Readiness - 2026-05-17
 

@@ -36,7 +36,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         guard dbProfile != nil else { return TodayRecommendation.placeholder }
 
         let activePlan = await planRepo.activePlan(authUserID: userID)
-        let todayWorkout = activePlan?.todayWorkout ?? activePlan?.nextActionableWorkout
+        let todayWorkout = activePlan?.uncompletedTodayWorkout ?? activePlan?.nextActionableWorkout
 
         let readiness: Int
         let readinessLabel: String
@@ -921,7 +921,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         let upcoming = Array((await nextWorkouts(limit: 3)))
         let fallback = Self.fallbackRunReport(for: run, recentRuns: recent, upcomingWorkouts: upcoming)
         guard let token = try? await supabase.auth.session.accessToken else {
-            store.saveRunReport(fallback)
+            await cacheRunReport(fallback)
             return fallback
         }
 
@@ -935,7 +935,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 as: RunSmartDTO.RunReportResponse.self
             )
             let report = Self.report(from: payload.report, run: run)
-            store.saveRunReport(report)
+            await cacheRunReport(report)
             await MainActor.run {
                 NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
             }
@@ -944,7 +944,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             if !(error is CancellationError) {
                 print("[SupabaseServices] run report generation error:", error)
             }
-            store.saveRunReport(fallback)
+            await cacheRunReport(fallback)
             return fallback
         }
     }
@@ -966,9 +966,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
         await MainActor.run {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+            NotificationCenter.default.post(name: .runSmartReportsDidChange, object: nil)
+            NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
             if let completed {
                 PushService.shared.cancelWorkoutReminder(workoutID: completed.id)
-                NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
             }
         }
 
@@ -1198,6 +1199,17 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         await MainActor.run {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
         }
+    }
+
+    private func postReportsChanged() async {
+        await MainActor.run {
+            NotificationCenter.default.post(name: .runSmartReportsDidChange, object: nil)
+        }
+    }
+
+    private func cacheRunReport(_ report: RunReportDetail) async {
+        store.saveRunReport(report)
+        await postReportsChanged()
     }
 
     private func completeMatchingWorkout(for run: RecordedRun) async -> WorkoutSummary? {
@@ -1576,6 +1588,7 @@ extension Notification.Name {
     static let runSmartPlanDidChange = Notification.Name("RunSmartPlanDidChange")
     static let runSmartPlanGenerationStatusDidChange = Notification.Name("RunSmartPlanGenerationStatusDidChange")
     static let runSmartRunsDidChange = Notification.Name("RunSmartRunsDidChange")
+    static let runSmartReportsDidChange = Notification.Name("RunSmartReportsDidChange")
     static let runSmartRoutesDidChange = Notification.Name("RunSmartRoutesDidChange")
 }
 

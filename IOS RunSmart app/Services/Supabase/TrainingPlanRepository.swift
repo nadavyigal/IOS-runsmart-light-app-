@@ -14,6 +14,11 @@ struct ActivePlan {
             ?? workouts.first { $0.scheduledDate == todayDate }
     }
 
+    var uncompletedTodayWorkout: DBWorkout? {
+        let todayDate = ISO8601DateFormatter.shortDate.string(from: Date())
+        return workouts.first { $0.scheduledDate == todayDate && !$0.completed }
+    }
+
     var nextActionableWorkout: DBWorkout? {
         let today = Calendar.current.startOfDay(for: Date())
         return workouts
@@ -698,9 +703,24 @@ final class TrainingPlanRepository {
 
     static func suggestedWorkoutDate(_ label: String?) -> Date {
         let calendar = Calendar.current
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) ?? Date()
+        let today = calendar.startOfDay(for: Date())
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today
         guard let label = label?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty else {
             return tomorrow
+        }
+        let normalized = label.lowercased()
+
+        if normalized == "today" {
+            return today
+        }
+
+        if normalized == "tomorrow" {
+            return tomorrow
+        }
+
+        if normalized.hasPrefix("next "),
+           let weekday = weekdayIndex(from: String(normalized.dropFirst(5))) {
+            return nextDate(matchingWeekday: weekday, after: today, calendar: calendar)
         }
 
         if let isoDate = ISO8601DateFormatter.shortDate.date(from: label) {
@@ -731,6 +751,27 @@ final class TrainingPlanRepository {
         }
 
         return tomorrow
+    }
+
+    private static func weekdayIndex(from value: String) -> Int? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let names = [
+            "sunday": 1, "sun": 1,
+            "monday": 2, "mon": 2,
+            "tuesday": 3, "tue": 3, "tues": 3,
+            "wednesday": 4, "wed": 4,
+            "thursday": 5, "thu": 5, "thur": 5, "thurs": 5,
+            "friday": 6, "fri": 6,
+            "saturday": 7, "sat": 7
+        ]
+        return names[trimmed]
+    }
+
+    private static func nextDate(matchingWeekday weekday: Int, after date: Date, calendar: Calendar) -> Date {
+        let current = calendar.component(.weekday, from: date)
+        let rawDelta = (weekday - current + 7) % 7
+        let delta = rawDelta == 0 ? 7 : rawDelta
+        return calendar.date(byAdding: .day, value: delta, to: date) ?? date
     }
 
     static func suggestedWorkoutType(title: String) -> String {

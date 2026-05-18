@@ -53,6 +53,9 @@ struct ProfileTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
             Task { await loadProfileData() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
+            Task { await loadProfileData() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanDidChange)) { _ in
             Task { await loadProfileData() }
         }

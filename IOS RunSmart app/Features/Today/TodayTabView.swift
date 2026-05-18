@@ -132,6 +132,9 @@ struct TodayTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
             Task { await loadData() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
+            Task { await loadData() }
+        }
     }
 
     private func loadData() async {
