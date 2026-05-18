@@ -313,6 +313,14 @@ extension TrainingContextProviding where Self: TodayProviding & PlanProviding & 
 
 enum TrainingContextCoachResponder {
     static func response(to message: String, context: TrainingContextSnapshot) -> CoachMessage {
+        if containsMedicalCaution(message) {
+            return CoachMessage(
+                text: "If you are feeling pain, dizziness, chest pain, fainting, or severe symptoms, stop the activity and consult a qualified professional. Keep today's choice conservative and do not try to push through it.",
+                time: "Now",
+                isUser: false
+            )
+        }
+
         let text: String
         switch context.entryPoint {
         case .today:
@@ -347,6 +355,16 @@ enum TrainingContextCoachResponder {
 
         _ = message
         return CoachMessage(text: text, time: "Now", isUser: false)
+    }
+
+    private static func containsMedicalCaution(_ message: String) -> Bool {
+        let lower = message.lowercased()
+        return lower.contains("pain")
+            || lower.contains("dizzy")
+            || lower.contains("dizziness")
+            || lower.contains("chest pain")
+            || lower.contains("faint")
+            || lower.contains("severe")
     }
 
     private static func nextWorkoutSentence(_ context: TrainingContextSnapshot) -> String {

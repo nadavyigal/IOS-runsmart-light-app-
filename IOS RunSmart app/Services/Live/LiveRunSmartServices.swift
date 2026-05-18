@@ -60,10 +60,9 @@ struct LiveCoachChatService: CoachChatting {
     }
 
     func send(message: String) async -> CoachMessage {
-        let request = RunSmartDTO.SendCoachMessageRequest(threadID: nil, text: message)
         let dto = RunSmartDTO.CoachChatMessage(
             messageID: "msg_local_echo",
-            text: request.text,
+            text: message,
             timeLabel: "Just now",
             role: "user"
         )

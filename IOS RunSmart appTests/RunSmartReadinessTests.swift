@@ -51,6 +51,148 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertNil(messageObject?["longitude"])
     }
 
+    func testSendCoachMessageRequestEncodesContextWithoutRawCoordinates() async throws {
+        let routePoint = RunRoutePoint(
+            latitude: 32.0853,
+            longitude: 34.7818,
+            timestamp: Date(timeIntervalSince1970: 1_000),
+            horizontalAccuracy: 6,
+            altitude: nil
+        )
+        var services = TrainingContextTestServices()
+        services.runs = [
+            RecordedRun(
+                id: UUID(uuidString: "10000000-0000-4000-8000-000000000001")!,
+                providerActivityID: nil,
+                source: .runSmart,
+                startedAt: Date(timeIntervalSince1970: 1_000),
+                endedAt: Date(timeIntervalSince1970: 2_000),
+                distanceMeters: 5_000,
+                movingTimeSeconds: 1_600,
+                averagePaceSecondsPerKm: 320,
+                averageHeartRateBPM: 142,
+                routePoints: [routePoint],
+                syncedAt: nil
+            )
+        ]
+        services.routes = [
+            makeRouteSuggestion(id: "route-1", name: "Easy Loop", distanceKm: 5, points: [routePoint])
+        ]
+        let context = await services.trainingContext(for: .today)
+        let request = RunSmartDTO.SendCoachMessageRequest(
+            clientMessageId: "client-1",
+            entryPoint: .today,
+            message: "Should I still run today?",
+            context: context,
+            clientTimestamp: Date(timeIntervalSince1970: 0)
+        )
+
+        let data = try JSONEncoder().encode(request)
+        let json = String(data: data, encoding: .utf8) ?? ""
+
+        XCTAssertTrue(json.contains("\"clientMessageId\":\"client-1\""))
+        XCTAssertTrue(json.contains("\"entryPoint\":\"today\""))
+        XCTAssertTrue(json.contains("\"message\":\"Should I still run today?\""))
+        XCTAssertTrue(json.contains("\"context\""))
+        XCTAssertTrue(json.contains("\"routePointCount\":1"))
+        XCTAssertFalse(json.contains("32.0853"))
+        XCTAssertFalse(json.contains("34.7818"))
+        XCTAssertFalse(json.contains("\"latitude\""))
+        XCTAssertFalse(json.contains("\"longitude\""))
+        XCTAssertFalse(json.contains("\"routePoints\""))
+        XCTAssertFalse(json.contains("\"coordinates\""))
+        XCTAssertFalse(json.contains("\"polyline\""))
+    }
+
+    func testSendCoachMessageResponseMapsAssistantSourceAndFallback() throws {
+        let data = """
+        {
+          "conversationId": "20000000-0000-4000-8000-000000000001",
+          "userMessageId": "20000000-0000-4000-8000-000000000002",
+          "assistantMessage": {
+            "id": "20000000-0000-4000-8000-000000000003",
+            "role": "assistant",
+            "content": "Keep this easy and stay on track.",
+            "createdAt": "2026-05-18T09:30:01Z"
+          },
+          "source": "fallback",
+          "fallback": true,
+          "suggestedAction": null,
+          "safetyFlags": ["medical_caution"],
+          "usage": null
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder().decode(RunSmartDTO.SendCoachMessageResponse.self, from: data)
+
+        XCTAssertEqual(response.conversationId, "20000000-0000-4000-8000-000000000001")
+        XCTAssertEqual(response.userMessageId, "20000000-0000-4000-8000-000000000002")
+        XCTAssertEqual(response.assistantMessage.role, "assistant")
+        XCTAssertEqual(response.assistantMessage.content, "Keep this easy and stay on track.")
+        XCTAssertEqual(response.source, "fallback")
+        XCTAssertTrue(response.fallback)
+        XCTAssertEqual(response.safetyFlags, ["medical_caution"])
+    }
+
+    func testRunSmartAPIClientBuildsSupabaseFunctionRequestHeaders() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [RunSmartAPIStubProtocol.self]
+        let session = URLSession(configuration: config)
+        let client = URLSessionRunSmartAPIClient(
+            baseURL: URL(string: "https://example.test/functions/v1")!,
+            session: session,
+            accessToken: "jwt-token",
+            additionalHeaders: ["apikey": "publishable-key"]
+        )
+        RunSmartAPIStubProtocol.lastRequest = nil
+        RunSmartAPIStubProtocol.responseStatusCode = 200
+        RunSmartAPIStubProtocol.responseData = """
+        {
+          "conversationId": "30000000-0000-4000-8000-000000000001",
+          "userMessageId": "30000000-0000-4000-8000-000000000002",
+          "assistantMessage": {
+            "id": "30000000-0000-4000-8000-000000000003",
+            "role": "assistant",
+            "content": "Live coach response.",
+            "createdAt": "2026-05-18T09:30:01Z"
+          },
+          "source": "live_ai",
+          "fallback": false,
+          "suggestedAction": null,
+          "safetyFlags": [],
+          "usage": { "inputTokens": 10, "outputTokens": 5, "totalTokens": 15 }
+        }
+        """.data(using: .utf8)!
+
+        let response = try await client.send(
+            RunSmartAPI.Endpoint(path: "coach_message", method: .post, body: Data("{}".utf8)),
+            as: RunSmartDTO.SendCoachMessageResponse.self
+        )
+
+        let request = try XCTUnwrap(RunSmartAPIStubProtocol.lastRequest)
+        XCTAssertEqual(request.url?.absoluteString, "https://example.test/functions/v1/coach_message")
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer jwt-token")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "apikey"), "publishable-key")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        XCTAssertEqual(response.source, "live_ai")
+        XCTAssertFalse(response.fallback)
+        XCTAssertEqual(response.usage?.totalTokens, 15)
+    }
+
+    func testTrainingContextCoachResponderUsesMedicalCautionFallback() async {
+        let context = await TrainingContextTestServices().trainingContext(for: .today)
+        let response = TrainingContextCoachResponder.response(
+            to: "I feel chest pain and dizziness, should I run?",
+            context: context
+        )
+        let lower = response.text.lowercased()
+
+        XCTAssertTrue(lower.contains("stop"))
+        XCTAssertTrue(lower.contains("qualified professional"))
+        XCTAssertFalse(lower.contains("diagnose"))
+    }
+
     private func makeDate(_ value: String) -> Date {
         ISO8601DateFormatter.shortDate.date(from: value)!
     }
@@ -2350,6 +2492,7 @@ final class RunSmartReadinessTests: XCTestCase {
 final class RunSmartAPIStubProtocol: URLProtocol {
     static var responseStatusCode = 200
     static var responseData = Data()
+    static var lastRequest: URLRequest?
 
     override class func canInit(with request: URLRequest) -> Bool {
         true
@@ -2360,6 +2503,7 @@ final class RunSmartAPIStubProtocol: URLProtocol {
     }
 
     override func startLoading() {
+        Self.lastRequest = request
         let response = HTTPURLResponse(
             url: request.url!,
             statusCode: Self.responseStatusCode,
