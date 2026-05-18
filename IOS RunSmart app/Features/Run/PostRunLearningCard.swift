@@ -259,6 +259,13 @@ struct PostRunLearningCard: View {
             }
             .buttonStyle(.plain)
             .disabled(!actionEnabled || isSaving || saveState == .saved)
+
+            if saveState == .failed {
+                Text(PostRunSuggestedWorkoutSaveCopy.failureMessage)
+                    .font(.caption)
+                    .foregroundStyle(Color.accentHeart)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

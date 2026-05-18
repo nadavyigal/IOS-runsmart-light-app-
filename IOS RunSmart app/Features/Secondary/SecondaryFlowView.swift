@@ -669,7 +669,7 @@ private struct AmendWorkoutScaffold: View {
             }
 
             if failed {
-                Text("Could not save this amendment. Check the console for the Supabase error.")
+                Text("Could not save this amendment. Check your connection and try again.")
                     .font(.callout)
                     .foregroundStyle(Color.red)
             }
@@ -1194,6 +1194,9 @@ private struct RunReportDetailScaffold: View {
         .task(id: report.runID) {
             await loadReportRun()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
+            Task { await reloadReportIfNeeded() }
+        }
     }
 
     private var generateReportCard: some View {
@@ -1233,6 +1236,13 @@ private struct RunReportDetailScaffold: View {
             run.providerActivityID == report.runID ||
             run.id.uuidString == report.runID
         }
+    }
+
+    private func reloadReportIfNeeded() async {
+        if let generated = await services.generateRunReportIfMissing(forRunID: report.runID) {
+            report = generated
+        }
+        await loadReportRun()
     }
 }
 
@@ -1361,11 +1371,7 @@ private struct RunReportNextWorkoutCard: View {
     }
 
     private var saveFailureMessage: String {
-#if DEBUG
-        return "Could not add this suggested workout to your training plan. Your run report is saved. Check the Xcode console for [TrainingPlanRepo] saveSuggestedWorkout details."
-#else
-        return "Could not add this suggested workout to your training plan. Your run report is saved; check your connection and try again."
-#endif
+        PostRunSuggestedWorkoutSaveCopy.failureMessage
     }
 
     private func save(_ next: StructuredNextWorkout) async {
@@ -1836,7 +1842,7 @@ private struct GoalFocusEditor: View {
             }
 
             if failed {
-                Text("Goal saved locally, but the web coach did not generate a plan. Check the console and try again.")
+                Text("Goal saved locally, but the web coach did not generate a plan. Try again later.")
                     .font(.callout)
                     .foregroundStyle(Color.red)
             }

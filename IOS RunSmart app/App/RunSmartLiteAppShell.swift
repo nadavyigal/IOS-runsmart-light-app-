@@ -44,6 +44,16 @@ final class AppRouter: ObservableObject {
         activeSheet = .secondary(destination)
     }
 
+    func dismissPostRunSummaryIfNeeded() {
+        guard case .secondary(.postRunSummary) = activeSheet else { return }
+        activeSheet = nil
+    }
+
+    func clearRunContext() {
+        plannedWorkout = nil
+        plannedRoute = nil
+    }
+
     func startRun(with workout: WorkoutSummary? = nil, route: RouteSuggestion? = nil) {
         RunSmartHaptics.medium()
         plannedWorkout = workout

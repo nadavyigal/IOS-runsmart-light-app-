@@ -490,7 +490,7 @@
     "Could not save check-in. Try again in a moment." : {
 
     },
-    "Could not save this amendment. Check the console for the Supabase error." : {
+    "Could not save this amendment. Check your connection and try again." : {
 
     },
     "Could not save this workout. Check your connection and try again." : {
@@ -716,7 +716,7 @@
     "Goal & Plan" : {
 
     },
-    "Goal saved locally, but the web coach did not generate a plan. Check the console and try again." : {
+    "Goal saved locally, but the web coach did not generate a plan. Try again later." : {
 
     },
     "Goal setup and generated workouts will live here when the approved planning model is connected." : {

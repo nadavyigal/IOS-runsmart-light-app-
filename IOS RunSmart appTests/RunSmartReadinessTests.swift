@@ -86,6 +86,32 @@ final class RunSmartReadinessTests: XCTestCase {
         )
     }
 
+    private func makeDBWorkout(
+        id: UUID = UUID(),
+        planID: UUID,
+        date: Date,
+        type: String = "easy",
+        distance: Double = 5.0,
+        duration: Int? = nil,
+        completed: Bool = false
+    ) throws -> DBWorkout {
+        var payload: [String: Any] = [
+            "id": id.uuidString,
+            "plan_id": planID.uuidString,
+            "week": 1,
+            "day": "Mon",
+            "type": type,
+            "distance": distance,
+            "completed": completed,
+            "scheduled_date": ISO8601DateFormatter.shortDate.string(from: date)
+        ]
+        if let duration {
+            payload["duration"] = duration
+        }
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        return try JSONDecoder().decode(DBWorkout.self, from: data)
+    }
+
     private func makeRun(
         id: UUID = UUID(),
         providerActivityID: String? = nil,
@@ -1891,6 +1917,118 @@ final class RunSmartReadinessTests: XCTestCase {
         let match = TrainingPlanRepository.bestWorkoutMatch(for: run, in: [wrongDay, matchingWorkout])
 
         XCTAssertEqual(match?.id, matchingWorkout.id)
+    }
+
+    func testWorkoutMatchAcceptsRealRunSmartGpsRunWithinTolerance() {
+        let startedAt = makeDate("2026-05-18").addingTimeInterval(7 * 3600)
+        let run = makeRun(
+            source: .runSmart,
+            startedAt: startedAt,
+            distanceMeters: 7_050,
+            movingTimeSeconds: 40 * 60 + 23,
+            routePoints: makeRoutePoints(count: 24)
+        )
+        let planned = makeWorkout(
+            id: UUID(uuidString: "77777777-7777-7777-7777-777777777777")!,
+            date: "2026-05-18",
+            kind: .easy,
+            title: "Easy Run",
+            distance: "7.0 km",
+            durationMinutes: 40
+        )
+
+        let match = TrainingPlanRepository.bestWorkoutMatch(for: run, in: [planned])
+
+        XCTAssertEqual(match?.id, planned.id)
+    }
+
+    func testCompletedTodayWorkoutFallsThroughToNextActionableWorkout() throws {
+        let planID = UUID(uuidString: "88888888-8888-8888-8888-888888888888")!
+        let today = Calendar.current.startOfDay(for: Date())
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
+        let completedToday = try makeDBWorkout(
+            id: UUID(uuidString: "88888888-8888-8888-8888-888888888801")!,
+            planID: planID,
+            date: today,
+            distance: 7.0,
+            duration: 40,
+            completed: true
+        )
+        let nextWorkout = try makeDBWorkout(
+            id: UUID(uuidString: "88888888-8888-8888-8888-888888888802")!,
+            planID: planID,
+            date: tomorrow,
+            distance: 5.0,
+            duration: 30,
+            completed: false
+        )
+        let plan = ActivePlan(
+            plan: DBPlan(
+                id: planID,
+                profileId: .uuid(UUID(uuidString: "88888888-8888-8888-8888-888888888803")!),
+                title: "Test Plan",
+                description: nil,
+                startDate: ISO8601DateFormatter.shortDate.string(from: today),
+                endDate: ISO8601DateFormatter.shortDate.string(from: tomorrow),
+                totalWeeks: 1,
+                isActive: true,
+                planType: "base"
+            ),
+            workouts: [completedToday, nextWorkout]
+        )
+
+        XCTAssertNil(plan.uncompletedTodayWorkout)
+        XCTAssertEqual(plan.nextActionableWorkout?.id, nextWorkout.id)
+    }
+
+    func testRunSmartGpsReportIDIsStableWhenGarminDuplicateArrivesLater() {
+        let start = makeDate("2026-05-18").addingTimeInterval(7 * 3600)
+        let points = makeRoutePoints(count: 26)
+        let runSmart = makeRun(
+            source: .runSmart,
+            startedAt: start,
+            distanceMeters: 7_050,
+            movingTimeSeconds: 40 * 60 + 23,
+            routePoints: points
+        )
+        let runSmartOnly = ActivityConsolidationService.consolidatedRuns([runSmart])[0]
+        let garmin = makeRun(
+            providerActivityID: "garmin-sprint-7-real-run",
+            source: .garmin,
+            startedAt: start.addingTimeInterval(70),
+            distanceMeters: 7_020,
+            movingTimeSeconds: 40 * 60 + 10,
+            heartRate: 146
+        )
+        let afterGarmin = ActivityConsolidationService.consolidatedRuns([runSmart, garmin])[0]
+
+        XCTAssertEqual(SupabaseRunSmartServices.reportRunID(for: runSmartOnly), SupabaseRunSmartServices.reportRunID(for: afterGarmin))
+        XCTAssertEqual(afterGarmin.source, .garmin)
+        XCTAssertEqual(afterGarmin.routePoints, points)
+    }
+
+    func testSuggestedWorkoutDateHandlesRelativeAndFormattedLabels() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+        let iso = "2026-05-21"
+
+        XCTAssertEqual(TrainingPlanRepository.suggestedWorkoutDate("today"), today)
+        XCTAssertEqual(TrainingPlanRepository.suggestedWorkoutDate("tomorrow"), tomorrow)
+        XCTAssertEqual(TrainingPlanRepository.suggestedWorkoutDate(iso), makeDate(iso))
+
+        let nextTuesday = TrainingPlanRepository.suggestedWorkoutDate("next Tuesday")
+        XCTAssertEqual(calendar.component(.weekday, from: nextTuesday), 3)
+        XCTAssertGreaterThan(nextTuesday, today)
+    }
+
+    func testSuggestedWorkoutFailureCopyIsUserSafe() {
+        let message = PostRunSuggestedWorkoutSaveCopy.failureMessage
+
+        XCTAssertTrue(message.contains("Your run report is saved"))
+        XCTAssertFalse(message.localizedCaseInsensitiveContains("Xcode"))
+        XCTAssertFalse(message.localizedCaseInsensitiveContains("console"))
+        XCTAssertFalse(message.localizedCaseInsensitiveContains("TrainingPlanRepo"))
     }
 
     // MARK: - Story A: Route sync merge logic

@@ -154,6 +154,7 @@ struct RunTabView: View {
         RunSmartHaptics.medium()
         let run = recorder.finish()
         if let run {
+            router.dismissPostRunSummaryIfNeeded()
             Task { await services.saveToHealth(run) }
             postActivityOutcome = nil
             isProcessingFinishedRun = true
@@ -167,7 +168,10 @@ struct RunTabView: View {
                 }
             }
         } else {
-            router.open(.postRunSummary(nil))
+            finishedRun = nil
+            postActivityOutcome = nil
+            isProcessingFinishedRun = false
+            router.dismissPostRunSummaryIfNeeded()
         }
     }
 
@@ -177,18 +181,26 @@ struct RunTabView: View {
         finishedRun = nil
         postActivityOutcome = nil
         isProcessingFinishedRun = false
+        router.dismissPostRunSummaryIfNeeded()
+        router.clearRunContext()
     }
 
     private func saveFinishedRun() {
         finishedRun = nil
         postActivityOutcome = nil
         isProcessingFinishedRun = false
+        router.dismissPostRunSummaryIfNeeded()
+        router.clearRunContext()
         Task { metrics = await services.currentRunMetrics() }
     }
 
     private func deleteFinishedRun() {
         guard let run = finishedRun else {
             finishedRun = nil
+            postActivityOutcome = nil
+            isProcessingFinishedRun = false
+            router.dismissPostRunSummaryIfNeeded()
+            router.clearRunContext()
             return
         }
         Task {
@@ -197,6 +209,8 @@ struct RunTabView: View {
                 finishedRun = nil
                 postActivityOutcome = nil
                 isProcessingFinishedRun = false
+                router.dismissPostRunSummaryIfNeeded()
+                router.clearRunContext()
                 NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
             }
         }
