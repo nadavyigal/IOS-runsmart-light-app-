@@ -1257,6 +1257,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     private func postRunsChanged() async {
+        GarminBridge.shared.invalidateActivityCache()
         await MainActor.run {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
         }

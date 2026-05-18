@@ -15,6 +15,7 @@ struct TodayTabView: View {
     @State private var activePlan: TrainingPlanSnapshot?
     @State private var recentRuns: [RecordedRun] = []
     @State private var recovery: RecoverySnapshot = .loading
+    @State private var pendingLoadTask: Task<Void, Never>?
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -127,13 +128,22 @@ struct TodayTabView: View {
             await loadData()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanDidChange)) { _ in
-            Task { await loadData() }
+            scheduleLoad()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
-            Task { await loadData() }
+            scheduleLoad()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
-            Task { await loadData() }
+            scheduleLoad()
+        }
+    }
+
+    private func scheduleLoad() {
+        pendingLoadTask?.cancel()
+        pendingLoadTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            await loadData()
         }
     }
 

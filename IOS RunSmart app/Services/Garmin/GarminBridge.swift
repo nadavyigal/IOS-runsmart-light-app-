@@ -11,6 +11,11 @@ final class GarminBridge: NSObject {
     private let supabase = SupabaseManager.client
     private var webAuthSession: ASWebAuthenticationSession?
 
+    // Short-lived cache so rapid concurrent calls within one loadData() cycle
+    // reuse the same Supabase result instead of firing N parallel queries.
+    private var activityCache: [UUID: (rows: [DBGarminActivity], expiry: Date)] = [:]
+    private static let cacheTTL: TimeInterval = 60
+
     private var garminGatewayURL: URL {
         if let raw = Bundle.main.object(forInfoDictionaryKey: "RUNSMART_GARMIN_GATEWAY_URL") as? String,
            let url = URL(string: raw) {
@@ -98,23 +103,34 @@ final class GarminBridge: NSObject {
     }
 
     func recentActivities(authUserID: UUID, limit: Int = 10) async -> [DBGarminActivity] {
+        // Serve from cache when fresh — prevents N concurrent queries per loadData() cycle.
+        if let cached = activityCache[authUserID], Date() < cached.expiry {
+            return Array(Self.uniqueActivities(cached.rows).prefix(limit))
+        }
+
         do {
+            let fetchLimit = max(limit, 30) // cache a generous slice to serve all callers
             let rows: [DBGarminActivity] = try await supabase
                 .from("garmin_activities_deduped")
                 .select()
                 .eq("auth_user_id", value: authUserID.uuidString)
                 .order("start_time", ascending: false)
-                .limit(limit)
+                .limit(fetchLimit)
                 .execute()
                 .value
             print("[GarminBridge] recentActivities deduped rows=\(rows.count)")
-            return Self.uniqueActivities(rows)
+            activityCache[authUserID] = (rows: rows, expiry: Date().addingTimeInterval(Self.cacheTTL))
+            return Array(Self.uniqueActivities(rows).prefix(limit))
         } catch {
             if !(error is CancellationError) {
                 print("[GarminBridge] recentActivities deduped view error:", error)
             }
             return await recentActivitiesFromBaseTable(authUserID: authUserID, limit: limit)
         }
+    }
+
+    func invalidateActivityCache() {
+        activityCache.removeAll()
     }
 
     func latestDailyMetrics(authUserID: UUID) async -> DBGarminDailyMetrics? {
