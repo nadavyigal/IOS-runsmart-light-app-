@@ -142,12 +142,23 @@ struct RunSmartLiteAppShell: View {
             showPlanGenerationNotice(status)
         }
         .task {
+            setupAnalyticsIfNeeded()
             PushService.shared.configureNavigation { destination in
                 router.openNotificationDestination(destination)
             }
             try? await Task.sleep(nanoseconds: 900_000_000)
             withAnimation(.easeOut(duration: 0.32)) {
                 isShowingLaunch = false
+            }
+        }
+        .onChange(of: router.selectedTab) { _, newTab in
+            Analytics.trackTabViewed(tabName: newTab.rawValue)
+        }
+        .onChange(of: session.isAuthenticated) { _, isAuth in
+            if isAuth, let userId = session.currentUserID {
+                Analytics.identifyUser(userId: userId.uuidString)
+            } else if !isAuth {
+                Analytics.resetUser()
             }
         }
         .task(id: session.hasCompletedOnboarding) {
@@ -222,6 +233,15 @@ struct RunSmartLiteAppShell: View {
             recentRuns: runs,
             recovery: recovery
         )
+    }
+
+    private func setupAnalyticsIfNeeded() {
+        guard let token = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_API_KEY") as? String,
+              !token.isEmpty,
+              let host = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_HOST") as? String
+        else { return }
+        Analytics.setup(projectToken: token, host: host)
+        Analytics.trackAppLaunched()
     }
 }
 
