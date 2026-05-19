@@ -1,5 +1,169 @@
 # Session Log
 
+## 2026-05-19 - AI Coach Readiness DTOs Story 4
+
+### Task Summary
+Implemented Story 4 from the AI Coach contracts plan by adding the first minimal Swift DTO slice for readiness payloads. The code adds structured safety flags, readiness decisions/confidence values, readiness request/response DTOs, and focused Codable/privacy tests without wiring UI or backend behavior.
+
+### Files Changed
+- `IOS RunSmart app/Services/Live/RunSmartAPIModels.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `docs/ai-coach/skill-contracts.md`
+- `docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Kept the DTOs in the existing `RunSmartDTO` namespace.
+- Added small context DTOs only for readiness payloads rather than generating or importing shared models.
+- Preserved the existing live Coach response shape `safetyFlags: [String]?`; structured `SafetyFlagDTO` is for new readiness payloads.
+- Did not wire Pre-run UI gating or add a backend endpoint in this story.
+
+### Validation
+- Swift parse validation passed:
+  `xcrun swiftc -parse "IOS RunSmart app/Services/Live/RunSmartAPIModels.swift" "IOS RunSmart appTests/RunSmartReadinessTests.swift"`
+- Whitespace validation passed:
+  `git diff --check -- "IOS RunSmart app/Services/Live/RunSmartAPIModels.swift" "IOS RunSmart appTests/RunSmartReadinessTests.swift" docs/ai-coach/skill-contracts.md docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md tasks/todo.md tasks/session-log.md`
+- Static symbol check passed:
+  `rg -n "SafetyFlagDTO|ReadinessCheckRequestDTO|ReadinessCheckResponseDTO|CoachDecisionDTO|CoachConfidenceDTO|testReadinessCheck" "IOS RunSmart app/Services/Live/RunSmartAPIModels.swift" "IOS RunSmart appTests/RunSmartReadinessTests.swift"`
+- Focused red-state command was attempted before DTO implementation, but `xcodebuild ... build-for-testing` stalled after the invocation line and was stopped.
+- Generic build-for-testing was attempted after implementation, but `xcodebuild ... build-for-testing` again stalled after the invocation line and was stopped.
+- Draft PR #19 amended with Story 4 code/tests and updated title/body: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/19
+
+### Next Recommended Action
+Run Story 5 validation once Xcode build infrastructure is responsive, then design the readiness service or Supabase endpoint boundary before any Pre-run UI gating.
+
+## 2026-05-19 - AI Coach Skill Contracts Story 3
+
+### Task Summary
+Implemented Story 3 from the AI skills/shared contracts investigation by adding an iOS-native AI Coach skill contract document. The doc defines structured safety flags, shared guardrails, and request/response sketches for the next Coach contract slices without importing web/PWA skill folders or changing app behavior.
+
+### Files Changed
+- `docs/ai-coach/skill-contracts.md`
+- `docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Kept Story 3 docs-only and did not add `.codex/skills/` until the iOS contract shape settles.
+- Used current iOS service and screen boundaries as references: Coach, Today, Plan, Run, Route Creator, `RunSmartDTO`, `RunSmartServices`, `SupabaseRunSmartServices`, and `coach_message`.
+- Chose structured `SafetyFlagDTO` as the canonical future shape while leaving the current live Coach `safetyFlags: [String]?` behavior unchanged.
+- Recommended Story 4 as the first code slice: manual `SafetyFlagDTO` plus readiness request/response DTOs with fixture-based Codable tests.
+
+### Validation
+- Contract doc path/content validation passed:
+  `test -f docs/ai-coach/skill-contracts.md && rg -n "SafetyFlagDTO|ReadinessCheckRequestDTO|WorkoutExplainerRequestDTO|PostRunDebriefRequestDTO|LoadAnomalyGuardRequestDTO|GoalDiscoveryRequestDTO|RouteBuilderRequestDTO|AdherenceCoachRequestDTO|Supabase|PreRunView|RunSmartDTO" docs/ai-coach/skill-contracts.md`
+- Source import guard passed:
+  `test ! -d .codex && test ! -d .cursor && test ! -d .claude && test ! -f AGENTS.md && test ! -f CLAUDE.md && test ! -f CODEX.md && test ! -d docs/ai-skills`
+- Whitespace validation passed for tracked edited files:
+  `git diff --check -- docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md tasks/todo.md tasks/session-log.md`
+- Xcode availability check passed:
+  `xcodebuild -version`
+- Swift build/test validation was not run because Story 3 changed only docs/task files.
+- Draft PR created: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/19
+
+### Next Recommended Action
+Implement Story 4: add manually mirrored safety/readiness DTOs and focused Codable fixture tests before wiring any Pre-run UI behavior.
+
+## 2026-05-19 - AI Skills And Shared Contracts Import Investigation
+
+### Task Summary
+Investigated the requested original RunSmart web/PWA AI coaching skills and shared TypeScript contracts, then implemented the first safe slice as a docs-only iOS mapping report and five-story implementation plan. No source Agent OS files, workflows, product docs, root instructions, task boards, bulk TypeScript contracts, generated Swift, or secrets were imported.
+
+### Files Changed
+- `docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Kept the first slice documentation-first because the iOS app already has live Coach context DTOs, plan generation DTOs, run report DTOs, route models, and backend Coach guardrails.
+- Recommended against copying source `.codex`, `.cursor`, or `.claude` skill directories because their integration points reference web `v0` paths and would become stale in the native app.
+- Recommended against running the source TypeScript-to-Swift generator because it targets a different output path, uses regex parsing, maps all numbers to `Double`, and does not handle this app's date, id, enum, optionality, or Codable needs.
+- Identified structured `SafetyFlag` and readiness request/response DTOs as the best future first code slice after an iOS-native skill contract doc.
+
+### Validation
+- Confirmed the investigation report exists:
+  `test -f docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md`
+- Confirmed no source `.codex`, `.cursor`, `.claude`, root instruction, or source task-board files were copied into the app repo.
+- Xcode availability check passed:
+  `xcodebuild -version`
+- Xcode project listing was attempted with `xcodebuild -project "IOS RunSmart app.xcodeproj" -list`, but it did not return past the invocation line within the observed window and was stopped.
+- Confirmed no Swift files were changed in this slice.
+- Swift build/test validation was not run because this was a docs/task-board-only change.
+
+### Next Recommended Action
+Implement Story 3 from the report: create an iOS-native AI coach skill contract doc with `SafetyFlag`, readiness, workout explainer, post-run debrief, and plan/load guard payload sketches.
+
+## 2026-05-19 - App Store Readiness Pass
+
+### Task Summary
+Ran an Agent OS App Store readiness pass for RunSmart. The app now passes local simulator build, build-for-testing, iOS archive validation, App Store Connect IPA export, and App Store Connect upload after cleaning the folder-synced app tree. The exported/uploaded IPA is distribution-signed with `get-task-allow = false`; Apple accepted the package and reported it was processing.
+
+### Files Changed
+- `RunSmartInfo.plist`
+- `IOS RunSmart app/Features/Secondary/DIAGNOSTIC_REPORT.md`
+- `IOS RunSmart app/Resources/Localizable.xcstrings`
+- `ExportOptionsAppStore.plist`
+- `ExportOptionsAppStoreUpload.plist`
+- `fastlane/metadata/en-US/*.txt`
+- `docs/qa/app-review-notes-2026-05-19.md`
+- `docs/qa/app-store-readiness-report-2026-05-19.md`
+- `docs/qa/app-store-readiness-checklist.md`
+- `docs/qa/testflight-checklist.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Used the outer Agent OS workflows as fallback because the canonical app repo does not contain `.agent-os/workflows/`.
+- Treated archive contents as the source of truth for release readiness, not only source-tree inspection.
+- Kept the scope to release readiness and minimal metadata/bundle cleanup; no app screens or product logic were redesigned.
+- Set `CFBundleDisplayName` and `CFBundleName` to `RunSmart` so the archive no longer exposes the project name as the app name.
+- Added `ITSAppUsesNonExemptEncryption = false` for App Store Connect export metadata.
+- Removed the diagnostic markdown file that had been present in the archived app bundle.
+- Removed untracked ResumeBuilder/ATS/Tailor/V2/paywall source from the Xcode folder-synced app tree instead of leaving it to compile implicitly.
+- Removed stale ResumeBuilder/ATS/Tailor/PDF/credits localized strings from the shipped string catalog.
+- Removed stray unreferenced app icon PNGs that caused asset warnings.
+- Added a reusable App Store Connect export options plist.
+- Added a reusable App Store Connect upload options plist.
+- Added Fastlane metadata files and App Review notes, while leaving demo credentials out of repo memory.
+- Recorded the release-owner report that outdoor GPS recording worked and battery use was acceptable on May 19, 2026.
+
+### Validation
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Generic simulator build-for-testing passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Release archive passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-AppStoreReady-2026-05-19-v2.xcarchive" archive`
+- Clean release archive passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-AppStoreReady-2026-05-19-clean.xcarchive" archive`
+- App Store Connect IPA export passed:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-AppStoreReady-2026-05-19-clean.xcarchive" -exportPath "build/AppStoreExportClean" -exportOptionsPlist ExportOptionsAppStore.plist -allowProvisioningUpdates`
+- App Store Connect upload passed:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-AppStoreReady-2026-05-19-clean.xcarchive" -exportPath "build/AppStoreUploadClean" -exportOptionsPlist ExportOptionsAppStoreUpload.plist -allowProvisioningUpdates`
+- Archive Info.plist now shows display name `RunSmart`, bundle id `com.runsmart.lite`, version `1.0`, build `5`, and `ITSAppUsesNonExemptEncryption = false`.
+- Archive contains a dSYM.
+- Archive no longer contains `DIAGNOSTIC_REPORT.md`.
+- Exported IPA exists at `build/AppStoreExportClean/RunSmart.ipa`.
+- Exported IPA has distribution signing, active beta reports, included symbols, and `get-task-allow = false`.
+- Upload log reports `Uploaded package is processing`, `Upload succeeded`, and `UPLOAD SUCCEEDED with no errors`.
+- Exported IPA inspection found no bundled diagnostic or legacy ResumeBuilder/ATS/Tailor files.
+- Exported localized resources contain no ResumeBuilder/Resume/ATS/Tailor/jobs/credits/PDF legacy strings.
+- No untracked source files remain inside `IOS RunSmart app/`.
+- Metadata text length checks passed for subtitle, keywords, promotional text, and description.
+- `plutil -lint` passed for `ExportOptionsAppStore.plist`, `RunSmartInfo.plist`, `PrivacyInfo.xcprivacy`, and exported distribution plists.
+- Public root, privacy, support, and terms URLs return HTTP 200 after canonical redirect.
+- Deployed `coach_message` returns HTTP 401 without auth, confirming it is deployed and protected from anonymous access.
+
+### Remaining Blockers
+- Uploaded build processing must complete in App Store Connect, then build 5 must be selected for TestFlight/App Store.
+- App Store screenshots are not present in the repo and still need to be captured/uploaded.
+- Demo credentials must be entered directly in App Store Connect, not stored in repo memory.
+- App Store Connect privacy questionnaire, age rating, category, and reviewer fields still need portal confirmation.
+- Authenticated deployed Coach smoke was not re-run in this pass; the latest authenticated remote smoke remains from Sprint 8 deployment completion.
+- Exact physical-device battery percentages were not stored in repo memory.
+
 ## 2026-05-18 - Local RunSmart Web Env Import
 
 ### Task Summary
