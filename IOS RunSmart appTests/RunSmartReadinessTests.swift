@@ -2487,6 +2487,19 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(payload.shareText.lowercased().contains("coordinate"))
         XCTAssertTrue(payload.privacyNote.lowercased().contains("no map"))
     }
+
+    func testNullAnalyticsServiceSwallowsAllCallsWithoutCrashing() {
+        let svc = NullAnalyticsService()
+        svc.track("test_event", properties: ["key": "value"])
+        svc.identify(userId: "user_123", traits: ["plan": "pro"])
+        svc.reset()
+        // No assertion needed — just confirm no crash
+    }
+
+    func testAnalyticsSharedDefaultsToNullService() {
+        XCTAssertTrue(Analytics.shared is NullAnalyticsService,
+            "Analytics.shared must be NullAnalyticsService before setup() is called")
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {
