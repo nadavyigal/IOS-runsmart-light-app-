@@ -213,10 +213,10 @@ Recommended future workflow:
 **So that** TestFlight readiness is not weakened by AI contract work.
 
 ### Acceptance Criteria
-- [ ] Run the smallest useful verification for each slice.
-- [ ] For DTO/code slices, run focused tests or build-for-testing.
-- [ ] For docs-only slices, run path existence and targeted content checks.
-- [ ] Record what passed, what was not run, and the next story.
+- [x] Run the smallest useful verification for each slice.
+- [x] For DTO/code slices, run focused tests or build-for-testing.
+- [x] For docs-only slices, run path existence and targeted content checks.
+- [x] Record what passed, what was not run, and the next story.
 
 ### Test Plan
 - Unit test: depends on slice.
@@ -245,6 +245,12 @@ Story 4 is implemented in `RunSmartDTO` and `RunSmartReadinessTests`. The first 
 
 No Pre-run UI behavior, backend endpoint, or current live Coach `safetyFlags: [String]?` behavior was changed.
 
+## Story 5 Implementation
+
+Story 5 is implemented in `docs/qa/ai-coach-story-5-validation-2026-05-19.md`. Validation was rerun from a clean worktree based on merged `origin/main` after PR #18 and PR #19. Documentation checks, source import guards, Swift parse validation, Xcode project listing, generic simulator build, and generic simulator build-for-testing passed.
+
+Focused `RunSmartReadinessTests` XCTest execution built the app and test bundle, then stalled during simulator launch/test execution and was stopped. Treat the DTO slice as build-validated, but rerun focused XCTest from a healthy simulator before wiring readiness behavior.
+
 ## Recommended Next Story
 
-Story 5: complete validation and QA once Xcode build infrastructure is responsive, then plan the readiness service/backend boundary. Do not wire Pre-run UI behavior until build-for-testing passes and the endpoint/service boundary is approved.
+Plan the readiness service/backend boundary. Do not wire Pre-run UI behavior until the endpoint/service boundary is approved and the focused readiness XCTest run completes on a healthy simulator.

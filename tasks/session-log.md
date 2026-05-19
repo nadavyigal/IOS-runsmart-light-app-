@@ -1,5 +1,36 @@
 # Session Log
 
+## 2026-05-19 - AI Coach Validation And QA Story 5
+
+### Task Summary
+Implemented Story 5 from the AI skills/shared contracts plan by validating the merged PR #18/#19 base on a clean branch and recording the evidence. No app behavior, backend endpoint, UI gating, generated model import, secrets, or source Agent OS files were changed.
+
+### Files Changed
+- `docs/qa/ai-coach-story-5-validation-2026-05-19.md`
+- `docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Used `origin/main` as the correct branch base because PR #19 is merged by `5e49dcd` and PR #18 by `7485880`.
+- Created a clean worktree/branch for Story 5 so unrelated local doc deletions in the original checkout stayed untouched.
+- Treated build-for-testing plus generic simulator build as the reliable Xcode rebuild evidence.
+- Attempted focused readiness XCTest execution, but recorded it as blocked because simulator launch/test execution stalled after the app and test bundle built.
+
+### Validation
+- Xcode project listing passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -list`
+- Story 3 docs/content and source import guards passed.
+- Story 4 static symbol and Swift parse validation passed.
+- Xcode build-for-testing passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath build/DerivedData-Story5 build-for-testing`
+- Xcode generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath build/DerivedData-Story5 build`
+- Focused readiness XCTest execution was attempted on iPhone 17 simulator. It built, then stalled during simulator launch/test execution and was stopped with `** BUILD INTERRUPTED **`.
+
+### Next Recommended Action
+Plan the readiness service/backend boundary and retry `RunSmartReadinessTests` from a healthy simulator before wiring readiness UI gating.
+
 ## 2026-05-19 - AI Coach Readiness DTOs Story 4
 
 ### Task Summary
