@@ -43,6 +43,8 @@ struct RunTabView: View {
                     gpsDetail: gpsDetail,
                     onStart: {
                         RunSmartHaptics.medium()
+                        let source = router.plannedWorkout != nil ? "planned" : "free"
+                        Analytics.trackRunStarted(source: source)
                         recorder.start()
                     },
                     onRoute: { router.open(.routeCreator) },
@@ -160,6 +162,15 @@ struct RunTabView: View {
             isProcessingFinishedRun = true
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
             finishedRun = run
+            let isFirst = !UserDefaults.standard.bool(forKey: "analytics.hasCompletedRun")
+            UserDefaults.standard.set(true, forKey: "analytics.hasCompletedRun")
+            Analytics.trackRunCompleted(
+                distanceKm: run.distanceMeters / 1000,
+                durationSeconds: Int(run.movingTimeSeconds),
+                paceMinKm: run.averagePaceSecondsPerKm / 60,
+                runType: router.plannedWorkout?.kind.rawValue ?? "free",
+                isFirstRun: isFirst
+            )
             Task {
                 let outcome = await services.processCompletedActivity(run)
                 await MainActor.run {
@@ -177,6 +188,10 @@ struct RunTabView: View {
 
     private func discardRun() {
         RunSmartHaptics.medium()
+        Analytics.trackRunAbandoned(
+            durationSeconds: Int(recorder.movingSeconds),
+            distanceKm: recorder.distanceMeters / 1000
+        )
         recorder.discard()
         finishedRun = nil
         postActivityOutcome = nil
