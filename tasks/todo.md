@@ -3,6 +3,130 @@
 ## Current Task
 App Store submission package was uploaded to App Store Connect: RunSmart-only app tree is clean, simulator build/build-for-testing/archive pass, App Store Connect IPA export and upload pass, distribution entitlements are verified, metadata/reviewer notes are documented, and outdoor GPS/battery QA is recorded from release-owner testing. Remaining portal items: wait for build processing, select build 5, add screenshots, enter demo credentials, confirm privacy questionnaire/age rating/category, and re-run authenticated Coach smoke before final submit-for-review.
 
+## AI Skills And Shared Contracts Import Investigation - 2026-05-19
+
+As the iOS maintainer, I want a narrow investigation of the original RunSmart web/PWA AI coaching skills and shared contracts so the native app can reuse guardrails and DTO ideas without importing web-era operating files, task boards, or broad model layers.
+
+### Expected Files
+- `docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Checklist
+- [x] Read canonical app lessons before planning or editing.
+- [x] Confirm the app repo worktree is dirty and avoid overwriting existing user changes.
+- [x] Inspect only the requested source AI skill and shared contract areas.
+- [x] Map each AI skill to iOS screens, flows, service callers, inputs, outputs, and safety guardrails.
+- [x] Compare source `packages/shared/src/models/` and `packages/shared/src/api/` with current iOS models and DTOs.
+- [x] Assess whether source TypeScript contracts should be copied, generated, manually mirrored, or documented.
+- [x] Produce a concrete five-story implementation plan using the local Agent OS style.
+- [x] Implement the first safe slice as docs only.
+- [x] Preserve the coaching safety guardrails in the plan: no medical diagnosis, conservative uncertainty handling, stop/rest/professional guidance for pain/dizziness/injury signals, and `SafetyFlag` equivalents.
+
+### Validation
+- Documentation/path validation passed:
+  `test -f docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md`
+- Source scope validation passed: no source Agent OS files, workflows, root instructions, or task-board files were copied.
+- Xcode availability check passed:
+  `xcodebuild -version`
+- Xcode project listing was attempted with `xcodebuild -project "IOS RunSmart app.xcodeproj" -list`, but it did not return past the invocation line within the observed window and was stopped.
+- Swift behavior validation was not run for this slice because no Swift files or app behavior changed.
+
+### Scope Guard
+- No iOS models were overwritten.
+- No `.codex`, `.cursor`, or `.claude` skill directories were copied into the app repo.
+- No shared TypeScript model files were vendored.
+- No generated Swift was added.
+- No secrets or local env files were read into tracked docs.
+
+### Next Recommended Story
+Create an iOS-native AI coach skill contract doc that defines structured `SafetyFlag`, readiness, workout explainer, post-run debrief, and plan/load guard payloads using current iOS service and Supabase Edge Function boundaries.
+
+## AI Coach Skill Contracts Story 3 - 2026-05-19
+
+As the RunSmart iOS maintainer, I want iOS-native AI Coach skill contract docs so future Coach implementation can preserve web/PWA safety guardrails without importing web-era skill folders or path assumptions.
+
+### Expected Files
+- `docs/ai-coach/skill-contracts.md`
+- `docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Checklist
+- [x] Plan Story 3 before implementation.
+- [x] Add an iOS-native `docs/ai-coach/skill-contracts.md`.
+- [x] Define structured `SafetyFlag` and common decision/confidence values.
+- [x] Include per-skill request/response sketches for readiness, workout explainer, post-run debrief, plan generation metadata, load anomaly guard, conversational goal discovery, route builder, and adherence.
+- [x] Reference current iOS screens, service protocols, DTO namespace, and Supabase Edge Function boundary instead of source web `v0` paths.
+- [x] Keep `.codex`, `.cursor`, `.claude`, generated Swift, TypeScript model vendoring, and behavior changes out of scope.
+- [x] Update Story 3 status in the investigation report.
+- [x] Create PR after validation.
+
+### Validation
+- Contract doc path/content validation passed:
+  `test -f docs/ai-coach/skill-contracts.md && rg -n "SafetyFlagDTO|ReadinessCheckRequestDTO|WorkoutExplainerRequestDTO|PostRunDebriefRequestDTO|LoadAnomalyGuardRequestDTO|GoalDiscoveryRequestDTO|RouteBuilderRequestDTO|AdherenceCoachRequestDTO|Supabase|PreRunView|RunSmartDTO" docs/ai-coach/skill-contracts.md`
+- Source import guard passed:
+  `test ! -d .codex && test ! -d .cursor && test ! -d .claude && test ! -f AGENTS.md && test ! -f CLAUDE.md && test ! -f CODEX.md && test ! -d docs/ai-skills`
+- Whitespace validation passed for tracked edited files:
+  `git diff --check -- docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md tasks/todo.md tasks/session-log.md`
+- Xcode availability check passed:
+  `xcodebuild -version`
+- Swift build/test validation was not run because Story 3 changed only docs/task files.
+- Draft PR created: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/19
+
+### Scope Guard
+- No Swift files changed.
+- No app behavior changed.
+- No secrets or env files changed.
+- Existing unrelated deleted docs remain untouched.
+
+### Next Recommended Story
+Story 4: add a manually mirrored `SafetyFlagDTO` plus readiness request/response DTOs with fixture-based Codable tests. Do not wire Pre-run UI behavior until the payloads pass tests and the service boundary is approved.
+
+## AI Coach Readiness DTOs Story 4 - 2026-05-19
+
+As the RunSmart iOS developer, I want minimal safety/readiness DTOs and fixture tests so future readiness features have type-safe payloads without importing the full web model layer.
+
+### Expected Files
+- `IOS RunSmart app/Services/Live/RunSmartAPIModels.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `docs/ai-coach/skill-contracts.md`
+- `docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Checklist
+- [x] Plan Story 4 before implementation.
+- [x] Add focused Codable tests for proceed, modify-with-missing-data, skip-with-medical-caution, and request privacy.
+- [x] Add manual `RunSmartDTO.SafetyFlagDTO`.
+- [x] Add manual `RunSmartDTO.ReadinessCheckRequestDTO` and `RunSmartDTO.ReadinessCheckResponseDTO`.
+- [x] Add only small readiness context DTOs needed by the request payload.
+- [x] Leave existing iOS domain models intact.
+- [x] Leave current live Coach `safetyFlags: [String]?` behavior unchanged.
+- [x] Avoid Pre-run UI behavior wiring and backend endpoint wiring.
+- [x] Amend PR #19 after validation.
+
+### Validation
+- Swift parse validation passed:
+  `xcrun swiftc -parse "IOS RunSmart app/Services/Live/RunSmartAPIModels.swift" "IOS RunSmart appTests/RunSmartReadinessTests.swift"`
+- Whitespace validation passed:
+  `git diff --check -- "IOS RunSmart app/Services/Live/RunSmartAPIModels.swift" "IOS RunSmart appTests/RunSmartReadinessTests.swift" docs/ai-coach/skill-contracts.md docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md tasks/todo.md tasks/session-log.md`
+- Static symbol check passed:
+  `rg -n "SafetyFlagDTO|ReadinessCheckRequestDTO|ReadinessCheckResponseDTO|CoachDecisionDTO|CoachConfidenceDTO|testReadinessCheck" "IOS RunSmart app/Services/Live/RunSmartAPIModels.swift" "IOS RunSmart appTests/RunSmartReadinessTests.swift"`
+- Focused red-state command was attempted before DTO implementation, but `xcodebuild ... build-for-testing` stalled after the invocation line and was stopped.
+- Generic build-for-testing was attempted after implementation, but `xcodebuild ... build-for-testing` again stalled after the invocation line and was stopped.
+- Draft PR #19 amended with Story 4 code/tests and updated title/body: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/19
+
+### Scope Guard
+- No Pre-run UI behavior changed.
+- No backend endpoint added.
+- No generated Swift or TypeScript model vendoring added.
+- No secrets or env files changed.
+- Existing unrelated deleted docs remain untouched.
+
+### Next Recommended Story
+Story 5: complete validation and QA when Xcode build infrastructure is responsive, then design the readiness service/backend boundary before any UI gating.
+
 ## App Store Readiness Pass - 2026-05-19
 
 As the release owner, I want a clear App Store readiness assessment so RunSmart can reach TestFlight/App Store without hidden signing, privacy, archive, or legacy-code surprises.

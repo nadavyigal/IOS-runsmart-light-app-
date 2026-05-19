@@ -346,6 +346,107 @@ enum RunSmartDTO {
         let totalTokens: Int?
     }
 
+    struct SafetyFlagDTO: Codable, Equatable {
+        enum Code: String, Codable {
+            case loadSpike = "load_spike"
+            case injurySignal = "injury_signal"
+            case heatRisk = "heat_risk"
+            case missingData = "missing_data"
+            case uncertain
+            case medicalCaution = "medical_caution"
+            case routeSafety = "route_safety"
+        }
+
+        enum Severity: String, Codable {
+            case low
+            case medium
+            case high
+        }
+
+        let code: Code
+        let severity: Severity
+        let message: String
+    }
+
+    enum CoachConfidenceDTO: String, Codable {
+        case low
+        case medium
+        case high
+    }
+
+    enum CoachDecisionDTO: String, Codable {
+        case proceed
+        case modify
+        case skip
+    }
+
+    struct ReadinessCheckRequestDTO: Codable, Equatable {
+        let entryPoint: String
+        let generatedAt: String
+        let profile: RunnerContextDTO
+        let plannedWorkout: WorkoutContextDTO?
+        let recentRuns: [RecentRunContextDTO]
+        let recovery: RecoveryContextDTO
+        let wellness: WellnessContextDTO
+        let limitations: [String]
+    }
+
+    struct ReadinessCheckResponseDTO: Codable, Equatable {
+        let decision: CoachDecisionDTO
+        let recommendation: String
+        let modifications: [String]
+        let confidence: CoachConfidenceDTO
+        let safetyFlags: [SafetyFlagDTO]
+    }
+
+    struct RunnerContextDTO: Codable, Equatable {
+        let goal: String
+        let level: String
+        let streak: String?
+        let totalRuns: Int?
+        let averageWeeklyDistanceKm: Double?
+    }
+
+    struct WorkoutContextDTO: Codable, Equatable {
+        let id: String?
+        let scheduledDate: String?
+        let title: String
+        let kind: String
+        let distance: String?
+        let durationMinutes: Int?
+        let targetPace: String?
+        let detail: String?
+        let isComplete: Bool?
+    }
+
+    struct RecentRunContextDTO: Codable, Equatable {
+        let id: String
+        let source: String
+        let startedAt: String
+        let distanceKm: Double
+        let movingTimeSeconds: Int
+        let paceLabel: String?
+        let averageHeartRateBPM: Int?
+        let rpe: Int?
+        let hasRoute: Bool
+    }
+
+    struct RecoveryContextDTO: Codable, Equatable {
+        let readiness: Int?
+        let bodyBattery: Int?
+        let sleep: String?
+        let hrv: String?
+        let stress: String?
+        let recommendation: String?
+    }
+
+    struct WellnessContextDTO: Codable, Equatable {
+        let soreness: String?
+        let mood: String?
+        let hydration: String?
+        let checkInStatus: String?
+    }
+
     struct RunLogRequest: Codable {
         let startedAtISO8601: String
         let endedAtISO8601: String
