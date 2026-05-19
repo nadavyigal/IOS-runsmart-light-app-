@@ -31,6 +31,8 @@ Review this file at the start of future tasks.
 - When asserting JSON key sets from `Dictionary<String, Any>`, materialize optional keys explicitly before building a `Set`; avoid overload-prone `String.init` mapping.
 - Do not run multiple Xcode builds against the same DerivedData concurrently; build database locks are false failures, so run validation sequentially unless separate DerivedData paths are configured.
 - When adding optional behavior to a shared service protocol, provide default extension fallbacks or update every test double in the same pass before validation.
+- Before App Store readiness claims, inspect the built archive bundle for display name, encryption declaration, bundled diagnostics, dSYMs, entitlements, and distribution-only signing; source checks alone are not enough.
+- In this Xcode folder-synchronized project, untracked Swift files inside `IOS RunSmart app/` can still compile; before release, inspect and clean untracked source under the synced app root, not only tracked project references.
 
 ## Lesson Log
 
@@ -180,6 +182,20 @@ Trigger: Live Coach migration added owner-scoped conversation/message policies, 
 Lesson: Adding safer RLS policies is not enough if existing permissive policies still allow access; Supabase/Postgres policies are ORed for the same command and role.
 
 Future rule: After adding owner-scoped Supabase RLS policies, inspect and remove older broad authenticated policies on the same tables before calling the schema secure.
+
+### 2026-05-19 - App Store Readiness Requires Archive Inspection
+Trigger: App Store readiness inspection found the archive still exposed the project name as the app name, bundled a diagnostic markdown file, and used development signing even though builds succeeded.
+
+Lesson: Passing local builds does not prove submission readiness; release evidence has to come from the archived app bundle and signing entitlements.
+
+Future rule: Before App Store readiness claims, inspect the built archive bundle for display name, encryption declaration, bundled diagnostics, dSYMs, entitlements, and distribution-only signing; source checks alone are not enough.
+
+### 2026-05-19 - Folder-Synchronized Xcode Projects Compile Untracked Sources
+Trigger: App Store cleanup found untracked ResumeBuilder-era Swift files inside the folder-synced app root, and Xcode had been compiling them even though they were not tracked in git.
+
+Lesson: In a folder-synchronized Xcode project, file presence under the synced root is enough to affect build and archive behavior.
+
+Future rule: In this Xcode folder-synchronized project, untracked Swift files inside `IOS RunSmart app/` can still compile; before release, inspect and clean untracked source under the synced app root, not only tracked project references.
 
 ### 2026-05-18 - Verify PostgREST Reads With Real Auth Tokens
 Trigger: Live Coach SQL/RLS checks passed, but deployed PostgREST reads from `conversation_messages` still returned no rows for a signed-in smoke-test user.

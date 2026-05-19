@@ -1,6 +1,82 @@
 # Task State
 
 ## Current Task
+App Store submission package was uploaded to App Store Connect: RunSmart-only app tree is clean, simulator build/build-for-testing/archive pass, App Store Connect IPA export and upload pass, distribution entitlements are verified, metadata/reviewer notes are documented, and outdoor GPS/battery QA is recorded from release-owner testing. Remaining portal items: wait for build processing, select build 5, add screenshots, enter demo credentials, confirm privacy questionnaire/age rating/category, and re-run authenticated Coach smoke before final submit-for-review.
+
+## App Store Readiness Pass - 2026-05-19
+
+As the release owner, I want a clear App Store readiness assessment so RunSmart can reach TestFlight/App Store without hidden signing, privacy, archive, or legacy-code surprises.
+
+### Expected Files
+- `RunSmartInfo.plist`
+- `IOS RunSmart app/Features/Secondary/DIAGNOSTIC_REPORT.md`
+- `docs/qa/app-store-readiness-report-2026-05-19.md`
+- `docs/qa/app-review-notes-2026-05-19.md`
+- `ExportOptionsAppStore.plist`
+- `ExportOptionsAppStoreUpload.plist`
+- `fastlane/metadata/en-US/*.txt`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Checklist
+- [x] Read Agent OS lessons and release/QA checklists.
+- [x] Inspect bundle id, version/build, entitlements, permissions, privacy manifest, and Fastlane lanes.
+- [x] Verify public marketing/support/legal URLs respond successfully.
+- [x] Verify deployed Coach endpoint rejects unauthenticated requests instead of exposing data.
+- [x] Run generic simulator build.
+- [x] Run generic simulator build-for-testing.
+- [x] Run release archive.
+- [x] Fix archived app display name from project name to `RunSmart`.
+- [x] Add non-exempt encryption declaration for App Store Connect.
+- [x] Remove bundled diagnostic markdown from the app archive.
+- [x] Re-run build/build-for-testing/archive after release metadata cleanup.
+- [x] Inspect archive Info.plist, entitlements, dSYM, and bundled diagnostic files.
+- [x] Document readiness status and blockers.
+- [x] Remove untracked ResumeBuilder/ATS/Tailor/V2/paywall files from the folder-synced app tree.
+- [x] Remove stale ResumeBuilder/ATS/Tailor/PDF/credits strings from shipped string catalog.
+- [x] Resolve AppIcon unassigned-child warning by removing stray unreferenced icon PNGs.
+- [x] Produce an App Store distribution-signed IPA export.
+- [x] Confirm exported IPA entitlements use distribution signing with `get-task-allow = false`.
+- [x] Upload build 5 to App Store Connect.
+- [x] Add Fastlane App Store metadata files.
+- [x] Add App Review notes without storing credentials.
+- [x] Record release-owner physical GPS/battery QA evidence.
+- [ ] Wait for uploaded build processing to complete in App Store Connect and select build 5.
+- [ ] Add App Store screenshots.
+- [ ] Enter demo credentials directly in App Store Connect.
+- [ ] Confirm App Store Connect privacy questionnaire and age rating/category.
+- [ ] Re-run authenticated Coach smoke before final submit-for-review.
+
+### Validation
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Generic simulator build-for-testing passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Release archive passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-AppStoreReady-2026-05-19-v2.xcarchive" archive`
+- Clean release archive passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-AppStoreReady-2026-05-19-clean.xcarchive" archive`
+- App Store Connect IPA export passed:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-AppStoreReady-2026-05-19-clean.xcarchive" -exportPath "build/AppStoreExportClean" -exportOptionsPlist ExportOptionsAppStore.plist -allowProvisioningUpdates`
+- App Store Connect upload passed:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-AppStoreReady-2026-05-19-clean.xcarchive" -exportPath "build/AppStoreUploadClean" -exportOptionsPlist ExportOptionsAppStoreUpload.plist -allowProvisioningUpdates`
+- Archive Info.plist now shows display name `RunSmart`, bundle id `com.runsmart.lite`, version `1.0`, build `5`, and `ITSAppUsesNonExemptEncryption = false`.
+- Archive contains a dSYM and no `DIAGNOSTIC_REPORT.md`.
+- Exported IPA has `get-task-allow = false`, active beta reports, distribution signing, and symbols included.
+- Upload log reports the uploaded package is processing and upload succeeded.
+- Exported IPA and localized resources contain no diagnostic, ResumeBuilder, ATS, Tailor, jobs, credits, or PDF legacy content.
+- No untracked source files remain inside `IOS RunSmart app/`.
+- Public root, privacy, support, and terms URLs return HTTP 200 after redirect to the canonical host.
+- Deployed `coach_message` endpoint returns HTTP 401 without auth, which confirms it is deployed and not anonymously callable.
+- Metadata text lengths are within checked App Store limits.
+- `plutil -lint` passed for `ExportOptionsAppStore.plist`, `RunSmartInfo.plist`, `PrivacyInfo.xcprivacy`, and exported distribution plists.
+- Release-owner evidence: outdoor GPS run recorded successfully with acceptable battery use; exact battery percentages are not stored in repo memory.
+
+### Scope Guard
+- No screen redesign, product logic rewrite, backend schema migration, or App Store Connect submission was performed in this readiness pass.
+
+### Previous Task
 Sprint 8 complete: Live AI Coach Backend Endpoint + iOS Coach Integration is implemented, deployed to Supabase, remotely smoke-tested with live AI, and build-validated. Manual in-app QA on a signed-in simulator/device remains before beta sign-off.
 
 ## Sprint 8 - Live AI Coach Backend Endpoint - 2026-05-18

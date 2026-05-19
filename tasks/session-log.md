@@ -1,5 +1,75 @@
 # Session Log
 
+## 2026-05-19 - App Store Readiness Pass
+
+### Task Summary
+Ran an Agent OS App Store readiness pass for RunSmart. The app now passes local simulator build, build-for-testing, iOS archive validation, App Store Connect IPA export, and App Store Connect upload after cleaning the folder-synced app tree. The exported/uploaded IPA is distribution-signed with `get-task-allow = false`; Apple accepted the package and reported it was processing.
+
+### Files Changed
+- `RunSmartInfo.plist`
+- `IOS RunSmart app/Features/Secondary/DIAGNOSTIC_REPORT.md`
+- `IOS RunSmart app/Resources/Localizable.xcstrings`
+- `ExportOptionsAppStore.plist`
+- `ExportOptionsAppStoreUpload.plist`
+- `fastlane/metadata/en-US/*.txt`
+- `docs/qa/app-review-notes-2026-05-19.md`
+- `docs/qa/app-store-readiness-report-2026-05-19.md`
+- `docs/qa/app-store-readiness-checklist.md`
+- `docs/qa/testflight-checklist.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Used the outer Agent OS workflows as fallback because the canonical app repo does not contain `.agent-os/workflows/`.
+- Treated archive contents as the source of truth for release readiness, not only source-tree inspection.
+- Kept the scope to release readiness and minimal metadata/bundle cleanup; no app screens or product logic were redesigned.
+- Set `CFBundleDisplayName` and `CFBundleName` to `RunSmart` so the archive no longer exposes the project name as the app name.
+- Added `ITSAppUsesNonExemptEncryption = false` for App Store Connect export metadata.
+- Removed the diagnostic markdown file that had been present in the archived app bundle.
+- Removed untracked ResumeBuilder/ATS/Tailor/V2/paywall source from the Xcode folder-synced app tree instead of leaving it to compile implicitly.
+- Removed stale ResumeBuilder/ATS/Tailor/PDF/credits localized strings from the shipped string catalog.
+- Removed stray unreferenced app icon PNGs that caused asset warnings.
+- Added a reusable App Store Connect export options plist.
+- Added a reusable App Store Connect upload options plist.
+- Added Fastlane metadata files and App Review notes, while leaving demo credentials out of repo memory.
+- Recorded the release-owner report that outdoor GPS recording worked and battery use was acceptable on May 19, 2026.
+
+### Validation
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build`
+- Generic simulator build-for-testing passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" build-for-testing`
+- Release archive passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-AppStoreReady-2026-05-19-v2.xcarchive" archive`
+- Clean release archive passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-AppStoreReady-2026-05-19-clean.xcarchive" archive`
+- App Store Connect IPA export passed:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-AppStoreReady-2026-05-19-clean.xcarchive" -exportPath "build/AppStoreExportClean" -exportOptionsPlist ExportOptionsAppStore.plist -allowProvisioningUpdates`
+- App Store Connect upload passed:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-AppStoreReady-2026-05-19-clean.xcarchive" -exportPath "build/AppStoreUploadClean" -exportOptionsPlist ExportOptionsAppStoreUpload.plist -allowProvisioningUpdates`
+- Archive Info.plist now shows display name `RunSmart`, bundle id `com.runsmart.lite`, version `1.0`, build `5`, and `ITSAppUsesNonExemptEncryption = false`.
+- Archive contains a dSYM.
+- Archive no longer contains `DIAGNOSTIC_REPORT.md`.
+- Exported IPA exists at `build/AppStoreExportClean/RunSmart.ipa`.
+- Exported IPA has distribution signing, active beta reports, included symbols, and `get-task-allow = false`.
+- Upload log reports `Uploaded package is processing`, `Upload succeeded`, and `UPLOAD SUCCEEDED with no errors`.
+- Exported IPA inspection found no bundled diagnostic or legacy ResumeBuilder/ATS/Tailor files.
+- Exported localized resources contain no ResumeBuilder/Resume/ATS/Tailor/jobs/credits/PDF legacy strings.
+- No untracked source files remain inside `IOS RunSmart app/`.
+- Metadata text length checks passed for subtitle, keywords, promotional text, and description.
+- `plutil -lint` passed for `ExportOptionsAppStore.plist`, `RunSmartInfo.plist`, `PrivacyInfo.xcprivacy`, and exported distribution plists.
+- Public root, privacy, support, and terms URLs return HTTP 200 after canonical redirect.
+- Deployed `coach_message` returns HTTP 401 without auth, confirming it is deployed and protected from anonymous access.
+
+### Remaining Blockers
+- Uploaded build processing must complete in App Store Connect, then build 5 must be selected for TestFlight/App Store.
+- App Store screenshots are not present in the repo and still need to be captured/uploaded.
+- Demo credentials must be entered directly in App Store Connect, not stored in repo memory.
+- App Store Connect privacy questionnaire, age rating, category, and reviewer fields still need portal confirmation.
+- Authenticated deployed Coach smoke was not re-run in this pass; the latest authenticated remote smoke remains from Sprint 8 deployment completion.
+- Exact physical-device battery percentages were not stored in repo memory.
+
 ## 2026-05-18 - Local RunSmart Web Env Import
 
 ### Task Summary
