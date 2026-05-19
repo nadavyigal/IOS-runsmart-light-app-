@@ -101,6 +101,7 @@ struct SignInView: View {
                 throw AppleSignInError.invalidCredential
             }
             try await session.signInWithApple(idToken: idToken, nonce: currentNonce)
+            Analytics.trackSignInCompleted(method: "apple")
         } catch let error as NSError
             where error.domain == ASAuthorizationError.errorDomain
                && error.code == ASAuthorizationError.canceled.rawValue {
