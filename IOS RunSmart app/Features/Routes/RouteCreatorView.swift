@@ -116,6 +116,7 @@ struct RouteCreatorView: View {
                 ForEach(benchmarks) { r in
                     FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
                         selectedRouteID = r.id
+                        Analytics.trackRouteSelected(routeKind: r.kind.rawValue)
                     }
                 }
             }
@@ -125,6 +126,7 @@ struct RouteCreatorView: View {
                 ForEach(myRoutes) { r in
                     FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
                         selectedRouteID = r.id
+                        Analytics.trackRouteSelected(routeKind: r.kind.rawValue)
                     }
                 }
             }
@@ -134,6 +136,7 @@ struct RouteCreatorView: View {
                 ForEach(generatedNearby) { r in
                     FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
                         selectedRouteID = r.id
+                        Analytics.trackRouteSelected(routeKind: r.kind.rawValue)
                     }
                 }
             } else if mapKitFailed && !locationUnavailable {

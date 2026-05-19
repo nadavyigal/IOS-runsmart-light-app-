@@ -209,6 +209,12 @@ struct BenchmarkComparisonCard: View {
                 ProgressShareButton(payload: .benchmark(comparison))
             }
         }
+        .onAppear {
+            Analytics.trackBenchmarkViewed(
+                hasHistory: comparison.hasEnoughHistory,
+                comparisonType: BenchmarkComparisonPresentation.confidenceLabel(comparison.matchConfidence)
+            )
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Benchmark comparison for \(comparison.routeName)")
     }
