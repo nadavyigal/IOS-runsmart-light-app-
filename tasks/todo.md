@@ -1,7 +1,7 @@
 # Task State
 
 ## Current Task
-App Store submission package was uploaded to App Store Connect: RunSmart-only app tree is clean, simulator build/build-for-testing/archive pass, App Store Connect IPA export and upload pass, distribution entitlements are verified, metadata/reviewer notes are documented, and outdoor GPS/battery QA is recorded from release-owner testing. Remaining portal items: wait for build processing, select build 5, add screenshots, enter demo credentials, confirm privacy questionnaire/age rating/category, and re-run authenticated Coach smoke before final submit-for-review.
+AI Coach Story 5 validation is complete on the merged `origin/main` base after PR #18 and PR #19: docs/static checks pass, Swift parse passes, Xcode project listing passes, generic simulator build passes, and generic simulator build-for-testing passes. Focused readiness XCTest execution built successfully but stalled during simulator launch/test execution and should be retried from a healthy simulator before readiness UI wiring. App Store portal follow-ups remain: wait for build processing, select build 5, add screenshots, enter demo credentials, confirm privacy questionnaire/age rating/category, and re-run authenticated Coach smoke before final submit-for-review.
 
 ## AI Skills And Shared Contracts Import Investigation - 2026-05-19
 
@@ -126,6 +126,62 @@ As the RunSmart iOS developer, I want minimal safety/readiness DTOs and fixture 
 
 ### Next Recommended Story
 Story 5: complete validation and QA when Xcode build infrastructure is responsive, then design the readiness service/backend boundary before any UI gating.
+
+## AI Coach Validation And QA Story 5 - 2026-05-19
+
+As the release owner, I want validation evidence for every AI skill/shared contract import slice so TestFlight readiness is not weakened by AI contract work.
+
+### Expected Files
+- `docs/qa/ai-coach-story-5-validation-2026-05-19.md`
+- `docs/ai-skills-shared-contracts-import-investigation-2026-05-19.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Checklist
+- [x] Confirm PR #18 and PR #19 are merged into `origin/main`.
+- [x] Create a clean Story 5 branch from `origin/main`.
+- [x] Run docs/path/content validation for Story 1-3 artifacts.
+- [x] Run source import guards for `.codex`, `.cursor`, `.claude`, root instruction files, and source docs.
+- [x] Run static symbol and Swift parse validation for Story 4 DTOs/tests.
+- [x] Run Xcode project listing.
+- [x] Run generic simulator build-for-testing.
+- [x] Run generic simulator build.
+- [x] Attempt focused readiness XCTest execution on iPhone 17 simulator.
+- [x] Record passed, blocked, and intentionally skipped checks.
+- [x] Leave app behavior, backend wiring, secrets, and generated DTO import out of scope.
+
+### Validation
+- Merged branch check passed:
+  `git log --oneline --decorate -6`
+- Xcode project listing passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -list`
+- Story 3 docs/content check passed:
+  `test -f docs/ai-coach/skill-contracts.md`
+  plus targeted `rg` for skill contract symbols and iOS boundaries.
+- Source import guard passed:
+  `test ! -d .codex && test ! -d .cursor && test ! -d .claude && test ! -f AGENTS.md && test ! -f CLAUDE.md && test ! -f CODEX.md && test ! -d docs/ai-skills`
+- Story 4 static symbol check passed:
+  `rg -n "SafetyFlagDTO|ReadinessCheckRequestDTO|ReadinessCheckResponseDTO|CoachDecisionDTO|CoachConfidenceDTO" "IOS RunSmart app" "IOS RunSmart appTests"`
+- Swift parse validation passed:
+  `xcrun swiftc -parse "IOS RunSmart app/Services/Live/RunSmartAPIModels.swift" "IOS RunSmart appTests/RunSmartReadinessTests.swift"`
+- Xcode build-for-testing passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath build/DerivedData-Story5 build-for-testing`
+- Xcode generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath build/DerivedData-Story5 build`
+- Focused readiness XCTest execution was attempted:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" -derivedDataPath build/DerivedData-Story5 -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests" test`
+  The app and test bundle built, then the run produced no output during simulator launch/test execution for roughly 90 seconds. It was stopped and ended with `** BUILD INTERRUPTED **`.
+
+### Scope Guard
+- No Swift app behavior changed.
+- No Pre-run UI gating added.
+- No backend readiness endpoint added.
+- No generated Swift or TypeScript model vendoring added.
+- No source Agent OS directories or task-board files imported.
+- No secrets or env files changed.
+
+### Next Recommended Story
+Plan the readiness service/backend boundary before any Pre-run UI behavior change. Decide whether readiness should use a new Supabase Edge Function intent, a dedicated iOS service protocol, or an extension of the existing Coach service while preserving structured `SafetyFlagDTO` output.
 
 ## App Store Readiness Pass - 2026-05-19
 
