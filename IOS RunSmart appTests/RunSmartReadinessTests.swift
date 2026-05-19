@@ -134,6 +134,157 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(response.safetyFlags, ["medical_caution"])
     }
 
+    func testReadinessCheckResponseDecodesProceedWithoutSafetyFlags() throws {
+        let data = """
+        {
+          "decision": "proceed",
+          "recommendation": "Run as planned and keep the effort controlled.",
+          "modifications": [],
+          "confidence": "high",
+          "safetyFlags": []
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder().decode(RunSmartDTO.ReadinessCheckResponseDTO.self, from: data)
+
+        XCTAssertEqual(response.decision, .proceed)
+        XCTAssertEqual(response.recommendation, "Run as planned and keep the effort controlled.")
+        XCTAssertEqual(response.modifications, [])
+        XCTAssertEqual(response.confidence, .high)
+        XCTAssertEqual(response.safetyFlags, [])
+    }
+
+    func testReadinessCheckResponseDecodesModifyWithMissingDataSafetyFlag() throws {
+        let data = """
+        {
+          "decision": "modify",
+          "recommendation": "Keep this easy because recovery data is limited.",
+          "modifications": ["Shorten by 15 minutes", "Stay conversational"],
+          "confidence": "medium",
+          "safetyFlags": [
+            {
+              "code": "missing_data",
+              "severity": "medium",
+              "message": "Recovery data is not available yet."
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder().decode(RunSmartDTO.ReadinessCheckResponseDTO.self, from: data)
+
+        XCTAssertEqual(response.decision, .modify)
+        XCTAssertEqual(response.modifications, ["Shorten by 15 minutes", "Stay conversational"])
+        XCTAssertEqual(response.confidence, .medium)
+        XCTAssertEqual(response.safetyFlags, [
+            RunSmartDTO.SafetyFlagDTO(
+                code: .missingData,
+                severity: .medium,
+                message: "Recovery data is not available yet."
+            )
+        ])
+    }
+
+    func testReadinessCheckResponseDecodesSkipWithMedicalCautionSafetyFlag() throws {
+        let data = """
+        {
+          "decision": "skip",
+          "recommendation": "Stop activity, rest, and consult a qualified professional.",
+          "modifications": ["Skip today's run"],
+          "confidence": "high",
+          "safetyFlags": [
+            {
+              "code": "medical_caution",
+              "severity": "high",
+              "message": "Pain or dizziness was reported."
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder().decode(RunSmartDTO.ReadinessCheckResponseDTO.self, from: data)
+
+        XCTAssertEqual(response.decision, .skip)
+        XCTAssertEqual(response.recommendation, "Stop activity, rest, and consult a qualified professional.")
+        XCTAssertEqual(response.safetyFlags.first?.code, .medicalCaution)
+        XCTAssertEqual(response.safetyFlags.first?.severity, .high)
+    }
+
+    func testReadinessCheckRequestEncodesWithoutRawGPSCoordinates() throws {
+        let request = RunSmartDTO.ReadinessCheckRequestDTO(
+            entryPoint: "run",
+            generatedAt: "2026-05-19T10:00:00Z",
+            profile: .init(
+                goal: "10K PR",
+                level: "Building base",
+                streak: "3 days",
+                totalRuns: 12,
+                averageWeeklyDistanceKm: 18.5
+            ),
+            plannedWorkout: .init(
+                id: "workout-1",
+                scheduledDate: "2026-05-19",
+                title: "Easy Run",
+                kind: "Easy Run",
+                distance: "5.0 km",
+                durationMinutes: 35,
+                targetPace: "6:10 /km",
+                detail: "Keep it relaxed.",
+                isComplete: false
+            ),
+            recentRuns: [
+                .init(
+                    id: "run-1",
+                    source: "RunSmart",
+                    startedAt: "2026-05-17T07:30:00Z",
+                    distanceKm: 4.8,
+                    movingTimeSeconds: 1_820,
+                    paceLabel: "6:19",
+                    averageHeartRateBPM: 142,
+                    rpe: 5,
+                    hasRoute: true
+                )
+            ],
+            recovery: .init(
+                readiness: nil,
+                bodyBattery: nil,
+                sleep: nil,
+                hrv: nil,
+                stress: nil,
+                recommendation: nil
+            ),
+            wellness: .init(
+                soreness: "Mild",
+                mood: "Good",
+                hydration: "Normal",
+                checkInStatus: "Checked in today."
+            ),
+            limitations: ["Recovery data is limited until HealthKit or Garmin syncs."]
+        )
+
+        let data = try JSONEncoder().encode(request)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let keySet = Set(object.keys.map { $0 })
+        let json = String(data: data, encoding: .utf8) ?? ""
+
+        XCTAssertEqual(keySet, [
+            "entryPoint",
+            "generatedAt",
+            "profile",
+            "plannedWorkout",
+            "recentRuns",
+            "recovery",
+            "wellness",
+            "limitations"
+        ])
+        XCTAssertTrue(json.contains("\"hasRoute\":true"))
+        XCTAssertFalse(json.contains("\"latitude\""))
+        XCTAssertFalse(json.contains("\"longitude\""))
+        XCTAssertFalse(json.contains("\"routePoints\""))
+        XCTAssertFalse(json.contains("\"coordinates\""))
+        XCTAssertFalse(json.contains("\"polyline\""))
+    }
+
     func testRunSmartAPIClientBuildsSupabaseFunctionRequestHeaders() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [RunSmartAPIStubProtocol.self]
