@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		CC0001022FA0B36A006C1A3C /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = CC0001012FA0B36A006C1A3C /* Supabase */; };
+		AA0001022FA0B36A006C1A3C /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = AA0001012FA0B36A006C1A3C /* PostHog */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -44,6 +45,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CC0001022FA0B36A006C1A3C /* Supabase in Frameworks */,
+				AA0001022FA0B36A006C1A3C /* PostHog in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -96,6 +98,7 @@
 			name = "IOS RunSmart app";
 			packageProductDependencies = (
 				CC0001012FA0B36A006C1A3C /* Supabase */,
+				AA0001012FA0B36A006C1A3C /* PostHog */,
 			);
 			productName = "IOS RunSmart app";
 			productReference = 33F1D5BE2FA0B36A006C1A3C /* IOS RunSmart app.app */;
@@ -154,6 +157,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				CC0001002FA0B36A006C1A3C /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				AA0001002FA0B36A006C1A3C /* XCRemoteSwiftPackageReference "posthog-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 33F1D5BF2FA0B36A006C1A3C /* Products */;
@@ -508,6 +512,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		AA0001002FA0B36A006C1A3C /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -515,6 +527,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CC0001002FA0B36A006C1A3C /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		AA0001012FA0B36A006C1A3C /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0001002FA0B36A006C1A3C /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
