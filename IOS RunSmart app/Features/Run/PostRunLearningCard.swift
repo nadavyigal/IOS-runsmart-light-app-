@@ -173,6 +173,9 @@ struct PostRunLearningCardModel: Hashable {
         isShort: Bool
     ) -> (title: String, kind: PostRunLearningAction) {
         if let report, let next = report.structuredNextWorkout {
+            if TrainingPlanRepository.suggestedWorkoutNeedsReview(next) {
+                return ("Review suggested workout", .unavailable(PostRunSuggestedWorkoutSaveCopy.reviewMessage))
+            }
             return ("Save suggested next run", .saveSuggestedWorkout(next, report))
         }
         if impact == .unavailable {
@@ -264,6 +267,13 @@ struct PostRunLearningCard: View {
                 Text(PostRunSuggestedWorkoutSaveCopy.failureMessage)
                     .font(.caption)
                     .foregroundStyle(Color.accentHeart)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if case let .unavailable(message) = model.action {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(model.planImpact == .needsReview ? Color.accentEnergy : Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

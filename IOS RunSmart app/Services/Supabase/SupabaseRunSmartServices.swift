@@ -19,6 +19,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     private let healthSync = HealthKitSyncService()
     private let store = RunSmartLocalStore.shared
     private let routeRemote: RouteRemoteStoring = SupabaseRouteRemoteStore()
+    private var remoteRouteTablesUnavailable = false
 
     private var currentUserID: UUID? { supabase.auth.currentUser?.id }
 
@@ -721,7 +722,17 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func savedRoutes() async -> [SavedRoute] {
         guard let userID = currentUserID else { return store.loadSavedRoutes() }
-        let remote = (try? await routeRemote.fetchSavedRoutes(userID: userID)) ?? []
+        let remote: [SavedRoute]
+        if remoteRouteTablesUnavailable {
+            remote = []
+        } else {
+            do {
+                remote = try await routeRemote.fetchSavedRoutes(userID: userID)
+            } catch {
+                remoteRouteTablesUnavailable = true
+                remote = []
+            }
+        }
         let merged = RouteSync.merge(remote: remote, local: store.loadSavedRoutes())
         for route in merged { store.saveSavedRoute(route) }
         return merged
@@ -761,7 +772,17 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func benchmarkRoutes() async -> [BenchmarkRoute] {
         guard let userID = currentUserID else { return store.loadBenchmarkRoutes() }
-        let remoteEntries = (try? await routeRemote.fetchBenchmarkEntries(userID: userID)) ?? []
+        let remoteEntries: [(id: UUID, savedRouteID: UUID, enabledAt: Date)]
+        if remoteRouteTablesUnavailable {
+            remoteEntries = []
+        } else {
+            do {
+                remoteEntries = try await routeRemote.fetchBenchmarkEntries(userID: userID)
+            } catch {
+                remoteRouteTablesUnavailable = true
+                remoteEntries = []
+            }
+        }
         let merged = RouteSync.mergeBenchmarks(remoteEntries: remoteEntries, local: store.loadBenchmarkRoutes())
         for benchmark in merged { store.saveBenchmarkRoute(benchmark) }
         return merged
@@ -970,7 +991,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             return report
         }
 
-        return store.cachedRunReport(runID: Self.reportRunID(for: run))
+        for runID in Self.reportRunIDCandidates(for: run) {
+            if let cached = store.cachedRunReport(runID: runID) {
+                return cached
+            }
+        }
+        return nil
     }
 
     func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? {
@@ -1383,20 +1409,9 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     private func fetchPostRunInsight(activityID: String) async -> DBAIInsight? {
-        do {
-            let rows: [DBAIInsight] = try await supabase
-                .from("ai_insights")
-                .select()
-                .eq("activity_id", value: activityID)
-                .eq("type", value: "post_run")
-                .order("created_at", ascending: false)
-                .limit(1)
-                .execute()
-                .value
-            return rows.first
-        } catch {
-            return nil
-        }
+        guard Self.remotePostRunInsightLookupEnabled else { return nil }
+        _ = activityID
+        return nil
     }
 
     private func planProgress(_ plan: TrainingPlanSnapshot) -> Double {
@@ -1880,14 +1895,23 @@ private struct DBWellnessCheckin: Decodable {
 extension SupabaseRunSmartServices {
     private func run(matchingReportRunID runID: String) async -> RecordedRun? {
         await recentRuns(limit: 100).first { run in
-            Self.reportRunID(for: run) == runID ||
-            run.providerActivityID == runID ||
-            run.id.uuidString == runID
+            Self.reportRunIDCandidates(for: run).contains(runID)
         }
     }
 
     static func reportRunID(for run: RecordedRun) -> String {
         run.consolidatedActivityID ?? run.providerActivityID ?? run.id.uuidString
+    }
+
+    static let remotePostRunInsightLookupEnabled = false
+
+    static func reportRunIDCandidates(for run: RecordedRun) -> [String] {
+        var seen = Set<String>()
+        return [run.consolidatedActivityID, run.providerActivityID, run.id.uuidString]
+            .compactMap { value in
+                guard let value, !value.isEmpty, seen.insert(value).inserted else { return nil }
+                return value
+            }
     }
 
     static func reportSkeleton(for run: RecordedRun) -> RunReportDetail {
