@@ -2,6 +2,7 @@ import SwiftUI
 
 enum PostRunSuggestedWorkoutSaveCopy {
     static let failureMessage = "Your run report is saved. Could not add the suggested workout to your plan; try again later."
+    static let reviewMessage = "Your run report is saved. This suggestion needs a distance before RunSmart can add it to your plan."
 }
 
 struct PostRunSummaryView: View {
@@ -204,6 +205,7 @@ private struct PostActivityPlanCard: View {
                     PostRunDetailLine(label: "Coach Report", value: report.notes.summary)
 
                     if let next = report.structuredNextWorkout {
+                        let needsReview = TrainingPlanRepository.suggestedWorkoutNeedsReview(next)
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Recommended Next Run")
                                 .font(.bodyMD.weight(.semibold))
@@ -217,15 +219,22 @@ private struct PostActivityPlanCard: View {
                             Button {
                                 Task { await save(next, report: report) }
                             } label: {
-                                Label(saveState.buttonTitle(isSaving: isSavingSuggestedWorkout), systemImage: saveState.symbol)
+                                Label(needsReview ? "Review Needed" : saveState.buttonTitle(isSaving: isSavingSuggestedWorkout), systemImage: needsReview ? "exclamationmark.triangle.fill" : saveState.symbol)
                                     .font(.buttonLabel)
                                     .frame(maxWidth: .infinity)
                                     .frame(height: 50)
-                                    .foregroundStyle(Color.black)
-                                    .background(Color.accentPrimary, in: Capsule())
+                                    .foregroundStyle(needsReview ? Color.textSecondary : Color.black)
+                                    .background(needsReview ? Color.surfaceCard : Color.accentPrimary, in: Capsule())
                             }
                             .buttonStyle(.plain)
-                            .disabled(isSavingSuggestedWorkout || saveState == .saved)
+                            .disabled(needsReview || isSavingSuggestedWorkout || saveState == .saved)
+
+                            if needsReview {
+                                Text(PostRunSuggestedWorkoutSaveCopy.reviewMessage)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.accentEnergy)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
 
                             if saveState == .failed {
                                 Text(saveFailureMessage)

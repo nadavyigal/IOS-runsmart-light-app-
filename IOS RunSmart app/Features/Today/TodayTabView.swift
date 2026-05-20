@@ -46,23 +46,28 @@ struct TodayTabView: View {
                 }
 
                 TodayWorkoutRecommendationCard(
+                    state: todayState,
                     recommendation: recommendation,
                     workout: todayWorkout,
-                    route: routeRecommendation.route ?? routes.first,
+                    route: todayState.showsTodayRoute ? routeRecommendation.route ?? routes.first : nil,
                     onStart: { router.startRun(with: todayWorkout) },
+                    onReviewReport: { openLatestReport() },
+                    onCoach: { router.openCoach(context: .today) },
                     onModify: { router.open(.planAdjustment) },
                     onSkip: { router.open(.reschedule(todayWorkout)) },
                     onRoute: { router.open(.routeSelector) }
                 )
                 .runSmartStaggeredAppear(index: 2)
 
-                TodayRouteRecommendationCard(
-                    recommendation: routeRecommendation,
-                    workout: todayWorkout,
-                    onUseRoute: { route in router.startRun(with: todayWorkout, route: route) },
-                    onBrowseRoutes: { router.open(.routeSelector) }
-                )
-                .runSmartStaggeredAppear(index: 3)
+                if todayState.showsTodayRoute {
+                    TodayRouteRecommendationCard(
+                        recommendation: routeRecommendation,
+                        workout: todayWorkout,
+                        onUseRoute: { route in router.startRun(with: todayWorkout, route: route) },
+                        onBrowseRoutes: { router.open(.routeSelector) }
+                    )
+                    .runSmartStaggeredAppear(index: 3)
+                }
 
                 PlanExplanationCard(
                     title: "Why this workout?",
@@ -166,7 +171,8 @@ struct TodayTabView: View {
             runsTask,
             recoveryTask
         )
-        let workout = Self.resolvedTodayWorkout(recommendation: rec, nextWorkouts: nw, weekWorkouts: week)
+        let resolvedState = TodayResolvedState.make(recommendation: rec, weekWorkouts: week, nextWorkouts: nw, recentRuns: runs)
+        let workout = resolvedState.primaryWorkout
         let rts = await services.rankedRouteSuggestions(targetDistanceKm: nil)
         recommendation = rec
         routes = rts
@@ -178,32 +184,6 @@ struct TodayTabView: View {
         activePlan = plan
         recentRuns = runs
         recovery = recov
-    }
-
-    private static func resolvedTodayWorkout(
-        recommendation: TodayRecommendation,
-        nextWorkouts: [WorkoutSummary],
-        weekWorkouts: [WorkoutSummary]
-    ) -> WorkoutSummary {
-        if let real = nextWorkouts.first(where: { $0.isToday }) ??
-            weekWorkouts.first(where: { Calendar.current.isDateInToday($0.scheduledDate) }) ??
-            nextWorkouts.first {
-            return real
-        }
-
-        return WorkoutSummary(
-            id: UUID(),
-            scheduledDate: Date(),
-            planID: nil,
-            weekday: "",
-            date: "",
-            kind: .easy,
-            title: recommendation.workoutTitle,
-            distance: recommendation.distance,
-            detail: recommendation.coachMessage,
-            isToday: true,
-            isComplete: false
-        )
     }
 
     private var header: some View {
@@ -246,21 +226,15 @@ struct TodayTabView: View {
     }
 
     private var todayWorkout: WorkoutSummary {
-        if let real = nextWorkouts.first(where: { $0.isToday }) ?? nextWorkouts.first {
-            return real
-        }
-        return WorkoutSummary(
-            id: UUID(),
-            scheduledDate: Date(),
-            planID: nil,
-            weekday: "",
-            date: "",
-            kind: .easy,
-            title: recommendation.workoutTitle,
-            distance: recommendation.distance,
-            detail: recommendation.coachMessage,
-            isToday: true,
-            isComplete: false
+        todayState.primaryWorkout
+    }
+
+    private var todayState: TodayResolvedState {
+        TodayResolvedState.make(
+            recommendation: recommendation,
+            weekWorkouts: weekWorkouts,
+            nextWorkouts: nextWorkouts,
+            recentRuns: recentRuns
         )
     }
 
@@ -305,6 +279,14 @@ struct TodayTabView: View {
         case .normal where explanation.action == "Set a goal":
             router.open(.goalWizard)
         default:
+            router.openCoach(context: .today)
+        }
+    }
+
+    private func openLatestReport() {
+        if let detail = runReports.first?.toDetail() {
+            router.open(.runReportDetail(detail))
+        } else {
             router.openCoach(context: .today)
         }
     }
@@ -646,10 +628,13 @@ private struct TodayWeekStripSection: View {
 }
 
 private struct TodayWorkoutRecommendationCard: View {
+    var state: TodayResolvedState
     var recommendation: TodayRecommendation
     var workout: WorkoutSummary
     var route: RouteSuggestion?
     var onStart: () -> Void
+    var onReviewReport: () -> Void
+    var onCoach: () -> Void
     var onModify: () -> Void
     var onSkip: () -> Void
     var onRoute: () -> Void
@@ -663,7 +648,7 @@ private struct TodayWorkoutRecommendationCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
-                Text("Today's Workout")
+                Text(state.headline)
                     .font(.headingLG)
                 Spacer()
                 Text(display.weekLabel)
@@ -760,25 +745,59 @@ private struct TodayWorkoutRecommendationCard: View {
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     }
 
-                    Button(action: onStart) {
-                        Label("Start Workout", systemImage: "play.fill")
+                    Button(action: primaryAction) {
+                        Label(state.primaryActionTitle, systemImage: primaryActionSymbol)
                     }
                     .buttonStyle(NeonButtonStyle())
 
-                    HStack(spacing: 20) {
-                        Button("Modify", action: onModify)
-                        Spacer()
-                        Button(route == nil ? "Route" : route!.name, action: onRoute)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                        Spacer()
-                        Button("Skip", action: onSkip)
+                    if state.showsStartAction {
+                        HStack(spacing: 20) {
+                            Button("Modify", action: onModify)
+                            Spacer()
+                            Button(route == nil ? "Route" : route!.name, action: onRoute)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                            Spacer()
+                            Button("Skip", action: onSkip)
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.textSecondary)
+                    } else if let upNext = state.upNextWorkout, state.kind == .completedToday {
+                        HStack(spacing: 8) {
+                            Image(systemName: "calendar")
+                                .font(.caption.weight(.bold))
+                            Text("Up next: \(upNext.title)")
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.74)
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.textSecondary)
                     }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.textSecondary)
                 }
                 .padding(18)
             }
+        }
+    }
+
+    private var primaryActionSymbol: String {
+        switch state.kind {
+        case .completedToday:
+            return "chart.xyaxis.line"
+        case .plannedToday:
+            return "play.fill"
+        default:
+            return "sparkles"
+        }
+    }
+
+    private func primaryAction() {
+        switch state.kind {
+        case .completedToday:
+            onReviewReport()
+        case .plannedToday:
+            onStart()
+        default:
+            onCoach()
         }
     }
 }

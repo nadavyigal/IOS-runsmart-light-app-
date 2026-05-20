@@ -356,7 +356,8 @@ final class RunSmartReadinessTests: XCTestCase {
         distance: String = "5.0 km",
         durationMinutes: Int? = nil,
         pace: Int? = nil,
-        intensity: String? = nil
+        intensity: String? = nil,
+        isComplete: Bool = false
     ) -> WorkoutSummary {
         let scheduledDate = makeDate(date)
         return WorkoutSummary(
@@ -370,7 +371,7 @@ final class RunSmartReadinessTests: XCTestCase {
             distance: distance,
             detail: "",
             isToday: false,
-            isComplete: false,
+            isComplete: isComplete,
             durationMinutes: durationMinutes,
             targetPaceSecondsPerKm: pace,
             intensity: intensity,
@@ -789,6 +790,80 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(display.steps.isEmpty)
     }
 
+    func testTodayResolvedStateSettlesAfterCompletedSameDayWorkoutAndKeepsFutureUpNext() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = makeDate("2026-05-20").addingTimeInterval(9 * 3600)
+        let completedToday = makeWorkout(
+            date: "2026-05-20",
+            kind: .long,
+            title: "Long Run",
+            distance: "10.0 km",
+            durationMinutes: 64,
+            isComplete: true
+        )
+        let future = makeWorkout(
+            date: "2026-05-25",
+            kind: .easy,
+            title: "Easy Reset",
+            distance: "5.0 km"
+        )
+        let run = makeRun(
+            source: .runSmart,
+            startedAt: now.addingTimeInterval(-3600),
+            distanceMeters: 10_100,
+            movingTimeSeconds: 64 * 60
+        )
+
+        let state = TodayResolvedState.make(
+            recommendation: TodayRecommendation(readiness: 82, readinessLabel: "Ready", workoutTitle: "Easy Reset", distance: "5.0 km", pace: "6:00 /km", elevation: "--", coachMessage: "Nice work today."),
+            weekWorkouts: [completedToday],
+            nextWorkouts: [future],
+            recentRuns: [run],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(state.kind, .completedToday)
+        XCTAssertEqual(state.primaryWorkout.id, completedToday.id)
+        XCTAssertEqual(state.completedRun?.id, run.id)
+        XCTAssertEqual(state.upNextWorkout?.id, future.id)
+        XCTAssertFalse(state.showsStartAction)
+        XCTAssertFalse(state.showsTodayRoute)
+        XCTAssertEqual(state.headline, "Run complete today")
+    }
+
+    func testTodayResolvedStateTreatsSameDayGarminImportAsCompletedWithoutWorkoutMatch() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = makeDate("2026-05-20").addingTimeInterval(12 * 3600)
+        let future = makeWorkout(date: "2026-05-25", title: "Easy Reset", distance: "5.0 km")
+        let garmin = makeRun(
+            providerActivityID: "garmin-today",
+            source: .garmin,
+            startedAt: now.addingTimeInterval(-2 * 3600),
+            distanceMeters: 7_200,
+            movingTimeSeconds: 42 * 60
+        )
+
+        let state = TodayResolvedState.make(
+            recommendation: TodayRecommendation(readiness: 70, readinessLabel: "Ready", workoutTitle: "Easy Reset", distance: "5.0 km", pace: "6:00 /km", elevation: "--", coachMessage: "Imported run counted."),
+            weekWorkouts: [],
+            nextWorkouts: [future],
+            recentRuns: [garmin],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(state.kind, .completedToday)
+        XCTAssertEqual(state.primaryWorkout.title, "Run complete today")
+        XCTAssertEqual(state.primaryWorkout.distance, "7.2 km")
+        XCTAssertEqual(state.completedRun?.source, .garmin)
+        XCTAssertEqual(state.upNextWorkout?.id, future.id)
+        XCTAssertFalse(state.showsStartAction)
+        XCTAssertFalse(state.showsTodayRoute)
+    }
+
     func testPlanExplanationExplainsTodayWorkoutOnTrack() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -868,6 +943,37 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(explanation.trigger, .missedWorkout)
         XCTAssertTrue(explanation.recommendation.contains("No stress"))
         XCTAssertEqual(explanation.action, "Reschedule")
+    }
+
+    func testPlanExplanationPrioritizesSameDayCompletedRunOverMissedWorkout() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = makeDate("2026-05-20").addingTimeInterval(12 * 3600)
+        let missed = makeWorkout(date: "2026-05-19", kind: .easy, title: "Easy Run", distance: "5.0 km")
+        let today = makeWorkout(date: "2026-05-20", kind: .long, title: "Long Run", distance: "10.0 km", isComplete: true)
+        let completedRun = makeRun(
+            source: .runSmart,
+            startedAt: now.addingTimeInterval(-2 * 3600),
+            distanceMeters: 10_100,
+            movingTimeSeconds: 64 * 60
+        )
+
+        let explanation = PlanExplanation.make(
+            activePlan: TrainingPlanSnapshot(id: UUID(), title: "10K Build", startDate: makeDate("2026-05-01"), endDate: makeDate("2026-06-30"), totalWeeks: 8, planType: "10K"),
+            todayWorkout: today,
+            weekWorkouts: [missed, today],
+            nextWorkouts: [],
+            recentRuns: [completedRun],
+            recovery: RecoverySnapshot(readiness: 72, bodyBattery: 68, sleep: "7h", hrv: "Stable", stress: "Low", recommendation: "Ready."),
+            recommendation: TodayRecommendation(readiness: 72, readinessLabel: "Ready", workoutTitle: "Long Run", distance: "10.0 km", pace: "6:00 /km", elevation: "--", coachMessage: ""),
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(explanation.trigger, .completedRun)
+        XCTAssertTrue(explanation.evidence.contains("Today"))
+        XCTAssertFalse(explanation.evidence.contains("Easy Run"))
+        XCTAssertNil(explanation.action)
     }
 
     func testPlanExplanationUsesRecentImportedAndLowRecoverySignals() {
@@ -962,6 +1068,10 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(report.hasGeneratedReport)
         XCTAssertFalse(report.summary.hasGeneratedReport)
         XCTAssertEqual(report.notes.summary, "No coach report yet.")
+    }
+
+    func testBrokenRemotePostRunInsightLookupIsDisabledBehindFallback() {
+        XCTAssertFalse(SupabaseRunSmartServices.remotePostRunInsightLookupEnabled)
     }
 
     func testPostRunLearningCardUsesFallbackReportAndSuggestedWorkoutAction() {
@@ -1615,6 +1725,29 @@ final class RunSmartReadinessTests: XCTestCase {
         )), 30)
     }
 
+    func testSuggestedWorkoutContractUsesSchemaValidValuesAndReviewForDurationOnly() {
+        let durationOnly = StructuredNextWorkout(
+            title: "Moderate Run",
+            dateLabel: "tomorrow",
+            distance: nil,
+            target: "25-40 min comfortable",
+            notes: nil
+        )
+        let distanceRun = StructuredNextWorkout(
+            title: "Easy 6 km",
+            dateLabel: "tomorrow",
+            distance: nil,
+            target: "Easy",
+            notes: nil
+        )
+
+        XCTAssertEqual(TrainingPlanRepository.durationMinutes(from: durationOnly), 25)
+        XCTAssertTrue(TrainingPlanRepository.suggestedWorkoutNeedsReview(durationOnly))
+        XCTAssertFalse(TrainingPlanRepository.suggestedWorkoutNeedsReview(distanceRun))
+        XCTAssertEqual(TrainingPlanRepository.suggestedWorkoutTrainingPhase, "base")
+        XCTAssertEqual(TrainingPlanRepository.recommendationFallbackPlanType, "basic")
+    }
+
     func testRecommendationPlanProfileReferenceFallbacksAreDeduped() {
         let authID = UUID(uuidString: "068053FD-0000-4000-8000-000000000000")!
         let references = TrainingPlanRepository.uniqueProfileReferences([
@@ -2235,6 +2368,28 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(match?.id, planned.id)
     }
 
+    func testWorkoutCompletionPayloadIncludesActualRunMetrics() throws {
+        let startedAt = makeDate("2026-05-20").addingTimeInterval(7 * 3600)
+        let run = makeRun(
+            source: .runSmart,
+            startedAt: startedAt,
+            distanceMeters: 7_060,
+            movingTimeSeconds: 40 * 60 + 24
+        )
+
+        let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(DBWorkoutCompletionUpdate(run: run))) as? [String: Any]
+        let keys = Set(object?.keys.map { $0 } ?? [])
+        let completedAtFormatter = ISO8601DateFormatter()
+        completedAtFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        XCTAssertEqual(keys, ["completed", "completed_at", "actual_distance_km", "actual_duration_minutes", "actual_pace"])
+        XCTAssertEqual(object?["completed"] as? Bool, true)
+        XCTAssertEqual(object?["actual_distance_km"] as? Double, 7.06)
+        XCTAssertEqual(object?["actual_duration_minutes"] as? Int, 40)
+        XCTAssertEqual(object?["actual_pace"] as? Double, Double((run.averagePaceSecondsPerKm * 10).rounded()) / 10)
+        XCTAssertNotNil(completedAtFormatter.date(from: object?["completed_at"] as? String ?? ""))
+    }
+
     func testCompletedTodayWorkoutFallsThroughToNextActionableWorkout() throws {
         let planID = UUID(uuidString: "88888888-8888-8888-8888-888888888888")!
         let today = Calendar.current.startOfDay(for: Date())
@@ -2298,6 +2453,34 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(SupabaseRunSmartServices.reportRunID(for: runSmartOnly), SupabaseRunSmartServices.reportRunID(for: afterGarmin))
         XCTAssertEqual(afterGarmin.source, .garmin)
         XCTAssertEqual(afterGarmin.routePoints, points)
+    }
+
+    func testReportLookupCandidatesPreserveOriginalRunSmartAndGarminAliases() {
+        let start = makeDate("2026-05-18").addingTimeInterval(7 * 3600)
+        let runSmart = makeRun(
+            id: UUID(uuidString: "99999999-0000-4000-8000-000000000001")!,
+            source: .runSmart,
+            startedAt: start,
+            distanceMeters: 7_050,
+            movingTimeSeconds: 40 * 60
+        )
+        let garmin = makeRun(
+            id: UUID(uuidString: "99999999-0000-4000-8000-000000000002")!,
+            providerActivityID: "garmin-999",
+            source: .garmin,
+            startedAt: start.addingTimeInterval(45),
+            distanceMeters: 7_020,
+            movingTimeSeconds: 40 * 60,
+            heartRate: 146
+        )
+
+        let canonical = ActivityConsolidationService.consolidatedRuns([runSmart, garmin])[0]
+        let candidates = SupabaseRunSmartServices.reportRunIDCandidates(for: canonical)
+
+        XCTAssertEqual(candidates.first, SupabaseRunSmartServices.reportRunID(for: canonical))
+        XCTAssertTrue(candidates.contains("garmin-999"))
+        XCTAssertTrue(candidates.contains(canonical.id.uuidString))
+        XCTAssertEqual(Set(candidates).count, candidates.count)
     }
 
     func testSuggestedWorkoutDateHandlesRelativeAndFormattedLabels() {

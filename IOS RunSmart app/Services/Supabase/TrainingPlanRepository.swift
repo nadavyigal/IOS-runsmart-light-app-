@@ -493,6 +493,11 @@ final class TrainingPlanRepository {
     }
 
     func saveSuggestedWorkout(authUserID: UUID, suggestion: StructuredNextWorkout, report: RunReportDetail) async -> Bool {
+        guard !Self.suggestedWorkoutNeedsReview(suggestion) else {
+            print("[TrainingPlanRepo] saveSuggestedWorkout needs review: missing distance")
+            return false
+        }
+
         var active = await activePlan(authUserID: authUserID)
         if active == nil {
             active = await createRecommendationPlan(authUserID: authUserID, suggestion: suggestion, report: report)
@@ -530,7 +535,7 @@ final class TrainingPlanRepository {
             notes: notes.isEmpty ? nil : notes,
             workoutStructure: suggestion.notes,
             intensity: suggestion.target,
-            trainingPhase: "coach-recommendation"
+            trainingPhase: Self.suggestedWorkoutTrainingPhase
         )
 
         do {
@@ -571,7 +576,7 @@ final class TrainingPlanRepository {
                         endDate: ISO8601DateFormatter.shortDate.string(from: endDate),
                         totalWeeks: 4,
                         isActive: true,
-                        planType: "recommendations",
+                        planType: Self.recommendationFallbackPlanType,
                         trainingDaysPerWeek: 3,
                         targetDistance: Self.distanceKm(from: suggestion.distance) ?? Self.distanceKm(from: suggestion.title),
                         targetTime: nil,
@@ -605,7 +610,7 @@ final class TrainingPlanRepository {
         do {
             try await supabase
                 .from("workouts")
-                .update(DBWorkoutCompletionUpdate(completed: true))
+                .update(DBWorkoutCompletionUpdate(run: run))
                 .eq("id", value: match.id.uuidString)
                 .execute()
             var completed = match
@@ -797,6 +802,13 @@ final class TrainingPlanRepository {
 
     static func durationMinutes(from suggestion: StructuredNextWorkout) -> Int? {
         let source = [suggestion.notes, suggestion.target, suggestion.title].compactMap { $0 }.joined(separator: " ")
+        if let rangeMatch = source.range(of: #"(\d+)\s*-\s*(\d+)\s*(min|minute)"#, options: [.regularExpression, .caseInsensitive]) {
+            let text = String(source[rangeMatch])
+            guard let numberRange = text.range(of: #"\d+"#, options: .regularExpression) else {
+                return nil
+            }
+            return Int(text[numberRange])
+        }
         guard let match = source.range(of: #"(\d+)\s*(min|minute)"#, options: [.regularExpression, .caseInsensitive]) else {
             return nil
         }
@@ -805,6 +817,14 @@ final class TrainingPlanRepository {
             return nil
         }
         return Int(text[numberRange])
+    }
+
+    static let suggestedWorkoutTrainingPhase = "base"
+    static let recommendationFallbackPlanType = "basic"
+
+    static func suggestedWorkoutNeedsReview(_ suggestion: StructuredNextWorkout) -> Bool {
+        let hasDistance = distanceKm(from: suggestion.distance) != nil || distanceKm(from: suggestion.title) != nil
+        return !hasDistance
     }
 
     static func paceSecondsPerKm(from value: String?) -> Int? {
@@ -1040,8 +1060,36 @@ private struct DBWorkoutUpdate: Encodable {
     }
 }
 
-private struct DBWorkoutCompletionUpdate: Encodable {
+struct DBWorkoutCompletionUpdate: Encodable {
     let completed: Bool
+    let completedAt: String
+    let actualDistanceKm: Double
+    let actualDurationMinutes: Int
+    let actualPace: Double?
+
+    private static let completedAtFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    init(run: RecordedRun) {
+        completed = true
+        completedAt = Self.completedAtFormatter.string(from: run.endedAt)
+        actualDistanceKm = Double(((run.distanceMeters / 1_000) * 100).rounded()) / 100
+        actualDurationMinutes = max(1, Int((run.movingTimeSeconds / 60).rounded()))
+        actualPace = run.averagePaceSecondsPerKm.isFinite && run.averagePaceSecondsPerKm > 0
+            ? Double((run.averagePaceSecondsPerKm * 10).rounded()) / 10
+            : nil
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case completed
+        case completedAt = "completed_at"
+        case actualDistanceKm = "actual_distance_km"
+        case actualDurationMinutes = "actual_duration_minutes"
+        case actualPace = "actual_pace"
+    }
 }
 
 // MARK: - DBWorkout → WorkoutSummary
