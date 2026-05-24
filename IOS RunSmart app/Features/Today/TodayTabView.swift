@@ -74,16 +74,24 @@ struct TodayTabView: View {
                     .runSmartStaggeredAppear(index: 3)
                 }
 
+                if let safety = recommendation.safetyExplanation {
+                    SafetyExplanationCard(
+                        explanation: safety,
+                        onAction: { router.open(.amendWorkout(primaryWorkout)) }
+                    )
+                    .runSmartStaggeredAppear(index: 4)
+                }
+
                 PlanExplanationCard(
                     title: "Why this workout?",
                     explanation: explanation,
                     onAction: { handleExplanationAction(explanation, workout: primaryWorkout) }
                 )
-                .runSmartStaggeredAppear(index: 4)
+                .runSmartStaggeredAppear(index: 5)
 
                 if Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
                     Beginner5KHabitCard(track: habitTrack)
-                        .runSmartStaggeredAppear(index: 5)
+                        .runSmartStaggeredAppear(index: 6)
                 }
 
                 TodayQuickActions(
@@ -91,30 +99,30 @@ struct TodayTabView: View {
                     onAddActivity: openAddActivity,
                     onCoach: openTodayCoach
                 )
-                .runSmartStaggeredAppear(index: 6)
+                .runSmartStaggeredAppear(index: 7)
 
                 InsightCard(
                     title: "Coach Insight",
                     message: recommendation.coachMessage,
                     action: openTodayCoach
                 )
-                .runSmartStaggeredAppear(index: 7)
+                .runSmartStaggeredAppear(index: 8)
 
                 if !coachMessages.isEmpty {
                     TodayConversationPreview(messages: coachMessages) {
                         openTodayCoach()
                     }
-                    .runSmartStaggeredAppear(index: 8)
+                    .runSmartStaggeredAppear(index: 9)
                 }
 
                 quickStats
-                    .runSmartStaggeredAppear(index: 9)
+                    .runSmartStaggeredAppear(index: 10)
 
                 if !nextWorkouts.isEmpty {
                     UpcomingRunsCard(workouts: nextWorkouts) { workout in
                         openWorkoutDetail(workout)
                     }
-                    .runSmartStaggeredAppear(index: 10)
+                    .runSmartStaggeredAppear(index: 11)
                 }
 
                 if !runReports.isEmpty {
@@ -123,11 +131,11 @@ struct TodayTabView: View {
                             openReportDetail(detail)
                         }
                     }
-                    .runSmartStaggeredAppear(index: 11)
+                    .runSmartStaggeredAppear(index: 12)
                 }
 
                 WeatherConditionsCard()
-                    .runSmartStaggeredAppear(index: 12)
+                    .runSmartStaggeredAppear(index: 13)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
@@ -341,6 +349,76 @@ struct TodayTabView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         return "\(formatter.string(from: start)) - \(formatter.string(from: end))"
+    }
+}
+
+struct SafetyExplanationCard: View {
+    var explanation: SafetyExplanation
+    var onAction: (() -> Void)?
+
+    private let tint = Color.accentAmber
+
+    private var symbol: String {
+        switch explanation.kind {
+        case .readinessGate: "shield.fill"
+        case .lowBodyBattery: "battery.25"
+        case .lowHRV: "waveform.path.ecg"
+        case .restAdvised: "moon.fill"
+        }
+    }
+
+    var body: some View {
+        RunSmartPanel(cornerRadius: 20, padding: 16, accent: tint) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: symbol)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.black)
+                        .frame(width: 34, height: 34)
+                        .background(tint, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(explanation.headline)
+                            .font(.bodyLG.weight(.semibold))
+                            .foregroundStyle(Color.textPrimary)
+                        Text("Coach safety · Heuristic")
+                            .font(.labelSM)
+                            .foregroundStyle(Color.textSecondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                Text(explanation.coachVoice)
+                    .font(.bodyMD)
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(explanation.evidence)
+                    .font(.labelSM)
+                    .foregroundStyle(Color.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let action = explanation.action, let onAction {
+                    Button(action: onAction) {
+                        HStack {
+                            Text(action)
+                                .font(.bodyMD.weight(.bold))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                        }
+                        .foregroundStyle(tint)
+                        .padding(.horizontal, 12)
+                        .frame(height: 44)
+                        .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(tint.opacity(0.28), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 }
 

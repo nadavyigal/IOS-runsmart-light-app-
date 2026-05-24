@@ -158,6 +158,22 @@ struct TodayRecommendation {
     var recovery: String = "--"
     var hrv: String = "--"
     var rationale: String? = nil
+    var safetyExplanation: SafetyExplanation? = nil
+}
+
+enum SafetyExplanationKind: String, Hashable {
+    case readinessGate
+    case lowBodyBattery
+    case lowHRV
+    case restAdvised
+}
+
+struct SafetyExplanation: Hashable {
+    var kind: SafetyExplanationKind
+    var headline: String
+    var coachVoice: String
+    var evidence: String
+    var action: String?
 }
 
 enum TodayResolvedStateKind: Hashable {
