@@ -16,6 +16,7 @@ struct TodayTabView: View {
     @State private var recentRuns: [RecordedRun] = []
     @State private var recovery: RecoverySnapshot = .loading
     @State private var activeChallenge: ChallengeSummary = .loading
+    @State private var challengeLoaded = false
     @State private var pendingLoadTask: Task<Void, Never>?
 
     private var greeting: String {
@@ -47,7 +48,8 @@ struct TodayTabView: View {
                 if activeChallenge.isActive {
                     ChallengeProgressCard(challenge: activeChallenge, onTap: openChallenges)
                         .runSmartStaggeredAppear(index: 1)
-                } else if Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
+                } else if challengeLoaded,
+                          Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
                     ChallengeInviteCard(onEnrolled: scheduleLoad)
                         .runSmartStaggeredAppear(index: 1)
                 }
@@ -90,7 +92,7 @@ struct TodayTabView: View {
                 )
                 .runSmartStaggeredAppear(index: 5)
 
-                if !activeChallenge.isActive,
+                if (!challengeLoaded || !activeChallenge.isActive),
                    Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
                     Beginner5KHabitCard(track: habitTrack)
                         .runSmartStaggeredAppear(index: 6)
@@ -202,6 +204,7 @@ struct TodayTabView: View {
         recentRuns = runs
         recovery = recov
         activeChallenge = challenge
+        challengeLoaded = true
     }
 
     private var header: some View {

@@ -16,7 +16,7 @@ struct ChallengeProgressCard: View {
                             .background(Color.accentPrimary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("21-DAY RUNNING FOUNDATION")
+                            Text(challenge.title.uppercased())
                                 .font(.labelSM)
                                 .tracking(1.4)
                                 .foregroundStyle(Color.textSecondary)

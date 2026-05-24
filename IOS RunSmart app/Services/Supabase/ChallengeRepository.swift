@@ -90,7 +90,7 @@ final class ChallengeRepository {
             title: challenge.title,
             detail: challenge.description.isEmpty ? "\(challenge.durationDays)-day challenge" : challenge.description,
             progress: min(1, Double(boundedDay) / Double(max(1, challenge.durationDays))),
-            dayLabel: "Day \(boundedDay)/\(challenge.durationDays)",
+            dayLabel: "Day \(boundedDay) of \(challenge.durationDays)",
             isActive: true
         )
     }
