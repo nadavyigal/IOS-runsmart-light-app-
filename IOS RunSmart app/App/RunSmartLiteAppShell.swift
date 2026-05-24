@@ -25,7 +25,9 @@ final class AppRouter: ObservableObject {
         let args = ProcessInfo.processInfo.arguments
         if let idx = args.firstIndex(of: "-INITIAL_TAB"),
            args.indices.contains(idx + 1),
-           let tab = RunSmartTab(rawValue: args[idx + 1]) {
+           let tab = RunSmartTab.allCases.first(where: { tab in
+               tab.rawValue.caseInsensitiveCompare(args[idx + 1]) == .orderedSame
+           }) {
             return tab
         }
 #endif
@@ -75,21 +77,44 @@ final class AppRouter: ObservableObject {
     }
 }
 
+enum RunSmartScreenshotMode {
+    static var isEnabled: Bool {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-RUNSMART_SCREENSHOT_MODE")
+#else
+        false
+#endif
+    }
+
+    static var services: any RunSmartServiceProviding {
+#if DEBUG
+        isEnabled ? MockRunSmartServices() : SupabaseRunSmartServices.shared
+#else
+        SupabaseRunSmartServices.shared
+#endif
+    }
+}
+
 struct RunSmartLiteAppShell: View {
     @StateObject private var router = AppRouter()
     @StateObject private var session = SupabaseSession()
     @StateObject private var recorder = RunRecorder()
     @State private var didPresentMorningCheckin = false
-    @State private var isShowingLaunch = true
+    @State private var isShowingLaunch = !RunSmartScreenshotMode.isEnabled
     @State private var planNotice: RunSmartPlanNotice?
     @State private var planNoticeDismissTask: Task<Void, Never>?
-    private let services = SupabaseRunSmartServices.shared
+    private let services: any RunSmartServiceProviding = RunSmartScreenshotMode.services
 
     var body: some View {
         ZStack {
             RunSmartBackground(context: RunSmartBackgroundContext(tab: router.selectedTab))
 
-            if session.isLoading {
+            if RunSmartScreenshotMode.isEnabled {
+                tabContent
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        CustomTabBar(selectedTab: $router.selectedTab)
+                    }
+            } else if session.isLoading {
                 RunSmartLaunchView()
             } else if !session.isAuthenticated {
                 SignInView()
@@ -100,15 +125,7 @@ struct RunSmartLiteAppShell: View {
                 }
                 .environmentObject(session)
             } else {
-                Group {
-                    switch router.selectedTab {
-                    case .today:   TodayTabView()
-                    case .plan:    PlanTabView()
-                    case .run:     RunTabView()
-                    case .report:  ReportTabView()
-                    case .profile: ProfileTabView()
-                    }
-                }
+                tabContent
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     CustomTabBar(selectedTab: $router.selectedTab)
                 }
@@ -142,6 +159,7 @@ struct RunSmartLiteAppShell: View {
             showPlanGenerationNotice(status)
         }
         .task {
+            guard !RunSmartScreenshotMode.isEnabled else { return }
             PushService.shared.configureNavigation { destination in
                 router.openNotificationDestination(destination)
             }
@@ -151,16 +169,20 @@ struct RunSmartLiteAppShell: View {
             }
         }
         .task(id: session.hasCompletedOnboarding) {
+            guard !RunSmartScreenshotMode.isEnabled else { return }
             guard session.isAuthenticated, session.hasCompletedOnboarding else { return }
             await refreshReturnLoopReminders()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanDidChange)) { _ in
+            guard !RunSmartScreenshotMode.isEnabled else { return }
             Task { await refreshReturnLoopReminders() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
+            guard !RunSmartScreenshotMode.isEnabled else { return }
             Task { await refreshReturnLoopReminders() }
         }
         .task(id: session.hasCompletedOnboarding) {
+            guard !RunSmartScreenshotMode.isEnabled else { return }
             guard session.isAuthenticated, session.hasCompletedOnboarding, !didPresentMorningCheckin else { return }
             didPresentMorningCheckin = true
             try? await Task.sleep(nanoseconds: 650_000_000)
@@ -189,6 +211,17 @@ struct RunSmartLiteAppShell: View {
                     .environment(\.runSmartServices, services)
                     .environment(\.runRecorder, recorder)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch router.selectedTab {
+        case .today:   TodayTabView()
+        case .plan:    PlanTabView()
+        case .run:     RunTabView()
+        case .report:  ReportTabView()
+        case .profile: ProfileTabView()
         }
     }
 

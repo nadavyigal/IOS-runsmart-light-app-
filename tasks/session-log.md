@@ -1281,6 +1281,40 @@ Implemented route feature Story 9: Garmin Import Processing Into Route Flow.
 - Route Supabase Garmin sync through `processCompletedActivity` so matching, report generation, workout completion, and benchmark report cards use the same path as recorded runs.
 - Persist canonical completed runs even when route matching returns nil, so missing-map imports do not disappear from local history.
 
+## 2026-05-24
+
+### Task Summary
+Implemented the App Store readiness closeout plan for local pre-archive readiness: deterministic DEBUG-only screenshot mode, full iPhone screenshot asset generation, App Store Connect portal value documentation, and validation gates.
+
+### Files Changed
+- `IOS RunSmart app/App/RunSmartLiteAppShell.swift`
+- `fastlane/Fastfile`
+- `fastlane/scripts/capture-app-store-screenshots.sh`
+- `fastlane/screenshots/en-US/`
+- `docs/qa/app-store-connect-closeout-2026-05-24.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Kept screenshot mode behind `#if DEBUG` and `-RUNSMART_SCREENSHOT_MODE` so Release/App Store archive behavior remains production-backed.
+- Reused the existing `-INITIAL_TAB` launch argument and made matching case-insensitive because `RunSmartTab` raw values are title-cased.
+- Used `MockRunSmartServices`/preview data for screenshots to avoid live user data, credentials, Supabase calls, onboarding, HealthKit, Garmin, or location prompts.
+- Wired `fastlane screenshots` to a local simulator capture script that validates exact required image dimensions.
+- Moved the old sign-in screenshot to a supplemental `99_signin` filename so the first five upload-sorted screenshots are product screens.
+
+### Validation
+- `git diff --check` passed.
+- `bash -n fastlane/scripts/capture-app-store-screenshots.sh` passed.
+- No untracked Swift files were found under the app or test targets.
+- `bash fastlane/scripts/capture-app-store-screenshots.sh` passed after fixing the tab argument casing and increasing the capture settle delay.
+- `sips` confirmed all five 6.9-inch product screenshots are `1320 x 2868` and all five 6.1-inch product screenshots are `1170 x 2532`.
+- Visual inspection confirmed screenshots are tab-specific, nonblank, free of auth/onboarding overlays, and use deterministic sample data.
+- Focused `RunSmartReadinessTests` passed with signing disabled on an iPhone 17 Pro simulator.
+- Built app metadata confirmed bundle id `com.runsmart.lite`, display name `RunSmart`, version `1.0`, build `5`, iPhone-only device family, encryption export flag `false`, HealthKit/location permission strings, release URLs, and Garmin gateway URL.
+
+### Remaining Portal-Only Work
+- After the merged archive is uploaded and processed in App Store Connect, select the processed build, confirm privacy questionnaire/category/age rating/screenshots/reviewer notes, and enter demo credentials directly in the portal.
+
 ### Validation
 - Focused Story 9 tests passed:
   `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminImportProcessorHydratesRoutePointsAndOrdersNewestFirst" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminImportProcessorKeepsRouteLessRunWhenMapDataIsMissing" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminImportProcessorSkipsHiddenRunsBeforeSelectingNewest" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testGarminImportProcessorDedupesDuplicateProviderActivities" test`
