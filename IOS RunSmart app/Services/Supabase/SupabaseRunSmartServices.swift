@@ -88,6 +88,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             planWeekIndex: planWeekIndex
         )
 
+        let safetyExplanation = SafetyExplanationBuilder.explanation(
+            readiness: readiness,
+            bodyBattery: metrics?.bodyBattery,
+            hrv: metrics?.hrv ?? healthSnapshot?.hrvMilliseconds,
+            workoutTitle: todayWorkout?.workoutTitle ?? "Rest Day",
+            isRestDay: todayWorkout == nil
+        )
+
         return TodayRecommendation(
             readiness: readiness,
             readinessLabel: readinessLabel,
@@ -100,7 +108,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             streak: "\(streakDays) days",
             recovery: sleepHours,
             hrv: hrvLabel,
-            rationale: generatedRationale
+            rationale: generatedRationale,
+            safetyExplanation: safetyExplanation
         )
     }
 
@@ -2295,5 +2304,65 @@ struct TodayRationaleBuilder {
         }
 
         return "Consistency is the foundation. Today's run keeps your training momentum going."
+    }
+}
+
+// MARK: - SafetyExplanationBuilder
+
+struct SafetyExplanationBuilder {
+    static func explanation(
+        readiness: Int,
+        bodyBattery: Int?,
+        hrv: Double?,
+        workoutTitle: String,
+        isRestDay: Bool
+    ) -> SafetyExplanation? {
+        guard readiness > 0 else { return nil }
+
+        if readiness < 45 {
+            let evidence = evidenceString(readiness: readiness, bodyBattery: bodyBattery, hrv: hrv)
+            let coachVoice = isRestDay
+                ? "Your readiness is at \(readiness) — your body is telling me it needs more time to absorb the last training block. Today's rest is doing real work."
+                : "Your readiness is at \(readiness) — your body hasn't fully recovered yet. A lighter effort today protects the quality of your next hard session."
+            return SafetyExplanation(
+                kind: .readinessGate,
+                headline: "Coach is keeping today easy",
+                coachVoice: coachVoice,
+                evidence: evidence,
+                action: isRestDay ? nil : "Amend workout"
+            )
+        }
+
+        if let bb = bodyBattery, bb < 35, readiness < 65 {
+            let evidence = evidenceString(readiness: readiness, bodyBattery: bb, hrv: hrv)
+            return SafetyExplanation(
+                kind: .lowBodyBattery,
+                headline: "Energy reserves are low",
+                coachVoice: "Body battery is at \(bb). Your reserves are depleted — a controlled effort today keeps you from digging a hole that hurts the rest of the week.",
+                evidence: evidence,
+                action: "Amend workout"
+            )
+        }
+
+        if let hrv = hrv, hrv < 40, readiness < 65 {
+            let rounded = Int(hrv)
+            let evidence = evidenceString(readiness: readiness, bodyBattery: bodyBattery, hrv: hrv)
+            return SafetyExplanation(
+                kind: .lowHRV,
+                headline: "Nervous system still recovering",
+                coachVoice: "HRV is lower than usual at \(rounded) ms — a sign your nervous system is still catching up. Today's run should stay at a fully conversational pace.",
+                evidence: evidence,
+                action: "Amend workout"
+            )
+        }
+
+        return nil
+    }
+
+    private static func evidenceString(readiness: Int, bodyBattery: Int?, hrv: Double?) -> String {
+        var parts: [String] = ["Readiness \(readiness)"]
+        if let bb = bodyBattery { parts.append("body battery \(bb)") }
+        if let hrv = hrv { parts.append("HRV \(Int(hrv)) ms") }
+        return parts.joined(separator: " · ")
     }
 }

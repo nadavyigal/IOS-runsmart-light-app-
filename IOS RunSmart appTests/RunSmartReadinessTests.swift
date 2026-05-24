@@ -3002,6 +3002,107 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertNil(TodayRecommendation.placeholder.rationale,
                      "Placeholder must not show a rationale — card should hide the row gracefully")
     }
+
+    // MARK: - SafetyExplanationBuilder
+
+    func testSafetyExplanationBuilderFiresReadinessGateWhenReadinessIsLow() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 38,
+            bodyBattery: nil,
+            hrv: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.kind, .readinessGate)
+        XCTAssertFalse(result?.coachVoice.isEmpty ?? true)
+        XCTAssertEqual(result?.action, "Amend workout")
+    }
+
+    func testSafetyExplanationBuilderReadinessGateOnRestDayHasNoAction() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 32,
+            bodyBattery: nil,
+            hrv: nil,
+            workoutTitle: "Rest Day",
+            isRestDay: true
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.kind, .readinessGate)
+        XCTAssertNil(result?.action)
+    }
+
+    func testSafetyExplanationBuilderFiresLowBodyBatteryWhenReadinessIsModerate() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 60,
+            bodyBattery: 28,
+            hrv: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.kind, .lowBodyBattery)
+        XCTAssertTrue(result?.coachVoice.contains("28") ?? false)
+    }
+
+    func testSafetyExplanationBuilderFiresLowHRVWhenBodyBatteryIsAboveThreshold() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 55,
+            bodyBattery: 50,
+            hrv: 35.0,
+            workoutTitle: "Easy Run",
+            isRestDay: false
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.kind, .lowHRV)
+        XCTAssertTrue(result?.coachVoice.contains("35") ?? false)
+    }
+
+    func testSafetyExplanationBuilderReturnsNilWhenReadinessIsGood() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 80,
+            bodyBattery: 72,
+            hrv: 60.0,
+            workoutTitle: "Tempo Run",
+            isRestDay: false
+        )
+        XCTAssertNil(result)
+    }
+
+    func testSafetyExplanationBuilderReturnsNilWhenReadinessIsZero() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 0,
+            bodyBattery: 20,
+            hrv: 30.0,
+            workoutTitle: "Easy Run",
+            isRestDay: false
+        )
+        XCTAssertNil(result)
+    }
+
+    func testSafetyExplanationBuilderBoundaryReadiness45DoesNotFireGate() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 45,
+            bodyBattery: nil,
+            hrv: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false
+        )
+        XCTAssertNil(result)
+    }
+
+    func testSafetyExplanationBuilderEvidenceIncludesReadiness() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 38,
+            bodyBattery: 25,
+            hrv: 42.0,
+            workoutTitle: "Easy Run",
+            isRestDay: false
+        )
+        XCTAssertNotNil(result)
+        XCTAssertTrue(result?.evidence.contains("38") ?? false)
+        XCTAssertTrue(result?.evidence.contains("25") ?? false)
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {
