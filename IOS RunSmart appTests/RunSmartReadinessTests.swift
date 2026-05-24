@@ -2821,6 +2821,53 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(payload.shareText.lowercased().contains("coordinate"))
         XCTAssertTrue(payload.privacyNote.lowercased().contains("no map"))
     }
+
+    // MARK: - E1: TodayRecommendation rationale field (Story 1)
+
+    func testTodayRecommendationRationaleDefaultsToNil() {
+        let rec = TodayRecommendation(
+            readiness: 75,
+            readinessLabel: "Good",
+            workoutTitle: "Easy Run",
+            distance: "5 km",
+            pace: "6:00",
+            elevation: "--",
+            coachMessage: "Let's go"
+        )
+        XCTAssertNil(rec.rationale, "rationale must default to nil")
+    }
+
+    func testTodayRecommendationAcceptsRationaleString() {
+        let rec = TodayRecommendation(
+            readiness: 75,
+            readinessLabel: "Good",
+            workoutTitle: "Easy Run",
+            distance: "5 km",
+            pace: "6:00",
+            elevation: "--",
+            coachMessage: "Let's go",
+            rationale: "Body battery at 82 — a strong signal you're ready to push today."
+        )
+        XCTAssertEqual(rec.rationale, "Body battery at 82 — a strong signal you're ready to push today.")
+    }
+
+    func testTodayRecommendationWithRationaleCompiles() {
+        let withRationale = TodayRecommendation(
+            readiness: 80, readinessLabel: "High",
+            workoutTitle: "Easy Run", distance: "5 km",
+            pace: "6:00", elevation: "--",
+            coachMessage: "Go run.",
+            rationale: "Body battery at 80 — a strong signal today."
+        )
+        let withoutRationale = TodayRecommendation(
+            readiness: 80, readinessLabel: "High",
+            workoutTitle: "Easy Run", distance: "5 km",
+            pace: "6:00", elevation: "--",
+            coachMessage: "Go run."
+        )
+        XCTAssertNotNil(withRationale.rationale)
+        XCTAssertNil(withoutRationale.rationale)
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {

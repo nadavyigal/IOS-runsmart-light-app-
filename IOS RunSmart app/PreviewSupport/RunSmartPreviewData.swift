@@ -20,7 +20,8 @@ enum RunSmartPreviewData {
         distance: "8.2 km",
         pace: "5'15\" /km",
         elevation: "128 m",
-        coachMessage: "You've built great momentum this week. Let's keep it going with a smart challenge."
+        coachMessage: "You've built great momentum this week. Let's keep it going with a smart challenge.",
+        rationale: "Body battery at 82 — you're fueled for a real effort. Tempo Builder lands well today."
     )
 
     static let workouts: [WorkoutSummary] = {

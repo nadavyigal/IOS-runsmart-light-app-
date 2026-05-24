@@ -157,6 +157,7 @@ struct TodayRecommendation {
     var streak: String = "--"
     var recovery: String = "--"
     var hrv: String = "--"
+    var rationale: String? = nil
 }
 
 enum TodayResolvedStateKind: Hashable {

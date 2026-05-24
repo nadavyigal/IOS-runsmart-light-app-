@@ -33,6 +33,7 @@ enum RunSmartDTO {
         let targetPaceLabel: String
         let elevationLabel: String
         let coachMessage: String
+        var rationale: String? = nil
     }
 
     struct PlanPayload: Codable {
