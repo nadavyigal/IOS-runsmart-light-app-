@@ -668,7 +668,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 id: route.id.uuidString, name: route.name,
                 distanceKm: route.distanceKm,
                 elevationGainMeters: route.elevationGainMeters,
-                estimatedDurationMinutes: max(1, Int((route.distanceKm * 360).rounded() / 60)),
+                estimatedDurationMinutes: max(1, Int((route.distanceKm * 360.0).rounded()) / 60),
                 points: route.points, kind: kind,
                 recommendationReason: reason,
                 savedRouteID: route.id, isFavorite: route.isFavorite
@@ -1823,7 +1823,8 @@ struct DBRunInsert: Encodable {
         let syncedAt = Date()
         self.profileID = profileID
         self.type = kind.supabaseType
-        self.distance = Double((run.distanceMeters / 1_000 * 1000).rounded()) / 1000
+        let distanceKm: Double = (run.distanceMeters / 1_000 * 1_000).rounded() / 1_000
+        self.distance = distanceKm
         self.duration = Int(run.movingTimeSeconds.rounded())
         self.pace = run.averagePaceSecondsPerKm.isFinite ? run.averagePaceSecondsPerKm : nil
         self.heartRate = run.averageHeartRateBPM

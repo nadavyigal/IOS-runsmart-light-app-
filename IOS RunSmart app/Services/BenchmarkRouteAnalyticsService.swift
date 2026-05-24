@@ -75,8 +75,9 @@ enum BenchmarkRouteAnalyticsService {
         let duration = performances.reduce(0) { $0 + $1.durationSeconds } / Double(runCount)
         let pace = performances.reduce(0) { $0 + $1.paceSecondsPerKm } / Double(runCount)
         let bestPace = performances.map(\.paceSecondsPerKm).min() ?? pace
-        let heartRates = performances.compactMap(\.averageHeartRateBPM)
-        let averageHeartRate = heartRates.isEmpty ? nil : Int((Double(heartRates.reduce(0, +)) / Double(heartRates.count)).rounded())
+        let heartRates: [Int] = performances.compactMap(\.averageHeartRateBPM)
+        let heartRateSum: Int = heartRates.reduce(0, +)
+        let averageHeartRate: Int? = heartRates.isEmpty ? nil : Int((Double(heartRateSum) / Double(heartRates.count)).rounded())
         return BenchmarkPerformanceAverage(
             routeID: routeID,
             runCount: runCount,
