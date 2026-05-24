@@ -28,51 +28,56 @@ struct TodayTabView: View {
     }
 
     var body: some View {
+        let resolvedState = todayState
+        let primaryWorkout = resolvedState.primaryWorkout
+        let todayRoute = resolvedState.showsTodayRoute ? routeRecommendation.route ?? routes.first : nil
+        let explanation = todayExplanation
+
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 14) {
+            LazyVStack(alignment: .leading, spacing: 14) {
                 header
 
                 TodayCoachHeroCard(
                     message: recommendation.coachMessage,
-                    onCoach: { router.openCoach(context: .today) }
+                    onCoach: openTodayCoach
                 )
                 .runSmartStaggeredAppear(index: 0)
 
                 if !weekWorkouts.isEmpty {
                     TodayWeekStripSection(workouts: weekWorkouts, weekRange: weekRangeLabel) { workout in
-                        router.open(.workoutDetail(workout))
+                        openWorkoutDetail(workout)
                     }
                     .runSmartStaggeredAppear(index: 1)
                 }
 
                 TodayWorkoutRecommendationCard(
-                    state: todayState,
+                    state: resolvedState,
                     recommendation: recommendation,
-                    workout: todayWorkout,
-                    route: todayState.showsTodayRoute ? routeRecommendation.route ?? routes.first : nil,
-                    onStart: { router.startRun(with: todayWorkout) },
-                    onReviewReport: { openLatestReport() },
-                    onCoach: { router.openCoach(context: .today) },
-                    onModify: { router.open(.planAdjustment) },
-                    onSkip: { router.open(.reschedule(todayWorkout)) },
-                    onRoute: { router.open(.routeSelector) }
+                    workout: primaryWorkout,
+                    route: todayRoute,
+                    onStart: { startRun(with: primaryWorkout) },
+                    onReviewReport: openLatestReport,
+                    onCoach: openTodayCoach,
+                    onModify: openPlanAdjustment,
+                    onSkip: { reschedule(primaryWorkout) },
+                    onRoute: openRouteSelector
                 )
                 .runSmartStaggeredAppear(index: 2)
 
-                if todayState.showsTodayRoute {
+                if resolvedState.showsTodayRoute {
                     TodayRouteRecommendationCard(
                         recommendation: routeRecommendation,
-                        workout: todayWorkout,
-                        onUseRoute: { route in router.startRun(with: todayWorkout, route: route) },
-                        onBrowseRoutes: { router.open(.routeSelector) }
+                        workout: primaryWorkout,
+                        onUseRoute: { route in startRun(with: primaryWorkout, route: route) },
+                        onBrowseRoutes: openRouteSelector
                     )
                     .runSmartStaggeredAppear(index: 3)
                 }
 
                 PlanExplanationCard(
                     title: "Why this workout?",
-                    explanation: todayExplanation,
-                    onAction: { handleExplanationAction(todayExplanation) }
+                    explanation: explanation,
+                    onAction: { handleExplanationAction(explanation, workout: primaryWorkout) }
                 )
                 .runSmartStaggeredAppear(index: 4)
 
@@ -82,22 +87,22 @@ struct TodayTabView: View {
                 }
 
                 TodayQuickActions(
-                    onRecord: { router.startRun(with: todayWorkout) },
-                    onAddActivity: { router.open(.addActivity) },
-                    onCoach: { router.openCoach(context: .today) }
+                    onRecord: { startRun(with: primaryWorkout) },
+                    onAddActivity: openAddActivity,
+                    onCoach: openTodayCoach
                 )
                 .runSmartStaggeredAppear(index: 6)
 
                 InsightCard(
                     title: "Coach Insight",
                     message: recommendation.coachMessage,
-                    action: { router.openCoach(context: .today) }
+                    action: openTodayCoach
                 )
                 .runSmartStaggeredAppear(index: 7)
 
                 if !coachMessages.isEmpty {
                     TodayConversationPreview(messages: coachMessages) {
-                        router.openCoach(context: .today)
+                        openTodayCoach()
                     }
                     .runSmartStaggeredAppear(index: 8)
                 }
@@ -107,7 +112,7 @@ struct TodayTabView: View {
 
                 if !nextWorkouts.isEmpty {
                     UpcomingRunsCard(workouts: nextWorkouts) { workout in
-                        router.open(.workoutDetail(workout))
+                        openWorkoutDetail(workout)
                     }
                     .runSmartStaggeredAppear(index: 10)
                 }
@@ -115,7 +120,7 @@ struct TodayTabView: View {
                 if !runReports.isEmpty {
                     RecentRunReportsCard(reports: runReports) { report in
                         if let detail = report.toDetail() {
-                            router.open(.runReportDetail(detail))
+                            openReportDetail(detail)
                         }
                     }
                     .runSmartStaggeredAppear(index: 11)
@@ -225,10 +230,6 @@ struct TodayTabView: View {
         }
     }
 
-    private var todayWorkout: WorkoutSummary {
-        todayState.primaryWorkout
-    }
-
     private var todayState: TodayResolvedState {
         TodayResolvedState.make(
             recommendation: recommendation,
@@ -261,7 +262,7 @@ struct TodayTabView: View {
         )
     }
 
-    private func handleExplanationAction(_ explanation: PlanExplanation) {
+    private func handleExplanationAction(_ explanation: PlanExplanation, workout: WorkoutSummary) {
         switch explanation.trigger {
         case .missedWorkout:
             if let workout = weekWorkouts
@@ -273,21 +274,57 @@ struct TodayTabView: View {
                 router.open(.planAdjustment)
             }
         case .lowRecovery:
-            router.open(.amendWorkout(todayWorkout))
+            router.open(.amendWorkout(workout))
         case .extraRun:
             router.open(.planAdjustment)
         case .normal where explanation.action == "Set a goal":
             router.open(.goalWizard)
         default:
-            router.openCoach(context: .today)
+            openTodayCoach()
         }
+    }
+
+    private func openTodayCoach() {
+        router.openCoach(context: .today)
+    }
+
+    private func openWorkoutDetail(_ workout: WorkoutSummary) {
+        router.open(.workoutDetail(workout))
+    }
+
+    private func openPlanAdjustment() {
+        router.open(.planAdjustment)
+    }
+
+    private func openAddActivity() {
+        router.open(.addActivity)
+    }
+
+    private func openRouteSelector() {
+        router.open(.routeSelector)
+    }
+
+    private func openReportDetail(_ detail: RunReportDetail) {
+        router.open(.runReportDetail(detail))
+    }
+
+    private func reschedule(_ workout: WorkoutSummary) {
+        router.open(.reschedule(workout))
+    }
+
+    private func startRun(with workout: WorkoutSummary) {
+        router.startRun(with: workout)
+    }
+
+    private func startRun(with workout: WorkoutSummary, route: RouteSuggestion) {
+        router.startRun(with: workout, route: route)
     }
 
     private func openLatestReport() {
         if let detail = runReports.first?.toDetail() {
-            router.open(.runReportDetail(detail))
+            openReportDetail(detail)
         } else {
-            router.openCoach(context: .today)
+            openTodayCoach()
         }
     }
 
@@ -612,7 +649,7 @@ private struct TodayWeekStripSection: View {
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                LazyHStack(spacing: 8) {
                     ForEach(workouts) { workout in
                         Button { onWorkout(workout) } label: {
                             WorkoutDayCard(workout: workout)

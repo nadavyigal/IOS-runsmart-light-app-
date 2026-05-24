@@ -16,9 +16,9 @@ struct ProfileTabView: View {
     var body: some View {
         NavigationStack(path: $navPath) {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 14) {
+                LazyVStack(alignment: .leading, spacing: 14) {
                     RunSmartTopBar(title: "Profile", showSettings: true) {
-                        navPath.append(.account)
+                        open(.account)
                     }
 
                     identityHeader
@@ -32,7 +32,7 @@ struct ProfileTabView: View {
                     if !runReports.isEmpty {
                         RecentRunReportsCard(reports: runReports) { report in
                             if let detail = report.toDetail() {
-                                navPath.append(.runReportDetail(detail))
+                                open(.runReportDetail(detail))
                             }
                         }
                     }
@@ -51,13 +51,13 @@ struct ProfileTabView: View {
             await loadProfileData()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
-            Task { await loadProfileData() }
+            refreshProfileData()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
-            Task { await loadProfileData() }
+            refreshProfileData()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanDidChange)) { _ in
-            Task { await loadProfileData() }
+            refreshProfileData()
         }
     }
 
@@ -76,6 +76,18 @@ struct ProfileTabView: View {
             runsTask,
             challengeTask
         )
+    }
+
+    private func refreshProfileData() {
+        Task { await loadProfileData() }
+    }
+
+    private func open(_ destination: SecondaryDestination) {
+        navPath.append(destination)
+    }
+
+    private func openProfileCoach() {
+        router.openCoach(context: .profile)
     }
 
     private var identityHeader: some View {
@@ -136,7 +148,7 @@ struct ProfileTabView: View {
                         .foregroundStyle(Color.textSecondary)
                         .lineLimit(3)
 
-                    Button { router.openCoach(context: .profile) } label: {
+                    Button(action: openProfileCoach) {
                         Label("Chat with Coach", systemImage: "text.bubble")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(Color.accentPrimary)
@@ -168,22 +180,22 @@ struct ProfileTabView: View {
                 SectionLabel(title: "Coach Settings")
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     ProfileActionTile(title: "Run Reminders", value: session.onboardingProfile.notificationsEnabled ? "On" : "Off", symbol: "bell.badge.fill") {
-                        navPath.append(.reminders)
+                        open(.reminders)
                     }
                     ProfileActionTile(title: "Coaching Tone", value: session.onboardingProfile.coachingTone, symbol: "waveform") {
-                        navPath.append(.coachingTone)
+                        open(.coachingTone)
                     }
                     ProfileActionTile(title: "Goal & Plan", value: session.onboardingProfile.goal.isEmpty ? "Not set" : session.onboardingProfile.goal, symbol: "target") {
-                        navPath.append(.goalWizard)
+                        open(.goalWizard)
                     }
                     ProfileActionTile(title: "Challenges", value: challenge.isActive ? challenge.dayLabel : "Adopt", symbol: "trophy.fill") {
-                        navPath.append(.challenges)
+                        open(.challenges)
                     }
                     ProfileActionTile(title: "Training Data", value: weeklyDistanceLabel, symbol: "figure.run") {
-                        navPath.append(.trainingData)
+                        open(.trainingData)
                     }
                     ProfileActionTile(title: "Check-in Cadence", value: "Every 3 Days", symbol: "calendar") {
-                        navPath.append(.reminders)
+                        open(.reminders)
                     }
                 }
             }
@@ -204,7 +216,7 @@ struct ProfileTabView: View {
                 HStack {
                     SectionLabel(title: "Training Data")
                     Spacer()
-                    Button { navPath.append(.trainingData) } label: {
+                    Button { open(.trainingData) } label: {
                         Image(systemName: "slider.horizontal.3")
                             .font(.bodyMD.weight(.bold))
                             .foregroundStyle(Color.accentPrimary)
@@ -246,7 +258,7 @@ struct ProfileTabView: View {
                     symbol: source.lowercased().contains("garmin") ? "link.circle.fill" : "checkmark.seal.fill",
                     tint: saved == nil ? .accentRecovery : .accentPrimary
                 ) {
-                    navPath.append(.trainingData)
+                    open(.trainingData)
                 }
             }
         }
@@ -270,7 +282,7 @@ struct ProfileTabView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     SectionLabel(title: "Achievements")
-                    Button { navPath.append(.badgeCabinet) } label: {
+                    Button { open(.badgeCabinet) } label: {
                         Text("View all")
                             .font(.labelSM)
                             .tracking(1.1)
@@ -279,7 +291,7 @@ struct ProfileTabView: View {
                     .buttonStyle(.plain)
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 14) {
+                    LazyHStack(spacing: 14) {
                         ForEach(achievements) { achievement in
                             AchievementBadge(achievement: achievement)
                         }
@@ -303,16 +315,16 @@ struct ProfileTabView: View {
                 SectionLabel(title: "Connected")
                 VStack(spacing: 8) {
                     ConnectedServiceTile(title: "Garmin", detail: "Garmin Connect", status: statusLabel("Garmin Connect"), symbol: "link.circle.fill", tint: .accentPrimary) {
-                        navPath.append(.connectedService("Garmin Connect"))
+                        open(.connectedService("Garmin Connect"))
                     }
                     ConnectedServiceTile(title: "Health", detail: "HealthKit", status: statusLabel("HealthKit"), symbol: "heart.fill", tint: .accentHeart) {
-                        navPath.append(.connectedService("HealthKit"))
+                        open(.connectedService("HealthKit"))
                     }
                     ConnectedServiceTile(title: "Prefs", detail: "Reminders", status: session.onboardingProfile.notificationsEnabled ? "On" : "Manage", symbol: "bell.fill", tint: .accentRecovery) {
-                        navPath.append(.reminders)
+                        open(.reminders)
                     }
                     ConnectedServiceTile(title: "Account", detail: "Privacy", status: "Manage", symbol: "lock.shield.fill", tint: .textSecondary) {
-                        navPath.append(.account)
+                        open(.account)
                     }
                 }
             }
@@ -327,19 +339,19 @@ struct ProfileTabView: View {
                 .init(title: "Goal & Plan", value: session.onboardingProfile.goal.isEmpty ? "Not set" : session.onboardingProfile.goal, symbol: "target", destination: .goalWizard),
                 .init(title: "Challenges", value: challenge.isActive ? challenge.dayLabel : "Adopt", symbol: "trophy.fill", destination: .challenges),
                 .init(title: "Weekly Recap", value: "Ready", symbol: "calendar.badge.checkmark", destination: .weeklyRecap)
-            ], onSelect: { navPath.append($0) })
+            ], onSelect: open)
 
             ProfileSettingsSection(title: "Connected Devices", rows: [
                 .init(title: "Garmin", value: statusLabel("Garmin Connect"), symbol: "link.circle.fill", destination: .connectedService("Garmin Connect")),
                 .init(title: "HealthKit", value: statusLabel("HealthKit"), symbol: "heart.fill", destination: .connectedService("HealthKit")),
                 .init(title: "Wellness Panels", value: "View", symbol: "waveform.path.ecg", destination: .garminWellness)
-            ], onSelect: { navPath.append($0) })
+            ], onSelect: open)
 
             ProfileSettingsSection(title: "Preferences", rows: [
                 .init(title: "Units", value: session.onboardingProfile.units, symbol: "ruler", destination: .reminders),
                 .init(title: "Notifications", value: session.onboardingProfile.notificationsEnabled ? "On" : "Off", symbol: "bell.fill", destination: .reminders),
                 .init(title: "Privacy", value: "Manage", symbol: "lock.shield.fill", destination: .account)
-            ], onSelect: { navPath.append($0) })
+            ], onSelect: open)
         }
     }
 
