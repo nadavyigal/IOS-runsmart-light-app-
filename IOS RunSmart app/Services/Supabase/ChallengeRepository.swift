@@ -11,6 +11,16 @@ struct ChallengeItem: Identifiable {
     let durationDays: Int
     var isEnrolled: Bool
     var startedAt: Date?
+
+    static let foundation21Day = ChallengeItem(
+        id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+        slug: "local-21-day-start-running",
+        title: "21-Day Running Foundation",
+        description: "From zero to 30 minutes — daily coaching and a plan built around your body.",
+        durationDays: 21,
+        isEnrolled: false,
+        startedAt: nil
+    )
 }
 
 // MARK: - Repository

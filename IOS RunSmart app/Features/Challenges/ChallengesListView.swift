@@ -64,15 +64,7 @@ struct ChallengesListView: View {
     }
 
     private static let fallbackChallenges: [ChallengeItem] = [
-        ChallengeItem(
-            id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
-            slug: "local-21-day-start-running",
-            title: "21-Day Start Running",
-            description: "From zero to running 30 minutes comfortably with guided habit-building workouts.",
-            durationDays: 21,
-            isEnrolled: false,
-            startedAt: nil
-        ),
+        .foundation21Day,
         ChallengeItem(
             id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
             slug: "local-10k-breakthrough",
