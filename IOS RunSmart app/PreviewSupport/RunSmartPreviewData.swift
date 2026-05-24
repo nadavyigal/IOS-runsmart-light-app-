@@ -85,9 +85,9 @@ enum RunSmartPreviewData {
     )
 
     static let activeChallenge = ChallengeSummary(
-        id: "challenge-consistency",
-        title: "21-Day Consistency",
-        detail: "Complete the daily training prompt and keep your plan synced.",
+        id: "challenge-foundation",
+        title: "21-Day Running Foundation",
+        detail: "From zero to 30 minutes — daily coaching and a plan built around your body.",
         progress: 0.52,
         dayLabel: "Day 11 of 21",
         isActive: true
