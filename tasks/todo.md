@@ -1,6 +1,47 @@
 # Task State
 
 ## Current Task
+Implement the App Store readiness closeout plan before the next archive: add deterministic screenshot mode, generate complete iPhone screenshot sets, document App Store Connect portal values, and run pre-archive validation while preserving existing dirty release work.
+
+### Checklist
+- [x] Read canonical lessons before planning and editing.
+- [x] Confirm the app repo has existing dirty changes and preserve unrelated work.
+- [x] Add DEBUG-only screenshot launch mode with safe sample data.
+- [x] Add screenshot capture tooling and Fastlane wiring.
+- [x] Generate 6.9-inch and 6.1-inch App Store screenshot sets.
+- [x] Add App Store Connect portal checklist values.
+- [x] Run static, build, focused test, screenshot, and preflight validation.
+- [x] Record validation and remaining portal-only blockers.
+
+### Validation
+- Whitespace validation passed:
+  `git diff --check`
+- Screenshot script syntax passed:
+  `bash -n fastlane/scripts/capture-app-store-screenshots.sh`
+- No untracked Swift files were found under the app or test targets:
+  `git ls-files --others --exclude-standard "IOS RunSmart app/**/*.swift" "IOS RunSmart appTests/**/*.swift"`
+- Screenshot capture passed for both required display classes:
+  `bash fastlane/scripts/capture-app-store-screenshots.sh`
+- Screenshot dimensions passed with `sips`:
+  - `iPhone_17_Pro_Max_01_today.png` through `iPhone_17_Pro_Max_05_profile.png`: `1320 x 2868`
+  - `iPhone_17e_01_today.png` through `iPhone_17e_05_profile.png`: `1170 x 2532`
+- Visual screenshot inspection passed after regenerating the blank early 17e Report capture with a longer settle delay.
+- Focused readiness tests passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17 Pro" -derivedDataPath /tmp/runsmart-appstore-closeout-derived-data -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests" CODE_SIGNING_ALLOWED=NO test`
+- Built app metadata inspection confirmed bundle id `com.runsmart.lite`, display name `RunSmart`, version `1.0`, build `5`, encryption export flag `false`, HealthKit/location permission strings, release URLs, and iPhone-only device family.
+- Build/test still report existing warning noise in `BenchmarkRouteAnalyticsService`, `HealthKitSyncService`, and AppIntents metadata extraction; no closeout failure was introduced.
+
+### Remaining Portal-Only Blockers
+- Select the processed build only after the newly uploaded archive finishes processing in App Store Connect.
+- Confirm App Store Connect privacy questionnaire, category, age rating, screenshot uploads, reviewer notes, and demo credentials in the portal.
+- Enter demo credentials only in App Store Connect; do not store them in repo files.
+
+### Scope Guard
+- Do not store demo credentials, Apple credentials, API keys, or personal device details.
+- Do not change Release/App Store production auth, onboarding, Supabase, HealthKit, Garmin, or location behavior.
+- Do not overwrite unrelated dirty files.
+
+### Previous Task
 Continue the SwiftUI UI Patterns skill across the remaining RunSmart root tabs after the Today tab optimization. Preserve behavior and existing dirty release work while applying the same scroll, derived-state, and action-organization patterns to Plan, Run, Report, and Profile.
 
 ### Checklist

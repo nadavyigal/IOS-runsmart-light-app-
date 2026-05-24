@@ -97,14 +97,7 @@ platform :ios do
 
   desc "Take screenshots for App Store"
   lane :screenshots do
-    capture_screenshots(
-      project: PROJECT,
-      scheme: UI_TESTS_SCHEME,
-      devices: [
-        selected_simulator("iphone", "IOS_SCREENSHOT_IPHONE"),
-        selected_simulator("ipad", "IOS_SCREENSHOT_IPAD")
-      ]
-    )
+    sh("bash fastlane/scripts/capture-app-store-screenshots.sh")
   end
 
   desc "Clean build artifacts"
