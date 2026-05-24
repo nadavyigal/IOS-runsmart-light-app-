@@ -119,6 +119,38 @@ final class RouteRankingTests: XCTestCase {
         XCTAssertEqual(ranked.first?.id, "rolling", "Rolling route should rank first with Rolling preference")
     }
 
+    func testSurfacePreferenceRanksRoadFriendlyRouteFirst() {
+        let road = RouteSuggestion(id: "road", name: "Road", distanceKm: 8.0,
+            elevationGainMeters: 30, estimatedDurationMinutes: 42,
+            points: [], kind: .saved)
+        let trailish = RouteSuggestion(id: "trail", name: "Trail", distanceKm: 8.0,
+            elevationGainMeters: 220, estimatedDurationMinutes: 55,
+            points: [], kind: .saved)
+        let ranked = RouteSuggestionRanker.rank(
+            [trailish, road],
+            targetDistanceKm: 8.0,
+            elevationPreference: "Mixed",
+            surfacePreference: "Road"
+        )
+        XCTAssertEqual(ranked.first?.id, "road", "Road preference should rank lower-elevation road-friendly routes first")
+    }
+
+    func testSurfacePreferenceRanksTrailFriendlyRouteFirst() {
+        let road = RouteSuggestion(id: "road", name: "Road", distanceKm: 8.0,
+            elevationGainMeters: 20, estimatedDurationMinutes: 42,
+            points: [], kind: .saved)
+        let trailish = RouteSuggestion(id: "trail", name: "Trail", distanceKm: 8.0,
+            elevationGainMeters: 180, estimatedDurationMinutes: 55,
+            points: [], kind: .saved)
+        let ranked = RouteSuggestionRanker.rank(
+            [road, trailish],
+            targetDistanceKm: 8.0,
+            elevationPreference: "Mixed",
+            surfacePreference: "Trail"
+        )
+        XCTAssertEqual(ranked.first?.id, "trail", "Trail preference should rank more trail-like elevation first")
+    }
+
     func testElevationPreferenceDoesNotOverrideKindPriority() {
         // Benchmark must always rank above saved regardless of elevation preference
         let hillyBenchmark = RouteSuggestion(id: "bench", name: "Benchmark", distanceKm: 8.0,
@@ -133,11 +165,13 @@ final class RouteRankingTests: XCTestCase {
 
     func testGeneratedReasonReflectsElevationPreference() {
         let flat = RouteSuggestionRanker.reason(kind: .generated, distanceKm: 8.0,
-            targetDistanceKm: 8.0, isFavorite: false, daysSinceLastRun: nil, elevationPreference: "Flat")
+            targetDistanceKm: 8.0, isFavorite: false, daysSinceLastRun: nil, elevationPreference: "Flat", surfacePreference: "Road")
         let hilly = RouteSuggestionRanker.reason(kind: .generated, distanceKm: 8.0,
-            targetDistanceKm: 8.0, isFavorite: false, daysSinceLastRun: nil, elevationPreference: "Hilly")
+            targetDistanceKm: 8.0, isFavorite: false, daysSinceLastRun: nil, elevationPreference: "Hilly", surfacePreference: "Trail")
         XCTAssertTrue(flat.lowercased().contains("flat"), "Flat reason should mention flat: \(flat)")
+        XCTAssertTrue(flat.lowercased().contains("road"), "Flat reason should mention road surface: \(flat)")
         XCTAssertTrue(hilly.lowercased().contains("hill") || hilly.lowercased().contains("elevation"), "Hilly reason should mention elevation: \(hilly)")
+        XCTAssertTrue(hilly.lowercased().contains("trail"), "Hilly reason should mention trail surface: \(hilly)")
     }
 
     // MARK: - Today route recommendation

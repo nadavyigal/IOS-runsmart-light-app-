@@ -74,11 +74,22 @@ struct SignInView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
 
-                    Text("By continuing you agree to our Terms of Service and Privacy Policy.")
-                        .font(.caption2)
-                        .foregroundStyle(Color.mutedText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
+                    VStack(spacing: 4) {
+                        Text("By continuing you agree to our")
+                            .foregroundStyle(Color.mutedText)
+
+                        HStack(spacing: 4) {
+                            Link("Terms of Service", destination: ExternalURLs.terms)
+                            Text("and")
+                                .foregroundStyle(Color.mutedText)
+                            Link("Privacy Policy", destination: ExternalURLs.privacy)
+                        }
+                        .fontWeight(.semibold)
+                    }
+                    .font(.caption2)
+                    .multilineTextAlignment(.center)
+                    .tint(Color.lime)
+                    .padding(.horizontal, 24)
                 }
                 .padding(.horizontal, 28)
                 .padding(.bottom, 48)
