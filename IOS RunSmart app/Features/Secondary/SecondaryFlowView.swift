@@ -98,6 +98,100 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .account: "Account"
         }
     }
+
+    var subtitle: String {
+        switch self {
+        case .workoutDetail:
+            "Session plan, purpose, and execution cues."
+        case .planAdjustment:
+            "Coach logic for safe plan changes."
+        case .reschedule:
+            "Move a workout without spiking weekly load."
+        case .amendWorkout:
+            "Adjust the workout details in your active plan."
+        case .addActivity:
+            "Log a manual run or cross-training session."
+        case .routeSelector:
+            "Choose a route that fits today's workout."
+        case .runReport, .runReportDetail:
+            "Review a saved run from your history."
+        case .postRunSummary:
+            "Review effort and save the completed run."
+        case .audioCues:
+            "Tune voice prompts, timing, and coaching moments."
+        case .lapMarker:
+            "Capture a split and annotate the effort."
+        case .voiceCoaching:
+            "Manage reminder and cue preferences for planned training."
+        case .coachingTone:
+            "Pick the coach personality for future guidance."
+        case .trainingData:
+            "Save the baseline your coach uses to size training load."
+        case .goalFocus:
+            "Tell the coach what to optimize this block around."
+        case .reminders:
+            "Schedule nudges, check-ins, and recovery prompts."
+        case .connectedService:
+            "Inspect sync status, permissions, and controls."
+        case .challenges:
+            "Adopt a challenge and track your progress."
+        case .recoveryDashboard:
+            "Readiness, sleep, HRV, and recovery signals."
+        case .morningCheckin:
+            "Capture how the runner feels before training."
+        case .goalWizard:
+            "Set or revise the training goal."
+        case .weeklyRecap:
+            "Summarize the week and next coaching move."
+        case .garminWellness:
+            "Wellness panels from connected Garmin data."
+        case .zoneAnalysis:
+            "Understand effort distribution and heart rate zones."
+        case .routeCreator:
+            "Build a route that matches the workout."
+        case .badgeCabinet:
+            "Browse earned and locked achievements."
+        case .shareRun:
+            "Prepare a polished run share card."
+        case .routeDetail:
+            "Route details, benchmark stats, and actions."
+        case .account:
+            "Manage your sign-in and profile data."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .workoutDetail(let workout): workout.kind.symbol
+        case .planAdjustment: "slider.horizontal.3"
+        case .reschedule: "calendar.badge.clock"
+        case .amendWorkout: "slider.horizontal.3"
+        case .addActivity: "plus.circle.fill"
+        case .routeSelector: "map.fill"
+        case .runReport, .runReportDetail: "chart.xyaxis.line"
+        case .postRunSummary: "checkmark.seal.fill"
+        case .audioCues: "speaker.wave.2.fill"
+        case .lapMarker: "flag.fill"
+        case .voiceCoaching: "waveform"
+        case .coachingTone: "sparkles"
+        case .trainingData: "figure.run"
+        case .goalFocus: "target"
+        case .reminders: "bell.badge.fill"
+        case .connectedService: "link.circle.fill"
+        case .challenges: "trophy.fill"
+        case .recoveryDashboard: "heart.text.square.fill"
+        case .morningCheckin: "sunrise.fill"
+        case .goalWizard: "target"
+        case .weeklyRecap: "calendar.badge.checkmark"
+        case .garminWellness: "waveform.path.ecg"
+        case .zoneAnalysis: "heart.circle.fill"
+        case .routeCreator: "point.topleft.down.curvedto.point.bottomright.up"
+        case .badgeCabinet: "seal.fill"
+        case .shareRun: "square.and.arrow.up"
+        case .routeDetail: "map.fill"
+        case .account: "person.crop.circle.fill"
+        }
+    }
 }
 
 struct SecondaryFlowView: View {
@@ -106,24 +200,31 @@ struct SecondaryFlowView: View {
     var body: some View {
         ZStack {
             RunSmartBackground()
-
-            if destination == .goalWizard {
-                GoalWizardView()
-            } else {
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
-                        FlowHeader(destination: destination, subtitle: subtitle, symbol: symbol)
-                        content
-                        Spacer(minLength: 20)
-                    }
-                    .foregroundStyle(Color.textPrimary)
-                    .padding(20)
-                    .padding(.bottom, destination == .trainingData ? 120 : 0)
-                }
-                .scrollDismissesKeyboard(.interactively)
-            }
+            SecondaryContentView(destination: destination)
         }
         .preferredColorScheme(.dark)
+    }
+}
+
+private struct SecondaryContentView: View {
+    var destination: SecondaryDestination
+
+    var body: some View {
+        if destination == .goalWizard {
+            GoalWizardView()
+        } else {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+                    FlowHeader(destination: destination)
+                    content
+                    Spacer(minLength: 20)
+                }
+                .foregroundStyle(Color.textPrimary)
+                .padding(20)
+                .padding(.bottom, destination == .trainingData ? 120 : 0)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
     }
 
     @ViewBuilder
@@ -189,106 +290,10 @@ struct SecondaryFlowView: View {
             AccountScaffold()
         }
     }
-
-    private var subtitle: String {
-        switch destination {
-        case .workoutDetail:
-            "Session plan, purpose, and execution cues."
-        case .planAdjustment:
-            "Coach logic for safe plan changes."
-        case .reschedule:
-            "Move a workout without spiking weekly load."
-        case .amendWorkout:
-            "Adjust the workout details in your active plan."
-        case .addActivity:
-            "Log a manual run or cross-training session."
-        case .routeSelector:
-            "Choose a route that fits today's workout."
-        case .runReport, .runReportDetail:
-            "Review a saved run from your history."
-        case .postRunSummary:
-            "Review effort and save the completed run."
-        case .audioCues:
-            "Tune voice prompts, timing, and coaching moments."
-        case .lapMarker:
-            "Capture a split and annotate the effort."
-        case .voiceCoaching:
-            "Manage reminder and cue preferences for planned training."
-        case .coachingTone:
-            "Pick the coach personality for future guidance."
-        case .trainingData:
-            "Save the baseline your coach uses to size training load."
-        case .goalFocus:
-            "Tell the coach what to optimize this block around."
-        case .reminders:
-            "Schedule nudges, check-ins, and recovery prompts."
-        case .connectedService:
-            "Inspect sync status, permissions, and controls."
-        case .challenges:
-            "Adopt a challenge and track your progress."
-        case .recoveryDashboard:
-            "Readiness, sleep, HRV, and recovery signals."
-        case .morningCheckin:
-            "Capture how the runner feels before training."
-        case .goalWizard:
-            "Set or revise the training goal."
-        case .weeklyRecap:
-            "Summarize the week and next coaching move."
-        case .garminWellness:
-            "Wellness panels from connected Garmin data."
-        case .zoneAnalysis:
-            "Understand effort distribution and heart rate zones."
-        case .routeCreator:
-            "Build a route that matches the workout."
-        case .badgeCabinet:
-            "Browse earned and locked achievements."
-        case .shareRun:
-            "Prepare a polished run share card."
-        case .routeDetail:
-            "Route details, benchmark stats, and actions."
-        case .account:
-            "Manage your sign-in and profile data."
-        }
-    }
-
-    private var symbol: String {
-        switch destination {
-        case .workoutDetail(let workout): workout.kind.symbol
-        case .planAdjustment: "slider.horizontal.3"
-        case .reschedule: "calendar.badge.clock"
-        case .amendWorkout: "slider.horizontal.3"
-        case .addActivity: "plus.circle.fill"
-        case .routeSelector: "map.fill"
-        case .runReport, .runReportDetail: "chart.xyaxis.line"
-        case .postRunSummary: "checkmark.seal.fill"
-        case .audioCues: "speaker.wave.2.fill"
-        case .lapMarker: "flag.fill"
-        case .voiceCoaching: "waveform"
-        case .coachingTone: "sparkles"
-        case .trainingData: "figure.run"
-        case .goalFocus: "target"
-        case .reminders: "bell.badge.fill"
-        case .connectedService: "link.circle.fill"
-        case .challenges: "trophy.fill"
-        case .recoveryDashboard: "heart.text.square.fill"
-        case .morningCheckin: "sunrise.fill"
-        case .goalWizard: "target"
-        case .weeklyRecap: "calendar.badge.checkmark"
-        case .garminWellness: "waveform.path.ecg"
-        case .zoneAnalysis: "heart.circle.fill"
-        case .routeCreator: "point.topleft.down.curvedto.point.bottomright.up"
-        case .badgeCabinet: "seal.fill"
-        case .shareRun: "square.and.arrow.up"
-        case .routeDetail: "map.fill"
-        case .account: "person.crop.circle.fill"
-        }
-    }
 }
 
 private struct FlowHeader: View {
     var destination: SecondaryDestination
-    var subtitle: String
-    var symbol: String
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -299,7 +304,7 @@ private struct FlowHeader: View {
                 Text(destination.title)
                     .font(.displayMD)
                     .foregroundStyle(Color.textPrimary)
-                Text(subtitle)
+                Text(destination.subtitle)
                     .font(.callout)
                     .foregroundStyle(Color.textSecondary)
             }
@@ -556,7 +561,7 @@ private struct RescheduleScaffold: View {
 
             ForEach(Array(options.enumerated()), id: \.offset) { _, option in
                 Button {
-                    Task { await move(to: option.date) }
+                    move(to: option.date)
                 } label: {
                     GlassCard {
                         HStack(spacing: 12) {
@@ -583,7 +588,13 @@ private struct RescheduleScaffold: View {
         }
     }
 
-    private func move(to date: Date) async {
+    private func move(to date: Date) {
+        Task {
+            await moveAsync(to: date)
+        }
+    }
+
+    private func moveAsync(to date: Date) async {
         isSaving = true
         let moved: Bool
         if Calendar.current.isDate(date, inSameDayAs: Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date())) ?? date) {
@@ -596,6 +607,7 @@ private struct RescheduleScaffold: View {
             dismiss()
         }
     }
+
 }
 
 private struct AmendWorkoutScaffold: View {
@@ -613,6 +625,8 @@ private struct AmendWorkoutScaffold: View {
     @State private var isSaving = false
     @State private var failed = false
 
+    private let kinds: [WorkoutKind] = [.easy, .tempo, .intervals, .hills, .long, .race, .recovery]
+
     init(workout: WorkoutSummary) {
         self.workout = workout
         _kind = State(initialValue: workout.kind)
@@ -623,8 +637,6 @@ private struct AmendWorkoutScaffold: View {
         _paceSeconds = State(initialValue: max(0, pace % 60))
         _notes = State(initialValue: workout.detail)
     }
-
-    private let kinds: [WorkoutKind] = [.easy, .tempo, .intervals, .hills, .long, .race, .recovery]
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -674,9 +686,7 @@ private struct AmendWorkoutScaffold: View {
                     .foregroundStyle(Color.red)
             }
 
-            Button {
-                Task { await save() }
-            } label: {
+            Button(action: saveTapped) {
                 HStack {
                     if isSaving {
                         ProgressView().tint(.black)
@@ -687,6 +697,12 @@ private struct AmendWorkoutScaffold: View {
             }
             .buttonStyle(NeonButtonStyle())
             .disabled(isSaving)
+        }
+    }
+
+    private func saveTapped() {
+        Task {
+            await save()
         }
     }
 
@@ -781,7 +797,7 @@ private struct AddActivityScaffold: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
-            Button(action: { Task { await saveRun() } }) {
+            Button(action: saveRunTapped) {
                 HStack {
                     if isSaving {
                         ProgressView().tint(.black)
@@ -792,6 +808,12 @@ private struct AddActivityScaffold: View {
             }
                 .buttonStyle(NeonButtonStyle())
                 .disabled(isSaving)
+        }
+    }
+
+    private func saveRunTapped() {
+        Task {
+            await saveRun()
         }
     }
 
@@ -857,9 +879,7 @@ private struct RouteSelectorScaffold: View {
                 .buttonStyle(NeonButtonStyle())
                 .disabled(selectedRoute == nil)
         }
-        .task {
-            await load()
-        }
+        .task { await load() }
     }
 
     // MARK: - Buckets
@@ -1018,9 +1038,7 @@ private struct RunReportScaffold: View {
                         Text(generationFailed ? "No coach report yet. Report generation failed, but you can retry from this real activity." : "No coach report yet.")
                             .font(.callout)
                             .foregroundStyle(Color.mutedText)
-                        Button(isGenerating ? "Generating..." : "Generate Report") {
-                            Task { await generateReport() }
-                        }
+                        Button(isGenerating ? "Generating..." : "Generate Report", action: generateReportTapped)
                         .buttonStyle(NeonButtonStyle())
                         .disabled(isGenerating)
                     }
@@ -1081,24 +1099,32 @@ private struct RunReportScaffold: View {
                     .preferredColorScheme(.dark)
             }
         }
-        .task(id: activity.id) {
-            isLoadingRoutePoints = true
-            routePoints = activity.toRecordedRun()?.routePoints ?? []
-            if routePoints.isEmpty {
-                routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activity.activityId)
-            }
-            isLoadingRoutePoints = false
-            if var run = activity.toRecordedRun() {
-                if !routePoints.isEmpty { run.routePoints = routePoints }
-                report = await services.runReport(for: run)
-            }
-        }
+        .task(id: activity.id) { await loadActivityReport() }
     }
 
     private var garminRunWithRoutePoints: RecordedRun? {
         guard var run = activity.toRecordedRun() else { return nil }
         run.routePoints = routePoints
         return run
+    }
+
+    private func generateReportTapped() {
+        Task {
+            await generateReport()
+        }
+    }
+
+    private func loadActivityReport() async {
+        isLoadingRoutePoints = true
+        routePoints = activity.toRecordedRun()?.routePoints ?? []
+        if routePoints.isEmpty {
+            routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activity.activityId)
+        }
+        isLoadingRoutePoints = false
+        if var run = activity.toRecordedRun() {
+            if !routePoints.isEmpty { run.routePoints = routePoints }
+            report = await services.runReport(for: run)
+        }
     }
 
     private func generateReport() async {
@@ -1206,12 +1232,16 @@ private struct RunReportDetailScaffold: View {
                 Text(generationFailed ? "Report generation failed. Check your connection and try again." : "Create a full coach report from this real activity and save it under Recent Run Reports.")
                     .font(.callout)
                     .foregroundStyle(Color.mutedText)
-                Button(isGenerating ? "Generating..." : "Generate Report") {
-                    Task { await generateReport() }
-                }
+                Button(isGenerating ? "Generating..." : "Generate Report", action: generateReportTapped)
                 .buttonStyle(NeonButtonStyle())
                 .disabled(isGenerating)
             }
+        }
+    }
+
+    private func generateReportTapped() {
+        Task {
+            await generateReport()
         }
     }
 
@@ -1665,7 +1695,7 @@ private struct TrainingDataEditor: View {
                     .foregroundStyle(Color.red)
             }
 
-            Button(action: { Task { await save() } }) {
+            Button(action: saveTapped) {
                 HStack {
                     if isSaving {
                         ProgressView().tint(.black)
@@ -1708,6 +1738,12 @@ private struct TrainingDataEditor: View {
     private var weeklyDistanceRequired: Bool {
         let lower = selectedExperience.lowercased()
         return lower.contains("intermediate") || lower.contains("advanced") || lower.contains("competitive")
+    }
+
+    private func saveTapped() {
+        Task {
+            await save()
+        }
     }
 
     private func loadInitialState() {
@@ -1847,7 +1883,7 @@ private struct GoalFocusEditor: View {
                     .foregroundStyle(Color.red)
             }
 
-            Button(action: { Task { await save() } }) {
+            Button(action: saveTapped) {
                 HStack {
                     if isSaving { ProgressView().tint(.black) }
                     else { Label("Save Goals", systemImage: "checkmark") }
@@ -1861,6 +1897,12 @@ private struct GoalFocusEditor: View {
             selectedExperience = session.onboardingProfile.experience
             selectedStyle = session.onboardingProfile.coachingTone
             daysPerWeek = session.onboardingProfile.weeklyRunDays
+        }
+    }
+
+    private func saveTapped() {
+        Task {
+            await save()
         }
     }
 

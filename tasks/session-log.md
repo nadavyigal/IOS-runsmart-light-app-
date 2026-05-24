@@ -1,5 +1,142 @@
 # Session Log
 
+## 2026-05-24 - SwiftUI UI Patterns Root Tabs Optimization
+
+### Task Summary
+Continued the Build iOS Apps SwiftUI UI Patterns skill across the remaining RunSmart root tabs after the Today tab optimization.
+
+### Files Changed
+- `IOS RunSmart app/Features/Plan/PlanTabView.swift`
+- `IOS RunSmart app/Features/Activity/ActivityTabView.swift`
+- `IOS RunSmart app/Features/Profile/ProfileTabView.swift`
+- `IOS RunSmart app/Features/Run/RunTabView.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Kept the pass behavior-preserving and avoided screen redesign.
+- Changed scroll-heavy root tab content in Plan, Report, and Profile to `LazyVStack` so those tabs match the Today tab's container pattern.
+- Changed Plan/Profile horizontal dynamic strips to `LazyHStack` where they render variable workout, month, week, or achievement collections.
+- Localized key derived values in `PlanTabView` so the plan explanation, current week, and review weeks are computed once per render and reused across cards.
+- Replaced repeated inline routing and refresh closures with named action methods in Plan, Report, Profile, and Run.
+- Kept Run tab product behavior unchanged while moving start, route, audio cue, and metrics-refresh actions into named methods.
+- Preserved existing dirty release/TestFlight work and did not touch unrelated Swift changes.
+
+### Validation
+- Swift parse validation passed:
+  `xcrun swiftc -parse "IOS RunSmart app/Features/Plan/PlanTabView.swift" "IOS RunSmart app/Features/Activity/ActivityTabView.swift" "IOS RunSmart app/Features/Profile/ProfileTabView.swift" "IOS RunSmart app/Features/Run/RunTabView.swift"`
+- Whitespace validation passed:
+  `git diff --check -- "IOS RunSmart app/Features/Plan/PlanTabView.swift" "IOS RunSmart app/Features/Activity/ActivityTabView.swift" "IOS RunSmart app/Features/Profile/ProfileTabView.swift" "IOS RunSmart app/Features/Run/RunTabView.swift" tasks/todo.md tasks/session-log.md`
+- XcodeBuildMCP simulator build passed:
+  `build_sim CODE_SIGNING_ALLOWED=NO`
+- Build log:
+  `/Users/nadavyigal/Library/Developer/XcodeBuildMCP/workspaces/IOS-RunSmart-light-18e0783284c4/logs/build_sim_2026-05-24T08-57-57-262Z_pid15676_19753b02.log`
+
+### Next Recommended Action
+Run a short simulator UI smoke through each root tab after the existing release branch is ready for interactive QA.
+
+## 2026-05-24 - SwiftUI UI Patterns Today Optimization
+
+### Task Summary
+Ran the Build iOS Apps SwiftUI UI Patterns skill on the RunSmart iOS app with a focused optimization pass on the Today tab.
+
+### Files Changed
+- `IOS RunSmart app/Features/Today/TodayTabView.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Kept the pass behavior-preserving and avoided screen redesign.
+- Changed the main Today content stack to `LazyVStack` so the scroll-heavy dashboard follows SwiftUI feed/container guidance.
+- Changed the dynamic weekly workout strip to `LazyHStack` while keeping small fixed rows unchanged.
+- Localized derived Today values in `body` so `TodayResolvedState` and the route/explanation snapshot are computed once per render and reused across cards.
+- Replaced repeated inline router closures with named methods for Today coach, workout detail, plan adjustment, routes, reports, reschedule, and run start actions.
+- Preserved existing dirty release/TestFlight work and did not touch unrelated Swift changes.
+
+### Validation
+- Swift parse validation passed:
+  `xcrun swiftc -parse "IOS RunSmart app/Features/Today/TodayTabView.swift"`
+- Whitespace validation passed:
+  `git diff --check -- "IOS RunSmart app/Features/Today/TodayTabView.swift" tasks/todo.md`
+- Generic simulator build passed with DerivedData outside synced storage:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-swiftui-ui-patterns-derived-data CODE_SIGNING_ALLOWED=NO build`
+- XcodeBuildMCP simulator build was attempted first but hit the 120-second tool timeout while the underlying build continued; a direct incremental build completed successfully.
+- Build warning noise remains pre-existing in AppIntents metadata extraction and the always-run metadata stripping script.
+
+### Next Recommended Action
+Use the same UI Patterns pass on `PlanTabView.swift`, then consider a small shared horizontal-section helper if the Today and Plan strips keep converging.
+
+## 2026-05-24 - SwiftUI View Refactor Skill Pass
+
+### Task Summary
+Ran the Build iOS Apps SwiftUI View Refactor skill on the RunSmart iOS app with a focused pass on the largest secondary-flow SwiftUI surface.
+
+### Files Changed
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Kept the refactor behavior-preserving and did not redesign any screens.
+- Moved destination subtitle/symbol metadata onto `SecondaryDestination` so the root view reads as data plus layout.
+- Extracted `SecondaryContentView` to keep `SecondaryFlowView` small and make the destination switch a dedicated subview concern.
+- Replaced several inline async button actions with named methods in secondary-flow scaffolds.
+- Preserved existing dirty release/TestFlight work and did not touch unrelated Swift changes.
+
+### Validation
+- Swift parse validation passed:
+  `xcrun swiftc -parse "IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift"`
+- Whitespace validation passed:
+  `git diff --check -- "IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift" tasks/todo.md`
+- Generic simulator build passed with DerivedData outside synced storage:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-swiftui-refactor-derived-data CODE_SIGNING_ALLOWED=NO build`
+- XcodeBuildMCP simulator build was attempted first but hit the 120-second tool timeout while the underlying build continued; a direct incremental build completed successfully.
+- Build warning noise remains pre-existing in HealthKit, RunSmartAPIModels, BenchmarkRouteAnalyticsService, and AppIntents metadata extraction.
+
+### Next Recommended Action
+Use the same skill on `TodayTabView.swift` or `PlanTabView.swift` next; both are large enough to benefit from a dedicated subview pass.
+
+## 2026-05-20 - Sprint 10 TestFlight Closeout And Today QA
+
+### Task Summary
+Planned and implemented Sprint 10 through the local Agent OS flow: unblocked local build/test code signing, ran final build/build-for-testing/focused readiness validation from `/tmp/runsmart-derived-data`, fixed only release-blocking Sprint 9 regressions exposed by tests, and wrote a TestFlight closeout report with honest blockers for authenticated/manual/portal work.
+
+### Files Changed
+- `IOS RunSmart app.xcodeproj/project.pbxproj`
+- `IOS RunSmart app/Services/Supabase/TrainingPlanRepository.swift`
+- `IOS RunSmart app/Models/RunSmartModels.swift`
+- `IOS RunSmart app/Features/Sharing/ProgressShareCard.swift`
+- `IOS RunSmart app/Features/Run/PostRunSummaryView.swift`
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift`
+- `docs/specs/sprint-10-testflight-closeout.md`
+- `docs/qa/sprint-10-testflight-closeout-report.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Decisions Made
+- Added a target build phase that runs `/usr/bin/xattr -cr` against the built app bundle before code signing so local resource metadata does not require manual cleanup.
+- Kept DerivedData outside synced/FileProvider folders at `/tmp/runsmart-derived-data`.
+- Changed date-only plan formatting to user-local timezone semantics because scheduled workout dates are calendar days, not UTC instants.
+- Tightened low-recovery classification so low stress does not count as low recovery while high/elevated stress still does.
+- Kept Sprint 10 bug fixes narrow and avoided new AI, route, onboarding, or redesign work.
+- Recorded authenticated QA, physical device QA, App Store Connect portal work, and authenticated Coach smoke as blockers rather than claiming unverified access.
+
+### Validation
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-derived-data build`
+- Generic simulator build-for-testing passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-derived-data build-for-testing`
+- Focused `RunSmartReadinessTests` passed on iPhone 17 Pro:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17 Pro" -derivedDataPath /tmp/runsmart-derived-data -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests" test`
+- Codesign verification passed:
+  `codesign --verify --deep --strict --verbose=2 "/tmp/runsmart-derived-data/Build/Products/Debug-iphonesimulator/IOS RunSmart app.app"`
+- Whitespace validation passed:
+  `git diff --check -- "IOS RunSmart app.xcodeproj/project.pbxproj" "IOS RunSmart app/Features/Run/PostRunSummaryView.swift" "IOS RunSmart app/Features/Sharing/ProgressShareCard.swift" "IOS RunSmart app/Models/RunSmartModels.swift" "IOS RunSmart app/Services/Supabase/TrainingPlanRepository.swift" "IOS RunSmart appTests/RunSmartReadinessTests.swift" docs/specs/sprint-10-testflight-closeout.md tasks/todo.md`
+
+### Next Recommended Action
+Release owner should enter demo credentials directly in App Store Connect, select the processed build, add screenshots, confirm privacy/category/age rating, then run authenticated Coach smoke plus simulator and physical-device Today QA with the active-plan demo account.
+
 ## 2026-05-19 - AI Coach Validation And QA Story 5
 
 ### Task Summary
@@ -1190,3 +1327,37 @@ Implemented route feature Story 10: TestFlight Polish And Privacy Review. Physic
 
 ### Next Recommended Action
 Run a physical-device TestFlight pass for background GPS/battery, then archive/upload when signing and App Store Connect are ready.
+## 2026-05-23
+
+### Task Summary
+Implemented the RunSmart iOS TestFlight Readiness Audit plan through the safe local fixes and validation that can be completed without release-owner credentials or physical-device access.
+
+### Files Changed
+- `IOS RunSmart app/Services/RouteSuggestionRanker.swift`
+- `IOS RunSmart app/Features/Routes/RouteCreatorView.swift`
+- `IOS RunSmart appTests/RouteRankingTests.swift`
+- `IOS RunSmart app/Services/Supabase/AppLinks.swift`
+- `IOS RunSmart app/Features/Auth/SignInView.swift`
+- `IOS RunSmart app/Services/HealthKit/HealthKitSyncService.swift`
+- `docs/qa/testflight-readiness-audit-2026-05-23.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Treated route surface selection as a release-readiness bug because Road/Trail controls were visible but not wired into ranking.
+- Kept surface ranking conservative because current route data does not persist an explicit surface field.
+- Replaced placeholder external URLs with live RunSmart URLs and added a Terms URL for sign-in legal copy.
+- Made Terms and Privacy tappable on the sign-in screen without changing the overall auth flow.
+- Cleaned up HealthKit optional read-type insertion warnings without changing HealthKit behavior.
+
+### Validation
+- Swift parse validation passed for route ranking implementation and tests.
+- Generic simulator build-for-testing passed with `/tmp/runsmart-audit-derived-data`.
+- iPhone 17 Pro simulator install and launch passed for `com.runsmart.lite`.
+- Launch smoke reached the RunSmart sign-in screen with Sign in with Apple visible.
+- Focused `RouteRankingTests` simulator execution stalled during simulator launch/test execution and was stopped; record as blocked, not passed.
+- XcodeBuildMCP UI snapshot failed with no translation object returned for the simulator.
+- Public marketing, support, privacy, terms, and account deletion URLs responded successfully.
+
+### Next Recommended Action
+Retry focused XCTest execution from a healthy simulator, then complete authenticated Today/Coach/route/post-run smoke and physical-device GPS/background/HealthKit QA before TestFlight submission.
