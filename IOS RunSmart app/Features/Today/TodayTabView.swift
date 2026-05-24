@@ -741,6 +741,15 @@ private struct TodayWorkoutRecommendationCard: View {
                         TodayWorkoutMetricTile(title: "Intensity", value: display.intensity)
                     }
 
+                    if let rationale = recommendation.rationale, !rationale.isEmpty {
+                        Text(rationale)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 2)
+                    }
+
                     Button {
                         withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
                             isExpanded.toggle()

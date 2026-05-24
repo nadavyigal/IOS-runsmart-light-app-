@@ -73,6 +73,21 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             hrvLabel = "--"
         }
 
+        let planWeekIndex: Int? = {
+            guard let plan = activePlan?.plan,
+                  let startDate = ISO8601DateFormatter.shortDate.date(from: plan.startDate) else { return nil }
+            return Calendar.current.dateComponents([.weekOfYear], from: startDate, to: Date()).weekOfYear
+        }()
+
+        let generatedRationale = TodayRationaleBuilder.rationale(
+            bodyBattery: metrics?.bodyBattery,
+            hrv: metrics?.hrv,
+            sleepSeconds: healthSnapshot?.sleepSeconds,
+            workoutTitle: todayWorkout?.workoutTitle ?? "Rest Day",
+            isRestDay: todayWorkout == nil,
+            planWeekIndex: planWeekIndex
+        )
+
         return TodayRecommendation(
             readiness: readiness,
             readinessLabel: readinessLabel,
@@ -84,7 +99,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             weeklyProgress: "\(weeklyDone) / \(weeklyTotal) km",
             streak: "\(streakDays) days",
             recovery: sleepHours,
-            hrv: hrvLabel
+            hrv: hrvLabel,
+            rationale: generatedRationale
         )
     }
 
@@ -2226,4 +2242,58 @@ extension TodayRecommendation {
         elevation: "--",
         coachMessage: "Loading your training data…"
     )
+}
+
+// MARK: - TodayRationaleBuilder
+
+struct TodayRationaleBuilder {
+    static func rationale(
+        bodyBattery: Int?,
+        hrv: Double?,
+        sleepSeconds: Double?,
+        workoutTitle: String,
+        isRestDay: Bool,
+        planWeekIndex: Int?
+    ) -> String {
+        if isRestDay {
+            if let bb = bodyBattery, bb < 50 {
+                return "Body battery at \(bb) — today's rest lets you recharge before the next block."
+            }
+            return "Rest is training too. Recovery today means a stronger effort tomorrow."
+        }
+
+        if let bb = bodyBattery {
+            if bb > 70 {
+                return "Body battery at \(bb) — you're fueled for a real effort. Today's run lands well."
+            } else if bb > 40 {
+                return "Body battery at \(bb). A controlled effort keeps your energy balanced this week."
+            } else {
+                return "Body battery is low at \(bb). Keep today easy — protecting your week matters more."
+            }
+        }
+
+        if let hrv = hrv {
+            let rounded = Int(hrv)
+            if hrv > 50 {
+                return "HRV is stable at \(rounded) ms — a good sign for a solid training effort today."
+            } else {
+                return "HRV is a bit lower at \(rounded) ms. An easy effort supports full recovery."
+            }
+        }
+
+        if let sleep = sleepSeconds, sleep > 6 * 3600 {
+            return "Good sleep last night. Your body is primed — make today's effort count."
+        }
+
+        if let week = planWeekIndex {
+            if week <= 2 {
+                return "Early in your plan. Easy efforts build the aerobic base that makes hard efforts possible."
+            }
+            if week >= 8 {
+                return "You've put in serious work to get here. Today's effort is part of a bigger picture."
+            }
+        }
+
+        return "Consistency is the foundation. Today's run keeps your training momentum going."
+    }
 }
