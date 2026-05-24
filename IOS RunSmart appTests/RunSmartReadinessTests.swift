@@ -2868,6 +2868,140 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertNotNil(withRationale.rationale)
         XCTAssertNil(withoutRationale.rationale)
     }
+
+    // MARK: - E1: TodayRationaleBuilder (Story 2)
+
+    func testRationaleUsesBodyBatteryHighPath() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: 85,
+            hrv: nil,
+            sleepSeconds: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false,
+            planWeekIndex: 2
+        )
+        XCTAssertTrue(result.contains("85") || result.lowercased().contains("body battery"),
+                      "High body battery rationale should reference the score or body battery")
+        XCTAssertLessThanOrEqual(result.count, 140, "Rationale must fit on card (<=140 chars)")
+    }
+
+    func testRationaleUsesBodyBatteryLowPath() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: 28,
+            hrv: nil,
+            sleepSeconds: nil,
+            workoutTitle: "Tempo Run",
+            isRestDay: false,
+            planWeekIndex: 4
+        )
+        XCTAssertTrue(result.lowercased().contains("low") || result.lowercased().contains("easy") || result.lowercased().contains("protect"),
+                      "Low body battery should signal caution")
+        XCTAssertLessThanOrEqual(result.count, 140)
+    }
+
+    func testRationaleUsesHRVWhenNoBattery() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: nil,
+            hrv: 62.0,
+            sleepSeconds: nil,
+            workoutTitle: "Long Run",
+            isRestDay: false,
+            planWeekIndex: 6
+        )
+        XCTAssertTrue(result.lowercased().contains("hrv") || result.contains("62"),
+                      "HRV path should reference HRV or the value")
+        XCTAssertLessThanOrEqual(result.count, 140)
+    }
+
+    func testRationaleOnRestDay() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: nil,
+            hrv: nil,
+            sleepSeconds: nil,
+            workoutTitle: "Rest Day",
+            isRestDay: true,
+            planWeekIndex: 3
+        )
+        XCTAssertTrue(result.lowercased().contains("rest") || result.lowercased().contains("recover"),
+                      "Rest day rationale should mention rest or recovery")
+        XCTAssertLessThanOrEqual(result.count, 140)
+    }
+
+    func testRationaleEarlyPlanFallback() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: nil,
+            hrv: nil,
+            sleepSeconds: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false,
+            planWeekIndex: 1
+        )
+        XCTAssertTrue(result.lowercased().contains("early") || result.lowercased().contains("base") || result.lowercased().contains("foundation"),
+                      "Early-plan fallback should mention building base")
+        XCTAssertLessThanOrEqual(result.count, 140)
+    }
+
+    func testRationaleNoDataGenericFallback() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: nil,
+            hrv: nil,
+            sleepSeconds: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false,
+            planWeekIndex: nil
+        )
+        XCTAssertFalse(result.isEmpty, "Fallback rationale must never be empty")
+        XCTAssertLessThanOrEqual(result.count, 140)
+    }
+
+    // MARK: - E1: Fallback edge cases (Story 4)
+
+    func testRationaleFallbackNeverExposesErrorLanguage() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: nil,
+            hrv: nil,
+            sleepSeconds: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false,
+            planWeekIndex: nil
+        )
+        let forbidden = ["unable", "error", "failed", "unavailable", "null", "nil"]
+        for word in forbidden {
+            XCTAssertFalse(result.lowercased().contains(word),
+                           "Fallback must not expose technical language: '\(word)' found in '\(result)'")
+        }
+    }
+
+    func testRationaleIsUnder140CharactersForAllPaths() {
+        let paths: [(Int?, Double?, Double?, String, Bool, Int?)] = [
+            (85, nil, nil, "Tempo Run", false, 4),
+            (28, nil, nil, "Easy Run", false, 2),
+            (nil, 65.0, nil, "Long Run", false, 6),
+            (nil, 38.0, nil, "Easy Run", false, 1),
+            (nil, nil, 7 * 3600, "Intervals", false, 5),
+            (nil, nil, nil, "Rest Day", true, 3),
+            (nil, nil, nil, "Easy Run", false, 1),
+            (nil, nil, nil, "Easy Run", false, 9),
+            (nil, nil, nil, "Easy Run", false, nil),
+        ]
+        for (bb, hrv, sleep, title, isRest, week) in paths {
+            let result = TodayRationaleBuilder.rationale(
+                bodyBattery: bb,
+                hrv: hrv,
+                sleepSeconds: sleep,
+                workoutTitle: title,
+                isRestDay: isRest,
+                planWeekIndex: week
+            )
+            XCTAssertLessThanOrEqual(result.count, 140,
+                "Rationale too long (\(result.count) chars) for path bb=\(String(describing: bb)): \(result)")
+        }
+    }
+
+    func testPlaceholderRecommendationHasNilRationale() {
+        XCTAssertNil(TodayRecommendation.placeholder.rationale,
+                     "Placeholder must not show a rationale — card should hide the row gracefully")
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {
