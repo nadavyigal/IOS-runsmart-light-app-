@@ -1479,13 +1479,12 @@ struct WeeklyProgressSummary: Hashable, Codable {
     }
 
     static func currentISOWeekKey() -> String {
-        // Use ISO 8601 calendar so week boundaries are deterministic regardless of device locale.
-        // Calendar.current on non-Gregorian locales (e.g. Hebrew, Chinese) may return nil
-        // for yearForWeekOfYear, which would corrupt the cache key.
-        let cal = Calendar(identifier: .iso8601)
-        let components = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
-        let year = components.yearForWeekOfYear ?? Calendar.current.component(.year, from: Date())
-        let week = components.weekOfYear ?? 1
+        // ISO 8601 calendar guarantees deterministic week boundaries regardless of device locale.
+        // Using .component(_:from:) returns Int directly — no optional unwrapping needed.
+        var iso = Calendar(identifier: .iso8601)
+        iso.locale = Locale(identifier: "en_US_POSIX")
+        let year = iso.component(.yearForWeekOfYear, from: Date())
+        let week = iso.component(.weekOfYear, from: Date())
         return String(format: "%04d-W%02d", year, week)
     }
 

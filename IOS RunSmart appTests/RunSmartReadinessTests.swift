@@ -3238,6 +3238,23 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(dto.headline, "3 runs · 18.5 km")
         XCTAssertEqual(dto.source, "live_ai")
     }
+
+    func testWeeklyProgressSummaryCacheRoundTrip() throws {
+        let summary = WeeklyProgressSummary(
+            headline: "3 runs · 15 km",
+            narrative: "Good week.",
+            forwardLook: "Next week builds on this.",
+            weekLabel: "Week 2 of your plan",
+            generatedDate: Date(),
+            isoWeekKey: WeeklyProgressSummary.currentISOWeekKey(),
+            source: .fallback
+        )
+        let data = try JSONEncoder().encode(summary)
+        let decoded = try JSONDecoder().decode(WeeklyProgressSummary.self, from: data)
+        XCTAssertEqual(decoded.headline, summary.headline)
+        XCTAssertEqual(decoded.isoWeekKey, summary.isoWeekKey)
+        XCTAssertEqual(decoded.source, summary.source)
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {
