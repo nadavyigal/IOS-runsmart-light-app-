@@ -234,6 +234,15 @@ function fallbackWeeklySummary(context: JsonRecord): {
     ? (context.totalDistanceKm as number).toFixed(1)
     : "–";
   const runWord = runs === 1 ? "run" : "runs";
+  if (runs === 0) {
+    return {
+      headline: "Rest week",
+      narrative: "Every week is a fresh start. Lace up whenever you're ready.",
+      forwardLook: "Check Today for your next recommended session.",
+      weekLabel: "This week",
+      source: "fallback",
+    };
+  }
   return {
     headline: `${runs} ${runWord} · ${distanceKm} km`,
     narrative: "A solid week of training. RunSmart has logged your effort.",
@@ -324,7 +333,7 @@ Deno.serve(async (req) => {
       runsPlanned: typeof context.runsPlanned === "number" ? context.runsPlanned : 0,
       totalDistanceKm: typeof context.totalDistanceKm === "number" ? context.totalDistanceKm : 0,
       prevWeekDistanceKm: typeof context.prevWeekDistanceKm === "number" ? context.prevWeekDistanceKm : null,
-      planPhase: context.planPhase ? limitString(context.planPhase as string, 40) : null,
+      planPhase: typeof context.planPhase === "string" ? limitString(context.planPhase, 40) : null,
       isRecoveryWeek: Boolean(context.isRecoveryWeek),
       readinessAverage: typeof context.readinessAverage === "number" ? context.readinessAverage : null,
     };
