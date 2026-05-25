@@ -39,6 +39,24 @@ Rules:
 - Use supportive language: adjust, recover, next best step, still on track.
 - Give one practical next action.`;
 
+const RUN_DEBRIEF_SYSTEM_PROMPT = `You are RunSmart Coach. Given a completed run's data, write a short post-run debrief.
+
+Return ONLY valid JSON — no markdown, no explanation — in exactly this shape:
+{
+  "headline": "One short coach reaction (max 40 characters)",
+  "debrief": "1-2 sentences referencing at least one real signal from the run (pace, HR, distance, effort)",
+  "tomorrow": "One sentence: what this run means for tomorrow",
+  "planImpact": "Short phrase or null"
+}
+
+Rules:
+- Be specific: reference actual numbers from the context.
+- Be warm and direct. No filler.
+- Do not diagnose injuries or give medical advice.
+- If injurySignal is true in context, set headline to "Rest up — listen to your body", debrief to "Any pain or discomfort after a run needs rest first. Check in with a professional before your next session.", tomorrow to "Take a full rest day tomorrow.", planImpact to null.
+- Do not shame any result.
+- Conservative guidance under uncertainty.`;
+
 const forbiddenContextKeys = new Set([
   "latitude",
   "longitude",
@@ -50,6 +68,83 @@ const forbiddenContextKeys = new Set([
   "gps",
   "points",
 ]);
+
+async function generateRunDebrief(context: JsonRecord): Promise<{
+  headline: string;
+  debrief: string;
+  tomorrow: string;
+  planImpact: string | null;
+  source: CoachSource;
+}> {
+  const injurySignal = Boolean(context.injurySignal);
+  if (injurySignal) {
+    return {
+      headline: "Rest up — listen to your body",
+      debrief: "Any pain or discomfort after a run needs rest first. Check in with a professional before your next session.",
+      tomorrow: "Take a full rest day tomorrow.",
+      planImpact: null,
+      source: "fallback",
+    };
+  }
+
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  if (!apiKey) {
+    return fallbackRunDebrief(context);
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        instructions: RUN_DEBRIEF_SYSTEM_PROMPT,
+        input: [{
+          role: "user",
+          content: [{ type: "input_text", text: `Run data:\n${JSON.stringify(context)}` }],
+        }],
+        max_output_tokens: 180,
+      }),
+    });
+    if (!response.ok) throw new Error(`OpenAI ${response.status}`);
+    const json = await response.json();
+    const text = extractResponseText(json).trim();
+    const parsed = JSON.parse(text);
+    return {
+      headline: limitString(parsed.headline, 40),
+      debrief: limitString(parsed.debrief, 300),
+      tomorrow: limitString(parsed.tomorrow, 160),
+      planImpact: parsed.planImpact ? limitString(parsed.planImpact, 60) : null,
+      source: "live_ai",
+    };
+  } catch (error) {
+    console.error("run_debrief AI fallback", error);
+    return fallbackRunDebrief(context);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function fallbackRunDebrief(context: JsonRecord): {
+  headline: string; debrief: string; tomorrow: string; planImpact: string | null; source: CoachSource;
+} {
+  const distanceKm = typeof context.runDistanceKm === "number" ? (context.runDistanceKm as number).toFixed(1) : "–";
+  const durationMin = typeof context.runDurationSeconds === "number"
+    ? Math.round((context.runDurationSeconds as number) / 60)
+    : null;
+  const durationStr = durationMin ? `${durationMin} min` : "";
+  return {
+    headline: "Run logged",
+    debrief: `You covered ${distanceKm} km${durationStr ? ` in ${durationStr}` : ""}. RunSmart has logged this effort toward your training.`,
+    tomorrow: "Check Today tomorrow for your next recommended session.",
+    planImpact: null,
+    source: "fallback",
+  };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -95,6 +190,26 @@ Deno.serve(async (req) => {
   const conversationId = optionalUUID(body.conversationId);
   const clientTimestamp = stringValue(body.clientTimestamp).trim();
   const context = asRecord(body.context);
+  const intent = stringValue(body.intent) || "chat";
+
+  // Route run_debrief before the chat-specific validation
+  if (intent === "run_debrief") {
+    if (!context || containsForbiddenKeys(context)) {
+      return jsonResponse({ error: "Context contains forbidden keys" }, 400);
+    }
+    const safeContext: JsonRecord = {
+      runDistanceKm: typeof context.runDistanceKm === "number" ? context.runDistanceKm : 0,
+      runDurationSeconds: typeof context.runDurationSeconds === "number" ? context.runDurationSeconds : 0,
+      averagePaceMinPerKm: typeof context.averagePaceMinPerKm === "number" ? context.averagePaceMinPerKm : null,
+      averageHeartRateBPM: typeof context.averageHeartRateBPM === "number" ? context.averageHeartRateBPM : null,
+      workoutType: limitString(context.workoutType, 40),
+      planPhase: context.planPhase ? limitString(context.planPhase, 80) : null,
+      recentLoadDays: typeof context.recentLoadDays === "number" ? context.recentLoadDays : 0,
+      injurySignal: Boolean(context.injurySignal),
+    };
+    const debrief = await generateRunDebrief(safeContext);
+    return jsonResponse(debrief);
+  }
 
   if (!message) {
     return jsonResponse({ error: "Message is required" }, 400);
