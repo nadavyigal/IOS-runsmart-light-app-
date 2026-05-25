@@ -109,7 +109,6 @@ extension WebParityProviding {
     func approveGarminMorningCheckin() async -> Bool { false }
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool { false }
     func generateWeeklySummary() async -> WeeklyProgressSummary? { nil }
-    func removeRun(_ run: RecordedRun) async -> Bool { false }
 
     func latestRunReports() async -> [RunReportSummary] {
         await latestRunReports(limit: 3)

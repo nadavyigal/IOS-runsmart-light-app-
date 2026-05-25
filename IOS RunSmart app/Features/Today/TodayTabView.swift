@@ -18,6 +18,7 @@ struct TodayTabView: View {
     @State private var activeChallenge: ChallengeSummary = .loading
     @State private var challengeLoaded = false
     @State private var weeklySummary: WeeklyProgressSummary? = nil
+    @State private var weeklySummaryFetchedKey: String = ""    // ISO week key of last fetch attempt
     @State private var pendingLoadTask: Task<Void, Never>?
 
     private var greeting: String {
@@ -221,7 +222,10 @@ struct TodayTabView: View {
         recovery = recov
         activeChallenge = challenge
         challengeLoaded = true
-        if weeklySummary == nil {
+        // Fetch once per ISO week; guard covers both nil result (zero runs) and populated result
+        let currentWeekKey = WeeklyProgressSummary.currentISOWeekKey()
+        if weeklySummaryFetchedKey != currentWeekKey {
+            weeklySummaryFetchedKey = currentWeekKey
             weeklySummary = await services.generateWeeklySummary()
         }
     }
