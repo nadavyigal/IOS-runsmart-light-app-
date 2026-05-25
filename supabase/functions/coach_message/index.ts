@@ -57,6 +57,24 @@ Rules:
 - Do not shame any result.
 - Conservative guidance under uncertainty.`;
 
+const WEEKLY_SUMMARY_SYSTEM_PROMPT = `You are RunSmart Coach. Given a runner's week summary data, write a short weekly progress narrative.
+
+Return ONLY valid JSON — no markdown, no explanation — in exactly this shape:
+{
+  "headline": "Key stat that proves something changed (max 50 characters, e.g. '3 runs · 18 km · 4th week in a row')",
+  "narrative": "2-3 sentences in coach voice: what was built this week, what the data shows, why it matters",
+  "forwardLook": "One sentence: what next week is building toward",
+  "weekLabel": "Context label, e.g. 'Week 4 of your plan' or 'Week 3 with RunSmart'"
+}
+
+Rules:
+- Be specific: reference actual numbers (runs, distance, comparison to last week if available).
+- Be warm, direct, forward-looking.
+- Do not shame missed workouts: if runsCompleted < runsPlanned, acknowledge effort without guilt.
+- Do not diagnose or give medical advice.
+- If runsCompleted is 0, return a short encouraging message anyway.
+- Conservative under uncertainty.`;
+
 const forbiddenContextKeys = new Set([
   "latitude",
   "longitude",
@@ -155,6 +173,76 @@ function fallbackRunDebrief(context: JsonRecord): {
   };
 }
 
+async function generateWeeklySummary(context: JsonRecord): Promise<{
+  headline: string;
+  narrative: string;
+  forwardLook: string;
+  weekLabel: string;
+  source: CoachSource;
+}> {
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  if (!apiKey) {
+    return fallbackWeeklySummary(context);
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        instructions: WEEKLY_SUMMARY_SYSTEM_PROMPT,
+        input: [{
+          role: "user",
+          content: [{ type: "input_text", text: `Week data:\n${JSON.stringify(context)}` }],
+        }],
+        max_output_tokens: 220,
+      }),
+    });
+    if (!response.ok) throw new Error(`OpenAI ${response.status}`);
+    const json = await response.json();
+    const text = extractResponseText(json).trim();
+    if (!text) {
+      throw new Error("weekly_summary: OpenAI returned empty text");
+    }
+    const parsed = JSON.parse(text);
+    const headline = limitString(parsed.headline, 50);
+    const narrative = limitString(parsed.narrative, 400);
+    const forwardLook = limitString(parsed.forwardLook, 160);
+    const weekLabel = limitString(parsed.weekLabel, 60);
+    if (!headline || !narrative || !forwardLook || !weekLabel) {
+      throw new Error("weekly_summary: AI response missing required fields");
+    }
+    return { headline, narrative, forwardLook, weekLabel, source: "live_ai" as CoachSource };
+  } catch (error) {
+    console.error("weekly_summary AI fallback", error);
+    return fallbackWeeklySummary(context);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function fallbackWeeklySummary(context: JsonRecord): {
+  headline: string; narrative: string; forwardLook: string; weekLabel: string; source: CoachSource;
+} {
+  const runs = typeof context.runsCompleted === "number" ? context.runsCompleted : 0;
+  const distanceKm = typeof context.totalDistanceKm === "number"
+    ? (context.totalDistanceKm as number).toFixed(1)
+    : "–";
+  const runWord = runs === 1 ? "run" : "runs";
+  return {
+    headline: `${runs} ${runWord} · ${distanceKm} km`,
+    narrative: "A solid week of training. RunSmart has logged your effort.",
+    forwardLook: "Check Today for your next recommended session.",
+    weekLabel: "This week",
+    source: "fallback",
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -221,6 +309,27 @@ Deno.serve(async (req) => {
     };
     const debrief = await generateRunDebrief(safeContext);
     return jsonResponse(debrief);
+  }
+
+  if (intent === "weekly_summary") {
+    if (!context) {
+      return jsonResponse({ error: "Context is required for weekly_summary" }, 400);
+    }
+    if (containsForbiddenKeys(context)) {
+      return jsonResponse({ error: "Context contains forbidden keys" }, 400);
+    }
+    const safeContext: JsonRecord = {
+      weekStartDate: limitString(context.weekStartDate, 20),
+      runsCompleted: typeof context.runsCompleted === "number" ? context.runsCompleted : 0,
+      runsPlanned: typeof context.runsPlanned === "number" ? context.runsPlanned : 0,
+      totalDistanceKm: typeof context.totalDistanceKm === "number" ? context.totalDistanceKm : 0,
+      prevWeekDistanceKm: typeof context.prevWeekDistanceKm === "number" ? context.prevWeekDistanceKm : null,
+      planPhase: context.planPhase ? limitString(context.planPhase as string, 40) : null,
+      isRecoveryWeek: Boolean(context.isRecoveryWeek),
+      readinessAverage: typeof context.readinessAverage === "number" ? context.readinessAverage : null,
+    };
+    const summary = await generateWeeklySummary(safeContext);
+    return jsonResponse(summary);
   }
 
   if (!message) {
