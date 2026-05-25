@@ -1111,11 +1111,11 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     )
                 }
                 group.addTask {
-                    try await Task.sleep(for: .seconds(3))
-                    throw CancellationError()
+                    try await Task.sleep(nanoseconds: 3_000_000_000)  // iOS 13+ compatible
+                    throw DebriefTimeoutError()
                 }
                 do {
-                    guard let result = try await group.next() else { throw CancellationError() }
+                    guard let result = try await group.next() else { throw DebriefTimeoutError() }
                     group.cancelAll()
                     return result
                 } catch {
@@ -1123,17 +1123,29 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     throw error
                 }
             }
+            let headline = response.headline.trimmingCharacters(in: .whitespacesAndNewlines)
+            let debrief = response.debrief.trimmingCharacters(in: .whitespacesAndNewlines)
+            let tomorrow = response.tomorrow.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !headline.isEmpty, !debrief.isEmpty, !tomorrow.isEmpty else {
+                print("[SupabaseServices] run_debrief: AI response missing required fields, using fallback")
+                return .fallback(for: run)
+            }
             let model = PostRunDebriefModel(
-                headline: response.headline,
-                debrief: response.debrief,
-                tomorrow: response.tomorrow,
+                headline: headline,
+                debrief: debrief,
+                tomorrow: tomorrow,
                 planImpact: response.planImpact,
                 source: .ai
             )
             await persistDebrief(model, for: run)
             return model
         } catch {
-            if !(error is CancellationError) {
+            switch error {
+            case is DebriefTimeoutError:
+                print("[SupabaseServices] run_debrief timed out after 3s, using fallback")
+            case is CancellationError:
+                break  // parent task was cancelled — silent
+            default:
                 print("[SupabaseServices] run_debrief fallback:", error)
             }
             return .fallback(for: run)
@@ -2001,6 +2013,8 @@ private struct DBWellnessCheckinUpsert: Encodable {
         case energy, soreness, mood, stress, fatigue, notes, source
     }
 }
+
+private struct DebriefTimeoutError: Error {}
 
 private struct DBRunDebriefUpsert: Encodable {
     let authUserID: String
