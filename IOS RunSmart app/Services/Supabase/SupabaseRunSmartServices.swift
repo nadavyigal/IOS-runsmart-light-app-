@@ -1089,7 +1089,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             canonicalRun: canonical,
             report: report,
             completedWorkout: completed,
-            didCompletePlannedWorkout: completed != nil
+            didCompletePlannedWorkout: completed != nil,
+            debrief: nil                                   // E6: wired in Task 5
         )
     }
 

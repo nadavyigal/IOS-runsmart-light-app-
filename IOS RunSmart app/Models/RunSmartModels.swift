@@ -1423,11 +1423,39 @@ struct RunReportDetail: Identifiable, Codable, Hashable {
     }
 }
 
+struct PostRunDebriefModel: Hashable {
+    enum Source: String, Hashable {
+        case ai
+        case fallback
+    }
+
+    var headline: String
+    var debrief: String
+    var tomorrow: String
+    var planImpact: String?
+    var source: Source
+
+    static func fallback(for run: RecordedRun?) -> PostRunDebriefModel {
+        let distanceKm = (run?.distanceMeters ?? 0) / 1_000
+        let durationMin = Int((run?.movingTimeSeconds ?? 0) / 60)
+        let distanceStr = distanceKm > 0 ? String(format: "%.1f km", distanceKm) : "your run"
+        let durationStr = durationMin > 0 ? " in \(durationMin) min" : ""
+        return PostRunDebriefModel(
+            headline: "Run logged",
+            debrief: "You covered \(distanceStr)\(durationStr). RunSmart has recorded this effort.",
+            tomorrow: "Check Today tomorrow for your next recommended session.",
+            planImpact: nil,
+            source: .fallback
+        )
+    }
+}
+
 struct PostActivityOutcome: Hashable {
     var canonicalRun: RecordedRun
     var report: RunReportDetail?
     var completedWorkout: WorkoutSummary?
     var didCompletePlannedWorkout: Bool
+    var debrief: PostRunDebriefModel?          // E6: AI post-run debrief
 }
 
 struct TrainingLoadSnapshot: Hashable {

@@ -3136,6 +3136,51 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(dto.headline, "Solid effort")
         XCTAssertEqual(dto.source, "live_ai")
     }
+
+    func testPostRunDebriefModelFallbackHasContent() {
+        let run = RecordedRun(
+            id: UUID(),
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: Date(),
+            endedAt: Date(),
+            distanceMeters: 5000,
+            movingTimeSeconds: Double(1500),
+            averagePaceSecondsPerKm: 300,
+            averageHeartRateBPM: nil,
+            routePoints: [],
+            syncedAt: nil
+        )
+        let fallback = PostRunDebriefModel.fallback(for: run)
+        XCTAssertFalse(fallback.headline.isEmpty)
+        XCTAssertFalse(fallback.debrief.isEmpty)
+        XCTAssertFalse(fallback.tomorrow.isEmpty)
+        XCTAssertEqual(fallback.source, .fallback)
+    }
+
+    func testPostActivityOutcomeHasDebriefField() {
+        let run = RecordedRun(
+            id: UUID(),
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: Date(),
+            endedAt: Date(),
+            distanceMeters: 3000,
+            movingTimeSeconds: Double(1200),
+            averagePaceSecondsPerKm: 300,
+            averageHeartRateBPM: nil,
+            routePoints: [],
+            syncedAt: nil
+        )
+        let outcome = PostActivityOutcome(
+            canonicalRun: run,
+            report: nil,
+            completedWorkout: nil,
+            didCompletePlannedWorkout: false,
+            debrief: nil
+        )
+        XCTAssertNil(outcome.debrief)
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {
