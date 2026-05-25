@@ -1068,13 +1068,106 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return await generateRunReportIfMissing(for: run)
     }
 
+    private func fetchRunDebrief(for run: RecordedRun) async -> PostRunDebriefModel {
+        guard let token = try? await supabase.auth.session.accessToken else {
+            return .fallback(for: run)
+        }
+
+        let distanceKm = run.distanceMeters / 1_000.0
+        let durationSec = Int(run.movingTimeSeconds)
+        let paceMinPerKm: Double? = distanceKm > 0 && run.movingTimeSeconds > 0
+            ? (run.movingTimeSeconds / 60.0) / distanceKm
+            : nil
+
+        let sevenDaysAgo = Date().addingTimeInterval(-7 * 24 * 3600)
+        let recentCount = store.loadRuns()
+            .filter { $0.startedAt >= sevenDaysAgo }
+            .count
+
+        let request = RunSmartDTO.RunDebriefRequestDTO(
+            runDistanceKm: distanceKm,
+            runDurationSeconds: durationSec,
+            averagePaceMinPerKm: paceMinPerKm,
+            averageHeartRateBPM: run.averageHeartRateBPM,
+            workoutType: "easy",
+            planPhase: nil,
+            recentLoadDays: recentCount,
+            limitations: []
+        )
+        guard let body = try? JSONEncoder().encode(request) else {
+            return .fallback(for: run)
+        }
+        let client = URLSessionRunSmartAPIClient(
+            baseURL: SupabaseManager.functionsBaseURL,
+            accessToken: token,
+            additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
+        )
+        do {
+            let response = try await withThrowingTaskGroup(of: RunSmartDTO.RunDebriefResponseDTO.self) { group in
+                group.addTask {
+                    try await client.send(
+                        RunSmartAPI.Endpoint(path: "coach_message", method: .post, body: body),
+                        as: RunSmartDTO.RunDebriefResponseDTO.self
+                    )
+                }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(3))
+                    throw CancellationError()
+                }
+                guard let result = try await group.next() else { throw CancellationError() }
+                group.cancelAll()
+                return result
+            }
+            let model = PostRunDebriefModel(
+                headline: response.headline,
+                debrief: response.debrief,
+                tomorrow: response.tomorrow,
+                planImpact: response.planImpact,
+                source: .ai
+            )
+            await persistDebrief(model, for: run)
+            return model
+        } catch {
+            if !(error is CancellationError) {
+                print("[SupabaseServices] run_debrief fallback:", error)
+            }
+            return .fallback(for: run)
+        }
+    }
+
+    private func persistDebrief(_ debrief: PostRunDebriefModel, for run: RecordedRun) async {
+        guard let userID = currentUserID else { return }
+        do {
+            try await supabase
+                .from("run_debriefs")
+                .upsert(
+                    DBRunDebriefUpsert(
+                        authUserID: userID.uuidString,
+                        runID: run.id.uuidString,
+                        headline: debrief.headline,
+                        debrief: debrief.debrief,
+                        tomorrow: debrief.tomorrow,
+                        planImpact: debrief.planImpact,
+                        source: debrief.source.rawValue
+                    ),
+                    onConflict: "auth_user_id,run_id"
+                )
+                .execute()
+        } catch {
+            if !(error is CancellationError) {
+                print("[SupabaseServices] persistDebrief error:", error)
+            }
+        }
+    }
+
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
         let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: await recentRuns(limit: 100)))
         await upsertCompletedRunIfPossible(canonical)
         store.refreshBenchmarkStats()
         async let reportTask = generateRunReportIfMissing(for: canonical)
         async let completedTask = completeMatchingWorkout(for: canonical)
-        let (report, completed) = await (reportTask, completedTask)
+        async let debriefTask = fetchRunDebrief(for: canonical)          // E6
+        let (report, completed, debrief) = await (reportTask, completedTask, debriefTask)
 
         await MainActor.run {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
@@ -1090,7 +1183,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             report: report,
             completedWorkout: completed,
             didCompletePlannedWorkout: completed != nil,
-            debrief: nil                                   // E6: wired in Task 5
+            debrief: debrief                               // E6: AI post-run debrief
         )
     }
 
@@ -1901,6 +1994,24 @@ private struct DBWellnessCheckinUpsert: Encodable {
         case authUserID = "auth_user_id"
         case checkinDate = "checkin_date"
         case energy, soreness, mood, stress, fatigue, notes, source
+    }
+}
+
+private struct DBRunDebriefUpsert: Encodable {
+    let authUserID: String
+    let runID: String
+    let headline: String
+    let debrief: String
+    let tomorrow: String
+    let planImpact: String?
+    let source: String
+
+    enum CodingKeys: String, CodingKey {
+        case authUserID = "auth_user_id"
+        case runID = "run_id"
+        case headline, debrief, tomorrow
+        case planImpact = "plan_impact"
+        case source
     }
 }
 

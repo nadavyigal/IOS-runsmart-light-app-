@@ -3181,6 +3181,23 @@ final class RunSmartReadinessTests: XCTestCase {
         )
         XCTAssertNil(outcome.debrief)
     }
+
+    func testPostRunDebriefModelSourceIsAIOrFallback() {
+        // Verify the Source enum only has .ai and .fallback
+        let ai = PostRunDebriefModel.Source.ai
+        let fallback = PostRunDebriefModel.Source.fallback
+        XCTAssertNotEqual(ai, fallback)
+        XCTAssertEqual(ai.rawValue, "ai")
+        XCTAssertEqual(fallback.rawValue, "fallback")
+    }
+
+    func testPostRunDebriefModelFallbackForNilRun() {
+        let fallback = PostRunDebriefModel.fallback(for: nil)
+        XCTAssertFalse(fallback.headline.isEmpty)
+        XCTAssertFalse(fallback.debrief.isEmpty)
+        XCTAssertFalse(fallback.tomorrow.isEmpty)
+        XCTAssertEqual(fallback.source, .fallback)
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {
