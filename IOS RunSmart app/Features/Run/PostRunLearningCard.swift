@@ -159,7 +159,7 @@ struct PostRunLearningCardModel: Hashable {
 
     private static func source(for report: RunReportDetail?, run: RecordedRun?) -> PostRunLearningSource {
         guard let report else {
-            return run == nil ? .heuristic : .heuristic
+            return run == nil ? .heuristic : .fallback
         }
         if !report.hasGeneratedReport {
             return .report
@@ -210,17 +210,12 @@ struct PostRunLearningCard: View {
     }
 
     var body: some View {
-        Group {
-            if isProcessing && debrief == nil {
-                skeletonBody
-            } else if let debrief {
-                debriefBody(debrief)
-            } else {
-                deterministicBody
-            }
-        }
-        .task {
-            activePlan = await services.activeTrainingPlan()
+        if isProcessing && debrief == nil {
+            skeletonBody
+        } else if let debrief {
+            debriefBody(debrief)
+        } else {
+            deterministicBody
         }
     }
 
@@ -248,6 +243,9 @@ struct PostRunLearningCard: View {
                 }
             }
         }
+        .task {
+            activePlan = await services.activeTrainingPlan()
+        }
     }
 
     private var skeletonBody: some View {
@@ -266,10 +264,9 @@ struct PostRunLearningCard: View {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color.textSecondary.opacity(0.2))
                     .frame(height: 14)
-                    .padding(.trailing, 80)  // make second line shorter
+                    .padding(.trailing, 80)  // shorter second line
             }
         }
-        .redacted(reason: .placeholder)
     }
 
     @ViewBuilder
