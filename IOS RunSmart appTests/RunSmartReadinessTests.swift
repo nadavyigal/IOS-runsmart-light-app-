@@ -3198,6 +3198,46 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(fallback.tomorrow.isEmpty)
         XCTAssertEqual(fallback.source, .fallback)
     }
+
+    func testWeeklyProgressSummaryFallbackHasHeadline() {
+        let summary = WeeklyProgressSummary.fallback(runsCompleted: 3, totalDistanceKm: 15.4)
+        XCTAssertFalse(summary.headline.isEmpty)
+        XCTAssertEqual(summary.source, .fallback)
+    }
+
+    func testWeeklySummaryRequestDTOEncodesIntent() throws {
+        let dto = RunSmartDTO.WeeklySummaryRequestDTO(
+            weekStartDate: "2026-05-18",
+            runsCompleted: 3,
+            runsPlanned: 4,
+            totalDistanceKm: 18.5,
+            prevWeekDistanceKm: 15.2,
+            planPhase: "build",
+            isRecoveryWeek: false,
+            readinessAverage: 72.0,
+            limitations: []
+        )
+        let data = try JSONEncoder().encode(dto)
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        XCTAssertEqual(json["intent"] as? String, "weekly_summary")
+        XCTAssertEqual(json["runsCompleted"] as? Int, 3)
+    }
+
+    func testWeeklySummaryResponseDTODecodes() throws {
+        let json = """
+        {
+          "headline": "3 runs · 18.5 km",
+          "narrative": "A strong base week.",
+          "forwardLook": "Next week's long run is where this pays off.",
+          "weekLabel": "Week 3 of your plan",
+          "source": "live_ai"
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(RunSmartDTO.WeeklySummaryResponseDTO.self, from: data)
+        XCTAssertEqual(dto.headline, "3 runs · 18.5 km")
+        XCTAssertEqual(dto.source, "live_ai")
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {

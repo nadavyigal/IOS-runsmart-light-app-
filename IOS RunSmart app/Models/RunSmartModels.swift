@@ -1450,6 +1450,47 @@ struct PostRunDebriefModel: Hashable {
     }
 }
 
+struct WeeklyProgressSummary: Hashable, Codable {
+    enum Source: String, Hashable, Codable {
+        case ai
+        case fallback
+    }
+
+    var headline: String
+    var narrative: String
+    var forwardLook: String
+    var weekLabel: String
+    var generatedDate: Date
+    var isoWeekKey: String         // e.g. "2026-W21" -- cache key
+    var source: Source
+
+    static func fallback(runsCompleted: Int, totalDistanceKm: Double) -> WeeklyProgressSummary {
+        let distanceStr = String(format: "%.1f km", totalDistanceKm)
+        let runWord = runsCompleted == 1 ? "run" : "runs"
+        return WeeklyProgressSummary(
+            headline: "\(runsCompleted) \(runWord) · \(distanceStr)",
+            narrative: "A solid week of training. RunSmart has logged your effort.",
+            forwardLook: "Check Today for your next recommended session.",
+            weekLabel: "This week",
+            generatedDate: Date(),
+            isoWeekKey: WeeklyProgressSummary.currentISOWeekKey(),
+            source: .fallback
+        )
+    }
+
+    static func currentISOWeekKey() -> String {
+        let cal = Calendar.current
+        let components = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+        let year = components.yearForWeekOfYear ?? 2026
+        let week = components.weekOfYear ?? 1
+        return String(format: "%04d-W%02d", year, week)
+    }
+
+    static func isNewWeek(since lastKey: String) -> Bool {
+        currentISOWeekKey() != lastKey
+    }
+}
+
 struct PostActivityOutcome: Hashable {
     var canonicalRun: RecordedRun
     var report: RunReportDetail?

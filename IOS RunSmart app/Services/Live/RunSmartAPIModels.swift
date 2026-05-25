@@ -468,6 +468,27 @@ enum RunSmartDTO {
         let source: String
     }
 
+    struct WeeklySummaryRequestDTO: Encodable {
+        let intent: String = "weekly_summary"
+        let weekStartDate: String
+        let runsCompleted: Int
+        let runsPlanned: Int
+        let totalDistanceKm: Double
+        let prevWeekDistanceKm: Double?
+        let planPhase: String?
+        let isRecoveryWeek: Bool
+        let readinessAverage: Double?
+        let limitations: [String]
+    }
+
+    struct WeeklySummaryResponseDTO: Decodable {
+        let headline: String
+        let narrative: String
+        let forwardLook: String
+        let weekLabel: String
+        let source: String
+    }
+
     struct RunLogRequest: Codable {
         let startedAtISO8601: String
         let endedAtISO8601: String
