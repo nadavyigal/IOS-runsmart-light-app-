@@ -1208,7 +1208,13 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             limitations: []
         )
         guard let body = try? JSONEncoder().encode(request) else {
-            return nil
+            print("[SupabaseServices] weekly_summary: failed to encode request, using fallback")
+            let fallback = WeeklyProgressSummary.fallback(
+                runsCompleted: weekRuns.count,
+                totalDistanceKm: totalDistanceKm
+            )
+            cacheWeeklySummary(fallback, forKey: cacheKey)
+            return fallback
         }
 
         let client = URLSessionRunSmartAPIClient(
@@ -1227,10 +1233,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 }
                 group.addTask {
                     try await Task.sleep(nanoseconds: 5_000_000_000)  // iOS 13+ compatible
-                    throw CancellationError()
+                    throw WeeklySummaryTimeoutError()
                 }
                 do {
-                    guard let result = try await group.next() else { throw CancellationError() }
+                    guard let result = try await group.next() else { throw WeeklySummaryTimeoutError() }
                     group.cancelAll()
                     return result
                 } catch {
@@ -1250,7 +1256,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             cacheWeeklySummary(summary, forKey: cacheKey)
             return summary
         } catch {
-            if !(error is CancellationError) {
+            switch error {
+            case is WeeklySummaryTimeoutError:
+                print("[SupabaseServices] weekly_summary timed out after 5s, using fallback")
+            case is CancellationError:
+                return nil  // parent task was cancelled — don't cache stale fallback
+            default:
                 print("[SupabaseServices] weekly_summary fallback:", error)
             }
             let fallback = WeeklyProgressSummary.fallback(
@@ -2131,6 +2142,7 @@ private struct DBWellnessCheckinUpsert: Encodable {
 }
 
 private struct DebriefTimeoutError: Error {}
+private struct WeeklySummaryTimeoutError: Error {}
 
 private struct DBRunDebriefUpsert: Encodable {
     let authUserID: String
