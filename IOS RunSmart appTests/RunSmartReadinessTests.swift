@@ -3255,6 +3255,20 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(decoded.isoWeekKey, summary.isoWeekKey)
         XCTAssertEqual(decoded.source, summary.source)
     }
+
+    func testWeeklyProgressSummaryISOWeekKeyIsStable() {
+        let key1 = WeeklyProgressSummary.currentISOWeekKey()
+        let key2 = WeeklyProgressSummary.currentISOWeekKey()
+        XCTAssertEqual(key1, key2)
+        XCTAssertTrue(key1.contains("-W"), "Expected ISO week format, got \(key1)")
+    }
+
+    func testWeeklyProgressSummaryIsNewWeekDetection() {
+        let oldKey = "2020-W01"
+        XCTAssertTrue(WeeklyProgressSummary.isNewWeek(since: oldKey))
+        let currentKey = WeeklyProgressSummary.currentISOWeekKey()
+        XCTAssertFalse(WeeklyProgressSummary.isNewWeek(since: currentKey))
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {

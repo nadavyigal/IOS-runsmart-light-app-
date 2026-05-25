@@ -1152,6 +1152,122 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
     }
 
+    func generateWeeklySummary() async -> WeeklyProgressSummary? {
+        let currentKey = WeeklyProgressSummary.currentISOWeekKey()
+        let cacheKey = "runsmart.weekly_summary.\(currentKey)"
+
+        // Return cached summary if it exists for this week
+        if let cached = UserDefaults.standard.data(forKey: cacheKey),
+           let summary = try? JSONDecoder().decode(WeeklyProgressSummary.self, from: cached) {
+            return summary
+        }
+
+        // Gather week stats from local store
+        let cal = Calendar(identifier: .iso8601)
+        let weekStart = cal.date(from: cal.dateComponents(
+            [.yearForWeekOfYear, .weekOfYear],
+            from: Date()
+        )) ?? Date()
+        let allRuns = store.loadRuns()
+        let weekRuns = allRuns.filter { $0.startedAt >= weekStart }
+
+        // Guard: no card if zero runs this week
+        guard !weekRuns.isEmpty else { return nil }
+
+        let totalDistanceKm = weekRuns.reduce(0.0) { $0 + $1.distanceMeters / 1_000.0 }
+
+        // Previous week distance for step-up context
+        let prevWeekStart = cal.date(byAdding: .weekOfYear, value: -1, to: weekStart) ?? weekStart
+        let prevWeekRuns = allRuns.filter { $0.startedAt >= prevWeekStart && $0.startedAt < weekStart }
+        let prevDistanceKm = prevWeekRuns.isEmpty ? nil :
+            prevWeekRuns.reduce(0.0) { $0 + $1.distanceMeters / 1_000.0 }
+
+        // Fetch from AI
+        guard let token = try? await supabase.auth.session.accessToken else {
+            let fallback = WeeklyProgressSummary.fallback(
+                runsCompleted: weekRuns.count,
+                totalDistanceKm: totalDistanceKm
+            )
+            cacheWeeklySummary(fallback, forKey: cacheKey)
+            return fallback
+        }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        let weekStartISO = formatter.string(from: weekStart)
+
+        let request = RunSmartDTO.WeeklySummaryRequestDTO(
+            weekStartDate: weekStartISO,
+            runsCompleted: weekRuns.count,
+            runsPlanned: 0,
+            totalDistanceKm: totalDistanceKm,
+            prevWeekDistanceKm: prevDistanceKm,
+            planPhase: nil,
+            isRecoveryWeek: false,
+            readinessAverage: nil,
+            limitations: []
+        )
+        guard let body = try? JSONEncoder().encode(request) else {
+            return nil
+        }
+
+        let client = URLSessionRunSmartAPIClient(
+            baseURL: SupabaseManager.functionsBaseURL,
+            accessToken: token,
+            additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
+        )
+
+        do {
+            let response: RunSmartDTO.WeeklySummaryResponseDTO = try await withThrowingTaskGroup(of: RunSmartDTO.WeeklySummaryResponseDTO.self) { group in
+                group.addTask {
+                    try await client.send(
+                        RunSmartAPI.Endpoint(path: "coach_message", method: .post, body: body),
+                        as: RunSmartDTO.WeeklySummaryResponseDTO.self
+                    )
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 5_000_000_000)  // iOS 13+ compatible
+                    throw CancellationError()
+                }
+                do {
+                    guard let result = try await group.next() else { throw CancellationError() }
+                    group.cancelAll()
+                    return result
+                } catch {
+                    group.cancelAll()
+                    throw error
+                }
+            }
+            let summary = WeeklyProgressSummary(
+                headline: response.headline,
+                narrative: response.narrative,
+                forwardLook: response.forwardLook,
+                weekLabel: response.weekLabel,
+                generatedDate: Date(),
+                isoWeekKey: currentKey,
+                source: .ai
+            )
+            cacheWeeklySummary(summary, forKey: cacheKey)
+            return summary
+        } catch {
+            if !(error is CancellationError) {
+                print("[SupabaseServices] weekly_summary fallback:", error)
+            }
+            let fallback = WeeklyProgressSummary.fallback(
+                runsCompleted: weekRuns.count,
+                totalDistanceKm: totalDistanceKm
+            )
+            cacheWeeklySummary(fallback, forKey: cacheKey)
+            return fallback
+        }
+    }
+
+    private func cacheWeeklySummary(_ summary: WeeklyProgressSummary, forKey key: String) {
+        if let data = try? JSONEncoder().encode(summary) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
     private func persistDebrief(_ debrief: PostRunDebriefModel, for run: RecordedRun) async {
         guard let userID = currentUserID else { return }
         do {
