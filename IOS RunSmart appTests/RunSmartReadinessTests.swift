@@ -3257,10 +3257,15 @@ final class RunSmartReadinessTests: XCTestCase {
     }
 
     func testWeeklyProgressSummaryISOWeekKeyIsStable() {
-        let key1 = WeeklyProgressSummary.currentISOWeekKey()
-        let key2 = WeeklyProgressSummary.currentISOWeekKey()
-        XCTAssertEqual(key1, key2)
-        XCTAssertTrue(key1.contains("-W"), "Expected ISO week format, got \(key1)")
+        let key = WeeklyProgressSummary.currentISOWeekKey()
+        // Format must be YYYY-Www (e.g. "2026-W21")
+        let pattern = #"^\d{4}-W\d{2}$"#
+        XCTAssertTrue(key.range(of: pattern, options: .regularExpression) != nil,
+                      "Expected YYYY-Www format, got '\(key)'")
+        // Must be idempotent within the same second
+        XCTAssertEqual(key, WeeklyProgressSummary.currentISOWeekKey())
+        // Session is running in 2026 — sanity-check the year prefix
+        XCTAssertTrue(key.hasPrefix("2026-"), "Expected 2026 prefix for current test run, got '\(key)'")
     }
 
     func testWeeklyProgressSummaryIsNewWeekDetection() {

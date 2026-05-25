@@ -1164,11 +1164,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
         // Gather week stats from local store
         let cal = Calendar(identifier: .iso8601)
-        let weekStart = cal.date(from: cal.dateComponents(
-            [.yearForWeekOfYear, .weekOfYear],
-            from: Date()
-        )) ?? Date()
-        let allRuns = store.loadRuns()
+        let weekStartComponents = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+        guard let weekStart = cal.date(from: weekStartComponents) else {
+            print("[SupabaseServices] weekly_summary: could not compute ISO week start, skipping")
+            return nil
+        }
+        let allRuns = store.visibleRuns(store.loadRuns())
         let weekRuns = allRuns.filter { $0.startedAt >= weekStart }
 
         // Guard: no card if zero runs this week
@@ -1244,11 +1245,23 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     throw error
                 }
             }
+            let headline = response.headline.trimmingCharacters(in: .whitespacesAndNewlines)
+            let narrative = response.narrative.trimmingCharacters(in: .whitespacesAndNewlines)
+            let forwardLook = response.forwardLook.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !headline.isEmpty, !narrative.isEmpty, !forwardLook.isEmpty else {
+                print("[SupabaseServices] weekly_summary: AI response missing required fields, using fallback")
+                let fallback = WeeklyProgressSummary.fallback(
+                    runsCompleted: weekRuns.count,
+                    totalDistanceKm: totalDistanceKm
+                )
+                cacheWeeklySummary(fallback, forKey: cacheKey)
+                return fallback
+            }
             let summary = WeeklyProgressSummary(
-                headline: response.headline,
-                narrative: response.narrative,
-                forwardLook: response.forwardLook,
-                weekLabel: response.weekLabel,
+                headline: headline,
+                narrative: narrative,
+                forwardLook: forwardLook,
+                weekLabel: response.weekLabel.trimmingCharacters(in: .whitespacesAndNewlines),
                 generatedDate: Date(),
                 isoWeekKey: currentKey,
                 source: .ai
