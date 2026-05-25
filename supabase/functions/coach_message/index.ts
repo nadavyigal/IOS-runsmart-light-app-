@@ -113,13 +113,22 @@ async function generateRunDebrief(context: JsonRecord): Promise<{
     if (!response.ok) throw new Error(`OpenAI ${response.status}`);
     const json = await response.json();
     const text = extractResponseText(json).trim();
+    if (!text) {
+      throw new Error("run_debrief: OpenAI returned empty text");
+    }
     const parsed = JSON.parse(text);
+    const headline = limitString(parsed.headline, 40);
+    const debrief = limitString(parsed.debrief, 300);
+    const tomorrow = limitString(parsed.tomorrow, 160);
+    if (!headline || !debrief || !tomorrow) {
+      throw new Error("run_debrief: AI response missing required fields");
+    }
     return {
-      headline: limitString(parsed.headline, 40),
-      debrief: limitString(parsed.debrief, 300),
-      tomorrow: limitString(parsed.tomorrow, 160),
+      headline,
+      debrief,
+      tomorrow,
       planImpact: parsed.planImpact ? limitString(parsed.planImpact, 60) : null,
-      source: "live_ai",
+      source: "live_ai" as CoachSource,
     };
   } catch (error) {
     console.error("run_debrief AI fallback", error);
@@ -201,8 +210,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Context contains forbidden keys" }, 400);
     }
     const safeContext: JsonRecord = {
-      runDistanceKm: typeof context.runDistanceKm === "number" ? context.runDistanceKm : 0,
-      runDurationSeconds: typeof context.runDurationSeconds === "number" ? context.runDurationSeconds : 0,
+      runDistanceKm: typeof context.runDistanceKm === "number" ? context.runDistanceKm : null,
+      runDurationSeconds: typeof context.runDurationSeconds === "number" ? context.runDurationSeconds : null,
       averagePaceMinPerKm: typeof context.averagePaceMinPerKm === "number" ? context.averagePaceMinPerKm : null,
       averageHeartRateBPM: typeof context.averageHeartRateBPM === "number" ? context.averageHeartRateBPM : null,
       workoutType: limitString(context.workoutType, 40),
