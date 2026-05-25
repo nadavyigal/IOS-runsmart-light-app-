@@ -17,6 +17,7 @@ struct TodayTabView: View {
     @State private var recovery: RecoverySnapshot = .loading
     @State private var activeChallenge: ChallengeSummary = .loading
     @State private var challengeLoaded = false
+    @State private var weeklySummary: WeeklyProgressSummary? = nil
     @State private var pendingLoadTask: Task<Void, Never>?
 
     private var greeting: String {
@@ -100,10 +101,17 @@ struct TodayTabView: View {
                 )
                 .runSmartStaggeredAppear(index: 5)
 
-                if (!challengeLoaded || !activeChallenge.isActive),
-                   Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
+                // E2: weekly progress card — suppressed during 21-Day Rookie Challenge
+                let isBeginnerChallenge = Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile)
+                if (!challengeLoaded || !activeChallenge.isActive), isBeginnerChallenge {
                     Beginner5KHabitCard(track: habitTrack)
                         .runSmartStaggeredAppear(index: 6)
+                } else if let summary = weeklySummary {
+                    WeeklyProgressCard(
+                        summary: summary,
+                        onTapCoach: openTodayCoach
+                    )
+                    .runSmartStaggeredAppear(index: 6)
                 }
 
                 TodayQuickActions(
@@ -213,6 +221,9 @@ struct TodayTabView: View {
         recovery = recov
         activeChallenge = challenge
         challengeLoaded = true
+        if weeklySummary == nil {
+            weeklySummary = await services.generateWeeklySummary()
+        }
     }
 
     private var header: some View {

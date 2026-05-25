@@ -84,6 +84,7 @@ protocol WebParityProviding {
     func shouldPresentManualMorningCheckin() async -> Bool
     func approveGarminMorningCheckin() async -> Bool
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool
+    func generateWeeklySummary() async -> WeeklyProgressSummary?
 }
 
 extension WebParityProviding {
@@ -107,6 +108,7 @@ extension WebParityProviding {
     func shouldPresentManualMorningCheckin() async -> Bool { true }
     func approveGarminMorningCheckin() async -> Bool { false }
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool { false }
+    func generateWeeklySummary() async -> WeeklyProgressSummary? { nil }
     func removeRun(_ run: RecordedRun) async -> Bool { false }
 
     func latestRunReports() async -> [RunReportSummary] {

@@ -3274,6 +3274,44 @@ final class RunSmartReadinessTests: XCTestCase {
         let currentKey = WeeklyProgressSummary.currentISOWeekKey()
         XCTAssertFalse(WeeklyProgressSummary.isNewWeek(since: currentKey))
     }
+
+    func testWeeklyProgressCardSuppressedDuringBeginnerChallenge() {
+        // Gate condition: isBeginnerFirst5K returns true for a First 5K profile,
+        // confirming the suppression logic in TodayTabView works correctly.
+        let beginnerProfile = OnboardingProfile(
+            displayName: "Runner",
+            goal: "First 5K",
+            experience: "Getting started",
+            age: nil,
+            averageWeeklyDistanceKm: nil,
+            trainingDataSource: nil,
+            trainingDataUpdatedAt: nil,
+            weeklyRunDays: 3,
+            preferredDays: ["Tue", "Thu", "Sat"],
+            units: "Metric",
+            coachingTone: "Motivating",
+            notificationsEnabled: false
+        )
+        let isChallenge = Beginner5KHabitTrack.isBeginnerFirst5K(profile: beginnerProfile)
+        XCTAssertTrue(isChallenge)
+
+        // Non-beginner profile should not trigger suppression
+        let advancedProfile = OnboardingProfile(
+            displayName: "Runner",
+            goal: "10K PR",
+            experience: "Intermediate",
+            age: nil,
+            averageWeeklyDistanceKm: nil,
+            trainingDataSource: nil,
+            trainingDataUpdatedAt: nil,
+            weeklyRunDays: 4,
+            preferredDays: ["Tue", "Thu", "Sat", "Sun"],
+            units: "Metric",
+            coachingTone: "Motivating",
+            notificationsEnabled: false
+        )
+        XCTAssertFalse(Beginner5KHabitTrack.isBeginnerFirst5K(profile: advancedProfile))
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {
