@@ -194,7 +194,10 @@ Deno.serve(async (req) => {
 
   // Route run_debrief before the chat-specific validation
   if (intent === "run_debrief") {
-    if (!context || containsForbiddenKeys(context)) {
+    if (!context) {
+      return jsonResponse({ error: "context is required" }, 400);
+    }
+    if (containsForbiddenKeys(context)) {
       return jsonResponse({ error: "Context contains forbidden keys" }, 400);
     }
     const safeContext: JsonRecord = {
@@ -206,6 +209,8 @@ Deno.serve(async (req) => {
       planPhase: context.planPhase ? limitString(context.planPhase, 80) : null,
       recentLoadDays: typeof context.recentLoadDays === "number" ? context.recentLoadDays : 0,
       injurySignal: Boolean(context.injurySignal),
+      effortRating: typeof context.effortRating === "number" ? context.effortRating : null,
+      limitations: Array.isArray(context.limitations) ? (context.limitations as unknown[]).slice(0, 5).map(l => limitString(l, 160)) : [],
     };
     const debrief = await generateRunDebrief(safeContext);
     return jsonResponse(debrief);
