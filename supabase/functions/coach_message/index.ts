@@ -203,23 +203,21 @@ Deno.serve(async (req) => {
 
   // Route run_debrief before the chat-specific validation
   if (intent === "run_debrief") {
-    if (!context) {
-      return jsonResponse({ error: "context is required" }, 400);
-    }
-    if (containsForbiddenKeys(context)) {
+    // iOS RunDebriefRequestDTO sends run fields at top level (not nested under body.context)
+    if (containsForbiddenKeys(body)) {
       return jsonResponse({ error: "Context contains forbidden keys" }, 400);
     }
     const safeContext: JsonRecord = {
-      runDistanceKm: typeof context.runDistanceKm === "number" ? context.runDistanceKm : null,
-      runDurationSeconds: typeof context.runDurationSeconds === "number" ? context.runDurationSeconds : null,
-      averagePaceMinPerKm: typeof context.averagePaceMinPerKm === "number" ? context.averagePaceMinPerKm : null,
-      averageHeartRateBPM: typeof context.averageHeartRateBPM === "number" ? context.averageHeartRateBPM : null,
-      workoutType: limitString(context.workoutType, 40),
-      planPhase: context.planPhase ? limitString(context.planPhase, 80) : null,
-      recentLoadDays: typeof context.recentLoadDays === "number" ? context.recentLoadDays : 0,
-      injurySignal: Boolean(context.injurySignal),
-      effortRating: typeof context.effortRating === "number" ? context.effortRating : null,
-      limitations: Array.isArray(context.limitations) ? (context.limitations as unknown[]).slice(0, 5).map(l => limitString(l, 160)) : [],
+      runDistanceKm: typeof body.runDistanceKm === "number" ? body.runDistanceKm : null,
+      runDurationSeconds: typeof body.runDurationSeconds === "number" ? body.runDurationSeconds : null,
+      averagePaceMinPerKm: typeof body.averagePaceMinPerKm === "number" ? body.averagePaceMinPerKm : null,
+      averageHeartRateBPM: typeof body.averageHeartRateBPM === "number" ? body.averageHeartRateBPM : null,
+      workoutType: limitString(body.workoutType, 40),
+      planPhase: body.planPhase ? limitString(body.planPhase as string, 80) : null,
+      recentLoadDays: typeof body.recentLoadDays === "number" ? body.recentLoadDays : 0,
+      injurySignal: Boolean(body.injurySignal),
+      effortRating: typeof body.effortRating === "number" ? body.effortRating : null,
+      limitations: Array.isArray(body.limitations) ? (body.limitations as unknown[]).slice(0, 5).map(l => limitString(l, 160)) : [],
     };
     const debrief = await generateRunDebrief(safeContext);
     return jsonResponse(debrief);
