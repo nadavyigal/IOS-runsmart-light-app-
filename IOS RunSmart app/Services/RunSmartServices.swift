@@ -98,7 +98,7 @@ extension WebParityProviding {
     func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? { nil }
     func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail? { nil }
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
-        PostActivityOutcome(canonicalRun: run, report: nil, completedWorkout: nil, didCompletePlannedWorkout: false)
+        PostActivityOutcome(canonicalRun: run, report: nil, completedWorkout: nil, didCompletePlannedWorkout: false, debrief: nil)
     }
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult? { nil }
     func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? { nil }

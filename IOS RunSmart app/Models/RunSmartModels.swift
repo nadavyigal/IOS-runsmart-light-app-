@@ -1438,7 +1438,7 @@ struct PostRunDebriefModel: Hashable {
     static func fallback(for run: RecordedRun?) -> PostRunDebriefModel {
         let distanceKm = (run?.distanceMeters ?? 0) / 1_000
         let durationMin = Int((run?.movingTimeSeconds ?? 0) / 60)
-        let distanceStr = distanceKm > 0 ? String(format: "%.1f km", distanceKm) : "your run"
+        let distanceStr = distanceKm > 0 ? String(format: "%.1f km", distanceKm) : "this effort"
         let durationStr = durationMin > 0 ? " in \(durationMin) min" : ""
         return PostRunDebriefModel(
             headline: "Run logged",

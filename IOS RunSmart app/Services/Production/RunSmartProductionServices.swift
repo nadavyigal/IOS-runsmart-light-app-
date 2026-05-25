@@ -808,7 +808,8 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
             canonicalRun: canonical,
             report: nil,
             completedWorkout: nil,
-            didCompletePlannedWorkout: false
+            didCompletePlannedWorkout: false,
+            debrief: nil
         )
     }
 
