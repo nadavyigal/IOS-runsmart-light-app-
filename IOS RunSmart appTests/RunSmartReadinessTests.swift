@@ -3103,6 +3103,39 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertTrue(result?.evidence.contains("38") ?? false)
         XCTAssertTrue(result?.evidence.contains("25") ?? false)
     }
+
+    func testRunDebriefRequestDTOEncodesIntent() throws {
+        let dto = RunSmartDTO.RunDebriefRequestDTO(
+            runDistanceKm: 5.0,
+            runDurationSeconds: 1500,
+            averagePaceMinPerKm: 5.0,
+            averageHeartRateBPM: nil,
+            workoutType: "easy",
+            planPhase: nil,
+            recentLoadDays: 2,
+            limitations: []
+        )
+        let data = try JSONEncoder().encode(dto)
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        XCTAssertEqual(json["intent"] as? String, "run_debrief")
+        XCTAssertEqual(json["runDistanceKm"] as? Double, 5.0)
+    }
+
+    func testRunDebriefResponseDTODecodes() throws {
+        let json = """
+        {
+          "headline": "Solid effort",
+          "debrief": "You held pace well for 5 km.",
+          "tomorrow": "Easy day tomorrow.",
+          "planImpact": "Plan stays on track",
+          "source": "live_ai"
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(RunSmartDTO.RunDebriefResponseDTO.self, from: data)
+        XCTAssertEqual(dto.headline, "Solid effort")
+        XCTAssertEqual(dto.source, "live_ai")
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {
