@@ -448,6 +448,47 @@ enum RunSmartDTO {
         let checkInStatus: String?
     }
 
+    struct RunDebriefRequestDTO: Encodable {
+        let intent: String = "run_debrief"
+        let runDistanceKm: Double
+        let runDurationSeconds: Int
+        let averagePaceMinPerKm: Double?
+        let averageHeartRateBPM: Int?
+        let workoutType: String
+        let planPhase: String?
+        let recentLoadDays: Int
+        let limitations: [String]
+    }
+
+    struct RunDebriefResponseDTO: Decodable {
+        let headline: String
+        let debrief: String
+        let tomorrow: String
+        let planImpact: String?
+        let source: String
+    }
+
+    struct WeeklySummaryRequestDTO: Encodable {
+        let intent: String = "weekly_summary"
+        let weekStartDate: String
+        let runsCompleted: Int
+        let runsPlanned: Int
+        let totalDistanceKm: Double
+        let prevWeekDistanceKm: Double?
+        let planPhase: String?
+        let isRecoveryWeek: Bool
+        let readinessAverage: Double?
+        let limitations: [String]
+    }
+
+    struct WeeklySummaryResponseDTO: Decodable {
+        let headline: String
+        let narrative: String
+        let forwardLook: String
+        let weekLabel: String
+        let source: String
+    }
+
     struct RunLogRequest: Codable {
         let startedAtISO8601: String
         let endedAtISO8601: String

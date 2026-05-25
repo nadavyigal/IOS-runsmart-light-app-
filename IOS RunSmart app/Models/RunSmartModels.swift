@@ -1423,11 +1423,82 @@ struct RunReportDetail: Identifiable, Codable, Hashable {
     }
 }
 
+struct PostRunDebriefModel: Hashable {
+    enum Source: String, Hashable {
+        case ai
+        case fallback
+    }
+
+    var headline: String
+    var debrief: String
+    var tomorrow: String
+    var planImpact: String?
+    var source: Source
+
+    static func fallback(for run: RecordedRun?) -> PostRunDebriefModel {
+        let distanceKm = (run?.distanceMeters ?? 0) / 1_000
+        let durationMin = Int((run?.movingTimeSeconds ?? 0) / 60)
+        let distanceStr = distanceKm > 0 ? String(format: "%.1f km", distanceKm) : "this effort"
+        let durationStr = durationMin > 0 ? " in \(durationMin) min" : ""
+        return PostRunDebriefModel(
+            headline: "Run logged",
+            debrief: "You covered \(distanceStr)\(durationStr). RunSmart has recorded this effort.",
+            tomorrow: "Check Today tomorrow for your next recommended session.",
+            planImpact: nil,
+            source: .fallback
+        )
+    }
+}
+
+struct WeeklyProgressSummary: Hashable, Codable {
+    enum Source: String, Hashable, Codable {
+        case ai
+        case fallback
+    }
+
+    var headline: String
+    var narrative: String
+    var forwardLook: String
+    var weekLabel: String
+    var generatedDate: Date
+    var isoWeekKey: String         // e.g. "2026-W21" -- cache key
+    var source: Source
+
+    static func fallback(runsCompleted: Int, totalDistanceKm: Double) -> WeeklyProgressSummary {
+        let distanceStr = String(format: "%.1f km", totalDistanceKm)
+        let runWord = runsCompleted == 1 ? "run" : "runs"
+        return WeeklyProgressSummary(
+            headline: "\(runsCompleted) \(runWord) · \(distanceStr)",
+            narrative: "A solid week of training. RunSmart has logged your effort.",
+            forwardLook: "Check Today for your next recommended session.",
+            weekLabel: "This week",
+            generatedDate: Date(),
+            isoWeekKey: WeeklyProgressSummary.currentISOWeekKey(),
+            source: .fallback
+        )
+    }
+
+    static func currentISOWeekKey() -> String {
+        // ISO 8601 calendar guarantees deterministic week boundaries regardless of device locale.
+        // Using .component(_:from:) returns Int directly — no optional unwrapping needed.
+        var iso = Calendar(identifier: .iso8601)
+        iso.locale = Locale(identifier: "en_US_POSIX")
+        let year = iso.component(.yearForWeekOfYear, from: Date())
+        let week = iso.component(.weekOfYear, from: Date())
+        return String(format: "%04d-W%02d", year, week)
+    }
+
+    static func isNewWeek(since lastKey: String) -> Bool {
+        currentISOWeekKey() != lastKey
+    }
+}
+
 struct PostActivityOutcome: Hashable {
     var canonicalRun: RecordedRun
     var report: RunReportDetail?
     var completedWorkout: WorkoutSummary?
     var didCompletePlannedWorkout: Bool
+    var debrief: PostRunDebriefModel?          // E6: AI post-run debrief
 }
 
 struct TrainingLoadSnapshot: Hashable {

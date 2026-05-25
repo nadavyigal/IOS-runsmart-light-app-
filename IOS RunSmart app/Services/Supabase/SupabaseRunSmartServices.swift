@@ -1068,13 +1068,263 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return await generateRunReportIfMissing(for: run)
     }
 
+    private func fetchRunDebrief(for run: RecordedRun) async -> PostRunDebriefModel {
+        guard let token = try? await supabase.auth.session.accessToken else {
+            return .fallback(for: run)
+        }
+
+        let distanceKm = run.distanceMeters / 1_000.0
+        let durationSec = Int(run.movingTimeSeconds)
+        let paceMinPerKm: Double? = distanceKm > 0 && run.movingTimeSeconds > 0
+            ? (run.movingTimeSeconds / 60.0) / distanceKm
+            : nil
+
+        let sevenDaysAgo = Date().addingTimeInterval(-7 * 24 * 3600)
+        let recentCount = store.loadRuns()
+            .filter { $0.startedAt >= sevenDaysAgo }
+            .count
+
+        let request = RunSmartDTO.RunDebriefRequestDTO(
+            runDistanceKm: distanceKm,
+            runDurationSeconds: durationSec,
+            averagePaceMinPerKm: paceMinPerKm,
+            averageHeartRateBPM: run.averageHeartRateBPM,
+            workoutType: "easy",
+            planPhase: nil,
+            recentLoadDays: recentCount,
+            limitations: []
+        )
+        guard let body = try? JSONEncoder().encode(request) else {
+            return .fallback(for: run)
+        }
+        let client = URLSessionRunSmartAPIClient(
+            baseURL: SupabaseManager.functionsBaseURL,
+            accessToken: token,
+            additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
+        )
+        do {
+            let response = try await withThrowingTaskGroup(of: RunSmartDTO.RunDebriefResponseDTO.self) { group in
+                group.addTask {
+                    try await client.send(
+                        RunSmartAPI.Endpoint(path: "coach_message", method: .post, body: body),
+                        as: RunSmartDTO.RunDebriefResponseDTO.self
+                    )
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 3_000_000_000)  // iOS 13+ compatible
+                    throw DebriefTimeoutError()
+                }
+                do {
+                    guard let result = try await group.next() else { throw DebriefTimeoutError() }
+                    group.cancelAll()
+                    return result
+                } catch {
+                    group.cancelAll()
+                    throw error
+                }
+            }
+            let headline = response.headline.trimmingCharacters(in: .whitespacesAndNewlines)
+            let debrief = response.debrief.trimmingCharacters(in: .whitespacesAndNewlines)
+            let tomorrow = response.tomorrow.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !headline.isEmpty, !debrief.isEmpty, !tomorrow.isEmpty else {
+                print("[SupabaseServices] run_debrief: AI response missing required fields, using fallback")
+                return .fallback(for: run)
+            }
+            let model = PostRunDebriefModel(
+                headline: headline,
+                debrief: debrief,
+                tomorrow: tomorrow,
+                planImpact: response.planImpact,
+                source: .ai
+            )
+            await persistDebrief(model, for: run)
+            return model
+        } catch {
+            switch error {
+            case is DebriefTimeoutError:
+                print("[SupabaseServices] run_debrief timed out after 3s, using fallback")
+            case is CancellationError:
+                break  // parent task was cancelled — silent
+            default:
+                print("[SupabaseServices] run_debrief fallback:", error)
+            }
+            return .fallback(for: run)
+        }
+    }
+
+    func generateWeeklySummary() async -> WeeklyProgressSummary? {
+        let currentKey = WeeklyProgressSummary.currentISOWeekKey()
+        let cacheKey = "runsmart.weekly_summary.\(currentKey)"
+
+        // Return cached summary if it exists for this week
+        if let cached = UserDefaults.standard.data(forKey: cacheKey),
+           let summary = try? JSONDecoder().decode(WeeklyProgressSummary.self, from: cached) {
+            return summary
+        }
+
+        // Gather week stats from local store
+        let cal = Calendar(identifier: .iso8601)
+        let weekStartComponents = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+        guard let weekStart = cal.date(from: weekStartComponents) else {
+            print("[SupabaseServices] weekly_summary: could not compute ISO week start, skipping")
+            return nil
+        }
+        let allRuns = store.visibleRuns(store.loadRuns())
+        let weekRuns = allRuns.filter { $0.startedAt >= weekStart }
+
+        // Guard: no card if zero runs this week
+        guard !weekRuns.isEmpty else { return nil }
+
+        let totalDistanceKm = weekRuns.reduce(0.0) { $0 + $1.distanceMeters / 1_000.0 }
+
+        // Previous week distance for step-up context
+        let prevWeekStart = cal.date(byAdding: .weekOfYear, value: -1, to: weekStart) ?? weekStart
+        let prevWeekRuns = allRuns.filter { $0.startedAt >= prevWeekStart && $0.startedAt < weekStart }
+        let prevDistanceKm = prevWeekRuns.isEmpty ? nil :
+            prevWeekRuns.reduce(0.0) { $0 + $1.distanceMeters / 1_000.0 }
+
+        // Fetch from AI
+        guard let token = try? await supabase.auth.session.accessToken else {
+            let fallback = WeeklyProgressSummary.fallback(
+                runsCompleted: weekRuns.count,
+                totalDistanceKm: totalDistanceKm
+            )
+            cacheWeeklySummary(fallback, forKey: cacheKey)
+            return fallback
+        }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        let weekStartISO = formatter.string(from: weekStart)
+
+        let request = RunSmartDTO.WeeklySummaryRequestDTO(
+            weekStartDate: weekStartISO,
+            runsCompleted: weekRuns.count,
+            runsPlanned: 0,
+            totalDistanceKm: totalDistanceKm,
+            prevWeekDistanceKm: prevDistanceKm,
+            planPhase: nil,
+            isRecoveryWeek: false,
+            readinessAverage: nil,
+            limitations: []
+        )
+        guard let body = try? JSONEncoder().encode(request) else {
+            print("[SupabaseServices] weekly_summary: failed to encode request, using fallback")
+            let fallback = WeeklyProgressSummary.fallback(
+                runsCompleted: weekRuns.count,
+                totalDistanceKm: totalDistanceKm
+            )
+            cacheWeeklySummary(fallback, forKey: cacheKey)
+            return fallback
+        }
+
+        let client = URLSessionRunSmartAPIClient(
+            baseURL: SupabaseManager.functionsBaseURL,
+            accessToken: token,
+            additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
+        )
+
+        do {
+            let response: RunSmartDTO.WeeklySummaryResponseDTO = try await withThrowingTaskGroup(of: RunSmartDTO.WeeklySummaryResponseDTO.self) { group in
+                group.addTask {
+                    try await client.send(
+                        RunSmartAPI.Endpoint(path: "coach_message", method: .post, body: body),
+                        as: RunSmartDTO.WeeklySummaryResponseDTO.self
+                    )
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 5_000_000_000)  // iOS 13+ compatible
+                    throw WeeklySummaryTimeoutError()
+                }
+                do {
+                    guard let result = try await group.next() else { throw WeeklySummaryTimeoutError() }
+                    group.cancelAll()
+                    return result
+                } catch {
+                    group.cancelAll()
+                    throw error
+                }
+            }
+            let headline = response.headline.trimmingCharacters(in: .whitespacesAndNewlines)
+            let narrative = response.narrative.trimmingCharacters(in: .whitespacesAndNewlines)
+            let forwardLook = response.forwardLook.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !headline.isEmpty, !narrative.isEmpty, !forwardLook.isEmpty else {
+                print("[SupabaseServices] weekly_summary: AI response missing required fields, using fallback")
+                let fallback = WeeklyProgressSummary.fallback(
+                    runsCompleted: weekRuns.count,
+                    totalDistanceKm: totalDistanceKm
+                )
+                cacheWeeklySummary(fallback, forKey: cacheKey)
+                return fallback
+            }
+            let summary = WeeklyProgressSummary(
+                headline: headline,
+                narrative: narrative,
+                forwardLook: forwardLook,
+                weekLabel: response.weekLabel.trimmingCharacters(in: .whitespacesAndNewlines),
+                generatedDate: Date(),
+                isoWeekKey: currentKey,
+                source: .ai
+            )
+            cacheWeeklySummary(summary, forKey: cacheKey)
+            return summary
+        } catch {
+            switch error {
+            case is WeeklySummaryTimeoutError:
+                print("[SupabaseServices] weekly_summary timed out after 5s, using fallback")
+            case is CancellationError:
+                return nil  // parent task was cancelled — don't cache stale fallback
+            default:
+                print("[SupabaseServices] weekly_summary fallback:", error)
+            }
+            let fallback = WeeklyProgressSummary.fallback(
+                runsCompleted: weekRuns.count,
+                totalDistanceKm: totalDistanceKm
+            )
+            cacheWeeklySummary(fallback, forKey: cacheKey)
+            return fallback
+        }
+    }
+
+    private func cacheWeeklySummary(_ summary: WeeklyProgressSummary, forKey key: String) {
+        if let data = try? JSONEncoder().encode(summary) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    private func persistDebrief(_ debrief: PostRunDebriefModel, for run: RecordedRun) async {
+        guard let userID = currentUserID else { return }
+        do {
+            try await supabase
+                .from("run_debriefs")
+                .upsert(
+                    DBRunDebriefUpsert(
+                        authUserID: userID.uuidString,
+                        runID: run.id.uuidString,
+                        headline: debrief.headline,
+                        debrief: debrief.debrief,
+                        tomorrow: debrief.tomorrow,
+                        planImpact: debrief.planImpact,
+                        source: debrief.source.rawValue
+                    ),
+                    onConflict: "auth_user_id,run_id"
+                )
+                .execute()
+        } catch {
+            if !(error is CancellationError) {
+                print("[SupabaseServices] persistDebrief error:", error)
+            }
+        }
+    }
+
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
         let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: await recentRuns(limit: 100)))
         await upsertCompletedRunIfPossible(canonical)
         store.refreshBenchmarkStats()
         async let reportTask = generateRunReportIfMissing(for: canonical)
         async let completedTask = completeMatchingWorkout(for: canonical)
-        let (report, completed) = await (reportTask, completedTask)
+        async let debriefTask = fetchRunDebrief(for: canonical)          // E6
+        let (report, completed, debrief) = await (reportTask, completedTask, debriefTask)
 
         await MainActor.run {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
@@ -1089,7 +1339,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             canonicalRun: canonical,
             report: report,
             completedWorkout: completed,
-            didCompletePlannedWorkout: completed != nil
+            didCompletePlannedWorkout: completed != nil,
+            debrief: debrief                               // E6: AI post-run debrief
         )
     }
 
@@ -1900,6 +2151,27 @@ private struct DBWellnessCheckinUpsert: Encodable {
         case authUserID = "auth_user_id"
         case checkinDate = "checkin_date"
         case energy, soreness, mood, stress, fatigue, notes, source
+    }
+}
+
+private struct DebriefTimeoutError: Error {}
+private struct WeeklySummaryTimeoutError: Error {}
+
+private struct DBRunDebriefUpsert: Encodable {
+    let authUserID: String
+    let runID: String
+    let headline: String
+    let debrief: String
+    let tomorrow: String
+    let planImpact: String?
+    let source: String
+
+    enum CodingKeys: String, CodingKey {
+        case authUserID = "auth_user_id"
+        case runID = "run_id"
+        case headline, debrief, tomorrow
+        case planImpact = "plan_impact"
+        case source
     }
 }
 

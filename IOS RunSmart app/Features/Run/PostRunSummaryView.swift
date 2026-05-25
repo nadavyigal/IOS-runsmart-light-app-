@@ -58,7 +58,8 @@ struct PostRunSummaryView: View {
                     run: run,
                     outcome: outcome,
                     report: outcome?.report,
-                    isProcessing: isProcessing
+                    isProcessing: isProcessing,
+                    debrief: outcome?.debrief        // E6: AI debrief from processCompletedActivity
                 )
                 PostActivityPlanCard(outcome: outcome, isProcessing: isProcessing)
                 BenchmarkComparisonLoaderView(run: outcome?.canonicalRun ?? run)

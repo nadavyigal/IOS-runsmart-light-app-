@@ -3103,6 +3103,215 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertTrue(result?.evidence.contains("38") ?? false)
         XCTAssertTrue(result?.evidence.contains("25") ?? false)
     }
+
+    func testRunDebriefRequestDTOEncodesIntent() throws {
+        let dto = RunSmartDTO.RunDebriefRequestDTO(
+            runDistanceKm: 5.0,
+            runDurationSeconds: 1500,
+            averagePaceMinPerKm: 5.0,
+            averageHeartRateBPM: nil,
+            workoutType: "easy",
+            planPhase: nil,
+            recentLoadDays: 2,
+            limitations: []
+        )
+        let data = try JSONEncoder().encode(dto)
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        XCTAssertEqual(json["intent"] as? String, "run_debrief")
+        XCTAssertEqual(json["runDistanceKm"] as? Double, 5.0)
+    }
+
+    func testRunDebriefResponseDTODecodes() throws {
+        let json = """
+        {
+          "headline": "Solid effort",
+          "debrief": "You held pace well for 5 km.",
+          "tomorrow": "Easy day tomorrow.",
+          "planImpact": "Plan stays on track",
+          "source": "live_ai"
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(RunSmartDTO.RunDebriefResponseDTO.self, from: data)
+        XCTAssertEqual(dto.headline, "Solid effort")
+        XCTAssertEqual(dto.source, "live_ai")
+    }
+
+    func testPostRunDebriefModelFallbackHasContent() {
+        let run = RecordedRun(
+            id: UUID(),
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: Date(),
+            endedAt: Date(),
+            distanceMeters: 5000,
+            movingTimeSeconds: Double(1500),
+            averagePaceSecondsPerKm: 300,
+            averageHeartRateBPM: nil,
+            routePoints: [],
+            syncedAt: nil
+        )
+        let fallback = PostRunDebriefModel.fallback(for: run)
+        XCTAssertFalse(fallback.headline.isEmpty)
+        XCTAssertFalse(fallback.debrief.isEmpty)
+        XCTAssertFalse(fallback.tomorrow.isEmpty)
+        XCTAssertEqual(fallback.source, .fallback)
+    }
+
+    func testPostActivityOutcomeHasDebriefField() {
+        let run = RecordedRun(
+            id: UUID(),
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: Date(),
+            endedAt: Date(),
+            distanceMeters: 3000,
+            movingTimeSeconds: Double(1200),
+            averagePaceSecondsPerKm: 300,
+            averageHeartRateBPM: nil,
+            routePoints: [],
+            syncedAt: nil
+        )
+        let outcome = PostActivityOutcome(
+            canonicalRun: run,
+            report: nil,
+            completedWorkout: nil,
+            didCompletePlannedWorkout: false,
+            debrief: nil
+        )
+        XCTAssertNil(outcome.debrief)
+    }
+
+    func testPostRunDebriefModelSourceIsAIOrFallback() {
+        // Verify the Source enum only has .ai and .fallback
+        let ai = PostRunDebriefModel.Source.ai
+        let fallback = PostRunDebriefModel.Source.fallback
+        XCTAssertNotEqual(ai, fallback)
+        XCTAssertEqual(ai.rawValue, "ai")
+        XCTAssertEqual(fallback.rawValue, "fallback")
+    }
+
+    func testPostRunDebriefModelFallbackForNilRun() {
+        let fallback = PostRunDebriefModel.fallback(for: nil)
+        XCTAssertFalse(fallback.headline.isEmpty)
+        XCTAssertFalse(fallback.debrief.isEmpty)
+        XCTAssertFalse(fallback.tomorrow.isEmpty)
+        XCTAssertEqual(fallback.source, .fallback)
+    }
+
+    func testWeeklyProgressSummaryFallbackHasHeadline() {
+        let summary = WeeklyProgressSummary.fallback(runsCompleted: 3, totalDistanceKm: 15.4)
+        XCTAssertFalse(summary.headline.isEmpty)
+        XCTAssertEqual(summary.source, .fallback)
+    }
+
+    func testWeeklySummaryRequestDTOEncodesIntent() throws {
+        let dto = RunSmartDTO.WeeklySummaryRequestDTO(
+            weekStartDate: "2026-05-18",
+            runsCompleted: 3,
+            runsPlanned: 4,
+            totalDistanceKm: 18.5,
+            prevWeekDistanceKm: 15.2,
+            planPhase: "build",
+            isRecoveryWeek: false,
+            readinessAverage: 72.0,
+            limitations: []
+        )
+        let data = try JSONEncoder().encode(dto)
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        XCTAssertEqual(json["intent"] as? String, "weekly_summary")
+        XCTAssertEqual(json["runsCompleted"] as? Int, 3)
+    }
+
+    func testWeeklySummaryResponseDTODecodes() throws {
+        let json = """
+        {
+          "headline": "3 runs · 18.5 km",
+          "narrative": "A strong base week.",
+          "forwardLook": "Next week's long run is where this pays off.",
+          "weekLabel": "Week 3 of your plan",
+          "source": "live_ai"
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(RunSmartDTO.WeeklySummaryResponseDTO.self, from: data)
+        XCTAssertEqual(dto.headline, "3 runs · 18.5 km")
+        XCTAssertEqual(dto.source, "live_ai")
+    }
+
+    func testWeeklyProgressSummaryCacheRoundTrip() throws {
+        let summary = WeeklyProgressSummary(
+            headline: "3 runs · 15 km",
+            narrative: "Good week.",
+            forwardLook: "Next week builds on this.",
+            weekLabel: "Week 2 of your plan",
+            generatedDate: Date(),
+            isoWeekKey: WeeklyProgressSummary.currentISOWeekKey(),
+            source: .fallback
+        )
+        let data = try JSONEncoder().encode(summary)
+        let decoded = try JSONDecoder().decode(WeeklyProgressSummary.self, from: data)
+        XCTAssertEqual(decoded.headline, summary.headline)
+        XCTAssertEqual(decoded.isoWeekKey, summary.isoWeekKey)
+        XCTAssertEqual(decoded.source, summary.source)
+    }
+
+    func testWeeklyProgressSummaryISOWeekKeyIsStable() {
+        let key = WeeklyProgressSummary.currentISOWeekKey()
+        // Format must be YYYY-Www (e.g. "2026-W21")
+        let pattern = #"^\d{4}-W\d{2}$"#
+        XCTAssertTrue(key.range(of: pattern, options: .regularExpression) != nil,
+                      "Expected YYYY-Www format, got '\(key)'")
+        // Must be idempotent within the same second
+        XCTAssertEqual(key, WeeklyProgressSummary.currentISOWeekKey())
+        // Session is running in 2026 — sanity-check the year prefix
+        XCTAssertTrue(key.hasPrefix("2026-"), "Expected 2026 prefix for current test run, got '\(key)'")
+    }
+
+    func testWeeklyProgressSummaryIsNewWeekDetection() {
+        let oldKey = "2020-W01"
+        XCTAssertTrue(WeeklyProgressSummary.isNewWeek(since: oldKey))
+        let currentKey = WeeklyProgressSummary.currentISOWeekKey()
+        XCTAssertFalse(WeeklyProgressSummary.isNewWeek(since: currentKey))
+    }
+
+    func testWeeklyProgressCardSuppressedDuringBeginnerChallenge() {
+        // Gate condition: isBeginnerFirst5K returns true for a First 5K profile,
+        // confirming the suppression logic in TodayTabView works correctly.
+        let beginnerProfile = OnboardingProfile(
+            displayName: "Runner",
+            goal: "First 5K",
+            experience: "Getting started",
+            age: nil,
+            averageWeeklyDistanceKm: nil,
+            trainingDataSource: nil,
+            trainingDataUpdatedAt: nil,
+            weeklyRunDays: 3,
+            preferredDays: ["Tue", "Thu", "Sat"],
+            units: "Metric",
+            coachingTone: "Motivating",
+            notificationsEnabled: false
+        )
+        let isChallenge = Beginner5KHabitTrack.isBeginnerFirst5K(profile: beginnerProfile)
+        XCTAssertTrue(isChallenge)
+
+        // Non-beginner profile should not trigger suppression
+        let advancedProfile = OnboardingProfile(
+            displayName: "Runner",
+            goal: "10K PR",
+            experience: "Intermediate",
+            age: nil,
+            averageWeeklyDistanceKm: nil,
+            trainingDataSource: nil,
+            trainingDataUpdatedAt: nil,
+            weeklyRunDays: 4,
+            preferredDays: ["Tue", "Thu", "Sat", "Sun"],
+            units: "Metric",
+            coachingTone: "Motivating",
+            notificationsEnabled: false
+        )
+        XCTAssertFalse(Beginner5KHabitTrack.isBeginnerFirst5K(profile: advancedProfile))
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {

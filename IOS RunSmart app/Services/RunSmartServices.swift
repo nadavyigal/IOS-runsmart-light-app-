@@ -84,6 +84,7 @@ protocol WebParityProviding {
     func shouldPresentManualMorningCheckin() async -> Bool
     func approveGarminMorningCheckin() async -> Bool
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool
+    func generateWeeklySummary() async -> WeeklyProgressSummary?
 }
 
 extension WebParityProviding {
@@ -98,7 +99,7 @@ extension WebParityProviding {
     func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? { nil }
     func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail? { nil }
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
-        PostActivityOutcome(canonicalRun: run, report: nil, completedWorkout: nil, didCompletePlannedWorkout: false)
+        PostActivityOutcome(canonicalRun: run, report: nil, completedWorkout: nil, didCompletePlannedWorkout: false, debrief: nil)
     }
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult? { nil }
     func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? { nil }
@@ -107,7 +108,7 @@ extension WebParityProviding {
     func shouldPresentManualMorningCheckin() async -> Bool { true }
     func approveGarminMorningCheckin() async -> Bool { false }
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool { false }
-    func removeRun(_ run: RecordedRun) async -> Bool { false }
+    func generateWeeklySummary() async -> WeeklyProgressSummary? { nil }
 
     func latestRunReports() async -> [RunReportSummary] {
         await latestRunReports(limit: 3)
