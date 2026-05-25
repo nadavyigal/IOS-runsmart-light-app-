@@ -1114,9 +1114,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     try await Task.sleep(for: .seconds(3))
                     throw CancellationError()
                 }
-                guard let result = try await group.next() else { throw CancellationError() }
-                group.cancelAll()
-                return result
+                do {
+                    guard let result = try await group.next() else { throw CancellationError() }
+                    group.cancelAll()
+                    return result
+                } catch {
+                    group.cancelAll()
+                    throw error
+                }
             }
             let model = PostRunDebriefModel(
                 headline: response.headline,
