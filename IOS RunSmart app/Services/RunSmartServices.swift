@@ -87,6 +87,7 @@ protocol WebParityProviding {
     func approveGarminMorningCheckin() async -> Bool
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool
     func generateWeeklySummary() async -> WeeklyProgressSummary?
+    func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome
 }
 
 extension WebParityProviding {
@@ -111,6 +112,10 @@ extension WebParityProviding {
     func approveGarminMorningCheckin() async -> Bool { false }
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool { false }
     func generateWeeklySummary() async -> WeeklyProgressSummary? { nil }
+
+    func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome {
+        FlexWeekServiceSupport.deterministicOutcome(for: request)
+    }
 
     func latestRunReports() async -> [RunReportSummary] {
         await latestRunReports(limit: 3)

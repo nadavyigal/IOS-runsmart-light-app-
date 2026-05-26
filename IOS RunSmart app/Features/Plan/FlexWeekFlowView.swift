@@ -137,18 +137,8 @@ struct FlexWeekFlowView: View {
         step = .loading
 
         Task {
-            // Story 3 wiring will swap this mock path for `flexCurrentWeek`.
-            try? await Task.sleep(nanoseconds: 900_000_000)
-            let (updated, changes) = DeterministicFlexWeekBuilder.restructure(
-                week: request.currentWeek,
-                reason: request.reason
-            )
-            outcome = FlexWeekOutcome(
-                restructuredWeek: updated,
-                changes: changes,
-                safetyWarnings: [],
-                source: .deterministicFallback
-            )
+            let result = await services.flexCurrentWeek(request)
+            outcome = result
             step = .diff
         }
     }

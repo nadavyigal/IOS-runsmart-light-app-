@@ -1,6 +1,28 @@
 # Task State
 
 ## Current Task
+E5 Adaptive Flex Week — Stories 2 + 3: `flex_week` edge function + `flexCurrentWeek` iOS service wiring.
+
+### Checklist
+- [x] Story 2: `flex_week.ts` with all 4 reason paths, 4s timeout, safety validation, deterministic fallback.
+- [x] Story 2: Route `intent === "flex_week"` in `coach_message/index.ts`.
+- [x] Story 2: Deno unit tests (7) + `deno check` on edge function files.
+- [x] Story 3: API DTOs + `FlexWeekServiceSupport` mapper/cache.
+- [x] Story 3: `WebParityProviding.flexCurrentWeek` + `SupabaseRunSmartServices` with 4s timeout + fallback.
+- [x] Story 3: Replace mock path in `FlexWeekFlowView.beginRestructure`.
+- [x] Story 3: iOS unit tests + `FlexWeekTests` clean build.
+
+### Validation
+- iOS: `xcodebuild ... -only-testing:"IOS RunSmart appTests/FlexWeekTests" clean test` — **24/24 passed**
+- Edge: `npx -y deno test supabase/functions/coach_message/index_test.ts` — **7/7 passed**
+- Edge: `npx -y deno check supabase/functions/coach_message/index.ts supabase/functions/coach_message/flex_week.ts` — **passed**
+
+### Next
+- Story 8: Flex Week analytics events.
+- Story 9: Gentle intervention entry point.
+- Deploy `flex_week` intent to Supabase production when ready.
+
+### Previous Task
 Implement the App Store readiness closeout plan before the next archive: add deterministic screenshot mode, generate complete iPhone screenshot sets, document App Store Connect portal values, and run pre-archive validation while preserving existing dirty release work.
 
 ### Checklist

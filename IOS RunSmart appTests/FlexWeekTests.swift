@@ -299,6 +299,78 @@ final class FlexWeekTests: XCTestCase {
         XCTAssertEqual(workoutID, week[1].id)
     }
 
+    // MARK: - Service support (Story 3)
+
+    func testFlexWeekRequestDTOEncodesReasonFields() {
+        let week = sampleWeek(hardToday: false)
+        let request = FlexWeekRequest(
+            reason: .traveling(blockedDays: [week[3].scheduledDate]),
+            currentWeek: week,
+            readinessContext: nil
+        )
+        let dto = FlexWeekServiceSupport.buildRequestDTO(from: request)
+        XCTAssertEqual(dto.reason, "traveling")
+        XCTAssertEqual(dto.blockedDays?.count, 1)
+        XCTAssertEqual(dto.currentWeek.count, week.count)
+    }
+
+    func testFlexWeekOutcomeMapsValidAIResponse() {
+        let week = sampleWeek(hardToday: true)
+        let response = RunSmartDTO.FlexWeekResponseDTO(
+            restructuredWeek: week.map {
+                RunSmartDTO.FlexWeekWorkoutDTO(
+                    workoutID: $0.id.uuidString,
+                    scheduledDate: ISO8601DateFormatter.shortDate.string(from: $0.scheduledDate),
+                    weekday: $0.weekday,
+                    dateLabel: $0.date,
+                    kind: $0.kind == .tempo ? WorkoutKind.easy.rawValue : $0.kind.rawValue,
+                    title: $0.kind == .tempo ? "Easy Run" : $0.title,
+                    distanceLabel: $0.distance,
+                    detailLabel: $0.detail,
+                    intensity: "easy",
+                    trainingPhase: $0.trainingPhase,
+                    isToday: $0.isToday,
+                    isComplete: $0.isComplete,
+                    originalWorkoutID: nil
+                )
+            },
+            changes: [
+                RunSmartDTO.FlexWeekChangeDTO(
+                    workoutID: week[2].id.uuidString,
+                    changeType: FlexWeekChangeType.downgraded.rawValue,
+                    rationale: "RECOVERY — downgraded today's hard session to easy while you recharge.",
+                    originalWorkoutID: nil
+                )
+            ],
+            safetyWarnings: [],
+            source: "live_ai"
+        )
+
+        let outcome = FlexWeekServiceSupport.outcome(from: response, originalWeek: week)
+        XCTAssertEqual(outcome?.source, .ai)
+        XCTAssertEqual(outcome?.restructuredWeek[2].kind, .easy)
+        XCTAssertEqual(outcome?.changes.count, 1)
+    }
+
+    func testFlexWeekOutcomeRejectsMalformedAIResponse() {
+        let week = sampleWeek(hardToday: true)
+        let response = RunSmartDTO.FlexWeekResponseDTO(
+            restructuredWeek: [],
+            changes: [],
+            safetyWarnings: nil,
+            source: "live_ai"
+        )
+        XCTAssertNil(FlexWeekServiceSupport.outcome(from: response, originalWeek: week))
+    }
+
+    func testFlexWeekDeterministicFallbackOutcomeSource() {
+        let week = sampleWeek(hardToday: true)
+        let request = FlexWeekRequest(reason: .tired, currentWeek: week, readinessContext: nil)
+        let outcome = FlexWeekServiceSupport.deterministicOutcome(for: request)
+        XCTAssertEqual(outcome.source, .deterministicFallback)
+        XCTAssertFalse(outcome.changes.isEmpty)
+    }
+
     // MARK: - Fixtures
 
     private func sampleWeek(hardToday: Bool, restToday: Bool = false) -> [PlannedWorkout] {
