@@ -145,6 +145,7 @@ extension ISO8601DateFormatter {
     static let shortDate: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withFullDate]
+        f.timeZone = .current
         return f
     }()
 }

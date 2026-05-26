@@ -163,7 +163,7 @@ struct PostRunSummaryView: View {
                 ProgressShareMetric(title: "Avg Pace", value: paceLabel)
             ],
             insight: "RunSmart saved this activity for private progress tracking.",
-            privacyNote: "Private share: no map, raw coordinates, or exact route are included."
+            privacyNote: "Private share: no map, GPS points, or exact route are included."
         )
     }
 }

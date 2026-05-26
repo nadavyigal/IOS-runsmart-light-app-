@@ -534,12 +534,15 @@ struct PlanExplanation: Hashable {
     }
 
     private static func isLowRecovery(_ recovery: RecoverySnapshot, recommendation: TodayRecommendation) -> Bool {
-        let recoveryText = [recovery.hrv, recovery.sleep, recovery.stress, recovery.recommendation, recommendation.readinessLabel, recommendation.recovery, recommendation.hrv]
+        let recoveryText = [recovery.hrv, recovery.sleep, recovery.recommendation, recommendation.readinessLabel, recommendation.recovery, recommendation.hrv]
             .joined(separator: " ")
             .lowercased()
+        let stressText = recovery.stress.lowercased()
         return (recovery.readiness > 0 && recovery.readiness < 45) ||
             (recovery.bodyBattery > 0 && recovery.bodyBattery < 35) ||
             recommendation.readiness < 45 ||
+            stressText.contains("high") ||
+            stressText.contains("elevated") ||
             recoveryText.contains("low") ||
             recoveryText.contains("lower") ||
             recoveryText.contains("tired")

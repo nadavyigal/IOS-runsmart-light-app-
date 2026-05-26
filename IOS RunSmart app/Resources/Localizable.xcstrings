@@ -107,6 +107,9 @@
     "AI - GPS - RunSmart" : {
 
     },
+    "and" : {
+
+    },
     "app_name" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -160,7 +163,7 @@
     "Building your report and matching this run to your plan..." : {
 
     },
-    "By continuing you agree to our Terms of Service and Privacy Policy." : {
+    "By continuing you agree to our" : {
 
     },
     "Cancel" : {
@@ -591,6 +594,9 @@
     "Precise route data" : {
 
     },
+    "Privacy Policy" : {
+
+    },
     "profile_sign_out" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -889,6 +895,9 @@
     "Target date" : {
 
     },
+    "Terms of Service" : {
+
+    },
     "This Garmin map has too few GPS points to save as a repeatable route; the run report still works." : {
 
     },
@@ -907,9 +916,6 @@
     "This Week" : {
 
     },
-    "Today's Workout" : {
-
-    },
     "Total Workouts: %lld" : {
 
     },
@@ -923,6 +929,9 @@
 
     },
     "Unfavorite" : {
+
+    },
+    "Up next: %@" : {
 
     },
     "Upcoming from Your Coach" : {
