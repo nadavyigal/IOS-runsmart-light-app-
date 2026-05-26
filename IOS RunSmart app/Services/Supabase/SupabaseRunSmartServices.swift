@@ -321,6 +321,28 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return removed
     }
 
+    func applyFlexWeek(_ outcome: FlexWeekOutcome) async -> Bool {
+        guard let userID = currentUserID else { return false }
+        let applied = await planRepo.applyFlexWeek(authUserID: userID, outcome: outcome)
+        guard applied else { return false }
+
+        let notificationsEnabled = UserDefaults.standard.object(forKey: "runsmart.notifications.enabled") as? Bool ?? false
+        let planAdjustmentConfirmationsEnabled = UserDefaults.standard.object(forKey: "runsmart.notifications.planAdjustmentConfirmations") as? Bool ?? true
+        let tomorrowWorkout = Self.tomorrowWorkout(from: outcome.restructuredWeek)
+        await PushService.shared.schedulePlanAdjustmentConfirmation(
+            workout: tomorrowWorkout,
+            notificationsEnabled: notificationsEnabled,
+            planAdjustmentConfirmationsEnabled: planAdjustmentConfirmationsEnabled
+        )
+        return true
+    }
+
+    private static func tomorrowWorkout(from week: [PlannedWorkout]) -> WorkoutSummary? {
+        let calendar = Calendar.current
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) else { return nil }
+        return week.first { calendar.isDate($0.scheduledDate, inSameDayAs: tomorrow) }
+    }
+
     func saveSuggestedWorkout(_ suggestion: StructuredNextWorkout, from report: RunReportDetail) async -> Bool {
         guard let userID = currentUserID else { return false }
         let saved = await planRepo.saveSuggestedWorkout(authUserID: userID, suggestion: suggestion, report: report)
@@ -1292,6 +1314,67 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
     }
 
+    func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome {
+        guard let token = try? await supabase.auth.session.accessToken else {
+            if let cached = FlexWeekServiceSupport.cachedOutcome(for: request, userID: currentUserID) {
+                return cached
+            }
+            return FlexWeekServiceSupport.deterministicOutcome(for: request, source: .offlineQueued)
+        }
+
+        let requestDTO = FlexWeekServiceSupport.buildRequestDTO(from: request)
+        guard let body = try? JSONEncoder().encode(requestDTO) else {
+            return FlexWeekServiceSupport.deterministicOutcome(for: request)
+        }
+
+        let client = URLSessionRunSmartAPIClient(
+            baseURL: SupabaseManager.functionsBaseURL,
+            accessToken: token,
+            additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
+        )
+
+        do {
+            let response: RunSmartDTO.FlexWeekResponseDTO = try await withThrowingTaskGroup(of: RunSmartDTO.FlexWeekResponseDTO.self) { group in
+                group.addTask {
+                    try await client.send(
+                        RunSmartAPI.Endpoint(path: "coach_message", method: .post, body: body),
+                        as: RunSmartDTO.FlexWeekResponseDTO.self
+                    )
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 6_500_000_000)
+                    throw FlexWeekTimeoutError()
+                }
+                do {
+                    guard let result = try await group.next() else { throw FlexWeekTimeoutError() }
+                    group.cancelAll()
+                    return result
+                } catch {
+                    group.cancelAll()
+                    throw error
+                }
+            }
+
+            if let outcome = FlexWeekServiceSupport.outcome(from: response, originalWeek: request.currentWeek) {
+                FlexWeekServiceSupport.cacheResponse(response, for: request, userID: currentUserID)
+                return outcome
+            }
+
+            print("[SupabaseServices] flex_week: AI response failed validation, using fallback")
+            return FlexWeekServiceSupport.deterministicOutcome(for: request)
+        } catch {
+            switch error {
+            case is FlexWeekTimeoutError:
+                print("[SupabaseServices] flex_week timed out after 4s, using fallback")
+            case is CancellationError:
+                return FlexWeekServiceSupport.deterministicOutcome(for: request)
+            default:
+                print("[SupabaseServices] flex_week fallback:", error)
+            }
+            return FlexWeekServiceSupport.deterministicOutcome(for: request)
+        }
+    }
+
     private func persistDebrief(_ debrief: PostRunDebriefModel, for run: RecordedRun) async {
         guard let userID = currentUserID else { return }
         do {
@@ -2156,6 +2239,7 @@ private struct DBWellnessCheckinUpsert: Encodable {
 
 private struct DebriefTimeoutError: Error {}
 private struct WeeklySummaryTimeoutError: Error {}
+private struct FlexWeekTimeoutError: Error {}
 
 private struct DBRunDebriefUpsert: Encodable {
     let authUserID: String

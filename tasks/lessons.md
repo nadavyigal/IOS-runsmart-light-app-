@@ -33,8 +33,24 @@ Review this file at the start of future tasks.
 - When adding optional behavior to a shared service protocol, provide default extension fallbacks or update every test double in the same pass before validation.
 - Before App Store readiness claims, inspect the built archive bundle for display name, encryption declaration, bundled diagnostics, dSYMs, entitlements, and distribution-only signing; source checks alone are not enough.
 - In this Xcode folder-synchronized project, untracked Swift files inside `IOS RunSmart app/` can still compile; before release, inspect and clean untracked source under the synced app root, not only tracked project references.
+- For plan/workout date-only strings, format and compare with the user's local calendar/timezone; do not normalize date-only schedule values through UTC during Today matching.
+- Treat low stress as healthy or neutral in recovery classifiers; only high or elevated stress should contribute to low-recovery decisions.
 
 ## Lesson Log
+
+### 2026-05-20 - Date-Only Plan Matching Must Use User-Local Days
+Trigger: Sprint 10 readiness tests exposed that date-only plan formatting in UTC could make a same-day planned workout look like the wrong day for users outside UTC.
+
+Lesson: Scheduled workout `yyyy-MM-dd` values are user-calendar values, not instants to normalize through UTC during matching or query construction.
+
+Future rule: For plan/workout date-only strings, format and compare with the user's local calendar/timezone, and keep tests on the same calendar semantics as the app path.
+
+### 2026-05-20 - Low Stress Is Not Low Recovery
+Trigger: Sprint 10 readiness tests showed that the word "Low" in Garmin stress text was being treated as low recovery.
+
+Lesson: Recovery classifiers must interpret metric direction by field, not by scanning all labels for alarming words.
+
+Future rule: Treat low stress as healthy/neutral; only high or elevated stress should contribute to low-recovery decisions.
 
 ### 2026-05-12 - Thin OS Install
 Trigger: User explicitly asked for a lightweight Agent OS, not a third-party framework or huge prompt file.
@@ -231,3 +247,17 @@ Trigger: Garmin recent activity UI could show raw short fragments even though im
 Lesson: A raw provider row is not necessarily a user-visible workout; UI lists, report lists, and persistence need the same validity, hidden-run, dedupe, and fragment rules.
 
 Future rule: Never render connected-service activity rows directly from provider tables. Normalize to canonical `RecordedRun` candidates first, then map back to display rows only for surviving provider IDs.
+
+### 2026-05-26 - Mock Services Must Override generateWeeklySummary For Screenshots
+Trigger: Phase 3 design review found WeeklyProgressCard invisible in App Store screenshots because MockRunSmartServices inherited the protocol-default `generateWeeklySummary()` returning `nil`. TodayTabView only renders the card when the value is non-nil.
+
+Lesson: Protocol default implementations that return nil/empty are silent; any new conditional-render feature backed by a service call needs its mock override checked before screenshot capture or preview demos.
+
+Future rule: After adding any `func foo() async -> T?` to a service protocol with a nil default, immediately add a non-nil mock override to MockRunSmartServices. Write a check in PRE-SCREENSHOT checklist: grep for `nil` returns in MockRunSmartServices against cards that render conditionally.
+
+### 2026-05-20 - Return Xcode To Main After Merge
+Trigger: After merging a PR, Xcode reopened on a temporary Codex branch while local `main` had diverged, leaving the branch picker noisy and builds showing stale errors.
+
+Lesson: A successful PR validation branch is not the right local state for user handoff after merge; Xcode can also retain stale DerivedData from the previous branch.
+
+Future rule: After merge handoff, align local `main` to `origin/main`, remove temporary local branches/worktrees, clear the app's DerivedData, and reopen Xcode on `main`.

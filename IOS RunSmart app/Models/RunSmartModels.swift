@@ -80,6 +80,8 @@ struct WorkoutSummary: Identifiable, Hashable {
     var intensity: String?
     var trainingPhase: String?
     var workoutStructure: String?
+    var adjustedAt: Date?
+    var adjustedReason: String?
 }
 
 struct TrainingGoalRequest: Hashable {
@@ -532,12 +534,15 @@ struct PlanExplanation: Hashable {
     }
 
     private static func isLowRecovery(_ recovery: RecoverySnapshot, recommendation: TodayRecommendation) -> Bool {
-        let recoveryText = [recovery.hrv, recovery.sleep, recovery.stress, recovery.recommendation, recommendation.readinessLabel, recommendation.recovery, recommendation.hrv]
+        let recoveryText = [recovery.hrv, recovery.sleep, recovery.recommendation, recommendation.readinessLabel, recommendation.recovery, recommendation.hrv]
             .joined(separator: " ")
             .lowercased()
+        let stressText = recovery.stress.lowercased()
         return (recovery.readiness > 0 && recovery.readiness < 45) ||
             (recovery.bodyBattery > 0 && recovery.bodyBattery < 35) ||
             recommendation.readiness < 45 ||
+            stressText.contains("high") ||
+            stressText.contains("elevated") ||
             recoveryText.contains("low") ||
             recoveryText.contains("lower") ||
             recoveryText.contains("tired")
@@ -1052,6 +1057,7 @@ struct OnboardingProfile: Codable, Equatable {
     var units: String
     var coachingTone: String
     var notificationsEnabled: Bool
+    var planAdjustmentConfirmationsEnabled: Bool
 
     static let empty = OnboardingProfile(
         displayName: "",
@@ -1065,7 +1071,8 @@ struct OnboardingProfile: Codable, Equatable {
         preferredDays: ["Tue", "Thu", "Sat", "Sun"],
         units: "Metric",
         coachingTone: "Motivating",
-        notificationsEnabled: false
+        notificationsEnabled: false,
+        planAdjustmentConfirmationsEnabled: true
     )
 }
 

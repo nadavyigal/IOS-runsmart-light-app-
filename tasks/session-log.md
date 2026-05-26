@@ -1,5 +1,55 @@
 # Session Log
 
+## 2026-05-26 - App Store Launch Prep: Phase 2 + Phase 3
+
+### Task Summary
+Continued App Store launch implementation plan.
+
+**Phase 2 — Privacy gap fix + E1 timeout:**
+- Fixed cross-user FlexWeek cache leak: `FlexWeekServiceSupport` `cacheResponse` and `cachedOutcome` now require `userID: UUID?` parameter; no-op if nil; cache key format is `runsmart.flexWeek.response.{uuid}.{reason}.{dates}`.
+- `SupabaseRunSmartServices` updated to pass `currentUserID` at both call sites.
+- Timeout bumped from 4s to 6.5s (E1 eng review decision).
+- `FlexWeekCacheTests.swift` (new): 4 tests — cross-user isolation, userID in key, no write on nil userID, nil read on nil userID. All 4 green.
+
+**Phase 3 — Design review + screenshot fix:**
+- Design review of: Today tab + AI Coach, Plan tab + FlexWeek, WeeklyProgressCard, Post-run debrief.
+- Critical finding: `MockRunSmartServices.generateWeeklySummary()` inherited `nil` default — WeeklyProgressCard invisible in App Store screenshots.
+- Fix: Added `generateWeeklySummary()` override in `MockRunSmartServices` with rich AI-source summary (3 runs, 22.4 km, Week 4 narrative).
+- Regenerated App Store screenshots via `fastlane/scripts/capture-app-store-screenshots.sh`.
+- Updated `tasks/lessons.md` with mock override lesson.
+
+### Files Changed
+- `IOS RunSmart app/Services/FlexWeekServiceSupport.swift` (Phase 2 privacy fix)
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift` (Phase 2: userID at call sites + E1 timeout)
+- `IOS RunSmart appTests/FlexWeekCacheTests.swift` (new — Phase 2 regression tests)
+- `IOS RunSmart app/Services/RunSmartServices.swift` (Phase 3: mock generateWeeklySummary override)
+- `tasks/lessons.md` (Phase 3: mock nil lesson added)
+
+### Validation
+- Phase 2: FlexWeekCacheTests 4/4 green, build clean.
+- Phase 3: Build clean, screenshot script running on iPhone 17 Pro Max + iPhone 17e.
+
+## 2026-05-26 - E5 Flex Week Stories 2 + 3
+
+### Task Summary
+Implemented `flex_week` coach_message edge intent and wired iOS `flexCurrentWeek` service so Flex Week flow calls Supabase with deterministic fallback instead of the mock sleep path.
+
+### Files Changed
+- `supabase/functions/coach_message/flex_week.ts` (new)
+- `supabase/functions/coach_message/index.ts`
+- `supabase/functions/coach_message/index_test.ts`
+- `IOS RunSmart app/Services/FlexWeekServiceSupport.swift` (new)
+- `IOS RunSmart app/Services/Live/RunSmartAPIModels.swift`
+- `IOS RunSmart app/Services/RunSmartServices.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Features/Plan/FlexWeekFlowView.swift`
+- `IOS RunSmart appTests/FlexWeekTests.swift`
+- `tasks/todo.md`, `tasks/session-log.md`
+
+### Validation
+- `FlexWeekTests` clean test: 24/24 passed (iPhone 17 simulator).
+- Deno edge tests: 7/7 passed; `deno check` passed on index + flex_week.
+
 ## 2026-05-24 - SwiftUI UI Patterns Root Tabs Optimization
 
 ### Task Summary

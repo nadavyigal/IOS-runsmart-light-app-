@@ -145,6 +145,7 @@ extension ISO8601DateFormatter {
     static let shortDate: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withFullDate]
+        f.timeZone = .current
         return f
     }()
 }
@@ -696,6 +697,97 @@ final class TrainingPlanRepository {
         }
     }
 
+    func applyFlexWeek(authUserID: UUID, outcome: FlexWeekOutcome) async -> Bool {
+        guard let active = await activePlan(authUserID: authUserID) else {
+            print("[TrainingPlanRepo] applyFlexWeek failed: no active plan")
+            return false
+        }
+
+        let planID = active.plan.id
+        let hash = outcome.applicationHash
+        if FlexWeekAppliedHash.isApplied(hash: hash, planID: planID) {
+            print("[TrainingPlanRepo] applyFlexWeek skipped: already applied hash=\(hash.prefix(8))")
+            return true
+        }
+
+        let originalByID = Dictionary(uniqueKeysWithValues: active.workouts.map { ($0.id, $0) })
+        let changeByWorkoutID = Dictionary(uniqueKeysWithValues: outcome.changes.map { ($0.workoutID, $0) })
+        var pendingUpdates: [(UUID, DBWorkoutFlexUpdate, DBWorkoutFlexUpdate)] = []
+
+        for workout in outcome.restructuredWeek {
+            guard let original = originalByID[workout.id], !original.completed else { continue }
+            let change = changeByWorkoutID[workout.id]
+            let updatedPatch = Self.flexUpdate(for: workout, change: change)
+            let rollbackPatch = DBWorkoutFlexUpdate(dbWorkout: original)
+            guard !Self.flexUpdateMatches(workout: original, patch: updatedPatch) else { continue }
+            pendingUpdates.append((workout.id, updatedPatch, rollbackPatch))
+        }
+
+        if pendingUpdates.isEmpty {
+            FlexWeekAppliedHash.markApplied(hash: hash, planID: planID)
+            return true
+        }
+
+        var applied: [(UUID, DBWorkoutFlexUpdate)] = []
+        for (workoutID, patch, _) in pendingUpdates {
+            do {
+                try await supabase
+                    .from("workouts")
+                    .update(patch)
+                    .eq("id", value: workoutID.uuidString)
+                    .execute()
+                applied.append((workoutID, patch))
+            } catch {
+                if !(error is CancellationError) {
+                    print("[TrainingPlanRepo] applyFlexWeek update error:", error)
+                }
+                for (rollbackID, _) in applied {
+                    guard let rollbackPatch = pendingUpdates.first(where: { $0.0 == rollbackID })?.2 else { continue }
+                    try? await supabase
+                        .from("workouts")
+                        .update(rollbackPatch)
+                        .eq("id", value: rollbackID.uuidString)
+                        .execute()
+                }
+                return false
+            }
+        }
+
+        FlexWeekAppliedHash.markApplied(hash: hash, planID: planID)
+        await MainActor.run {
+            NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
+        }
+        print("[TrainingPlanRepo] ✅ applyFlexWeek applied \(applied.count) workout updates")
+        return true
+    }
+
+    private static func flexUpdate(for workout: PlannedWorkout, change: FlexWeekChange?) -> DBWorkoutFlexUpdate {
+        let distanceKm = PlanPresentationModels.distanceKm(from: workout.distance)
+        let isRest = !PlanPresentationModels.isWorkout(workout) || workout.distance.localizedCaseInsensitiveContains("rest")
+        let adjustedAt = ISO8601DateFormatter.internet.string(from: Date())
+        return DBWorkoutFlexUpdate(
+            scheduledDate: ISO8601DateFormatter.shortDate.string(from: workout.scheduledDate),
+            day: Self.dayLabel(for: workout.scheduledDate),
+            type: isRest ? "rest" : workout.kind.supabaseType,
+            distance: isRest ? 0 : distanceKm,
+            duration: workout.durationMinutes,
+            pace: workout.targetPaceSecondsPerKm,
+            intensity: workout.intensity,
+            adjustedAt: adjustedAt,
+            adjustedReason: change?.rationale
+        )
+    }
+
+    private static func flexUpdateMatches(workout: DBWorkout, patch: DBWorkoutFlexUpdate) -> Bool {
+        workout.scheduledDate == patch.scheduledDate &&
+        workout.day.caseInsensitiveCompare(patch.day ?? "") == .orderedSame &&
+        workout.type == patch.type &&
+        abs(workout.distance - (patch.distance ?? workout.distance)) < 0.01 &&
+        workout.duration == patch.duration &&
+        workout.pace == patch.pace &&
+        workout.intensity == patch.intensity
+    }
+
     private func scheduledDate(startDate: Date, week: Int, day: String) -> String {
         let dayMap = ["Sun": 1, "Mon": 2, "Tue": 3, "Wed": 4, "Thu": 5, "Fri": 6, "Sat": 7]
         var date = Calendar.current.date(byAdding: .day, value: max(0, week - 1) * 7, to: startDate) ?? startDate
@@ -905,6 +997,14 @@ final class TrainingPlanRepository {
     }
 }
 
+private extension ISO8601DateFormatter {
+    static let internet: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+}
+
 private struct DBProfileGoalUpdate: Encodable {
     let name: String
     let goal: String
@@ -1015,6 +1115,64 @@ private struct DBWorkoutInsert: Encodable {
     }
 }
 
+private struct DBWorkoutFlexUpdate: Encodable {
+    let scheduledDate: String
+    let day: String?
+    let type: String
+    let distance: Double?
+    let duration: Int?
+    let pace: Int?
+    let intensity: String?
+    let adjustedAt: String?
+    let adjustedReason: String?
+
+    init(
+        scheduledDate: String,
+        day: String?,
+        type: String,
+        distance: Double?,
+        duration: Int?,
+        pace: Int?,
+        intensity: String?,
+        adjustedAt: String?,
+        adjustedReason: String?
+    ) {
+        self.scheduledDate = scheduledDate
+        self.day = day
+        self.type = type
+        self.distance = distance
+        self.duration = duration
+        self.pace = pace
+        self.intensity = intensity
+        self.adjustedAt = adjustedAt
+        self.adjustedReason = adjustedReason
+    }
+
+    init(dbWorkout: DBWorkout) {
+        scheduledDate = dbWorkout.scheduledDate
+        day = dbWorkout.day
+        type = dbWorkout.type
+        distance = dbWorkout.distance
+        duration = dbWorkout.duration
+        pace = dbWorkout.pace
+        intensity = dbWorkout.intensity
+        adjustedAt = dbWorkout.adjustedAt
+        adjustedReason = dbWorkout.adjustedReason
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case scheduledDate = "scheduled_date"
+        case day
+        case type
+        case distance
+        case duration
+        case pace
+        case intensity
+        case adjustedAt = "adjusted_at"
+        case adjustedReason = "adjusted_reason"
+    }
+}
+
 private struct DBWorkoutUpdate: Encodable {
     let scheduledDate: String?
     let day: String?
@@ -1119,9 +1277,24 @@ extension DBWorkout {
             targetPaceSecondsPerKm: pace,
             intensity: intensity,
             trainingPhase: trainingPhase,
-            workoutStructure: workoutStructure
+            workoutStructure: workoutStructure,
+            adjustedAt: adjustedAt.flatMap { Self.parseAdjustedDate($0) },
+            adjustedReason: adjustedReason
         )
     }
+
+    private static func parseAdjustedDate(_ value: String) -> Date? {
+        if let date = profileDateFormatter.date(from: value) { return date }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+
+    private static let profileDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
     var workoutKind: WorkoutKind {
         switch type {
