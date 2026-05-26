@@ -177,8 +177,6 @@ struct DBWorkout: Codable, Sendable {
     let workoutStructure: String?
     let intensity: String?
     let trainingPhase: String?
-    let adjustedAt: String?
-    let adjustedReason: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -195,8 +193,6 @@ struct DBWorkout: Codable, Sendable {
         case workoutStructure = "workout_structure"
         case intensity
         case trainingPhase = "training_phase"
-        case adjustedAt = "adjusted_at"
-        case adjustedReason = "adjusted_reason"
     }
 
     init(from decoder: Decoder) throws {
@@ -215,8 +211,6 @@ struct DBWorkout: Codable, Sendable {
         workoutStructure = try? c.decodeIfPresent(String.self, forKey: .workoutStructure)
         intensity = try? c.decodeIfPresent(String.self, forKey: .intensity)
         trainingPhase = try? c.decodeIfPresent(String.self, forKey: .trainingPhase)
-        adjustedAt = try? c.decodeIfPresent(String.self, forKey: .adjustedAt)
-        adjustedReason = try? c.decodeIfPresent(String.self, forKey: .adjustedReason)
     }
 }
 

@@ -17,7 +17,6 @@ enum RunSmartSheet: Identifiable {
 final class AppRouter: ObservableObject {
     @Published var selectedTab: RunSmartTab = AppRouter.initialTab()
     @Published var activeSheet: RunSmartSheet?
-    @Published var flexWeekLaunch: FlexWeekLaunchContext?
     @Published var plannedWorkout: WorkoutSummary?
     @Published var plannedRoute: RouteSuggestion?
 
@@ -45,21 +44,6 @@ final class AppRouter: ObservableObject {
 
     func open(_ destination: SecondaryDestination) {
         activeSheet = .secondary(destination)
-    }
-
-    func openFlexWeek(
-        preselectedReason: FlexWeekReason? = nil,
-        entryPoint: FlexWeekEntryPoint = .planPill
-    ) {
-        activeSheet = nil
-        flexWeekLaunch = FlexWeekLaunchContext(
-            preselectedReason: preselectedReason,
-            entryPoint: entryPoint
-        )
-    }
-
-    func dismissFlexWeek() {
-        flexWeekLaunch = nil
     }
 
     func dismissPostRunSummaryIfNeeded() {
@@ -227,16 +211,6 @@ struct RunSmartLiteAppShell: View {
                     .environment(\.runSmartServices, services)
                     .environment(\.runRecorder, recorder)
             }
-        }
-        .fullScreenCover(item: $router.flexWeekLaunch) { launch in
-            FlexWeekEntryView(launch: launch) {
-                router.dismissFlexWeek()
-            }
-            .environmentObject(router)
-            .environmentObject(session)
-            .environmentObject(recorder)
-            .environment(\.runSmartServices, services)
-            .environment(\.runRecorder, recorder)
         }
     }
 

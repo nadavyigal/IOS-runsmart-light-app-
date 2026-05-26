@@ -3290,8 +3290,7 @@ final class RunSmartReadinessTests: XCTestCase {
             preferredDays: ["Tue", "Thu", "Sat"],
             units: "Metric",
             coachingTone: "Motivating",
-            notificationsEnabled: false,
-            planAdjustmentConfirmationsEnabled: true
+            notificationsEnabled: false
         )
         let isChallenge = Beginner5KHabitTrack.isBeginnerFirst5K(profile: beginnerProfile)
         XCTAssertTrue(isChallenge)
@@ -3309,8 +3308,7 @@ final class RunSmartReadinessTests: XCTestCase {
             preferredDays: ["Tue", "Thu", "Sat", "Sun"],
             units: "Metric",
             coachingTone: "Motivating",
-            notificationsEnabled: false,
-            planAdjustmentConfirmationsEnabled: true
+            notificationsEnabled: false
         )
         XCTAssertFalse(Beginner5KHabitTrack.isBeginnerFirst5K(profile: advancedProfile))
     }

@@ -102,27 +102,17 @@ struct TodayTabView: View {
                 )
                 .runSmartStaggeredAppear(index: 5)
 
-                if FlexWeekEntryPresentation.shouldShowTodayLink(
-                    readiness: recommendation.readiness,
-                    weekWorkouts: weekWorkouts
-                ) {
-                    FlexWeekTodayLink {
-                        router.openFlexWeek(entryPoint: .todayLink)
-                    }
-                    .runSmartStaggeredAppear(index: 6)
-                }
-
                 // E2: weekly progress card — suppressed during 21-Day Rookie Challenge
                 let isBeginnerChallenge = Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile)
                 if (!challengeLoaded || !activeChallenge.isActive), isBeginnerChallenge {
                     Beginner5KHabitCard(track: habitTrack)
-                        .runSmartStaggeredAppear(index: 7)
+                        .runSmartStaggeredAppear(index: 6)
                 } else if let summary = weeklySummary {
                     WeeklyProgressCard(
                         summary: summary,
                         onTapCoach: openTodayCoach
                     )
-                    .runSmartStaggeredAppear(index: 7)
+                    .runSmartStaggeredAppear(index: 6)
                 }
 
                 TodayQuickActions(
@@ -314,15 +304,18 @@ struct TodayTabView: View {
     private func handleExplanationAction(_ explanation: PlanExplanation, workout: WorkoutSummary) {
         switch explanation.trigger {
         case .missedWorkout:
-            if let reason = FlexWeekEntryPresentation.preselectedMissedReason(from: weekWorkouts) {
-                router.openFlexWeek(preselectedReason: reason, entryPoint: .missedWorkoutReschedule)
+            if let workout = weekWorkouts
+                .filter({ !$0.isComplete && $0.scheduledDate < Calendar.current.startOfDay(for: Date()) })
+                .sorted(by: { $0.scheduledDate > $1.scheduledDate })
+                .first {
+                router.open(.reschedule(workout))
             } else {
-                router.openFlexWeek(entryPoint: .planExplanation)
+                router.open(.planAdjustment)
             }
         case .lowRecovery:
             router.open(.amendWorkout(workout))
         case .extraRun:
-            router.openFlexWeek(entryPoint: .planExplanation)
+            router.open(.planAdjustment)
         case .normal where explanation.action == "Set a goal":
             router.open(.goalWizard)
         default:
@@ -343,7 +336,7 @@ struct TodayTabView: View {
     }
 
     private func openPlanAdjustment() {
-        router.openFlexWeek(entryPoint: .todayLink)
+        router.open(.planAdjustment)
     }
 
     private func openAddActivity() {
