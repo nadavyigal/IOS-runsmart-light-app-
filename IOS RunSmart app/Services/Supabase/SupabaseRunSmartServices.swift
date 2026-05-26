@@ -321,6 +321,28 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return removed
     }
 
+    func applyFlexWeek(_ outcome: FlexWeekOutcome) async -> Bool {
+        guard let userID = currentUserID else { return false }
+        let applied = await planRepo.applyFlexWeek(authUserID: userID, outcome: outcome)
+        guard applied else { return false }
+
+        let notificationsEnabled = UserDefaults.standard.object(forKey: "runsmart.notifications.enabled") as? Bool ?? false
+        let planAdjustmentConfirmationsEnabled = UserDefaults.standard.object(forKey: "runsmart.notifications.planAdjustmentConfirmations") as? Bool ?? true
+        let tomorrowWorkout = Self.tomorrowWorkout(from: outcome.restructuredWeek)
+        await PushService.shared.schedulePlanAdjustmentConfirmation(
+            workout: tomorrowWorkout,
+            notificationsEnabled: notificationsEnabled,
+            planAdjustmentConfirmationsEnabled: planAdjustmentConfirmationsEnabled
+        )
+        return true
+    }
+
+    private static func tomorrowWorkout(from week: [PlannedWorkout]) -> WorkoutSummary? {
+        let calendar = Calendar.current
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) else { return nil }
+        return week.first { calendar.isDate($0.scheduledDate, inSameDayAs: tomorrow) }
+    }
+
     func saveSuggestedWorkout(_ suggestion: StructuredNextWorkout, from report: RunReportDetail) async -> Bool {
         guard let userID = currentUserID else { return false }
         let saved = await planRepo.saveSuggestedWorkout(authUserID: userID, suggestion: suggestion, report: report)

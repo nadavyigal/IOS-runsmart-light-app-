@@ -17,6 +17,7 @@ protocol PlanProviding {
     func pushWorkoutTomorrow(workoutID: UUID) async -> Bool
     func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool
     func removeWorkout(workoutID: UUID) async -> Bool
+    func applyFlexWeek(_ outcome: FlexWeekOutcome) async -> Bool
     func saveSuggestedWorkout(_ suggestion: StructuredNextWorkout, from report: RunReportDetail) async -> Bool
 }
 
@@ -33,6 +34,7 @@ extension PlanProviding {
     func pushWorkoutTomorrow(workoutID: UUID) async -> Bool { false }
     func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool { false }
     func removeWorkout(workoutID: UUID) async -> Bool { false }
+    func applyFlexWeek(_ outcome: FlexWeekOutcome) async -> Bool { false }
     func saveSuggestedWorkout(_ suggestion: StructuredNextWorkout, from report: RunReportDetail) async -> Bool { false }
 }
 
@@ -407,6 +409,7 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func pushWorkoutTomorrow(workoutID: UUID) async -> Bool { true }
     func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool { true }
     func removeWorkout(workoutID: UUID) async -> Bool { true }
+    func applyFlexWeek(_ outcome: FlexWeekOutcome) async -> Bool { true }
     func saveSuggestedWorkout(_ suggestion: StructuredNextWorkout, from report: RunReportDetail) async -> Bool { true }
 
     func recentMessages() async -> [CoachMessage] {
