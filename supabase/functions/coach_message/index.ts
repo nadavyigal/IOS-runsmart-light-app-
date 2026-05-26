@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  generateFlexWeek,
+  sanitizeFlexWeekRequest,
+} from "./flex_week.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -339,6 +343,28 @@ Deno.serve(async (req) => {
     };
     const summary = await generateWeeklySummary(safeContext);
     return jsonResponse(summary);
+  }
+
+  if (intent === "flex_week") {
+    if (containsForbiddenKeys(body)) {
+      return jsonResponse({ error: "Context contains forbidden keys" }, 400);
+    }
+    const request = sanitizeFlexWeekRequest(body);
+    if (!request) {
+      return jsonResponse({ error: "Invalid flex_week payload" }, 400);
+    }
+    const outcome = await generateFlexWeek(request);
+    return jsonResponse({
+      restructuredWeek: outcome.restructured_week,
+      changes: outcome.changes.map((change) => ({
+        workoutId: change.workout_id,
+        changeType: change.change_type,
+        rationale: change.rationale,
+        originalWorkoutId: change.original_workout_id,
+      })),
+      safetyWarnings: outcome.safety_warnings,
+      source: outcome.source,
+    });
   }
 
   if (!message) {

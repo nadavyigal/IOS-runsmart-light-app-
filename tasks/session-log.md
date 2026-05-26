@@ -1,5 +1,26 @@
 # Session Log
 
+## 2026-05-26 - E5 Flex Week Stories 2 + 3
+
+### Task Summary
+Implemented `flex_week` coach_message edge intent and wired iOS `flexCurrentWeek` service so Flex Week flow calls Supabase with deterministic fallback instead of the mock sleep path.
+
+### Files Changed
+- `supabase/functions/coach_message/flex_week.ts` (new)
+- `supabase/functions/coach_message/index.ts`
+- `supabase/functions/coach_message/index_test.ts`
+- `IOS RunSmart app/Services/FlexWeekServiceSupport.swift` (new)
+- `IOS RunSmart app/Services/Live/RunSmartAPIModels.swift`
+- `IOS RunSmart app/Services/RunSmartServices.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Features/Plan/FlexWeekFlowView.swift`
+- `IOS RunSmart appTests/FlexWeekTests.swift`
+- `tasks/todo.md`, `tasks/session-log.md`
+
+### Validation
+- `FlexWeekTests` clean test: 24/24 passed (iPhone 17 simulator).
+- Deno edge tests: 7/7 passed; `deno check` passed on index + flex_week.
+
 ## 2026-05-24 - SwiftUI UI Patterns Root Tabs Optimization
 
 ### Task Summary

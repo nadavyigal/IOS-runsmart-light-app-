@@ -80,6 +80,8 @@ struct WorkoutSummary: Identifiable, Hashable {
     var intensity: String?
     var trainingPhase: String?
     var workoutStructure: String?
+    var adjustedAt: Date?
+    var adjustedReason: String?
 }
 
 struct TrainingGoalRequest: Hashable {
@@ -1052,6 +1054,7 @@ struct OnboardingProfile: Codable, Equatable {
     var units: String
     var coachingTone: String
     var notificationsEnabled: Bool
+    var planAdjustmentConfirmationsEnabled: Bool
 
     static let empty = OnboardingProfile(
         displayName: "",
@@ -1065,7 +1068,8 @@ struct OnboardingProfile: Codable, Equatable {
         preferredDays: ["Tue", "Thu", "Sat", "Sun"],
         units: "Metric",
         coachingTone: "Motivating",
-        notificationsEnabled: false
+        notificationsEnabled: false,
+        planAdjustmentConfirmationsEnabled: true
     )
 }
 
