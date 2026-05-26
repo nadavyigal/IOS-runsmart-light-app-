@@ -247,3 +247,10 @@ Trigger: Garmin recent activity UI could show raw short fragments even though im
 Lesson: A raw provider row is not necessarily a user-visible workout; UI lists, report lists, and persistence need the same validity, hidden-run, dedupe, and fragment rules.
 
 Future rule: Never render connected-service activity rows directly from provider tables. Normalize to canonical `RecordedRun` candidates first, then map back to display rows only for surviving provider IDs.
+
+### 2026-05-20 - Return Xcode To Main After Merge
+Trigger: After merging a PR, Xcode reopened on a temporary Codex branch while local `main` had diverged, leaving the branch picker noisy and builds showing stale errors.
+
+Lesson: A successful PR validation branch is not the right local state for user handoff after merge; Xcode can also retain stale DerivedData from the previous branch.
+
+Future rule: After merge handoff, align local `main` to `origin/main`, remove temporary local branches/worktrees, clear the app's DerivedData, and reopen Xcode on `main`.
