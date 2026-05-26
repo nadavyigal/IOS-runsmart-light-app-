@@ -1965,19 +1965,6 @@ private struct ReminderPreferencesScaffold: View {
                         }
                     }
                     .tint(Color.lime)
-                    Toggle(isOn: Binding(
-                        get: { session.onboardingProfile.planAdjustmentConfirmationsEnabled },
-                        set: { session.setPlanAdjustmentConfirmationsEnabled($0) }
-                    )) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Plan adjustment confirmations")
-                                .font(.bodyMD.weight(.semibold))
-                            Text("A single nudge after Flex Week confirms, summarizing tomorrow's workout.")
-                                .font(.caption)
-                                .foregroundStyle(Color.mutedText)
-                        }
-                    }
-                    .tint(Color.lime)
                     PreferenceRow(title: "Workout due", value: session.onboardingProfile.notificationsEnabled ? "Morning" : "Off", symbol: "bell")
                     PreferenceRow(title: "Recovery re-plan", value: session.onboardingProfile.notificationsEnabled ? "Evening if needed" : "Off", symbol: "arrow.triangle.2.circlepath")
                     PreferenceRow(title: "Rest day reminder", value: session.onboardingProfile.notificationsEnabled ? "Late morning" : "Off", symbol: "moon")

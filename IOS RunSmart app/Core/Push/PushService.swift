@@ -1,6 +1,5 @@
 import Foundation
 @preconcurrency import UserNotifications
-import UIKit
 
 enum RunSmartReminderType: String, CaseIterable, Codable, Hashable {
     case workoutDue
@@ -249,54 +248,9 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
         center.getPendingNotificationRequests { [center] requests in
             let ids = requests
                 .map(\.identifier)
-                .filter { $0.hasPrefix("runsmart.reminder.") || $0.hasPrefix("runsmart.flexWeek.") }
+                .filter { $0.hasPrefix("runsmart.reminder.") }
             center.removePendingNotificationRequests(withIdentifiers: ids)
         }
-    }
-
-    func schedulePlanAdjustmentConfirmation(
-        workout: WorkoutSummary?,
-        notificationsEnabled: Bool,
-        planAdjustmentConfirmationsEnabled: Bool
-    ) async {
-        guard notificationsEnabled, planAdjustmentConfirmationsEnabled else { return }
-        guard UIApplication.shared.applicationState != .active else { return }
-
-        let granted: Bool
-        do {
-            granted = try await requestAuthorization()
-        } catch {
-            return
-        }
-        guard granted else { return }
-
-        let content = UNMutableNotificationContent()
-        content.title = "Your week is updated"
-        if let workout, PlanPresentationModels.isWorkout(workout) {
-            content.body = "Tomorrow: \(workout.title.lowercased()) · \(workout.distance) — tap to see your plan."
-        } else if let workout {
-            content.body = "Tomorrow: rest day — tap to see your updated week."
-        } else {
-            content.body = "Tap to see tomorrow's updated workout."
-        }
-        content.sound = .default
-        content.userInfo = [
-            "type": "plan_adjustment_confirmation",
-            "destination": RunSmartNotificationDestination.plan.rawValue
-        ]
-
-        let fireDate = Date().addingTimeInterval(30)
-        let triggerDate = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: fireDate)
-        let request = UNNotificationRequest(
-            identifier: "runsmart.flexWeek.confirmation",
-            content: content,
-            trigger: UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
-        )
-        try? await center.add(request)
-    }
-
-    func cancelPlanAdjustmentConfirmation() {
-        center.removePendingNotificationRequests(withIdentifiers: ["runsmart.flexWeek.confirmation"])
     }
 
     nonisolated func userNotificationCenter(

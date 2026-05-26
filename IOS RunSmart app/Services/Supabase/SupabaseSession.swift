@@ -19,7 +19,6 @@ final class SupabaseSession: ObservableObject {
 
     private(set) var onboardingProfile: OnboardingProfile = .empty
     private let notificationPreferenceKey = "runsmart.notifications.enabled"
-    private let planAdjustmentConfirmationsKey = "runsmart.notifications.planAdjustmentConfirmations"
 
     init() {
         Task { await initialize() }
@@ -87,8 +86,7 @@ final class SupabaseSession: ObservableObject {
                     preferredDays: p.preferredTimes,
                     units: "Metric",
                     coachingTone: p.coachingStyle ?? "Motivating",
-                    notificationsEnabled: UserDefaults.standard.object(forKey: notificationPreferenceKey) as? Bool ?? false,
-                    planAdjustmentConfirmationsEnabled: UserDefaults.standard.object(forKey: planAdjustmentConfirmationsKey) as? Bool ?? true
+                    notificationsEnabled: UserDefaults.standard.object(forKey: notificationPreferenceKey) as? Bool ?? false
                 )
             } else {
                 profile = nil
@@ -110,7 +108,6 @@ final class SupabaseSession: ObservableObject {
         }
         onboardingProfile = onboarding
         UserDefaults.standard.set(onboarding.notificationsEnabled, forKey: notificationPreferenceKey)
-        UserDefaults.standard.set(onboarding.planAdjustmentConfirmationsEnabled, forKey: planAdjustmentConfirmationsKey)
         // email comes from the Apple JWT the auth server decoded — always present after sign-in
         let email = supabase.auth.currentUser?.email ?? ""
         let insert = DBProfileInsert(
@@ -184,15 +181,6 @@ final class SupabaseSession: ObservableObject {
         objectWillChange.send()
         if !enabled {
             PushService.shared.cancelAllRunSmartReminders()
-        }
-    }
-
-    func setPlanAdjustmentConfirmationsEnabled(_ enabled: Bool) {
-        onboardingProfile.planAdjustmentConfirmationsEnabled = enabled
-        UserDefaults.standard.set(enabled, forKey: planAdjustmentConfirmationsKey)
-        objectWillChange.send()
-        if !enabled {
-            PushService.shared.cancelPlanAdjustmentConfirmation()
         }
     }
 

@@ -489,55 +489,6 @@ enum RunSmartDTO {
         let source: String
     }
 
-    struct FlexWeekWorkoutDTO: Codable {
-        let workoutID: String
-        let scheduledDate: String
-        let weekday: String
-        let dateLabel: String
-        let kind: String
-        let title: String
-        let distanceLabel: String
-        let detailLabel: String
-        let intensity: String?
-        let trainingPhase: String?
-        let isToday: Bool
-        let isComplete: Bool
-        let originalWorkoutID: String?
-    }
-
-    struct FlexWeekReadinessContextDTO: Codable {
-        let readiness: Int
-        let readinessLabel: String
-        let bodyBattery: Int
-        let hrv: String
-        let sleep: String
-        let recommendation: String
-    }
-
-    struct FlexWeekRequestDTO: Encodable {
-        let intent: String = "flex_week"
-        let reason: String
-        let currentWeek: [FlexWeekWorkoutDTO]
-        let readinessContext: FlexWeekReadinessContextDTO?
-        let blockedDays: [String]?
-        let missedWorkoutID: String?
-        let sickDaysOut: Int?
-    }
-
-    struct FlexWeekChangeDTO: Codable {
-        let workoutID: String
-        let changeType: String
-        let rationale: String
-        let originalWorkoutID: String?
-    }
-
-    struct FlexWeekResponseDTO: Codable {
-        let restructuredWeek: [FlexWeekWorkoutDTO]
-        let changes: [FlexWeekChangeDTO]
-        let safetyWarnings: [String]?
-        let source: String
-    }
-
     struct RunLogRequest: Codable {
         let startedAtISO8601: String
         let endedAtISO8601: String
