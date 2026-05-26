@@ -75,14 +75,19 @@ struct PlanTabView: View {
                     .runSmartStaggeredAppear(index: 1)
 
                     if let current {
+                        FlexWeekAdjustPill {
+                            router.openFlexWeek(entryPoint: .planPill)
+                        }
+                        .runSmartStaggeredAppear(index: 2)
+
                         PlanCurrentWeekSection(week: current) { workout in
                             openWorkoutDetail(workout)
                         }
-                        .runSmartStaggeredAppear(index: 2)
+                        .runSmartStaggeredAppear(index: 3)
                     }
 
                     SegmentedPillPicker(values: PlanViewMode.allCases, selection: $viewMode) { $0.rawValue }
-                        .runSmartStaggeredAppear(index: 3)
+                        .runSmartStaggeredAppear(index: 4)
 
                     switch viewMode {
                     case .month:
@@ -109,14 +114,14 @@ struct PlanTabView: View {
                     } onAll: {
                         showWeeklyReview()
                     }
-                    .runSmartStaggeredAppear(index: 4)
+                    .runSmartStaggeredAppear(index: 5)
 
                     InsightCard(
                         title: "Coach Notes",
                         message: recovery.recommendation,
                         action: openPlanCoach
                     )
-                    .runSmartStaggeredAppear(index: 5)
+                    .runSmartStaggeredAppear(index: 6)
 
                     PlanActionGrid(
                         onAdd: openAddActivity,
@@ -258,22 +263,19 @@ struct PlanTabView: View {
     private func handleExplanationAction(_ explanation: PlanExplanation) {
         switch explanation.trigger {
         case .missedWorkout:
-            if let workout = weekWorkouts
-                .filter({ !$0.isComplete && $0.scheduledDate < Calendar.current.startOfDay(for: Date()) })
-                .sorted(by: { $0.scheduledDate > $1.scheduledDate })
-                .first {
-                open(.reschedule(workout))
+            if let reason = FlexWeekEntryPresentation.preselectedMissedReason(from: weekWorkouts) {
+                router.openFlexWeek(preselectedReason: reason, entryPoint: .missedWorkoutReschedule)
             } else {
-                open(.planAdjustment)
+                router.openFlexWeek(entryPoint: .planExplanation)
             }
         case .lowRecovery:
             if let workout = plannedTodayWorkout ?? nextWorkouts.first {
                 open(.amendWorkout(workout))
             } else {
-                open(.planAdjustment)
+                router.openFlexWeek(entryPoint: .planExplanation)
             }
         case .extraRun:
-            open(.planAdjustment)
+            router.openFlexWeek(entryPoint: .planExplanation)
         case .normal where explanation.action == "Set a goal":
             open(.goalWizard)
         default:
