@@ -1316,7 +1316,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome {
         guard let token = try? await supabase.auth.session.accessToken else {
-            if let cached = FlexWeekServiceSupport.cachedOutcome(for: request) {
+            if let cached = FlexWeekServiceSupport.cachedOutcome(for: request, userID: currentUserID) {
                 return cached
             }
             return FlexWeekServiceSupport.deterministicOutcome(for: request, source: .offlineQueued)
@@ -1342,7 +1342,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     )
                 }
                 group.addTask {
-                    try await Task.sleep(nanoseconds: 4_000_000_000)
+                    try await Task.sleep(nanoseconds: 6_500_000_000)
                     throw FlexWeekTimeoutError()
                 }
                 do {
@@ -1356,7 +1356,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             }
 
             if let outcome = FlexWeekServiceSupport.outcome(from: response, originalWeek: request.currentWeek) {
-                FlexWeekServiceSupport.cacheResponse(response, for: request)
+                FlexWeekServiceSupport.cacheResponse(response, for: request, userID: currentUserID)
                 return outcome
             }
 

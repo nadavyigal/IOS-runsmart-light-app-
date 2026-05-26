@@ -59,15 +59,17 @@ enum FlexWeekServiceSupport {
         )
     }
 
-    static func cacheResponse(_ response: RunSmartDTO.FlexWeekResponseDTO, for request: FlexWeekRequest) {
-        let key = cacheKey(for: request)
+    static func cacheResponse(_ response: RunSmartDTO.FlexWeekResponseDTO, for request: FlexWeekRequest, userID: UUID?) {
+        guard let userID else { return }
+        let key = cacheKey(for: request, userID: userID)
         if let data = try? JSONEncoder().encode(response) {
             UserDefaults.standard.set(data, forKey: key)
         }
     }
 
-    static func cachedOutcome(for request: FlexWeekRequest) -> FlexWeekOutcome? {
-        let key = cacheKey(for: request)
+    static func cachedOutcome(for request: FlexWeekRequest, userID: UUID?) -> FlexWeekOutcome? {
+        guard let userID else { return nil }
+        let key = cacheKey(for: request, userID: userID)
         guard let data = UserDefaults.standard.data(forKey: key),
               let response = try? JSONDecoder().decode(RunSmartDTO.FlexWeekResponseDTO.self, from: data) else {
             return nil
@@ -75,12 +77,12 @@ enum FlexWeekServiceSupport {
         return outcome(from: response, originalWeek: request.currentWeek)?.settingSource(.offlineQueued)
     }
 
-    private static func cacheKey(for request: FlexWeekRequest) -> String {
+    private static func cacheKey(for request: FlexWeekRequest, userID: UUID) -> String {
         let weekKey = request.currentWeek
             .map { ISO8601DateFormatter.shortDate.string(from: $0.scheduledDate) }
             .sorted()
             .joined(separator: "|")
-        return cacheKeyPrefix + request.reason.kind.rawValue + "." + weekKey
+        return cacheKeyPrefix + userID.uuidString + "." + request.reason.kind.rawValue + "." + weekKey
     }
 
     private static func reasonPayload(for reason: FlexWeekReason) -> (
