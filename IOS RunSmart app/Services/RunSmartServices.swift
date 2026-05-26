@@ -547,5 +547,17 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     }
 
     func saveToHealth(_ run: RecordedRun) async {}
+
+    func generateWeeklySummary() async -> WeeklyProgressSummary? {
+        WeeklyProgressSummary(
+            headline: "3 runs · 22.4 km",
+            narrative: "Strong consistency this week — you held easy effort across all three sessions as total distance stepped up 12%. Your aerobic base is absorbing the load well.",
+            forwardLook: "Next week's long run is where this base starts to pay off. Keep the easy pace and let fitness compound.",
+            weekLabel: "Week 4 of your plan",
+            generatedDate: Date(),
+            isoWeekKey: WeeklyProgressSummary.currentISOWeekKey(),
+            source: .ai
+        )
+    }
 }
 #endif

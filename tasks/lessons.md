@@ -248,6 +248,13 @@ Lesson: A raw provider row is not necessarily a user-visible workout; UI lists, 
 
 Future rule: Never render connected-service activity rows directly from provider tables. Normalize to canonical `RecordedRun` candidates first, then map back to display rows only for surviving provider IDs.
 
+### 2026-05-26 - Mock Services Must Override generateWeeklySummary For Screenshots
+Trigger: Phase 3 design review found WeeklyProgressCard invisible in App Store screenshots because MockRunSmartServices inherited the protocol-default `generateWeeklySummary()` returning `nil`. TodayTabView only renders the card when the value is non-nil.
+
+Lesson: Protocol default implementations that return nil/empty are silent; any new conditional-render feature backed by a service call needs its mock override checked before screenshot capture or preview demos.
+
+Future rule: After adding any `func foo() async -> T?` to a service protocol with a nil default, immediately add a non-nil mock override to MockRunSmartServices. Write a check in PRE-SCREENSHOT checklist: grep for `nil` returns in MockRunSmartServices against cards that render conditionally.
+
 ### 2026-05-20 - Return Xcode To Main After Merge
 Trigger: After merging a PR, Xcode reopened on a temporary Codex branch while local `main` had diverged, leaving the branch picker noisy and builds showing stale errors.
 
