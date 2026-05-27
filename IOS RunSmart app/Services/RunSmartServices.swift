@@ -88,6 +88,7 @@ protocol WebParityProviding {
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool
     func generateWeeklySummary() async -> WeeklyProgressSummary?
     func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome
+    func adjustmentHistoryWithin(_ window: TimeInterval) async -> [FlexWeekRecord]
 }
 
 extension WebParityProviding {
@@ -115,6 +116,10 @@ extension WebParityProviding {
 
     func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome {
         FlexWeekServiceSupport.deterministicOutcome(for: request)
+    }
+
+    func adjustmentHistoryWithin(_ window: TimeInterval) async -> [FlexWeekRecord] {
+        FlexWeekAdjustmentHistory.historyWithin(window)
     }
 
     func latestRunReports() async -> [RunReportSummary] {

@@ -121,6 +121,10 @@ struct RunSmartLiteAppShell: View {
     @State private var planNoticeDismissTask: Task<Void, Never>?
     private let services: any RunSmartServiceProviding = RunSmartScreenshotMode.services
 
+    init() {
+        RunSmartAnalytics.setup()
+    }
+
     var body: some View {
         ZStack {
             RunSmartBackground(context: RunSmartBackgroundContext(tab: router.selectedTab))

@@ -4,13 +4,16 @@ struct FlexWeekReasonPicker: View {
     var currentWeek: [PlannedWorkout]
     var readinessContext: ReadinessContext?
     var preselectedReason: FlexWeekReason?
+    var showInterventionCard: Bool
     var onCancel: () -> Void
     var onContinue: (FlexWeekRequest) -> Void
+    var onTalkToCoach: (() -> Void)?
 
     @State private var selectedKind: FlexWeekReasonKind?
     @State private var blockedDays: Set<Date> = []
     @State private var missedWorkoutID: UUID?
     @State private var sickDaysOut: Int?
+    @State private var interventionDismissed = false
 
     private let weekDays: [Date]
     private let calendar: Calendar
@@ -20,15 +23,19 @@ struct FlexWeekReasonPicker: View {
         readinessContext: ReadinessContext? = nil,
         preselectedReason: FlexWeekReason? = nil,
         calendar: Calendar = .current,
+        showInterventionCard: Bool = false,
         onCancel: @escaping () -> Void,
-        onContinue: @escaping (FlexWeekRequest) -> Void
+        onContinue: @escaping (FlexWeekRequest) -> Void,
+        onTalkToCoach: (() -> Void)? = nil
     ) {
         self.currentWeek = currentWeek
         self.readinessContext = readinessContext
         self.preselectedReason = preselectedReason
         self.calendar = calendar
+        self.showInterventionCard = showInterventionCard
         self.onCancel = onCancel
         self.onContinue = onContinue
+        self.onTalkToCoach = onTalkToCoach
         self.weekDays = FlexWeekPresentation.currentWeekDays(calendar: calendar)
 
         _selectedKind = State(initialValue: preselectedReason?.kind)
@@ -53,6 +60,7 @@ struct FlexWeekReasonPicker: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
+                    interventionSection
                     hero
                     reasonCards
                     detailSection
@@ -70,6 +78,21 @@ struct FlexWeekReasonPicker: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .onAppear(perform: hydrateDefaults)
+    }
+
+    @ViewBuilder
+    private var interventionSection: some View {
+        if showInterventionCard && !interventionDismissed {
+            GentleCoachInterventionCard(
+                onTalkToCoach: {
+                    interventionDismissed = true
+                    onTalkToCoach?()
+                },
+                onContinue: {
+                    interventionDismissed = true
+                }
+            )
+        }
     }
 
     private var topBar: some View {
