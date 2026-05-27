@@ -95,10 +95,17 @@ struct FlexWeekReasonPicker: View {
         }
     }
 
+    private func handleCancel() {
+        if showInterventionCard && !interventionDismissed {
+            RunSmartAnalytics.flexWeekInterventionAction(.cancelled)
+        }
+        onCancel()
+    }
+
     private var topBar: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Button(action: onCancel) {
+                Button(action: handleCancel) {
                     Image(systemName: "xmark")
                         .font(.bodyMD.weight(.bold))
                         .foregroundStyle(Color.textPrimary)

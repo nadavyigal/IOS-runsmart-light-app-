@@ -65,5 +65,6 @@ final class FlexWeekAnalyticsTests: XCTestCase {
     func testFlexWeekInterventionActionRawValues() {
         XCTAssertEqual(FlexWeekInterventionAction.talkToCoach.rawValue, "talk_to_coach")
         XCTAssertEqual(FlexWeekInterventionAction.continueToPicker.rawValue, "continue_to_picker")
+        XCTAssertEqual(FlexWeekInterventionAction.cancelled.rawValue, "cancelled")
     }
 }

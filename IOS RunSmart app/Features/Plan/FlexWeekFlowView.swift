@@ -94,7 +94,7 @@ struct FlexWeekFlowView: View {
         }
         .animation(.spring(response: 0.34, dampingFraction: 0.86), value: step)
         .task {
-            priorAdjustmentCount = FlexWeekAdjustmentHistory.historyWithin(7 * 24 * 3600).count
+            priorAdjustmentCount = await services.adjustmentHistoryWithin(7 * 24 * 3600).count
         }
     }
 

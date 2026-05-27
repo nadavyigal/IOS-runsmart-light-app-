@@ -12,6 +12,7 @@ enum FlexWeekCancelStep: String {
 enum FlexWeekInterventionAction: String {
     case talkToCoach = "talk_to_coach"
     case continueToPicker = "continue_to_picker"
+    case cancelled
 }
 
 // MARK: - Analytics

@@ -996,7 +996,7 @@ These tests cover `FlexWeekAdjustmentHistory` (pure UserDefaults logic — no Po
   ```markdown
   ## Current Task
   Story 8 + Story 9: Flex Week Analytics + Gentle Intervention — COMPLETE
-  
+
   ### Story 8 Checklist
   - [x] PostHog initialized in RunSmartLiteAppShell
   - [x] RunSmartAnalytics.swift with flex_week_triggered/confirmed/cancelled/intervention_shown/intervention_action
@@ -1004,20 +1004,20 @@ These tests cover `FlexWeekAdjustmentHistory` (pure UserDefaults logic — no Po
   - [x] FlexWeekAdjustmentHistory persists records to UserDefaults (capped at 10)
   - [x] adjustmentHistoryWithin protocol method + default extension
   - [x] FlexWeekAnalyticsTests: 7/7 pass
-  
+
   ### Story 9 Checklist
   - [x] GentleCoachInterventionCard.swift with "Talk to Coach" + "Just adjust this week" CTAs
   - [x] FlexWeekReasonPicker shows card when priorAdjustmentCount >= 2
   - [x] Intervention dismissed locally without blocking the reason picker
   - [x] intervention_shown + intervention_action events firing
   - [x] onTalkToCoach wired: dismisses flex week sheet, opens Coach after animation
-  
+
   ### Validation
   - Generic simulator build: PASS
   - Generic build-for-testing: PASS
   - FlexWeekAnalyticsTests: 7/7 passed
   - flex_week edge function: deployed to production (smoke 401 confirmed)
-  
+
   ### Next
   - App Store Connect portal tasks (human-only — select build 5, screenshots, credentials, privacy)
   - Remaining device QA: explicit battery % before/after, background re-entry test

@@ -29,6 +29,13 @@ Story 8 + Story 9: Flex Week Analytics + Gentle Intervention — COMPLETE
 - Generic simulator build: PASS
 - FlexWeekAnalyticsTests: 7/7 passed
 - flex_week edge function: deployed to production (smoke 401 confirmed)
+- Merge readiness review 2026-05-27:
+  - PR #34 is open, mergeable, not draft, targeting `main`.
+  - Story 8/9 code review found and fixed the missing `cancelled` intervention action and routed recent-history lookup through `adjustmentHistoryWithin`.
+  - Whitespace validation passed: `git diff --check`.
+  - Swift parse validation passed for touched Story 8/9 files.
+  - Generic simulator build passed with `/tmp/runsmart-e5-story8-9-derived-data`.
+  - Focused `FlexWeekAnalyticsTests` built and executed all 7 tests successfully; xcodebuild then stalled while finalizing the test log and was interrupted, returning 75.
 
 ### Next
 - App Store Connect portal tasks (human-only — select build, screenshots, credentials, privacy)
