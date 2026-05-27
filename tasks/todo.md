@@ -8,6 +8,26 @@
 ---
 
 ## Current Task
+PR #21 PostHog Analytics merge-conflict resolution — COMPLETE
+
+### Conflict Resolution
+- [x] Merged current `origin/main` into `feat/posthog-analytics` in isolated worktree `/tmp/runsmart-posthog-pr21`.
+- [x] Resolved `RunSmartLiteAppShell.swift` to keep screenshot-mode launch guard, push-navigation setup, and the PR's single `Analytics.setup(projectToken:host:)` path.
+- [x] Resolved `PlanTabView.swift` to keep Flex Week UI while preserving `plan_workout_tapped` analytics.
+- [x] Resolved `RunTabView.swift` to keep the latest pre-run start flow while preserving `run_started` analytics with planned/free source.
+- [x] Resolved `RunSmartReadinessTests.swift` to keep both PostHog null-service coverage and the latest readiness/Flex Week tests from main.
+
+### Validation
+- Whitespace validation passed: `git diff --check`.
+- Conflict-marker scan passed across the repo source.
+- Swift parse validation passed for the conflict files plus analytics service files.
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-posthog-pr21-derived-data CODE_SIGNING_ALLOWED=NO build`
+- Build still reports existing warning noise in Flex Week/Supabase/HealthKit code; no build failure remains.
+
+---
+
+## Current Task
 Story 8 + Story 9: Flex Week Analytics + Gentle Intervention — COMPLETE
 
 ### Story 8 Checklist

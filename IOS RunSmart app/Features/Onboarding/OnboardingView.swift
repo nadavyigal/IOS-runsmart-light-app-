@@ -32,6 +32,11 @@ struct OnboardingView: View {
             }
         }
         .foregroundStyle(Color.textPrimary)
+        .onAppear {
+            if step == 0 {
+                Analytics.trackOnboardingStarted()
+            }
+        }
     }
 
     private var progress: some View {
@@ -114,15 +119,24 @@ struct OnboardingView: View {
                 if completed.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     completed.displayName = "RunSmart Runner"
                 }
+                Analytics.trackOnboardingCompleted(
+                    goal: completed.goal,
+                    experience: completed.experience,
+                    daysPerWeek: completed.weeklyRunDays
+                )
                 onComplete(completed)
             }
         }
     }
 
     private func advance() {
+        let stepNames = ["goal", "experience", "schedule", "privacy", "coaching"]
+        let completedStep = step
         withAnimation(RunSmartMotion.tabSpring) {
             step = min(stepCount - 1, step + 1)
         }
+        let name = completedStep < stepNames.count ? stepNames[completedStep] : "unknown"
+        Analytics.trackOnboardingStepCompleted(stepNumber: completedStep + 1, stepName: name)
     }
 
     private func toggleDay(_ day: String) {

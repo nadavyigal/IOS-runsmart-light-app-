@@ -246,6 +246,14 @@ struct PostRunLearningCard: View {
         .task {
             activePlan = await services.activeTrainingPlan()
         }
+        .onAppear {
+            let hasBenchmark = run?.routeMatchResult?.confidence == .matched
+            let hasPlanMatch = model.planImpact != .unavailable
+            Analytics.trackPostRunCardViewed(
+                hasBenchmark: hasBenchmark,
+                hasPlanMatch: hasPlanMatch
+            )
+        }
     }
 
     private var skeletonBody: some View {

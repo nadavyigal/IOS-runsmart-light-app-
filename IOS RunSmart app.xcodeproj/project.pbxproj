@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AA0001022FA0B36A006C1A3C /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = AA0001012FA0B36A006C1A3C /* PostHog */; };
 		CC0001022FA0B36A006C1A3C /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = CC0001012FA0B36A006C1A3C /* Supabase */; };
 		AA0001022FA0B36A006C1A3C /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = AA0001012FA0B36A006C1A3C /* PostHog */; };
 /* End PBXBuildFile section */
@@ -534,6 +535,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		AA0001002FA0B36A006C1A3C /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.0;
+			};
+		};
 		CC0001002FA0B36A006C1A3C /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift";
@@ -553,6 +562,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		AA0001012FA0B36A006C1A3C /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0001002FA0B36A006C1A3C /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
+		};
 		CC0001012FA0B36A006C1A3C /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CC0001002FA0B36A006C1A3C /* XCRemoteSwiftPackageReference "supabase-swift" */;

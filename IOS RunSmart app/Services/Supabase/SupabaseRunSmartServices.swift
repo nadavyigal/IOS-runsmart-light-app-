@@ -937,6 +937,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 importedRuns: newRuns,
                 skippedDuplicateCount: max(0, runs.count - newRuns.count)
             )
+            Analytics.trackGarminSyncCompleted(
+                importedCount: newRuns.count,
+                skippedCount: max(0, runs.count - newRuns.count)
+            )
             return status
         }
         return await syncHealthData()
@@ -976,6 +980,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             importedRuns: result.runs,
             skippedDuplicateCount: result.skippedDuplicates
         )
+        Analytics.trackHealthKitSyncCompleted(importedCount: result.runs.count)
         return status
     }
 

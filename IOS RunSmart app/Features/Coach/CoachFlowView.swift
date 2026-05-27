@@ -29,6 +29,9 @@ struct CoachFlowView: View {
             messages = loadedMessages
             trainingContext = loadedContext
         }
+        .onAppear {
+            Analytics.trackCoachThreadOpened(entryPoint: entryPoint.rawValue)
+        }
     }
 
     private var header: some View {
@@ -179,6 +182,10 @@ struct CoachFlowView: View {
     private func send(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isTyping else { return }
+        Analytics.trackCoachMessageSent(
+            entryPoint: entryPoint.rawValue,
+            messageLength: trimmed.count
+        )
         messages.append(CoachMessage(text: trimmed, time: "Now", isUser: true))
         draft = ""
         isTyping = true

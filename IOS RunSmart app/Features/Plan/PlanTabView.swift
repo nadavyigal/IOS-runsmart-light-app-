@@ -81,6 +81,10 @@ struct PlanTabView: View {
                         .runSmartStaggeredAppear(index: 2)
 
                         PlanCurrentWeekSection(week: current) { workout in
+                            Analytics.trackPlanWorkoutTapped(
+                                workoutType: workout.kind.rawValue,
+                                weekNumber: current.weekNumber
+                            )
                             openWorkoutDetail(workout)
                         }
                         .runSmartStaggeredAppear(index: 3)
@@ -147,6 +151,12 @@ struct PlanTabView: View {
             .navigationDestination(for: SecondaryDestination.self) { destination in
                 SecondaryFlowView(destination: destination)
             }
+        }
+        .onAppear {
+            Analytics.trackPlanViewed(
+                weekNumber: currentWeek?.weekNumber,
+                hasActivePlan: activePlan != nil
+            )
         }
         .task {
             await loadPlanData()

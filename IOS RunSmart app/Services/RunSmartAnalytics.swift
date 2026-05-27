@@ -21,12 +21,12 @@ enum RunSmartAnalytics {
     /// Call once at app startup. Reads keys from Info.plist.
     static func setup() {
         guard
-            let apiKey = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_API_KEY") as? String,
-            !apiKey.isEmpty
+            let projectToken = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_API_KEY") as? String,
+            !projectToken.isEmpty
         else { return }
         let host = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_HOST") as? String
             ?? "https://us.i.posthog.com"
-        let config = PostHogConfig(apiKey: apiKey, host: host)
+        let config = PostHogConfig(projectToken: projectToken, host: host)
         PostHogSDK.shared.setup(config)
     }
 
