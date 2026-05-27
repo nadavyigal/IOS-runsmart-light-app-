@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FlexWeekEntryView: View {
     @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var router: AppRouter
 
     var launch: FlexWeekLaunchContext
     var onDismiss: () -> Void
@@ -22,7 +23,14 @@ struct FlexWeekEntryView: View {
                     currentWeek: currentWeek,
                     readinessContext: readinessContext,
                     preselectedReason: launch.preselectedReason,
-                    onDismiss: onDismiss
+                    entryPoint: launch.entryPoint,
+                    onDismiss: onDismiss,
+                    onTalkToCoach: {
+                        onDismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            router.openCoach(context: "flex_week_intervention")
+                        }
+                    }
                 )
             }
         }

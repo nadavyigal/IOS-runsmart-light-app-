@@ -1,26 +1,48 @@
 # Task State
 
-## Current Task
-E5 Adaptive Flex Week — Stories 2 + 3: `flex_week` edge function + `flexCurrentWeek` iOS service wiring.
+## Launch Readiness QA Tracker
 
-### Checklist
-- [x] Story 2: `flex_week.ts` with all 4 reason paths, 4s timeout, safety validation, deterministic fallback.
-- [x] Story 2: Route `intent === "flex_week"` in `coach_message/index.ts`.
-- [x] Story 2: Deno unit tests (7) + `deno check` on edge function files.
-- [x] Story 3: API DTOs + `FlexWeekServiceSupport` mapper/cache.
-- [x] Story 3: `WebParityProviding.flexCurrentWeek` + `SupabaseRunSmartServices` with 4s timeout + fallback.
-- [x] Story 3: Replace mock path in `FlexWeekFlowView.beginRestructure`.
-- [x] Story 3: iOS unit tests + `FlexWeekTests` clean build.
+### T1 — Physical Device GPS + Battery QA
+- [x] **PASS — 2026-05-27** — 7.23 km outdoor run, 39:51, 1,135 GPS pts, no drift/spikes, Coach Analysis generated (Steady), run saved, post-run debrief rendered. Background tracking held full duration. No crashes. Battery healthy. See lessons.md 2026-05-27 entry.
+
+---
+
+## Current Task
+Story 8 + Story 9: Flex Week Analytics + Gentle Intervention — COMPLETE
+
+### Story 8 Checklist
+- [x] PostHog initialized in RunSmartLiteAppShell
+- [x] RunSmartAnalytics.swift with flex_week_triggered/confirmed/cancelled/intervention_shown/intervention_action
+- [x] FlexWeekFlowView tracks triggered/confirmed/cancelled with reason, source, changesCount, timeToConfirm, entryPoint
+- [x] FlexWeekAdjustmentHistory persists records to UserDefaults (capped at 10)
+- [x] adjustmentHistoryWithin protocol method + default extension
+- [x] FlexWeekAnalyticsTests: 7/7 pass
+
+### Story 9 Checklist
+- [x] GentleCoachInterventionCard.swift with "Talk to Coach" + "Just adjust this week" CTAs
+- [x] FlexWeekReasonPicker shows card when priorAdjustmentCount >= 2
+- [x] Intervention dismissed locally without blocking the reason picker
+- [x] intervention_shown + intervention_action events firing
+- [x] onTalkToCoach wired: dismisses flex week sheet, opens Coach after animation
 
 ### Validation
-- iOS: `xcodebuild ... -only-testing:"IOS RunSmart appTests/FlexWeekTests" clean test` — **24/24 passed**
-- Edge: `npx -y deno test supabase/functions/coach_message/index_test.ts` — **7/7 passed**
-- Edge: `npx -y deno check supabase/functions/coach_message/index.ts supabase/functions/coach_message/flex_week.ts` — **passed**
+- Generic simulator build: PASS
+- FlexWeekAnalyticsTests: 7/7 passed
+- flex_week edge function: deployed to production (smoke 401 confirmed)
+- Merge readiness review 2026-05-27:
+  - PR #34 is open, mergeable, not draft, targeting `main`.
+  - Story 8/9 code review found and fixed the missing `cancelled` intervention action and routed recent-history lookup through `adjustmentHistoryWithin`.
+  - Whitespace validation passed: `git diff --check`.
+  - Swift parse validation passed for touched Story 8/9 files.
+  - Generic simulator build passed with `/tmp/runsmart-e5-story8-9-derived-data`.
+  - Focused `FlexWeekAnalyticsTests` built and executed all 7 tests successfully; xcodebuild then stalled while finalizing the test log and was interrupted, returning 75.
 
 ### Next
-- Story 8: Flex Week analytics events.
-- Story 9: Gentle intervention entry point.
-- Deploy `flex_week` intent to Supabase production when ready.
+- App Store Connect portal tasks (human-only — select build, screenshots, credentials, privacy)
+- Remaining device QA: explicit battery % before/after, background re-entry test
+
+### Previous Task
+E5 Adaptive Flex Week — Stories 2 + 3: `flex_week` edge function + `flexCurrentWeek` iOS service wiring.
 
 ### Previous Task
 Implement the App Store readiness closeout plan before the next archive: add deterministic screenshot mode, generate complete iPhone screenshot sets, document App Store Connect portal values, and run pre-archive validation while preserving existing dirty release work.

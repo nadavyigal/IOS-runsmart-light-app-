@@ -13,24 +13,32 @@ struct FlexWeekFlowView: View {
     var currentWeek: [PlannedWorkout]
     var readinessContext: ReadinessContext?
     var preselectedReason: FlexWeekReason?
+    var entryPoint: FlexWeekEntryPoint
     var onDismiss: () -> Void
+    var onTalkToCoach: (() -> Void)?
 
     @State private var step: FlexWeekFlowStep
     @State private var pendingRequest: FlexWeekRequest?
     @State private var outcome: FlexWeekOutcome?
     @State private var isApplying = false
     @State private var errorMessage: String?
+    @State private var restructureStartedAt: Date?
+    @State private var priorAdjustmentCount: Int = 0
 
     init(
         currentWeek: [PlannedWorkout],
         readinessContext: ReadinessContext? = nil,
         preselectedReason: FlexWeekReason? = nil,
-        onDismiss: @escaping () -> Void
+        entryPoint: FlexWeekEntryPoint = .planPill,
+        onDismiss: @escaping () -> Void,
+        onTalkToCoach: (() -> Void)? = nil
     ) {
         self.currentWeek = currentWeek
         self.readinessContext = readinessContext
         self.preselectedReason = preselectedReason
+        self.entryPoint = entryPoint
         self.onDismiss = onDismiss
+        self.onTalkToCoach = onTalkToCoach
         _step = State(initialValue: .reasonPicker)
     }
 
@@ -42,8 +50,10 @@ struct FlexWeekFlowView: View {
                     currentWeek: currentWeek,
                     readinessContext: readinessContext,
                     preselectedReason: preselectedReason,
-                    onCancel: onDismiss,
-                    onContinue: beginRestructure
+                    showInterventionCard: priorAdjustmentCount >= 2,
+                    onCancel: cancelAtPicker,
+                    onContinue: beginRestructure,
+                    onTalkToCoach: onTalkToCoach
                 )
                 .transition(.opacity)
 
@@ -52,9 +62,9 @@ struct FlexWeekFlowView: View {
                     originalWeek: currentWeek,
                     outcome: placeholderOutcome,
                     isLoading: true,
-                    onCancel: onDismiss,
+                    onCancel: cancelAtLoading,
                     onConfirm: {},
-                    onKeepOriginal: onDismiss
+                    onKeepOriginal: cancelAtLoading
                 )
                 .transition(.opacity)
 
@@ -64,9 +74,9 @@ struct FlexWeekFlowView: View {
                         originalWeek: currentWeek,
                         outcome: outcome,
                         isLoading: false,
-                        onCancel: onDismiss,
+                        onCancel: cancelAtDiff,
                         onConfirm: confirmOutcome,
-                        onKeepOriginal: onDismiss
+                        onKeepOriginal: cancelAtDiff
                     )
                     .overlay(alignment: .top) {
                         if let errorMessage {
@@ -83,6 +93,9 @@ struct FlexWeekFlowView: View {
             }
         }
         .animation(.spring(response: 0.34, dampingFraction: 0.86), value: step)
+        .task {
+            priorAdjustmentCount = await services.adjustmentHistoryWithin(7 * 24 * 3600).count
+        }
     }
 
     private var placeholderOutcome: FlexWeekOutcome {
@@ -134,7 +147,13 @@ struct FlexWeekFlowView: View {
     private func beginRestructure(_ request: FlexWeekRequest) {
         pendingRequest = request
         errorMessage = nil
+        restructureStartedAt = Date()
         step = .loading
+
+        RunSmartAnalytics.flexWeekTriggered(
+            reason: request.reason.kind,
+            entryPoint: entryPoint
+        )
 
         Task {
             let result = await services.flexCurrentWeek(request)
@@ -147,6 +166,7 @@ struct FlexWeekFlowView: View {
         guard let outcome, !isApplying else { return }
         isApplying = true
         errorMessage = nil
+        let startedAt = restructureStartedAt ?? Date()
 
         Task {
             let applied = await services.applyFlexWeek(outcome)
@@ -155,9 +175,40 @@ struct FlexWeekFlowView: View {
                 errorMessage = "Could not save your updated week. Your original plan is unchanged."
                 return
             }
+
+            if let reason = pendingRequest?.reason {
+                FlexWeekAdjustmentHistory.record(FlexWeekRecord(
+                    reason: reason.kind.rawValue,
+                    confirmedAt: Date(),
+                    changesCount: outcome.changes.count
+                ))
+            }
+
+            RunSmartAnalytics.flexWeekConfirmed(
+                reason: pendingRequest?.reason.kind ?? .tired,
+                source: outcome.source,
+                changesCount: outcome.changes.count,
+                timeToConfirmSeconds: Date().timeIntervalSince(startedAt)
+            )
+
             RunSmartHaptics.success()
             step = .confirmed
         }
+    }
+
+    private func cancelAtPicker() {
+        RunSmartAnalytics.flexWeekCancelled(step: .picker, reason: nil)
+        onDismiss()
+    }
+
+    private func cancelAtLoading() {
+        RunSmartAnalytics.flexWeekCancelled(step: .loading, reason: pendingRequest?.reason.kind)
+        onDismiss()
+    }
+
+    private func cancelAtDiff() {
+        RunSmartAnalytics.flexWeekCancelled(step: .diff, reason: pendingRequest?.reason.kind)
+        onDismiss()
     }
 }
 

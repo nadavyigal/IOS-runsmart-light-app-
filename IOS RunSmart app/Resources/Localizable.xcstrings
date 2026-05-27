@@ -7,6 +7,9 @@
     "-" : {
 
     },
+    "(%lld)" : {
+
+    },
     "%@ - %@ - %@" : {
       "localizations" : {
         "en" : {
@@ -86,6 +89,9 @@
     "A lightweight starter block for confidence, consistency, and safe progression." : {
 
     },
+    "A single nudge after Flex Week confirms, summarizing tomorrow's workout." : {
+
+    },
     "Active" : {
 
     },
@@ -96,6 +102,9 @@
 
     },
     "Add Missing Activity" : {
+
+    },
+    "Adjust Your Week" : {
 
     },
     "Adopt Challenge" : {
@@ -134,6 +143,9 @@
 
     },
     "Approve Garmin readiness?" : {
+
+    },
+    "Ask Coach" : {
 
     },
     "Ask Coach anything..." : {
@@ -178,6 +190,9 @@
     "Chat with Coach" : {
 
     },
+    "Close" : {
+
+    },
     "COACH ANALYSIS" : {
 
     },
@@ -187,13 +202,28 @@
     "Coach details will appear once the workout structure is available." : {
 
     },
+    "Coach is rewriting your week…" : {
+
+    },
     "COACH LEARNED" : {
+
+    },
+    "COACH REACTION" : {
+
+    },
+    "Coach safety · Heuristic" : {
 
     },
     "Coach Spark" : {
 
     },
     "Coach Spark checks load spacing before suggesting a new day." : {
+
+    },
+    "Coach will mark these as rest and shift key workouts when it’s safe." : {
+
+    },
+    "Coach will rest you through recovery and ease you back with an easy return run." : {
 
     },
     "COLLAPSE" : {
@@ -203,6 +233,15 @@
 
     },
     "Complete a challenge to level up your running." : {
+
+    },
+    "Confirm New Week" : {
+
+    },
+    "Confirm only if this rewrite matches what you need. Every change includes Coach's rationale." : {
+
+    },
+    "Continue" : {
 
     },
     "Could not remove that run. Check your connection and try again." : {
@@ -221,6 +260,9 @@
 
     },
     "Create or sync a plan to see weekly workouts here." : {
+
+    },
+    "Create or sync a training plan first, then come back to flex the week." : {
 
     },
     "Created %@" : {
@@ -325,6 +367,9 @@
 
     },
     "FIRST 5K" : {
+
+    },
+    "Flex Week" : {
 
     },
     "Focus: %@ - Build Aerobic Endurance" : {
@@ -452,6 +497,9 @@
     "Keep Activity" : {
 
     },
+    "Keep Original Plan" : {
+
+    },
     "Keep Workout" : {
 
     },
@@ -482,6 +530,9 @@
     "Loading training context..." : {
 
     },
+    "Loading your week…" : {
+
+    },
     "Low-frequency prompts for planned runs, gentle recovery, and weekly recap." : {
 
     },
@@ -509,10 +560,25 @@
     "Moving time" : {
 
     },
+    "Need to adjust?" : {
+
+    },
+    "Need to adjust? Open Flex Week" : {
+
+    },
+    "NEW RUNNER" : {
+
+    },
+    "NEXT WEEK" : {
+
+    },
     "No active run" : {
 
     },
     "No activities synced yet. Tap Sync Now above once Garmin is connected." : {
+
+    },
+    "No change" : {
 
     },
     "No coach report yet." : {
@@ -525,6 +591,12 @@
 
     },
     "No Health workouts imported yet. Tap Sync Now after granting Health access." : {
+
+    },
+    "No missed workouts found in this week." : {
+
+    },
+    "No plan week to adjust" : {
 
     },
     "No Route Available" : {
@@ -540,6 +612,15 @@
 
     },
     "No verified runs yet. Start a GPS run, add a manual run, or connect Garmin to import real activity." : {
+
+    },
+    "No visible workout changes in this proposal." : {
+
+    },
+    "Not feeling 100 percent? Adjust your week" : {
+
+    },
+    "Not feeling 100%?" : {
 
     },
     "Notes" : {
@@ -580,6 +661,12 @@
 
     },
     "Personal coaching before and after runs.\nSmart reports. Adaptive plan guidance." : {
+
+    },
+    "Pick what’s going on and Coach will rewrite the rest of this week with a clear rationale for every change." : {
+
+    },
+    "Plan adjustment confirmations" : {
 
     },
     "Plan changes now write to your real RunSmart training plan. Open a workout to move, remove, or start it; use the goal wizard to regenerate the block from the web coach." : {
@@ -653,6 +740,9 @@
     "Report generation failed. Check your connection and try again." : {
 
     },
+    "Review Changes" : {
+
+    },
     "Review effort distribution across recent training." : {
 
     },
@@ -699,6 +789,9 @@
 
     },
     "RunSmart/manual runs are deleted from RunSmart. Garmin runs are hidden in RunSmart but stay in Garmin." : {
+
+    },
+    "Safety notes" : {
 
     },
     "Save" : {
@@ -777,6 +870,9 @@
 
     },
     "Start a GPS run on the Run tab to capture splits and lap markers." : {
+
+    },
+    "Start the Challenge" : {
 
     },
     "Start This Workout" : {
@@ -895,6 +991,12 @@
     "Target date" : {
 
     },
+    "Tell Coach what changed" : {
+
+    },
+    "Tell Coach what changed and rewrite this week." : {
+
+    },
     "Terms of Service" : {
 
     },
@@ -914,6 +1016,12 @@
 
     },
     "This Week" : {
+
+    },
+    "Today, Plan, and weekly progress will reflect the new schedule." : {
+
+    },
+    "TOMORROW" : {
 
     },
     "Total Workouts: %lld" : {
@@ -955,6 +1063,9 @@
     "Week by week" : {
 
     },
+    "WEEK IN REVIEW" : {
+
+    },
     "Weekly Review" : {
 
     },
@@ -980,6 +1091,9 @@
 
     },
     "Your name" : {
+
+    },
+    "Your week is updated" : {
 
     },
     "Zone Analysis" : {
