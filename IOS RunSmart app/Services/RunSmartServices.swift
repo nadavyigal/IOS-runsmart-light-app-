@@ -17,6 +17,7 @@ protocol PlanProviding {
     func pushWorkoutTomorrow(workoutID: UUID) async -> Bool
     func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool
     func removeWorkout(workoutID: UUID) async -> Bool
+    func applyFlexWeek(_ outcome: FlexWeekOutcome) async -> Bool
     func saveSuggestedWorkout(_ suggestion: StructuredNextWorkout, from report: RunReportDetail) async -> Bool
 }
 
@@ -33,6 +34,7 @@ extension PlanProviding {
     func pushWorkoutTomorrow(workoutID: UUID) async -> Bool { false }
     func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool { false }
     func removeWorkout(workoutID: UUID) async -> Bool { false }
+    func applyFlexWeek(_ outcome: FlexWeekOutcome) async -> Bool { false }
     func saveSuggestedWorkout(_ suggestion: StructuredNextWorkout, from report: RunReportDetail) async -> Bool { false }
 }
 
@@ -84,6 +86,9 @@ protocol WebParityProviding {
     func shouldPresentManualMorningCheckin() async -> Bool
     func approveGarminMorningCheckin() async -> Bool
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool
+    func generateWeeklySummary() async -> WeeklyProgressSummary?
+    func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome
+    func adjustmentHistoryWithin(_ window: TimeInterval) async -> [FlexWeekRecord]
 }
 
 extension WebParityProviding {
@@ -98,7 +103,7 @@ extension WebParityProviding {
     func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? { nil }
     func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail? { nil }
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
-        PostActivityOutcome(canonicalRun: run, report: nil, completedWorkout: nil, didCompletePlannedWorkout: false)
+        PostActivityOutcome(canonicalRun: run, report: nil, completedWorkout: nil, didCompletePlannedWorkout: false, debrief: nil)
     }
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult? { nil }
     func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? { nil }
@@ -107,7 +112,15 @@ extension WebParityProviding {
     func shouldPresentManualMorningCheckin() async -> Bool { true }
     func approveGarminMorningCheckin() async -> Bool { false }
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool { false }
-    func removeRun(_ run: RecordedRun) async -> Bool { false }
+    func generateWeeklySummary() async -> WeeklyProgressSummary? { nil }
+
+    func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome {
+        FlexWeekServiceSupport.deterministicOutcome(for: request)
+    }
+
+    func adjustmentHistoryWithin(_ window: TimeInterval) async -> [FlexWeekRecord] {
+        FlexWeekAdjustmentHistory.historyWithin(window)
+    }
 
     func latestRunReports() async -> [RunReportSummary] {
         await latestRunReports(limit: 3)
@@ -406,6 +419,7 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func pushWorkoutTomorrow(workoutID: UUID) async -> Bool { true }
     func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool { true }
     func removeWorkout(workoutID: UUID) async -> Bool { true }
+    func applyFlexWeek(_ outcome: FlexWeekOutcome) async -> Bool { true }
     func saveSuggestedWorkout(_ suggestion: StructuredNextWorkout, from report: RunReportDetail) async -> Bool { true }
 
     func recentMessages() async -> [CoachMessage] {
@@ -538,5 +552,17 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     }
 
     func saveToHealth(_ run: RecordedRun) async {}
+
+    func generateWeeklySummary() async -> WeeklyProgressSummary? {
+        WeeklyProgressSummary(
+            headline: "3 runs · 22.4 km",
+            narrative: "Strong consistency this week — you held easy effort across all three sessions as total distance stepped up 12%. Your aerobic base is absorbing the load well.",
+            forwardLook: "Next week's long run is where this base starts to pay off. Keep the easy pace and let fitness compound.",
+            weekLabel: "Week 4 of your plan",
+            generatedDate: Date(),
+            isoWeekKey: WeeklyProgressSummary.currentISOWeekKey(),
+            source: .ai
+        )
+    }
 }
 #endif

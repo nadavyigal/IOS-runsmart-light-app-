@@ -1,0 +1,1 @@
+RunSmart 1.0 includes adaptive training plans, Today recommendations, GPS run recording, post-run reports, route context, Garmin and Apple Health support, private progress sharing, local reminders, and authenticated Coach chat.

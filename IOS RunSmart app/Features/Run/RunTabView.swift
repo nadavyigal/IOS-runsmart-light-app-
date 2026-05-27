@@ -41,22 +41,17 @@ struct RunTabView: View {
                     phase: recorder.phase,
                     gpsStatus: gpsStatus,
                     gpsDetail: gpsDetail,
-                    onStart: {
-                        RunSmartHaptics.medium()
-                        let source = router.plannedWorkout != nil ? "planned" : "free"
-                        Analytics.trackRunStarted(source: source)
-                        recorder.start()
-                    },
-                    onRoute: { router.open(.routeCreator) },
-                    onAudio: { router.open(.audioCues) }
+                    onStart: startRun,
+                    onRoute: openRouteCreator,
+                    onAudio: openAudioCues
                 )
             }
         }
         .task {
-            metrics = await services.currentRunMetrics()
+            await reloadMetrics()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
-            Task { metrics = await services.currentRunMetrics() }
+            refreshMetrics()
         }
         .confirmationDialog(
             "Discard this workout?",
@@ -152,6 +147,29 @@ struct RunTabView: View {
         }
     }
 
+    private func startRun() {
+        RunSmartHaptics.medium()
+        let source = router.plannedWorkout != nil ? "planned" : "free"
+        Analytics.trackRunStarted(source: source)
+        recorder.start()
+    }
+
+    private func openRouteCreator() {
+        router.open(.routeCreator)
+    }
+
+    private func openAudioCues() {
+        router.open(.audioCues)
+    }
+
+    private func reloadMetrics() async {
+        metrics = await services.currentRunMetrics()
+    }
+
+    private func refreshMetrics() {
+        Task { await reloadMetrics() }
+    }
+
     private func finishRun() {
         RunSmartHaptics.medium()
         let run = recorder.finish()
@@ -206,7 +224,7 @@ struct RunTabView: View {
         isProcessingFinishedRun = false
         router.dismissPostRunSummaryIfNeeded()
         router.clearRunContext()
-        Task { metrics = await services.currentRunMetrics() }
+        refreshMetrics()
     }
 
     private func deleteFinishedRun() {

@@ -33,6 +33,7 @@ enum RunSmartDTO {
         let targetPaceLabel: String
         let elevationLabel: String
         let coachMessage: String
+        var rationale: String? = nil
     }
 
     struct PlanPayload: Codable {
@@ -344,6 +345,197 @@ enum RunSmartDTO {
         let inputTokens: Int?
         let outputTokens: Int?
         let totalTokens: Int?
+    }
+
+    struct SafetyFlagDTO: Codable, Equatable {
+        enum Code: String, Codable {
+            case loadSpike = "load_spike"
+            case injurySignal = "injury_signal"
+            case heatRisk = "heat_risk"
+            case missingData = "missing_data"
+            case uncertain
+            case medicalCaution = "medical_caution"
+            case routeSafety = "route_safety"
+        }
+
+        enum Severity: String, Codable {
+            case low
+            case medium
+            case high
+        }
+
+        let code: Code
+        let severity: Severity
+        let message: String
+    }
+
+    enum CoachConfidenceDTO: String, Codable {
+        case low
+        case medium
+        case high
+    }
+
+    enum CoachDecisionDTO: String, Codable {
+        case proceed
+        case modify
+        case skip
+    }
+
+    struct ReadinessCheckRequestDTO: Codable, Equatable {
+        let entryPoint: String
+        let generatedAt: String
+        let profile: RunnerContextDTO
+        let plannedWorkout: WorkoutContextDTO?
+        let recentRuns: [RecentRunContextDTO]
+        let recovery: RecoveryContextDTO
+        let wellness: WellnessContextDTO
+        let limitations: [String]
+    }
+
+    struct ReadinessCheckResponseDTO: Codable, Equatable {
+        let decision: CoachDecisionDTO
+        let recommendation: String
+        let modifications: [String]
+        let confidence: CoachConfidenceDTO
+        let safetyFlags: [SafetyFlagDTO]
+    }
+
+    struct RunnerContextDTO: Codable, Equatable {
+        let goal: String
+        let level: String
+        let streak: String?
+        let totalRuns: Int?
+        let averageWeeklyDistanceKm: Double?
+    }
+
+    struct WorkoutContextDTO: Codable, Equatable {
+        let id: String?
+        let scheduledDate: String?
+        let title: String
+        let kind: String
+        let distance: String?
+        let durationMinutes: Int?
+        let targetPace: String?
+        let detail: String?
+        let isComplete: Bool?
+    }
+
+    struct RecentRunContextDTO: Codable, Equatable {
+        let id: String
+        let source: String
+        let startedAt: String
+        let distanceKm: Double
+        let movingTimeSeconds: Int
+        let paceLabel: String?
+        let averageHeartRateBPM: Int?
+        let rpe: Int?
+        let hasRoute: Bool
+    }
+
+    struct RecoveryContextDTO: Codable, Equatable {
+        let readiness: Int?
+        let bodyBattery: Int?
+        let sleep: String?
+        let hrv: String?
+        let stress: String?
+        let recommendation: String?
+    }
+
+    struct WellnessContextDTO: Codable, Equatable {
+        let soreness: String?
+        let mood: String?
+        let hydration: String?
+        let checkInStatus: String?
+    }
+
+    struct RunDebriefRequestDTO: Encodable {
+        let intent: String = "run_debrief"
+        let runDistanceKm: Double
+        let runDurationSeconds: Int
+        let averagePaceMinPerKm: Double?
+        let averageHeartRateBPM: Int?
+        let workoutType: String
+        let planPhase: String?
+        let recentLoadDays: Int
+        let limitations: [String]
+    }
+
+    struct RunDebriefResponseDTO: Decodable {
+        let headline: String
+        let debrief: String
+        let tomorrow: String
+        let planImpact: String?
+        let source: String
+    }
+
+    struct WeeklySummaryRequestDTO: Encodable {
+        let intent: String = "weekly_summary"
+        let weekStartDate: String
+        let runsCompleted: Int
+        let runsPlanned: Int
+        let totalDistanceKm: Double
+        let prevWeekDistanceKm: Double?
+        let planPhase: String?
+        let isRecoveryWeek: Bool
+        let readinessAverage: Double?
+        let limitations: [String]
+    }
+
+    struct WeeklySummaryResponseDTO: Decodable {
+        let headline: String
+        let narrative: String
+        let forwardLook: String
+        let weekLabel: String
+        let source: String
+    }
+
+    struct FlexWeekWorkoutDTO: Codable {
+        let workoutID: String
+        let scheduledDate: String
+        let weekday: String
+        let dateLabel: String
+        let kind: String
+        let title: String
+        let distanceLabel: String
+        let detailLabel: String
+        let intensity: String?
+        let trainingPhase: String?
+        let isToday: Bool
+        let isComplete: Bool
+        let originalWorkoutID: String?
+    }
+
+    struct FlexWeekReadinessContextDTO: Codable {
+        let readiness: Int
+        let readinessLabel: String
+        let bodyBattery: Int
+        let hrv: String
+        let sleep: String
+        let recommendation: String
+    }
+
+    struct FlexWeekRequestDTO: Encodable {
+        let intent: String = "flex_week"
+        let reason: String
+        let currentWeek: [FlexWeekWorkoutDTO]
+        let readinessContext: FlexWeekReadinessContextDTO?
+        let blockedDays: [String]?
+        let missedWorkoutID: String?
+        let sickDaysOut: Int?
+    }
+
+    struct FlexWeekChangeDTO: Codable {
+        let workoutID: String
+        let changeType: String
+        let rationale: String
+        let originalWorkoutID: String?
+    }
+
+    struct FlexWeekResponseDTO: Codable {
+        let restructuredWeek: [FlexWeekWorkoutDTO]
+        let changes: [FlexWeekChangeDTO]
+        let safetyWarnings: [String]?
+        let source: String
     }
 
     struct RunLogRequest: Codable {

@@ -80,6 +80,8 @@ struct WorkoutSummary: Identifiable, Hashable {
     var intensity: String?
     var trainingPhase: String?
     var workoutStructure: String?
+    var adjustedAt: Date?
+    var adjustedReason: String?
 }
 
 struct TrainingGoalRequest: Hashable {
@@ -157,6 +159,189 @@ struct TodayRecommendation {
     var streak: String = "--"
     var recovery: String = "--"
     var hrv: String = "--"
+    var rationale: String? = nil
+    var safetyExplanation: SafetyExplanation? = nil
+}
+
+enum SafetyExplanationKind: String, Hashable {
+    case readinessGate
+    case lowBodyBattery
+    case lowHRV
+    case restAdvised
+}
+
+struct SafetyExplanation: Hashable {
+    var kind: SafetyExplanationKind
+    var headline: String
+    var coachVoice: String
+    var evidence: String
+    var action: String?
+}
+
+enum TodayResolvedStateKind: Hashable {
+    case plannedToday
+    case completedToday
+    case upNext
+    case restDay
+    case noPlan
+}
+
+struct TodayResolvedState: Hashable {
+    var kind: TodayResolvedStateKind
+    var primaryWorkout: WorkoutSummary
+    var completedRun: RecordedRun?
+    var upNextWorkout: WorkoutSummary?
+
+    var showsStartAction: Bool {
+        kind == .plannedToday
+    }
+
+    var showsTodayRoute: Bool {
+        kind == .plannedToday
+    }
+
+    var headline: String {
+        switch kind {
+        case .completedToday:
+            return "Run complete today"
+        case .upNext:
+            return "Up next"
+        case .restDay:
+            return "Recovery today"
+        case .noPlan:
+            return "Today"
+        case .plannedToday:
+            return "Today's Workout"
+        }
+    }
+
+    var primaryActionTitle: String {
+        switch kind {
+        case .completedToday:
+            return "Review Report"
+        case .plannedToday:
+            return "Start Workout"
+        default:
+            return "Ask Coach"
+        }
+    }
+
+    static func make(
+        recommendation: TodayRecommendation,
+        weekWorkouts: [WorkoutSummary],
+        nextWorkouts: [WorkoutSummary],
+        recentRuns: [RecordedRun],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> TodayResolvedState {
+        let plannedWorkouts = PlanExplanation.uniqueWorkoutsForTodayState([weekWorkouts, nextWorkouts])
+        let startOfToday = calendar.startOfDay(for: now)
+        let sameDayRun = recentRuns
+            .filter { calendar.isDate($0.startedAt, inSameDayAs: now) && $0.distanceMeters > 0 }
+            .sorted { $0.startedAt > $1.startedAt }
+            .first
+        let completedTodayWorkout = plannedWorkouts
+            .filter { $0.isComplete && calendar.isDate($0.scheduledDate, inSameDayAs: now) && isWorkout($0) }
+            .sorted { $0.scheduledDate > $1.scheduledDate }
+            .first
+        let plannedTodayWorkout = plannedWorkouts
+            .filter { !$0.isComplete && calendar.isDate($0.scheduledDate, inSameDayAs: now) && isWorkout($0) }
+            .sorted { $0.scheduledDate < $1.scheduledDate }
+            .first
+        let futureWorkout = plannedWorkouts
+            .filter { !$0.isComplete && isWorkout($0) && calendar.startOfDay(for: $0.scheduledDate) > startOfToday }
+            .sorted { $0.scheduledDate < $1.scheduledDate }
+            .first
+        let todayRest = plannedWorkouts.first {
+            calendar.isDate($0.scheduledDate, inSameDayAs: now) && !isWorkout($0)
+        }
+
+        if let sameDayRun {
+            return TodayResolvedState(
+                kind: .completedToday,
+                primaryWorkout: completedTodayWorkout ?? workoutSummary(for: sameDayRun, recommendation: recommendation, calendar: calendar),
+                completedRun: sameDayRun,
+                upNextWorkout: futureWorkout
+            )
+        }
+
+        if let completedTodayWorkout {
+            return TodayResolvedState(
+                kind: .completedToday,
+                primaryWorkout: completedTodayWorkout,
+                completedRun: nil,
+                upNextWorkout: futureWorkout
+            )
+        }
+
+        if let plannedTodayWorkout {
+            return TodayResolvedState(kind: .plannedToday, primaryWorkout: plannedTodayWorkout, completedRun: nil, upNextWorkout: futureWorkout)
+        }
+
+        if let todayRest {
+            return TodayResolvedState(kind: .restDay, primaryWorkout: todayRest, completedRun: nil, upNextWorkout: futureWorkout)
+        }
+
+        if let futureWorkout {
+            return TodayResolvedState(kind: .upNext, primaryWorkout: futureWorkout, completedRun: nil, upNextWorkout: futureWorkout)
+        }
+
+        return TodayResolvedState(kind: .noPlan, primaryWorkout: fallbackWorkout(recommendation: recommendation, now: now), completedRun: nil, upNextWorkout: nil)
+    }
+
+    private static func workoutSummary(
+        for run: RecordedRun,
+        recommendation: TodayRecommendation,
+        calendar: Calendar
+    ) -> WorkoutSummary {
+        let distanceKm = run.distanceMeters / 1_000
+        return WorkoutSummary(
+            id: run.id,
+            scheduledDate: run.startedAt,
+            planID: nil,
+            weekday: "",
+            date: "",
+            kind: .easy,
+            title: "Run complete today",
+            distance: String(format: "%.1f km", distanceKm),
+            detail: recommendation.coachMessage,
+            isToday: true,
+            isComplete: true,
+            durationMinutes: run.movingTimeSeconds > 0 ? Int((run.movingTimeSeconds / 60).rounded()) : nil,
+            targetPaceSecondsPerKm: run.averagePaceSecondsPerKm > 0 ? Int(run.averagePaceSecondsPerKm.rounded()) : nil,
+            intensity: nil,
+            trainingPhase: nil,
+            workoutStructure: nil
+        )
+    }
+
+    private static func fallbackWorkout(recommendation: TodayRecommendation, now: Date) -> WorkoutSummary {
+        WorkoutSummary(
+            id: UUID(),
+            scheduledDate: now,
+            planID: nil,
+            weekday: "",
+            date: "",
+            kind: .easy,
+            title: recommendation.workoutTitle,
+            distance: recommendation.distance,
+            detail: recommendation.coachMessage,
+            isToday: true,
+            isComplete: false
+        )
+    }
+
+    private static func isWorkout(_ workout: WorkoutSummary) -> Bool {
+        distanceKm(from: workout.distance) > 0 || !workout.distance.localizedCaseInsensitiveContains("rest")
+    }
+
+    private static func distanceKm(from label: String) -> Double {
+        let allowed = CharacterSet.decimalDigits.union(CharacterSet(charactersIn: "."))
+        let token = label
+            .components(separatedBy: allowed.inverted)
+            .first { !$0.isEmpty } ?? ""
+        return Double(token) ?? 0
+    }
 }
 
 enum PlanExplanationTrigger: String, Hashable {
@@ -255,6 +440,27 @@ struct PlanExplanation: Hashable {
             )
         }
 
+        if let (run, daysAgo) = recentRun, daysAgo == 0 {
+            let runLabel = runDistanceLabel(run)
+            if run.source != .runSmart {
+                return PlanExplanation(
+                    trigger: .importedActivity,
+                    evidence: "Imported \(runLabel) from \(run.source.rawValue) today.",
+                    recommendation: isRestDay ? "That load supports keeping today as recovery." : "Coach is counting today's imported activity before nudging the rest of the plan.",
+                    action: nil,
+                    source: .heuristic
+                )
+            }
+
+            return PlanExplanation(
+                trigger: .completedRun,
+                evidence: "Today's \(runLabel) run is already in your training history.",
+                recommendation: isRestDay ? "Today can stay as recovery." : "The plan can stay steady unless recovery changes.",
+                action: nil,
+                source: .heuristic
+            )
+        }
+
         if let missedWorkout {
             return PlanExplanation(
                 trigger: .missedWorkout,
@@ -328,12 +534,15 @@ struct PlanExplanation: Hashable {
     }
 
     private static func isLowRecovery(_ recovery: RecoverySnapshot, recommendation: TodayRecommendation) -> Bool {
-        let recoveryText = [recovery.hrv, recovery.sleep, recovery.stress, recovery.recommendation, recommendation.readinessLabel, recommendation.recovery, recommendation.hrv]
+        let recoveryText = [recovery.hrv, recovery.sleep, recovery.recommendation, recommendation.readinessLabel, recommendation.recovery, recommendation.hrv]
             .joined(separator: " ")
             .lowercased()
+        let stressText = recovery.stress.lowercased()
         return (recovery.readiness > 0 && recovery.readiness < 45) ||
             (recovery.bodyBattery > 0 && recovery.bodyBattery < 35) ||
             recommendation.readiness < 45 ||
+            stressText.contains("high") ||
+            stressText.contains("elevated") ||
             recoveryText.contains("low") ||
             recoveryText.contains("lower") ||
             recoveryText.contains("tired")
@@ -375,6 +584,10 @@ struct PlanExplanation: Hashable {
                 seen.insert(fallbackKey)
                 return true
             }
+    }
+
+    static func uniqueWorkoutsForTodayState(_ collections: [[WorkoutSummary]]) -> [WorkoutSummary] {
+        uniqueWorkouts(collections)
     }
 
     private static func isWorkout(_ workout: WorkoutSummary) -> Bool {
@@ -844,6 +1057,7 @@ struct OnboardingProfile: Codable, Equatable {
     var units: String
     var coachingTone: String
     var notificationsEnabled: Bool
+    var planAdjustmentConfirmationsEnabled: Bool
 
     static let empty = OnboardingProfile(
         displayName: "",
@@ -857,7 +1071,8 @@ struct OnboardingProfile: Codable, Equatable {
         preferredDays: ["Tue", "Thu", "Sat", "Sun"],
         units: "Metric",
         coachingTone: "Motivating",
-        notificationsEnabled: false
+        notificationsEnabled: false,
+        planAdjustmentConfirmationsEnabled: true
     )
 }
 
@@ -1215,11 +1430,82 @@ struct RunReportDetail: Identifiable, Codable, Hashable {
     }
 }
 
+struct PostRunDebriefModel: Hashable {
+    enum Source: String, Hashable {
+        case ai
+        case fallback
+    }
+
+    var headline: String
+    var debrief: String
+    var tomorrow: String
+    var planImpact: String?
+    var source: Source
+
+    static func fallback(for run: RecordedRun?) -> PostRunDebriefModel {
+        let distanceKm = (run?.distanceMeters ?? 0) / 1_000
+        let durationMin = Int((run?.movingTimeSeconds ?? 0) / 60)
+        let distanceStr = distanceKm > 0 ? String(format: "%.1f km", distanceKm) : "this effort"
+        let durationStr = durationMin > 0 ? " in \(durationMin) min" : ""
+        return PostRunDebriefModel(
+            headline: "Run logged",
+            debrief: "You covered \(distanceStr)\(durationStr). RunSmart has recorded this effort.",
+            tomorrow: "Check Today tomorrow for your next recommended session.",
+            planImpact: nil,
+            source: .fallback
+        )
+    }
+}
+
+struct WeeklyProgressSummary: Hashable, Codable {
+    enum Source: String, Hashable, Codable {
+        case ai
+        case fallback
+    }
+
+    var headline: String
+    var narrative: String
+    var forwardLook: String
+    var weekLabel: String
+    var generatedDate: Date
+    var isoWeekKey: String         // e.g. "2026-W21" -- cache key
+    var source: Source
+
+    static func fallback(runsCompleted: Int, totalDistanceKm: Double) -> WeeklyProgressSummary {
+        let distanceStr = String(format: "%.1f km", totalDistanceKm)
+        let runWord = runsCompleted == 1 ? "run" : "runs"
+        return WeeklyProgressSummary(
+            headline: "\(runsCompleted) \(runWord) · \(distanceStr)",
+            narrative: "A solid week of training. RunSmart has logged your effort.",
+            forwardLook: "Check Today for your next recommended session.",
+            weekLabel: "This week",
+            generatedDate: Date(),
+            isoWeekKey: WeeklyProgressSummary.currentISOWeekKey(),
+            source: .fallback
+        )
+    }
+
+    static func currentISOWeekKey() -> String {
+        // ISO 8601 calendar guarantees deterministic week boundaries regardless of device locale.
+        // Using .component(_:from:) returns Int directly — no optional unwrapping needed.
+        var iso = Calendar(identifier: .iso8601)
+        iso.locale = Locale(identifier: "en_US_POSIX")
+        let year = iso.component(.yearForWeekOfYear, from: Date())
+        let week = iso.component(.weekOfYear, from: Date())
+        return String(format: "%04d-W%02d", year, week)
+    }
+
+    static func isNewWeek(since lastKey: String) -> Bool {
+        currentISOWeekKey() != lastKey
+    }
+}
+
 struct PostActivityOutcome: Hashable {
     var canonicalRun: RecordedRun
     var report: RunReportDetail?
     var completedWorkout: WorkoutSummary?
     var didCompletePlannedWorkout: Bool
+    var debrief: PostRunDebriefModel?          // E6: AI post-run debrief
 }
 
 struct TrainingLoadSnapshot: Hashable {

@@ -20,7 +20,7 @@ struct ReportTabView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
+            LazyVStack(alignment: .leading, spacing: 16) {
                 RunSmartHeader(title: "Report")
 
                 HStack(spacing: 0) {
@@ -97,7 +97,7 @@ struct ReportTabView: View {
                 }
                 .runSmartStaggeredAppear(index: 1)
 
-                Button { router.open(.zoneAnalysis) } label: {
+                Button(action: openZoneAnalysis) {
                     ContentCard {
                         HStack(spacing: 14) {
                             Image(systemName: "heart.circle.fill")
@@ -136,16 +136,13 @@ struct ReportTabView: View {
             await reloadRoutes()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
-            Task {
-                await reloadRuns()
-                await reloadRoutes()
-            }
+            refreshRunsAndRoutes()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
-            Task { await reloadRuns() }
+            refreshRuns()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRoutesDidChange)) { _ in
-            Task { await reloadRoutes() }
+            refreshRoutes()
         }
         .confirmationDialog("Remove this run?", isPresented: Binding(
             get: { runPendingRemoval != nil },
@@ -167,11 +164,38 @@ struct ReportTabView: View {
         runs = await services.recentRuns()
     }
 
+    private func refreshRuns() {
+        Task { await reloadRuns() }
+    }
+
+    private func refreshRoutes() {
+        Task { await reloadRoutes() }
+    }
+
+    private func refreshRunsAndRoutes() {
+        Task {
+            await reloadRuns()
+            await reloadRoutes()
+        }
+    }
+
+    private func openZoneAnalysis() {
+        router.open(.zoneAnalysis)
+    }
+
+    private func openReportDetail(_ report: RunReportDetail) {
+        router.open(.runReportDetail(report))
+    }
+
+    private func openRouteDetail(_ route: SavedRoute) {
+        router.open(.routeDetail(route))
+    }
+
     private func openReport(for run: RecordedRun) {
         Task {
             let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
             await MainActor.run {
-                router.open(.runReportDetail(report))
+                openReportDetail(report)
             }
         }
     }
@@ -223,7 +247,7 @@ struct ReportTabView: View {
                                 route: route,
                                 isBenchmark: true,
                                 benchmarkRoute: benchmarkRoute(for: route),
-                                onTap: { router.open(.routeDetail(route)) }
+                                onTap: { openRouteDetail(route) }
                             )
                         }
                     }
@@ -245,7 +269,7 @@ struct ReportTabView: View {
                                 route: route,
                                 isBenchmark: false,
                                 benchmarkRoute: nil,
-                                onTap: { router.open(.routeDetail(route)) }
+                                onTap: { openRouteDetail(route) }
                             )
                         }
                     }

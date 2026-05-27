@@ -39,7 +39,7 @@ struct ProgressSharePayload: Hashable {
                 ProgressShareMetric(title: "Avg Pace", value: report.averagePace)
             ],
             insight: report.notes.summary,
-            privacyNote: "Private share: no map, raw coordinates, or exact route are included."
+            privacyNote: "Private share: no map, GPS points, or exact route are included."
         )
     }
 
@@ -55,7 +55,7 @@ struct ProgressSharePayload: Hashable {
                 ProgressShareMetric(title: "Month Avg", value: BenchmarkComparisonPresentation.paceLabel(comparison.monthlyAverage.averagePaceSecondsPerKm))
             ],
             insight: BenchmarkComparisonPresentation.insights(for: comparison).first ?? "Benchmark progress saved privately in RunSmart.",
-            privacyNote: "Private share: route name and stats only. No map or raw coordinates are included."
+            privacyNote: "Private share: route name and stats only. No map or GPS points are included."
         )
     }
 

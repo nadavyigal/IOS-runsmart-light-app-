@@ -85,7 +85,12 @@ struct RouteCreatorView: View {
 
     private var displayed: [RouteSuggestion] {
         let filtered = RouteSuggestionRanker.filter(allSuggestions, targetDistanceKm: distanceFilter)
-        return RouteSuggestionRanker.rank(filtered, targetDistanceKm: distanceFilter ?? targetDistance, elevationPreference: elevation)
+        return RouteSuggestionRanker.rank(
+            filtered,
+            targetDistanceKm: distanceFilter ?? targetDistance,
+            elevationPreference: elevation,
+            surfacePreference: surface
+        )
     }
 
     private var benchmarks: [RouteSuggestion] {
@@ -220,7 +225,8 @@ struct RouteCreatorView: View {
                 targetDistanceKm: targetDistance,
                 isFavorite: false,
                 daysSinceLastRun: nil,
-                elevationPreference: elevation
+                elevationPreference: elevation,
+                surfacePreference: surface
             )
             return enriched
         }

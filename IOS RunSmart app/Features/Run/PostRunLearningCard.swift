@@ -159,7 +159,7 @@ struct PostRunLearningCardModel: Hashable {
 
     private static func source(for report: RunReportDetail?, run: RecordedRun?) -> PostRunLearningSource {
         guard let report else {
-            return run == nil ? .heuristic : .heuristic
+            return run == nil ? .heuristic : .fallback
         }
         if !report.hasGeneratedReport {
             return .report
@@ -173,6 +173,9 @@ struct PostRunLearningCardModel: Hashable {
         isShort: Bool
     ) -> (title: String, kind: PostRunLearningAction) {
         if let report, let next = report.structuredNextWorkout {
+            if TrainingPlanRepository.suggestedWorkoutNeedsReview(next) {
+                return ("Review suggested workout", .unavailable(PostRunSuggestedWorkoutSaveCopy.reviewMessage))
+            }
             return ("Save suggested next run", .saveSuggestedWorkout(next, report))
         }
         if impact == .unavailable {
@@ -191,6 +194,7 @@ struct PostRunLearningCard: View {
     var outcome: PostActivityOutcome?
     var report: RunReportDetail?
     var isProcessing: Bool = false
+    var debrief: PostRunDebriefModel? = nil   // E6: AI debrief
 
     @State private var activePlan: TrainingPlanSnapshot?
     @State private var isSaving = false
@@ -206,6 +210,16 @@ struct PostRunLearningCard: View {
     }
 
     var body: some View {
+        if isProcessing && debrief == nil {
+            skeletonBody
+        } else if let debrief {
+            debriefBody(debrief)
+        } else {
+            deterministicBody
+        }
+    }
+
+    private var deterministicBody: some View {
         RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top, spacing: 10) {
@@ -242,6 +256,76 @@ struct PostRunLearningCard: View {
         }
     }
 
+    private var skeletonBody: some View {
+        RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("COACH REACTION", systemImage: "sparkles")
+                        .font(.labelLG)
+                        .foregroundStyle(Color.accentPrimary)
+                    Spacer()
+                }
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.textSecondary.opacity(0.2))
+                    .frame(height: 14)
+                    .frame(maxWidth: .infinity)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.textSecondary.opacity(0.2))
+                    .frame(height: 14)
+                    .padding(.trailing, 80)  // shorter second line
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func debriefBody(_ debrief: PostRunDebriefModel) -> some View {
+        RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 10) {
+                    Label("COACH REACTION", systemImage: "sparkles")
+                        .font(.labelLG)
+                        .foregroundStyle(Color.accentPrimary)
+                    Spacer()
+                    StatusChip(
+                        text: debrief.source == .ai ? "AI" : "Coach",
+                        tint: debrief.source == .ai ? .accentPrimary : .textSecondary
+                    )
+                }
+
+                Text(debrief.headline)
+                    .font(.headingMD)
+                    .foregroundStyle(Color.textPrimary)
+
+                Text(debrief.debrief)
+                    .font(.bodyMD)
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("TOMORROW")
+                        .font(.labelSM)
+                        .foregroundStyle(Color.textTertiary)
+                    Text(debrief.tomorrow)
+                        .font(.bodyMD)
+                        .foregroundStyle(Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let planImpact = debrief.planImpact {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.accentSuccess)
+                        Text(planImpact)
+                            .font(.labelSM)
+                            .foregroundStyle(Color.textSecondary)
+                    }
+                }
+            }
+        }
+    }
+
     private var learningContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             PostRunLearningLine(label: "What happened", value: model.happened)
@@ -272,6 +356,13 @@ struct PostRunLearningCard: View {
                 Text(PostRunSuggestedWorkoutSaveCopy.failureMessage)
                     .font(.caption)
                     .foregroundStyle(Color.accentHeart)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if case let .unavailable(message) = model.action {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(model.planImpact == .needsReview ? Color.accentEnergy : Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

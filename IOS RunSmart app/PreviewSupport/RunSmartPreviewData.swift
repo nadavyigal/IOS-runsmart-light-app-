@@ -20,7 +20,8 @@ enum RunSmartPreviewData {
         distance: "8.2 km",
         pace: "5'15\" /km",
         elevation: "128 m",
-        coachMessage: "You've built great momentum this week. Let's keep it going with a smart challenge."
+        coachMessage: "You've built great momentum this week. Let's keep it going with a smart challenge.",
+        rationale: "Body battery at 82 — you're fueled for a real effort. Tempo Builder lands well today."
     )
 
     static let workouts: [WorkoutSummary] = {
@@ -84,9 +85,9 @@ enum RunSmartPreviewData {
     )
 
     static let activeChallenge = ChallengeSummary(
-        id: "challenge-consistency",
-        title: "21-Day Consistency",
-        detail: "Complete the daily training prompt and keep your plan synced.",
+        id: "challenge-foundation",
+        title: "21-Day Running Foundation",
+        detail: "From zero to 30 minutes — daily coaching and a plan built around your body.",
         progress: 0.52,
         dayLabel: "Day 11 of 21",
         isActive: true

@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  generateFlexWeek,
+  sanitizeFlexWeekRequest,
+} from "./flex_week.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -39,6 +43,42 @@ Rules:
 - Use supportive language: adjust, recover, next best step, still on track.
 - Give one practical next action.`;
 
+const RUN_DEBRIEF_SYSTEM_PROMPT = `You are RunSmart Coach. Given a completed run's data, write a short post-run debrief.
+
+Return ONLY valid JSON — no markdown, no explanation — in exactly this shape:
+{
+  "headline": "One short coach reaction (max 40 characters)",
+  "debrief": "1-2 sentences referencing at least one real signal from the run (pace, HR, distance, effort)",
+  "tomorrow": "One sentence: what this run means for tomorrow",
+  "planImpact": "Short phrase or null"
+}
+
+Rules:
+- Be specific: reference actual numbers from the context.
+- Be warm and direct. No filler.
+- Do not diagnose injuries or give medical advice.
+- If injurySignal is true in context, set headline to "Rest up — listen to your body", debrief to "Any pain or discomfort after a run needs rest first. Check in with a professional before your next session.", tomorrow to "Take a full rest day tomorrow.", planImpact to null.
+- Do not shame any result.
+- Conservative guidance under uncertainty.`;
+
+const WEEKLY_SUMMARY_SYSTEM_PROMPT = `You are RunSmart Coach. Given a runner's week summary data, write a short weekly progress narrative.
+
+Return ONLY valid JSON — no markdown, no explanation — in exactly this shape:
+{
+  "headline": "Key stat that proves something changed (max 50 characters, e.g. '3 runs · 18 km · 4th week in a row')",
+  "narrative": "2-3 sentences in coach voice: what was built this week, what the data shows, why it matters",
+  "forwardLook": "One sentence: what next week is building toward",
+  "weekLabel": "Context label, e.g. 'Week 4 of your plan' or 'Week 3 with RunSmart'"
+}
+
+Rules:
+- Be specific: reference actual numbers (runs, distance, comparison to last week if available).
+- Be warm, direct, forward-looking.
+- Do not shame missed workouts: if runsCompleted < runsPlanned, acknowledge effort without guilt.
+- Do not diagnose or give medical advice.
+- If runsCompleted is 0, return a short encouraging message anyway.
+- Conservative under uncertainty.`;
+
 const forbiddenContextKeys = new Set([
   "latitude",
   "longitude",
@@ -50,6 +90,171 @@ const forbiddenContextKeys = new Set([
   "gps",
   "points",
 ]);
+
+async function generateRunDebrief(context: JsonRecord): Promise<{
+  headline: string;
+  debrief: string;
+  tomorrow: string;
+  planImpact: string | null;
+  source: CoachSource;
+}> {
+  const injurySignal = Boolean(context.injurySignal);
+  if (injurySignal) {
+    return {
+      headline: "Rest up — listen to your body",
+      debrief: "Any pain or discomfort after a run needs rest first. Check in with a professional before your next session.",
+      tomorrow: "Take a full rest day tomorrow.",
+      planImpact: null,
+      source: "fallback",
+    };
+  }
+
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  if (!apiKey) {
+    return fallbackRunDebrief(context);
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        instructions: RUN_DEBRIEF_SYSTEM_PROMPT,
+        input: [{
+          role: "user",
+          content: [{ type: "input_text", text: `Run data:\n${JSON.stringify(context)}` }],
+        }],
+        max_output_tokens: 180,
+      }),
+    });
+    if (!response.ok) throw new Error(`OpenAI ${response.status}`);
+    const json = await response.json();
+    const text = extractResponseText(json).trim();
+    if (!text) {
+      throw new Error("run_debrief: OpenAI returned empty text");
+    }
+    const parsed = JSON.parse(text);
+    const headline = limitString(parsed.headline, 40);
+    const debrief = limitString(parsed.debrief, 300);
+    const tomorrow = limitString(parsed.tomorrow, 160);
+    if (!headline || !debrief || !tomorrow) {
+      throw new Error("run_debrief: AI response missing required fields");
+    }
+    return {
+      headline,
+      debrief,
+      tomorrow,
+      planImpact: parsed.planImpact ? limitString(parsed.planImpact, 60) : null,
+      source: "live_ai" as CoachSource,
+    };
+  } catch (error) {
+    console.error("run_debrief AI fallback", error);
+    return fallbackRunDebrief(context);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function fallbackRunDebrief(context: JsonRecord): {
+  headline: string; debrief: string; tomorrow: string; planImpact: string | null; source: CoachSource;
+} {
+  const distanceKm = typeof context.runDistanceKm === "number" ? (context.runDistanceKm as number).toFixed(1) : "–";
+  const durationMin = typeof context.runDurationSeconds === "number"
+    ? Math.round((context.runDurationSeconds as number) / 60)
+    : null;
+  const durationStr = durationMin ? `${durationMin} min` : "";
+  return {
+    headline: "Run logged",
+    debrief: `You covered ${distanceKm} km${durationStr ? ` in ${durationStr}` : ""}. RunSmart has logged this effort toward your training.`,
+    tomorrow: "Check Today tomorrow for your next recommended session.",
+    planImpact: null,
+    source: "fallback",
+  };
+}
+
+async function generateWeeklySummary(context: JsonRecord): Promise<{
+  headline: string;
+  narrative: string;
+  forwardLook: string;
+  weekLabel: string;
+  source: CoachSource;
+}> {
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  if (!apiKey) {
+    return fallbackWeeklySummary(context);
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        instructions: WEEKLY_SUMMARY_SYSTEM_PROMPT,
+        input: [{
+          role: "user",
+          content: [{ type: "input_text", text: `Week data:\n${JSON.stringify(context)}` }],
+        }],
+        max_output_tokens: 220,
+      }),
+    });
+    if (!response.ok) throw new Error(`OpenAI ${response.status}`);
+    const json = await response.json();
+    const text = extractResponseText(json).trim();
+    if (!text) {
+      throw new Error("weekly_summary: OpenAI returned empty text");
+    }
+    const parsed = JSON.parse(text);
+    const headline = limitString(parsed.headline, 50);
+    const narrative = limitString(parsed.narrative, 400);
+    const forwardLook = limitString(parsed.forwardLook, 160);
+    const weekLabel = limitString(parsed.weekLabel, 60);
+    if (!headline || !narrative || !forwardLook || !weekLabel) {
+      throw new Error("weekly_summary: AI response missing required fields");
+    }
+    return { headline, narrative, forwardLook, weekLabel, source: "live_ai" as CoachSource };
+  } catch (error) {
+    console.error("weekly_summary AI fallback", error);
+    return fallbackWeeklySummary(context);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function fallbackWeeklySummary(context: JsonRecord): {
+  headline: string; narrative: string; forwardLook: string; weekLabel: string; source: CoachSource;
+} {
+  const runs = typeof context.runsCompleted === "number" ? context.runsCompleted : 0;
+  const distanceKm = typeof context.totalDistanceKm === "number"
+    ? (context.totalDistanceKm as number).toFixed(1)
+    : "–";
+  const runWord = runs === 1 ? "run" : "runs";
+  if (runs === 0) {
+    return {
+      headline: "Rest week",
+      narrative: "Every week is a fresh start. Lace up whenever you're ready.",
+      forwardLook: "Check Today for your next recommended session.",
+      weekLabel: "This week",
+      source: "fallback",
+    };
+  }
+  return {
+    headline: `${runs} ${runWord} · ${distanceKm} km`,
+    narrative: "A solid week of training. RunSmart has logged your effort.",
+    forwardLook: "Check Today for your next recommended session.",
+    weekLabel: "This week",
+    source: "fallback",
+  };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -95,6 +300,72 @@ Deno.serve(async (req) => {
   const conversationId = optionalUUID(body.conversationId);
   const clientTimestamp = stringValue(body.clientTimestamp).trim();
   const context = asRecord(body.context);
+  const intent = stringValue(body.intent) || "chat";
+
+  // Route run_debrief before the chat-specific validation
+  if (intent === "run_debrief") {
+    // iOS RunDebriefRequestDTO sends run fields at top level (not nested under body.context)
+    if (containsForbiddenKeys(body)) {
+      return jsonResponse({ error: "Context contains forbidden keys" }, 400);
+    }
+    const safeContext: JsonRecord = {
+      runDistanceKm: typeof body.runDistanceKm === "number" ? body.runDistanceKm : null,
+      runDurationSeconds: typeof body.runDurationSeconds === "number" ? body.runDurationSeconds : null,
+      averagePaceMinPerKm: typeof body.averagePaceMinPerKm === "number" ? body.averagePaceMinPerKm : null,
+      averageHeartRateBPM: typeof body.averageHeartRateBPM === "number" ? body.averageHeartRateBPM : null,
+      workoutType: limitString(body.workoutType, 40),
+      planPhase: body.planPhase ? limitString(body.planPhase as string, 80) : null,
+      recentLoadDays: typeof body.recentLoadDays === "number" ? body.recentLoadDays : 0,
+      injurySignal: Boolean(body.injurySignal),
+      effortRating: typeof body.effortRating === "number" ? body.effortRating : null,
+      limitations: Array.isArray(body.limitations) ? (body.limitations as unknown[]).slice(0, 5).map(l => limitString(l, 160)) : [],
+    };
+    const debrief = await generateRunDebrief(safeContext);
+    return jsonResponse(debrief);
+  }
+
+  if (intent === "weekly_summary") {
+    if (!context) {
+      return jsonResponse({ error: "Context is required for weekly_summary" }, 400);
+    }
+    if (containsForbiddenKeys(context)) {
+      return jsonResponse({ error: "Context contains forbidden keys" }, 400);
+    }
+    const safeContext: JsonRecord = {
+      weekStartDate: limitString(context.weekStartDate, 20),
+      runsCompleted: typeof context.runsCompleted === "number" ? context.runsCompleted : 0,
+      runsPlanned: typeof context.runsPlanned === "number" ? context.runsPlanned : 0,
+      totalDistanceKm: typeof context.totalDistanceKm === "number" ? context.totalDistanceKm : 0,
+      prevWeekDistanceKm: typeof context.prevWeekDistanceKm === "number" ? context.prevWeekDistanceKm : null,
+      planPhase: typeof context.planPhase === "string" ? limitString(context.planPhase, 40) : null,
+      isRecoveryWeek: Boolean(context.isRecoveryWeek),
+      readinessAverage: typeof context.readinessAverage === "number" ? context.readinessAverage : null,
+    };
+    const summary = await generateWeeklySummary(safeContext);
+    return jsonResponse(summary);
+  }
+
+  if (intent === "flex_week") {
+    if (containsForbiddenKeys(body)) {
+      return jsonResponse({ error: "Context contains forbidden keys" }, 400);
+    }
+    const request = sanitizeFlexWeekRequest(body);
+    if (!request) {
+      return jsonResponse({ error: "Invalid flex_week payload" }, 400);
+    }
+    const outcome = await generateFlexWeek(request);
+    return jsonResponse({
+      restructuredWeek: outcome.restructured_week,
+      changes: outcome.changes.map((change) => ({
+        workoutId: change.workout_id,
+        changeType: change.change_type,
+        rationale: change.rationale,
+        originalWorkoutId: change.original_workout_id,
+      })),
+      safetyWarnings: outcome.safety_warnings,
+      source: outcome.source,
+    });
+  }
 
   if (!message) {
     return jsonResponse({ error: "Message is required" }, 400);
