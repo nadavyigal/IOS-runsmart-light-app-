@@ -1589,7 +1589,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             stress: stress,
             fatigue: fatigue,
             notes: "Approved Garmin morning metrics from \(metrics.date).",
-            source: "garmin_approved"
+            source: "garmin"
         )
     }
 
@@ -1613,13 +1613,13 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 .upsert(DBWellnessCheckinUpsert(
                     authUserID: userID.uuidString,
                     checkinDate: localDateString(Date()),
-                    energy: energy,
-                    soreness: soreness ?? 0,
+                    energy: Self.clampedCheckinScore(energy),
+                    soreness: Self.clampedCheckinScore(soreness ?? 1),
                     mood: mood,
-                    stress: stress,
-                    fatigue: fatigue,
+                    stress: stress.map(Self.clampedCheckinScore),
+                    fatigue: fatigue.map(Self.clampedCheckinScore),
                     notes: notes,
-                    source: source
+                    source: Self.databaseCheckinSource(source)
                 ), onConflict: "auth_user_id,checkin_date")
                 .execute()
             return true
@@ -1629,6 +1629,16 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             }
             return false
         }
+    }
+
+    private static func clampedCheckinScore(_ value: Int) -> Int {
+        max(1, min(10, value))
+    }
+
+    private static func databaseCheckinSource(_ source: String) -> String {
+        let value = source.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if value.contains("garmin") { return "garmin" }
+        return "manual"
     }
 
     // MARK: Private helpers

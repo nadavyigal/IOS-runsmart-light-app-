@@ -764,7 +764,6 @@ final class TrainingPlanRepository {
     private static func flexUpdate(for workout: PlannedWorkout, change: FlexWeekChange?) -> DBWorkoutFlexUpdate {
         let distanceKm = PlanPresentationModels.distanceKm(from: workout.distance)
         let isRest = !PlanPresentationModels.isWorkout(workout) || workout.distance.localizedCaseInsensitiveContains("rest")
-        let adjustedAt = ISO8601DateFormatter.internet.string(from: Date())
         return DBWorkoutFlexUpdate(
             scheduledDate: ISO8601DateFormatter.shortDate.string(from: workout.scheduledDate),
             day: Self.dayLabel(for: workout.scheduledDate),
@@ -772,10 +771,21 @@ final class TrainingPlanRepository {
             distance: isRest ? 0 : distanceKm,
             duration: workout.durationMinutes,
             pace: workout.targetPaceSecondsPerKm,
-            intensity: workout.intensity,
-            adjustedAt: adjustedAt,
-            adjustedReason: change?.rationale
+            intensity: Self.databaseIntensity(for: workout, isRest: isRest)
         )
+    }
+
+    private static func databaseIntensity(for workout: PlannedWorkout, isRest: Bool) -> String? {
+        guard !isRest else { return nil }
+        let value = (workout.intensity ?? workout.kind.supabaseType)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if value.contains("easy") || value.contains("recovery") { return "easy" }
+        if value.contains("tempo") || value.contains("moderate") { return "moderate" }
+        if value.contains("hard") || value.contains("interval") || value.contains("hill") || value.contains("race") || value.contains("long") {
+            return "hard"
+        }
+        return "easy"
     }
 
     private static func flexUpdateMatches(workout: DBWorkout, patch: DBWorkoutFlexUpdate) -> Bool {
@@ -1123,8 +1133,6 @@ private struct DBWorkoutFlexUpdate: Encodable {
     let duration: Int?
     let pace: Int?
     let intensity: String?
-    let adjustedAt: String?
-    let adjustedReason: String?
 
     init(
         scheduledDate: String,
@@ -1133,9 +1141,7 @@ private struct DBWorkoutFlexUpdate: Encodable {
         distance: Double?,
         duration: Int?,
         pace: Int?,
-        intensity: String?,
-        adjustedAt: String?,
-        adjustedReason: String?
+        intensity: String?
     ) {
         self.scheduledDate = scheduledDate
         self.day = day
@@ -1144,8 +1150,6 @@ private struct DBWorkoutFlexUpdate: Encodable {
         self.duration = duration
         self.pace = pace
         self.intensity = intensity
-        self.adjustedAt = adjustedAt
-        self.adjustedReason = adjustedReason
     }
 
     init(dbWorkout: DBWorkout) {
@@ -1156,8 +1160,6 @@ private struct DBWorkoutFlexUpdate: Encodable {
         duration = dbWorkout.duration
         pace = dbWorkout.pace
         intensity = dbWorkout.intensity
-        adjustedAt = dbWorkout.adjustedAt
-        adjustedReason = dbWorkout.adjustedReason
     }
 
     enum CodingKeys: String, CodingKey {
@@ -1168,8 +1170,6 @@ private struct DBWorkoutFlexUpdate: Encodable {
         case duration
         case pace
         case intensity
-        case adjustedAt = "adjusted_at"
-        case adjustedReason = "adjusted_reason"
     }
 }
 
