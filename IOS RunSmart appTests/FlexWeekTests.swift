@@ -314,6 +314,116 @@ final class FlexWeekTests: XCTestCase {
         XCTAssertEqual(dto.currentWeek.count, week.count)
     }
 
+    func testFlexWeekRequestDTOUsesEdgeFunctionKeySpelling() throws {
+        let week = sampleWeek(hardToday: false)
+        let request = FlexWeekRequest(
+            reason: .missedWorkout(workoutID: week[1].id),
+            currentWeek: week,
+            readinessContext: nil
+        )
+
+        let dto = FlexWeekServiceSupport.buildRequestDTO(from: request)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(dto)
+        ) as? [String: Any])
+        let currentWeek = try XCTUnwrap(payload["currentWeek"] as? [[String: Any]])
+        let firstWorkout = try XCTUnwrap(currentWeek.first)
+
+        XCTAssertEqual(payload["intent"] as? String, "flex_week")
+        XCTAssertEqual(payload["missedWorkoutId"] as? String, week[1].id.uuidString)
+        XCTAssertNil(payload["missedWorkoutID"])
+        XCTAssertEqual(firstWorkout["workoutId"] as? String, week[0].id.uuidString)
+        XCTAssertNil(firstWorkout["workoutID"])
+    }
+
+    func testFlexWeekResponseDTODecodesEdgeFunctionKeySpelling() throws {
+        let week = sampleWeek(hardToday: false)
+        let json = """
+        {
+          "restructuredWeek": [
+            {
+              "workoutId": "\(week[0].id.uuidString)",
+              "scheduledDate": "2026-05-19",
+              "weekday": "MON",
+              "dateLabel": "19",
+              "kind": "easy",
+              "title": "Easy Run",
+              "distanceLabel": "5.0 km",
+              "detailLabel": "Keep it relaxed.",
+              "intensity": "easy",
+              "trainingPhase": "base",
+              "isToday": false,
+              "isComplete": false,
+              "originalWorkoutId": null
+            }
+          ],
+          "changes": [
+            {
+              "workoutId": "\(week[0].id.uuidString)",
+              "changeType": "downgraded",
+              "rationale": "RECOVERY — made the session easier.",
+              "originalWorkoutId": null
+            }
+          ],
+          "safetyWarnings": [],
+          "source": "live_ai"
+        }
+        """
+
+        let dto = try JSONDecoder().decode(
+            RunSmartDTO.FlexWeekResponseDTO.self,
+            from: Data(json.utf8)
+        )
+
+        XCTAssertEqual(dto.restructuredWeek.first?.workoutID, week[0].id.uuidString)
+        XCTAssertEqual(dto.changes.first?.workoutID, week[0].id.uuidString)
+    }
+
+    func testFlexWeekResponseDTODecodesLegacyAndSnakeCaseKeySpelling() throws {
+        let week = sampleWeek(hardToday: false)
+        let json = """
+        {
+          "restructured_week": [
+            {
+              "workout_id": "\(week[0].id.uuidString)",
+              "scheduled_date": "2026-05-19",
+              "weekday": "MON",
+              "date_label": "19",
+              "kind": "Recovery",
+              "title": "Rest",
+              "distance_label": "Rest",
+              "detail_label": "Recovery",
+              "intensity": "rest",
+              "training_phase": "base",
+              "is_today": false,
+              "is_complete": false,
+              "original_workout_id": null
+            }
+          ],
+          "changes": [
+            {
+              "workoutID": "\(week[0].id.uuidString)",
+              "change_type": "rest",
+              "rationale": "Illness recovery comes before training load.",
+              "originalWorkoutID": null
+            }
+          ],
+          "safety_warnings": ["Keep this easy."],
+          "source": "fallback"
+        }
+        """
+
+        let dto = try JSONDecoder().decode(
+            RunSmartDTO.FlexWeekResponseDTO.self,
+            from: Data(json.utf8)
+        )
+
+        XCTAssertEqual(dto.restructuredWeek.first?.workoutID, week[0].id.uuidString)
+        XCTAssertEqual(dto.restructuredWeek.first?.distanceLabel, "Rest")
+        XCTAssertEqual(dto.changes.first?.workoutID, week[0].id.uuidString)
+        XCTAssertEqual(dto.safetyWarnings, ["Keep this easy."])
+    }
+
     func testFlexWeekOutcomeMapsValidAIResponse() {
         let week = sampleWeek(hardToday: true)
         let response = RunSmartDTO.FlexWeekResponseDTO(

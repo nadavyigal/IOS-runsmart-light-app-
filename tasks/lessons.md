@@ -261,3 +261,10 @@ Trigger: After merging a PR, Xcode reopened on a temporary Codex branch while lo
 Lesson: A successful PR validation branch is not the right local state for user handoff after merge; Xcode can also retain stale DerivedData from the previous branch.
 
 Future rule: After merge handoff, align local `main` to `origin/main`, remove temporary local branches/worktrees, clear the app's DerivedData, and reopen Xcode on `main`.
+
+### 2026-05-27 - Verify Throwing Decoder Fallbacks In Xcodebuild
+Trigger: A Flex Week response compatibility decoder parsed with `swiftc -parse` but failed the Xcode build because a throwing nil-coalescing fallback was not explicitly handled.
+
+Lesson: Parser-only validation is useful but not enough for Codable compatibility edits that use throwing expressions.
+
+Future rule: After changing custom `Decodable` fallbacks, run an Xcode build before handoff and prefer explicit `if let` decode branches over throwing `??` expressions.

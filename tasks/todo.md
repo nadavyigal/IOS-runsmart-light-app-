@@ -8,6 +8,33 @@
 ---
 
 ## Current Task
+Physical device QA bugs after latest `main` merge — COMPLETE
+
+### Bugs From Device Logs
+- [x] Fixed Flex Week Edge Function `400` fallback by encoding request DTO keys as `workoutId` / `missedWorkoutId`.
+- [x] Fixed Flex Week response fallback decoding for `workoutId`, `workoutID`, `workout_id`, and snake_case top-level response keys returned by deployed services.
+- [x] Fixed Flex Week save failure by stopping workout updates from sending undeployed `adjusted_at` / `adjusted_reason` columns.
+- [x] Fixed Flex Week workout save constraint failure by mapping app intensities to deployed DB values and storing rest-day intensity as `nil`.
+- [x] Fixed Garmin/manual morning check-in save failure by clamping wellness scores and avoiding `soreness = 0`.
+- [x] Fixed Garmin/manual morning check-in source constraint failure by storing deployed DB source values (`garmin` / `manual`).
+- [x] Added Flex Week DTO tests for Edge Function key spelling and response compatibility decoding.
+
+### Validation
+- Swift parse validation passed for touched app/test files.
+- Whitespace validation passed with `git diff --check`.
+- Generic simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-device-fixes-derived-data CODE_SIGNING_ALLOWED=NO build`
+- Focused Flex Week test target build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17 Pro" -derivedDataPath /tmp/runsmart-device-fixes-derived-data -only-testing:"IOS RunSmart appTests/FlexWeekTests" CODE_SIGNING_ALLOWED=NO build-for-testing`
+- Focused simulator `test` command built and installed, then stalled after install; interrupted and replaced with `build-for-testing`.
+
+### Notes
+- The repeated `nw_*`, PerfPowerTelemetry/Maps sandbox, `CAMetalLayer`, and scene snapshot messages are Apple framework/runtime noise, not the root cause of the screenshots.
+- Remaining Swift concurrency warnings are pre-existing and should be handled in a separate cleanup pass.
+
+---
+
+## Current Task
 PR #21 PostHog Analytics merge-conflict resolution — COMPLETE
 
 ### Conflict Resolution
