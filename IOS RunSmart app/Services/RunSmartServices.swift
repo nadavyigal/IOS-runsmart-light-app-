@@ -72,6 +72,7 @@ protocol WebParityProviding {
     func activeChallenge() async -> ChallengeSummary
     func recoverySnapshot() async -> RecoverySnapshot
     func wellnessSnapshot() async -> WellnessSnapshot
+    func wellnessTrendSeries(days: Int) async -> WellnessTrendSeries
     func shoes() async -> [ShoeSummary]
     func reminders() async -> [ReminderPreference]
     func latestRunReports(limit: Int) async -> [RunReportSummary]
@@ -96,6 +97,7 @@ extension WebParityProviding {
     func activeChallenge() async -> ChallengeSummary { .loading }
     func recoverySnapshot() async -> RecoverySnapshot { .loading }
     func wellnessSnapshot() async -> WellnessSnapshot { .empty }
+    func wellnessTrendSeries(days: Int = 7) async -> WellnessTrendSeries { .empty }
     func shoes() async -> [ShoeSummary] { [] }
     func reminders() async -> [ReminderPreference] { [] }
     func latestRunReports(limit: Int) async -> [RunReportSummary] { [] }
@@ -477,6 +479,7 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func activeChallenge() async -> ChallengeSummary { RunSmartPreviewData.activeChallenge }
     func recoverySnapshot() async -> RecoverySnapshot { RunSmartPreviewData.recovery }
     func wellnessSnapshot() async -> WellnessSnapshot { RunSmartPreviewData.wellness }
+    func wellnessTrendSeries(days: Int = 7) async -> WellnessTrendSeries { RunSmartPreviewData.wellnessTrends }
     func shoes() async -> [ShoeSummary] { RunSmartPreviewData.shoes }
     func reminders() async -> [ReminderPreference] { RunSmartPreviewData.reminders }
     func latestRunReports(limit: Int) async -> [RunReportSummary] { Array(RunSmartPreviewData.runReports.prefix(limit)) }

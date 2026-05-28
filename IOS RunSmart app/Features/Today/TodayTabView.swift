@@ -17,6 +17,8 @@ struct TodayTabView: View {
     @State private var recovery: RecoverySnapshot = .loading
     @State private var activeChallenge: ChallengeSummary = .loading
     @State private var challengeLoaded = false
+    @State private var wellnessTrends: WellnessTrendSeries = .empty
+    @State private var isStriver = false
     @State private var weeklySummary: WeeklyProgressSummary? = nil
     @State private var weeklySummaryFetchedKey: String = ""    // ISO week key of last fetch attempt
     @State private var pendingLoadTask: Task<Void, Never>?
@@ -149,11 +151,19 @@ struct TodayTabView: View {
                 quickStats
                     .runSmartStaggeredAppear(index: 10)
 
+                if isStriver {
+                    TodayWellnessTrendCard(
+                        trends: wellnessTrends,
+                        onTapRecovery: { router.open(.recoveryDashboard) }
+                    )
+                    .runSmartStaggeredAppear(index: 11)
+                }
+
                 if !nextWorkouts.isEmpty {
                     UpcomingRunsCard(workouts: nextWorkouts) { workout in
                         openWorkoutDetail(workout)
                     }
-                    .runSmartStaggeredAppear(index: 11)
+                    .runSmartStaggeredAppear(index: 12)
                 }
 
                 if !runReports.isEmpty {
@@ -162,11 +172,11 @@ struct TodayTabView: View {
                             openReportDetail(detail)
                         }
                     }
-                    .runSmartStaggeredAppear(index: 12)
+                    .runSmartStaggeredAppear(index: 13)
                 }
 
                 WeatherConditionsCard()
-                    .runSmartStaggeredAppear(index: 13)
+                    .runSmartStaggeredAppear(index: 14)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
@@ -205,8 +215,11 @@ struct TodayTabView: View {
         async let activePlanTask = services.activeTrainingPlan()
         async let runsTask = services.recentRuns()
         async let recoveryTask = services.recoverySnapshot()
+        async let trendsTask = services.wellnessTrendSeries(days: 7)
+        async let devicesTask = services.deviceStatuses()
+        async let runnerTask = services.runnerProfile()
         async let challengeTask = services.activeChallenge()
-        let (rec, week, nw, reports, messages, plan, runs, recov, challenge) = await (
+        let (rec, week, nw, reports, messages, plan, runs, recov, trends, devices, runner, challenge) = await (
             recommendationTask,
             weekTask,
             nextWorkoutsTask,
@@ -215,6 +228,9 @@ struct TodayTabView: View {
             activePlanTask,
             runsTask,
             recoveryTask,
+            trendsTask,
+            devicesTask,
+            runnerTask,
             challengeTask
         )
         let resolvedState = TodayResolvedState.make(recommendation: rec, weekWorkouts: week, nextWorkouts: nw, recentRuns: runs)
@@ -230,6 +246,13 @@ struct TodayTabView: View {
         activePlan = plan
         recentRuns = runs
         recovery = recov
+        wellnessTrends = trends
+        isStriver = StriverPersonaGate.isStriver(
+            runner: runner,
+            onboarding: session.onboardingProfile,
+            devices: devices,
+            runs: runs
+        )
         activeChallenge = challenge
         challengeLoaded = true
         // Fetch once per ISO week; guard covers both nil result (zero runs) and populated result
@@ -268,12 +291,27 @@ struct TodayTabView: View {
     }
 
     private var quickStats: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        let legacyRecoveryBars: [CGFloat] = [0.20, 0.34, 0.46, 0.62, 0.70, 0.55, 0.48]
+        let legacyHRVBars: [CGFloat] = [0.40, 0.52, 0.46, 0.72, 0.58, 0.76, 0.62]
+        let recoveryBars = wellnessTrends.readinessBars.isEmpty
+            ? (isStriver ? [] : legacyRecoveryBars)
+            : wellnessTrends.readinessBars
+        let hrvBars = wellnessTrends.hrvBars.isEmpty
+            ? (isStriver ? [] : legacyHRVBars)
+            : wellnessTrends.hrvBars
+        let recoveryValue = isStriver && wellnessTrends.latestReadinessDisplay != "--"
+            ? wellnessTrends.latestReadinessDisplay
+            : recommendation.recovery
+        let hrvValue = isStriver && wellnessTrends.latestHRVDisplay != "--"
+            ? wellnessTrends.latestHRVDisplay
+            : recommendation.hrv
+
+        return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 TodayMiniStatCard(title: "Weekly Progress", value: recommendation.weeklyProgress, unit: "km", symbol: "chart.bar.fill", tint: .accentPrimary, values: [0.18, 0.35, 0.55, 0.78, 0.62, 0.44, 0.70])
                 TodayMiniStatCard(title: "Streak", value: recommendation.streak, unit: "days", symbol: "flame.fill", tint: .accentAmber, values: [0.35, 0.35, 0.35, 0.35, 0.35])
-                TodayMiniStatCard(title: "Recovery", value: recommendation.recovery, unit: "sleep", symbol: "moon.fill", tint: .accentMagenta, values: [0.20, 0.34, 0.46, 0.62, 0.70, 0.55, 0.48])
-                TodayMiniStatCard(title: "HRV Status", value: recommendation.hrv, unit: "balanced", symbol: "heart", tint: .accentSuccess, values: [0.40, 0.52, 0.46, 0.72, 0.58, 0.76, 0.62])
+                TodayMiniStatCard(title: "Recovery", value: recoveryValue, unit: isStriver ? "readiness" : "sleep", symbol: "moon.fill", tint: .accentMagenta, values: recoveryBars)
+                TodayMiniStatCard(title: "HRV Status", value: hrvValue, unit: isStriver ? "7-day" : "balanced", symbol: "heart", tint: .accentSuccess, values: hrvBars)
             }
             .padding(.vertical, 2)
         }
@@ -1078,6 +1116,63 @@ private struct TodayMiniStatCard: View {
             }
             .frame(width: 104, height: 138, alignment: .topLeading)
         }
+    }
+}
+
+private struct TodayWellnessTrendCard: View {
+    var trends: WellnessTrendSeries
+    var onTapRecovery: () -> Void
+
+    var body: some View {
+        Button(action: onTapRecovery) {
+            ContentCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionLabel(title: "Wearable Trends", trailing: "7 days")
+                    trendRow(
+                        title: "HRV",
+                        value: trends.latestHRVDisplay,
+                        summary: trends.hrvTrendSummary,
+                        bars: trends.hrvBars,
+                        tint: .accentHeart
+                    )
+                    trendRow(
+                        title: "Readiness",
+                        value: trends.latestReadinessDisplay,
+                        summary: trends.readinessTrendSummary,
+                        bars: trends.readinessBars,
+                        tint: .accentPrimary
+                    )
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func trendRow(title: String, value: String, summary: String, bars: [CGFloat], tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                    .font(.headingMD)
+                Spacer()
+                Text(value)
+                    .font(.metricXS)
+                    .monospacedDigit()
+                    .foregroundStyle(tint)
+            }
+            Text(summary)
+                .font(.caption)
+                .foregroundStyle(Color.textSecondary)
+            if bars.isEmpty {
+                Text("Need more synced days")
+                    .font(.caption)
+                    .foregroundStyle(Color.textTertiary)
+            } else {
+                MetricBars(values: bars, tint: tint)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), \(value), \(summary)")
     }
 }
 

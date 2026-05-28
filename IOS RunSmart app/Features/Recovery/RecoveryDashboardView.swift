@@ -1,12 +1,21 @@
 import SwiftUI
 
 struct RecoveryDashboardView: View {
-    private let signals: [(title: String, value: String, detail: String, tint: Color, symbol: String)] = [
-        ("HRV", "64 ms", "+8 vs baseline", .accentHeart, "waveform.path.ecg"),
-        ("Sleep", "7h 42m", "82% quality", .accentRecovery, "moon.fill"),
-        ("Body", "Ready", "Low stress", .accentSuccess, "heart.circle.fill"),
-        ("Load", "Balanced", "No spike", .accentPrimary, "chart.bar.fill")
-    ]
+    @Environment(\.runSmartServices) private var services
+    @State private var recovery: RecoverySnapshot = .loading
+    @State private var trends: WellnessTrendSeries = .empty
+
+    private var readinessValue: Double {
+        min(1.0, max(0.0, Double(recovery.readiness) / 100.0))
+    }
+
+    private var readinessLabel: String {
+        switch recovery.readiness {
+        case 75...: return "READY TO TRAIN"
+        case 50..<75: return "MODERATE DAY"
+        default: return "RECOVERY FIRST"
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -15,70 +24,91 @@ struct RecoveryDashboardView: View {
                     SectionLabel(title: "Recovery dashboard", trailing: "Today")
                     HStack(alignment: .center) {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("82")
+                            Text("\(recovery.readiness)")
                                 .font(.displayXL)
                                 .monospacedDigit()
                                 .foregroundStyle(Color.textPrimary)
                                 .displayTightTracking()
-                            Text("READY TO TRAIN")
+                            Text(readinessLabel)
                                 .font(.labelSM)
                                 .tracking(1.2)
                                 .foregroundStyle(Color.accentSuccess)
                         }
                         Spacer()
-                        ProgressRing(value: 0.82, lineWidth: 12, icon: "bolt.fill", tint: .accentSuccess)
+                        ProgressRing(value: readinessValue, lineWidth: 12, icon: "bolt.fill", tint: .accentSuccess)
                             .frame(width: 118, height: 118)
                             .runSmartPulse(scale: 1.018)
                     }
-                    Text("Green light for quality work. Keep the first third controlled and use breathing as the limiter.")
+                    Text(recovery.recommendation)
                         .font(.bodyMD)
                         .foregroundStyle(Color.textSecondary)
                 }
             }
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ForEach(signals, id: \.title) { signal in
-                    RecoverySignalTile(title: signal.title, value: signal.value, detail: signal.detail, tint: signal.tint, symbol: signal.symbol)
-                }
-            }
+            RecoveryTrendTile(
+                title: "HRV",
+                value: trends.latestHRVDisplay,
+                detail: trends.hrvTrendSummary,
+                bars: trends.hrvBars,
+                tint: .accentHeart
+            )
+            RecoveryTrendTile(
+                title: "Training Readiness",
+                value: trends.latestReadinessDisplay,
+                detail: trends.readinessTrendSummary,
+                bars: trends.readinessBars,
+                tint: .accentPrimary
+            )
 
             ContentCard {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Coach read")
-                    RecoveryReadRow(title: "Train", detail: "Tempo builder is still appropriate.", tint: .accentSuccess)
-                    RecoveryReadRow(title: "Watch", detail: "If legs feel heavy after warm-up, cap at steady effort.", tint: .accentPrimary)
-                    RecoveryReadRow(title: "Recover", detail: "Add 10 minutes mobility after the run.", tint: .accentRecovery)
+                    RecoveryReadRow(title: "Train", detail: trends.readinessTrendSummary, tint: .accentSuccess)
+                    RecoveryReadRow(title: "Watch", detail: "Use the first 10 minutes to check breathing and leg feel.", tint: .accentPrimary)
+                    RecoveryReadRow(title: "Recover", detail: "Protect sleep quality and easy-day effort when trend dips.", tint: .accentRecovery)
                 }
             }
+        }
+        .task {
+            async let recoveryTask = services.recoverySnapshot()
+            async let trendTask = services.wellnessTrendSeries(days: 7)
+            (recovery, trends) = await (recoveryTask, trendTask)
         }
     }
 }
 
-private struct RecoverySignalTile: View {
+private struct RecoveryTrendTile: View {
     var title: String
     var value: String
     var detail: String
+    var bars: [CGFloat]
     var tint: Color
-    var symbol: String
 
     var body: some View {
         ContentCard {
             VStack(alignment: .leading, spacing: 9) {
-                Image(systemName: symbol)
-                    .foregroundStyle(tint)
-                Text(value)
-                    .font(.metricSM)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.textPrimary)
                 Text(title.uppercased())
                     .font(.labelSM)
                     .tracking(1.1)
                     .foregroundStyle(Color.textSecondary)
+                Text(value)
+                    .font(.metricSM)
+                    .monospacedDigit()
+                    .foregroundStyle(Color.textPrimary)
                 Text(detail)
                     .font(.caption)
                     .foregroundStyle(Color.textTertiary)
+                if bars.isEmpty {
+                    Text("Need more synced days")
+                        .font(.caption)
+                        .foregroundStyle(Color.textTertiary)
+                } else {
+                    MetricBars(values: bars, tint: tint)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(title), \(value), \(detail)")
         }
     }
 }

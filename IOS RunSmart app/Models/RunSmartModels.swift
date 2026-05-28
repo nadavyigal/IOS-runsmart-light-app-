@@ -1340,6 +1340,33 @@ struct WellnessSnapshot: Hashable {
     var checkInStatus: String
 }
 
+struct DailyWellnessPoint: Hashable {
+    var date: Date
+    var hrvMilliseconds: Double?
+    var trainingReadiness: Int?
+    var bodyBattery: Int?
+}
+
+struct WellnessTrendSeries: Hashable {
+    var days: [DailyWellnessPoint]
+    var hrvBars: [CGFloat]
+    var readinessBars: [CGFloat]
+    var hrvTrendSummary: String
+    var readinessTrendSummary: String
+    var latestHRVDisplay: String
+    var latestReadinessDisplay: String
+
+    static let empty = WellnessTrendSeries(
+        days: [],
+        hrvBars: [],
+        readinessBars: [],
+        hrvTrendSummary: "Need more synced days",
+        readinessTrendSummary: "Need more synced days",
+        latestHRVDisplay: "--",
+        latestReadinessDisplay: "--"
+    )
+}
+
 struct ShoeSummary: Identifiable, Hashable {
     var id: String
     var name: String

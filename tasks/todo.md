@@ -8,6 +8,34 @@
 ---
 
 ## Current Task
+E7 — Garmin / Wearable Depth Implementation — COMPLETE
+
+### Checklist
+- [x] Draft `docs/specs/e7-garmin-wearable-depth.md` with scope, states, data contract, AC, and QA plan.
+- [x] Add `WellnessTrendSeries` model + 7-day Garmin fetch + service API.
+- [x] Implement Striver persona gating helper + focused tests.
+- [x] Wire Today mini-stat HRV/recovery sparklines to real 7-day data + add Striver trend card.
+- [x] Add full 7-day HRV/training-readiness charts to Garmin Wellness and live Recovery dashboard wiring.
+- [x] Add preview fixtures, focused tests, Xcode build validation, and QA checklist updates.
+- [x] Harden Striver empty states (no fake sparklines), route trend fetch through `GarminBridge.dailyMetrics` fallback, sparse-history test, accessibility labels.
+
+### Validation (2026-05-28 follow-up)
+- Generic simulator build passed (`build/DerivedData`).
+- Focused tests: `StriverPersonaGateTests`, `WellnessTrendMapperTests` (4 tests incl. sparse history).
+
+### Remaining Risks
+- Manual QA on physical device with real Garmin 7-day sync still required.
+- Striver gate is a v1 heuristic; may need tuning from TestFlight feedback.
+- Optional analytics (`e7_trend_card_viewed`) deferred per spec.
+
+### Scope Guard
+- No plan adaptation algorithm changes.
+- No medical diagnosis language.
+- No App Store/TestFlight portal-side operations.
+
+---
+
+## Current Task
 Physical device QA bugs after latest `main` merge — COMPLETE
 
 ### Bugs From Device Logs

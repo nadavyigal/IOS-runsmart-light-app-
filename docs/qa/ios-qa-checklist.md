@@ -32,6 +32,15 @@ Use this for simulator and device QA before calling work done.
 - [ ] Garmin runs without map data still show reports and explain why route actions are unavailable.
 - [ ] Saved route deletion removes only the RunSmart copy and benchmark tracking.
 
+## E7 Wearable Depth
+- [ ] Striver + Garmin user sees real 7-day HRV bars on Today mini-stats (not placeholder bars).
+- [ ] Striver + Garmin user sees real 7-day readiness bars on Today mini-stats (not placeholder bars).
+- [ ] Today Striver trend card shows latest HRV/readiness values and trend summaries.
+- [ ] Garmin Wellness shows both 7-day HRV and 7-day training-readiness trend panels.
+- [ ] Recovery dashboard shows live readiness + trend bars (no static mock values).
+- [ ] Missing or sparse Garmin trend data shows honest fallback copy and does not fabricate values.
+- [ ] Non-Striver / no-wearable flow does not regress.
+
 ## Accessibility
 - [ ] Dynamic Type does not break primary flows.
 - [ ] Tap targets are large enough.
