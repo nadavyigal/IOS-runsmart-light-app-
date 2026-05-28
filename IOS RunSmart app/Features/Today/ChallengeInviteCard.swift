@@ -65,6 +65,7 @@ struct ChallengeInviteCard: View {
     }
 }
 
+#if DEBUG
 #Preview {
     ZStack {
         RunSmartBackground()
@@ -74,3 +75,4 @@ struct ChallengeInviteCard: View {
     .environmentObject(SupabaseSession())
     .environment(\.runSmartServices, MockRunSmartServices())
 }
+#endif
