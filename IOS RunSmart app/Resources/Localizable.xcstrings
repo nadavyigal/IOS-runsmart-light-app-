@@ -40,6 +40,16 @@
         }
       }
     },
+    "%@, %@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, %3$@"
+          }
+        }
+      }
+    },
     "%@: %@" : {
       "localizations" : {
         "en" : {
@@ -81,9 +91,6 @@
 
     },
     "31.4" : {
-
-    },
-    "82" : {
 
     },
     "A lightweight starter block for confidence, consistency, and safe progression." : {
@@ -411,9 +418,6 @@
     "GPS route" : {
 
     },
-    "Green light for quality work. Keep the first third controlled and use breathing as the limiter." : {
-
-    },
     "home_score_excellent" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -561,6 +565,9 @@
 
     },
     "Moving time" : {
+
+    },
+    "Need more synced days" : {
 
     },
     "Need to adjust?" : {
