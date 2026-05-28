@@ -206,7 +206,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Only strip metadata for Release/Archive builds\nif [ \"$CONFIGURATION\" != \"Debug\" ]; then\n  APP_BUNDLE=\"${TARGET_BUILD_DIR}/${FULL_PRODUCT_NAME}\"\n  if [ -d \"$APP_BUNDLE\" ]; then\n    /usr/bin/xattr -cr \"$APP_BUNDLE\"\n  fi\nfi\n";
+			shellScript = "# Only strip metadata for Release/Archive builds\nif [ \"$CONFIGURATION\" != \"Debug\" ]; then\n  APP_BUNDLE=\"${TARGET_BUILD_DIR}/${FULL_PRODUCT_NAME}\"\n  if [ -d \"$APP_BUNDLE\" ]; then\n    /usr/bin/xattr -cr \"$APP_BUNDLE\" 2>/dev/null || true\n  fi\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
