@@ -152,6 +152,26 @@ final class GarminBridge: NSObject {
         }
     }
 
+    func dailyMetrics(authUserID: UUID, lastDays: Int) async -> [DBGarminDailyMetrics] {
+        let limit = max(1, lastDays)
+        do {
+            let rows: [DBGarminDailyMetrics] = try await supabase
+                .from("garmin_daily_metrics_deduped")
+                .select()
+                .eq("auth_user_id", value: authUserID.uuidString)
+                .order("date", ascending: false)
+                .limit(limit)
+                .execute()
+                .value
+            return rows.sorted(by: { $0.date < $1.date })
+        } catch {
+            if !(error is CancellationError) {
+                print("[GarminBridge] dailyMetrics deduped view error:", error)
+            }
+            return await dailyMetricsFromBaseTable(authUserID: authUserID, lastDays: limit)
+        }
+    }
+
     private func recentActivitiesFromBaseTable(authUserID: UUID, limit: Int) async -> [DBGarminActivity] {
         do {
             let rows: [DBGarminActivity] = try await supabase
@@ -189,6 +209,25 @@ final class GarminBridge: NSObject {
                 print("[GarminBridge] latestDailyMetrics base fallback error:", error)
             }
             return nil
+        }
+    }
+
+    private func dailyMetricsFromBaseTable(authUserID: UUID, lastDays: Int) async -> [DBGarminDailyMetrics] {
+        do {
+            let rows: [DBGarminDailyMetrics] = try await supabase
+                .from("garmin_daily_metrics")
+                .select()
+                .eq("auth_user_id", value: authUserID.uuidString)
+                .order("date", ascending: false)
+                .limit(lastDays)
+                .execute()
+                .value
+            return rows.sorted(by: { $0.date < $1.date })
+        } catch {
+            if !(error is CancellationError) {
+                print("[GarminBridge] dailyMetrics base fallback error:", error)
+            }
+            return []
         }
     }
 

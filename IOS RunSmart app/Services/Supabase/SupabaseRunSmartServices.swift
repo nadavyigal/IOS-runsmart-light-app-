@@ -1537,6 +1537,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
         return .empty
     }
+
+    func wellnessTrendSeries(days: Int = 7) async -> WellnessTrendSeries {
+        guard let userID = currentUserID else { return .empty }
+        let metrics = await GarminBridge.shared.dailyMetrics(authUserID: userID, lastDays: max(1, days))
+        return WellnessTrendMapper.series(from: metrics, maxDays: max(1, days))
+    }
     func shoes() async -> [ShoeSummary] { [] }
     func reminders() async -> [ReminderPreference] { [] }
 

@@ -1,5 +1,73 @@
 # Session Log
 
+## 2026-05-28 - E7 Garmin/Wearable Depth hardening + branch commit
+
+### Task Summary
+Completed E7 follow-up on `cursor/e7-wearable-depth-trends`: committed app implementation that was previously only in working tree, hardened Striver empty states, routed trend fetch through `GarminBridge.dailyMetrics` (deduped view + base-table fallback), added sparse-history mapper test, and accessibility labels on trend surfaces.
+
+### Hardening Changes
+- Striver Today mini-stats no longer show placeholder sparklines when Garmin trend data is missing.
+- Today/Wellness/Recovery trend panels show honest "Need more synced days" copy instead of fake bars.
+- Removed duplicate Supabase-only series fetch; `wellnessTrendSeries` now uses `GarminBridge.shared.dailyMetrics`.
+- Added `WellnessTrendMapperTests.testSeriesUsesBuildingTrendCopyForSparseHistory`.
+
+### Files Changed
+- `IOS RunSmart app/Models/RunSmartModels.swift`
+- `IOS RunSmart app/Services/Garmin/GarminBridge.swift`
+- `IOS RunSmart app/Services/Garmin/GarminMappers.swift`
+- `IOS RunSmart app/Services/RunSmartServices.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Services/StriverPersonaGate.swift` (new)
+- `IOS RunSmart app/Features/Today/TodayTabView.swift`
+- `IOS RunSmart app/Features/Wellness/GarminWellnessViews.swift`
+- `IOS RunSmart app/Features/Recovery/RecoveryDashboardView.swift`
+- `IOS RunSmart app/PreviewSupport/RunSmartPreviewData.swift`
+- `IOS RunSmart appTests/StriverPersonaGateTests.swift` (new)
+- `IOS RunSmart appTests/WellnessTrendMapperTests.swift` (new)
+- `IOS RunSmart app.xcodeproj/project.pbxproj` (dedupe PostHog package refs)
+- `docs/qa/ios-qa-checklist.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Validation
+- Generic simulator build passed (`build/DerivedData`, exit 0).
+- Focused E7 tests: `StriverPersonaGateTests` (3), `WellnessTrendMapperTests` (4).
+
+### Remaining Risks
+- Physical-device Garmin sync QA not run in this session.
+- Outer wrapper repo submodule pointer must track this app commit after push.
+
+## 2026-05-28 - E7 Garmin/Wearable Depth (HRV + Readiness 7-day)
+
+### Task Summary
+Implemented the E7 wearable-depth slice end-to-end: spec, data model/service plumbing, Striver gating, Today trend wiring, Wellness/Recovery trend surfaces, preview fixtures, focused tests, and QA checklist updates.
+
+### Files Changed
+- `docs/specs/e7-garmin-wearable-depth.md` (new)
+- `IOS RunSmart app/Models/RunSmartModels.swift`
+- `IOS RunSmart app/Services/Garmin/GarminBridge.swift`
+- `IOS RunSmart app/Services/Garmin/GarminMappers.swift`
+- `IOS RunSmart app/Services/RunSmartServices.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Services/StriverPersonaGate.swift` (new)
+- `IOS RunSmart app/Features/Today/TodayTabView.swift`
+- `IOS RunSmart app/Features/Wellness/GarminWellnessViews.swift`
+- `IOS RunSmart app/Features/Recovery/RecoveryDashboardView.swift`
+- `IOS RunSmart app/PreviewSupport/RunSmartPreviewData.swift`
+- `IOS RunSmart appTests/StriverPersonaGateTests.swift` (new)
+- `IOS RunSmart appTests/WellnessTrendMapperTests.swift` (new)
+- `docs/qa/ios-qa-checklist.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Validation
+- Swift parse checks passed for all touched E7 source files.
+- Focused E7 tests passed on iPhone 17 Pro simulator:
+  - `StriverPersonaGateTests` (3/3)
+  - `WellnessTrendMapperTests` (3/3)
+- Generic simulator build passed with existing warning noise:
+  - `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-e7-derived-data CODE_SIGNING_ALLOWED=NO build -quiet`
+
 ## 2026-05-26 - App Store Launch Prep: Phase 2 + Phase 3
 
 ### Task Summary
