@@ -200,6 +200,7 @@ struct RunTabView: View {
 
     private func finishRun() {
         RunSmartHaptics.medium()
+        VoiceCoachService.shared.stopSession()
         let run = recorder.finish()
         if let run {
             router.dismissPostRunSummaryIfNeeded()
@@ -234,6 +235,7 @@ struct RunTabView: View {
 
     private func discardRun() {
         RunSmartHaptics.medium()
+        VoiceCoachService.shared.stopSession()
         Analytics.trackRunAbandoned(
             durationSeconds: Int(recorder.movingSeconds),
             distanceKm: recorder.distanceMeters / 1000
