@@ -7,6 +7,7 @@ enum PostRunSuggestedWorkoutSaveCopy {
 
 struct PostRunSummaryView: View {
     @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var router: AppRouter
     var run: RecordedRun?
     var outcome: PostActivityOutcome? = nil
     var isProcessing: Bool = false
@@ -47,6 +48,18 @@ struct PostRunSummaryView: View {
                 RPESelector(value: $rpe)
 
                 CoachAnalysisCard(run: run, rpe: rpe)
+                Button {
+                    router.selectedTab = .report
+                } label: {
+                    Label("View Report", systemImage: "chart.xyaxis.line")
+                        .font(.buttonLabel)
+                        .foregroundStyle(Color.accentPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(Color.accentPrimary.opacity(0.10), in: Capsule())
+                        .overlay(Capsule().stroke(Color.accentPrimary.opacity(0.55), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
                 if let report = outcome?.report {
                     ProgressShareCard(payload: .runReport(report))
                     ProgressShareButton(payload: .runReport(report))

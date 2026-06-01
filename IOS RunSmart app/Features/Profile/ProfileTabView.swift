@@ -8,7 +8,6 @@ struct ProfileTabView: View {
     @State private var runner = RunnerProfile(name: "RunSmart Runner", goal: "Loading", streak: "--", level: "--", totalRuns: 0, totalDistance: 0, totalTime: "0h 0m")
     @State private var achievements: [Achievement] = []
     @State private var deviceStatuses: [ConnectedDeviceStatus] = []
-    @State private var runReports: [RunReportSummary] = []
     @State private var recentRuns: [RecordedRun] = []
     @State private var challenge: ChallengeSummary = .loading
     @State private var navPath: [SecondaryDestination] = []
@@ -23,19 +22,12 @@ struct ProfileTabView: View {
 
                     identityHeader
                     statsBar
+                    connectedSection
                     trainingDataCard
-                    coachSparkCard
                     coachSettingsGrid
+                    coachSparkCard
                     optimizationCards
                     achievementsGallery
-                    connectedSection
-                    if !runReports.isEmpty {
-                        RecentRunReportsCard(reports: runReports) { report in
-                            if let detail = report.toDetail() {
-                                open(.runReportDetail(detail))
-                            }
-                        }
-                    }
                 }
                 .foregroundStyle(Color.textPrimary)
                 .padding(.horizontal, 18)
@@ -65,14 +57,12 @@ struct ProfileTabView: View {
         async let runnerTask = services.runnerProfile()
         async let achievementsTask = services.achievements()
         async let statusesTask = services.deviceStatuses()
-        async let reportsTask = services.latestRunReports(limit: 3)
         async let runsTask = services.recentRuns()
         async let challengeTask = services.activeChallenge()
-        (runner, achievements, deviceStatuses, runReports, recentRuns, challenge) = await (
+        (runner, achievements, deviceStatuses, recentRuns, challenge) = await (
             runnerTask,
             achievementsTask,
             statusesTask,
-            reportsTask,
             runsTask,
             challengeTask
         )
