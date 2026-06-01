@@ -321,30 +321,6 @@ struct ProfileTabView: View {
         }
     }
 
-    private var settingsSections: some View {
-        VStack(spacing: 12) {
-            ProfileSettingsSection(title: "Coach Settings", rows: [
-                .init(title: "Tone", value: session.onboardingProfile.coachingTone, symbol: "sparkles", destination: .coachingTone),
-                .init(title: "Run Reminders", value: session.onboardingProfile.notificationsEnabled ? "On" : "Off", symbol: "bell.badge.fill", destination: .reminders),
-                .init(title: "Goal & Plan", value: session.onboardingProfile.goal.isEmpty ? "Not set" : session.onboardingProfile.goal, symbol: "target", destination: .goalWizard),
-                .init(title: "Challenges", value: challenge.isActive ? challenge.dayLabel : "Adopt", symbol: "trophy.fill", destination: .challenges),
-                .init(title: "Weekly Recap", value: "Ready", symbol: "calendar.badge.checkmark", destination: .weeklyRecap)
-            ], onSelect: open)
-
-            ProfileSettingsSection(title: "Connected Devices", rows: [
-                .init(title: "Garmin", value: statusLabel("Garmin Connect"), symbol: "link.circle.fill", destination: .connectedService("Garmin Connect")),
-                .init(title: "HealthKit", value: statusLabel("HealthKit"), symbol: "heart.fill", destination: .connectedService("HealthKit")),
-                .init(title: "Wellness Panels", value: "View", symbol: "waveform.path.ecg", destination: .garminWellness)
-            ], onSelect: open)
-
-            ProfileSettingsSection(title: "Preferences", rows: [
-                .init(title: "Units", value: session.onboardingProfile.units, symbol: "ruler", destination: .reminders),
-                .init(title: "Notifications", value: session.onboardingProfile.notificationsEnabled ? "On" : "Off", symbol: "bell.fill", destination: .reminders),
-                .init(title: "Privacy", value: "Manage", symbol: "lock.shield.fill", destination: .account)
-            ], onSelect: open)
-        }
-    }
-
     private func statusLabel(_ provider: String) -> String {
         deviceStatuses.first(where: { $0.provider == provider })?.state.rawValue.capitalized ?? "Disconnected"
     }
@@ -551,50 +527,6 @@ private struct ConnectedServiceTile: View {
         }
         .buttonStyle(.plain)
     }
-}
-
-private struct ProfileSettingsSection: View {
-    var title: String
-    var rows: [ProfileSettingsRowModel]
-    var onSelect: (SecondaryDestination) -> Void
-
-    var body: some View {
-        ContentCard {
-            VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(title: title)
-                ForEach(rows) { row in
-                    Button { onSelect(row.destination) } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: row.symbol)
-                                .foregroundStyle(Color.accentPrimary)
-                                .frame(width: 34, height: 34)
-                                .background(Color.accentPrimary.opacity(0.10), in: Circle())
-                            Text(row.title)
-                                .font(.bodyMD.weight(.semibold))
-                            Spacer()
-                            Text(row.value)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.textSecondary)
-                                .lineLimit(1)
-                            Image(systemName: "chevron.right")
-                                .font(.caption.bold())
-                                .foregroundStyle(Color.textTertiary)
-                        }
-                        .padding(.vertical, 6)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-}
-
-private struct ProfileSettingsRowModel: Identifiable {
-    let id = UUID()
-    var title: String
-    var value: String
-    var symbol: String
-    var destination: SecondaryDestination
 }
 
 struct AchievementBadge: View {

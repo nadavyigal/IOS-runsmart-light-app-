@@ -49,6 +49,7 @@ struct PostRunSummaryView: View {
 
                 CoachAnalysisCard(run: run, rpe: rpe)
                 Button {
+                    onSave()
                     router.selectedTab = .report
                 } label: {
                     Label("View Report", systemImage: "chart.xyaxis.line")
