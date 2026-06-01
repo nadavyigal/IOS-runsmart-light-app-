@@ -10,8 +10,6 @@ struct ReportTabView: View {
     @State private var recovery: RecoverySnapshot = .loading
     @State private var runPendingRemoval: RecordedRun?
     @State private var removalFailed = false
-    @State private var savedRoutes: [SavedRoute] = []
-    @State private var benchmarkRoutes: [BenchmarkRoute] = []
 
     private enum ReportSegment: String, CaseIterable, Hashable, Identifiable {
         case runs = "Runs"
@@ -78,21 +76,17 @@ struct ReportTabView: View {
         }
         .task {
             await reloadRuns()
-            await reloadRoutes()
             runReports = await services.latestRunReports(limit: 50)
             trainingLoad = await services.trainingLoadSnapshot()
             recovery = await services.recoverySnapshot()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
-            refreshRunsAndRoutes()
+            refreshRuns()
             Task { runReports = await services.latestRunReports(limit: 50) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
             refreshRuns()
             Task { runReports = await services.latestRunReports(limit: 50) }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .runSmartRoutesDidChange)) { _ in
-            refreshRoutes()
         }
         .confirmationDialog("Remove this run?", isPresented: Binding(
             get: { runPendingRemoval != nil },
@@ -240,27 +234,12 @@ struct ReportTabView: View {
         Task { await reloadRuns() }
     }
 
-    private func refreshRoutes() {
-        Task { await reloadRoutes() }
-    }
-
-    private func refreshRunsAndRoutes() {
-        Task {
-            await reloadRuns()
-            await reloadRoutes()
-        }
-    }
-
     private func openZoneAnalysis() {
         router.open(.zoneAnalysis)
     }
 
     private func openReportDetail(_ report: RunReportDetail) {
         router.open(.runReportDetail(report))
-    }
-
-    private func openRouteDetail(_ route: SavedRoute) {
-        router.open(.routeDetail(route))
     }
 
     private func openReport(for run: RecordedRun) {
@@ -275,6 +254,8 @@ struct ReportTabView: View {
     private func openReportSummary(_ report: RunReportSummary) {
         if let detail = report.toDetail() {
             router.open(.runReportDetail(detail))
+        } else {
+            router.openCoach(context: .report)
         }
     }
 
@@ -294,73 +275,6 @@ struct ReportTabView: View {
         }
     }
 
-    private func reloadRoutes() async {
-        savedRoutes = await services.savedRoutes()
-        benchmarkRoutes = await services.benchmarkRoutes()
-    }
-
-    private var benchmarkSavedRoutes: [SavedRoute] {
-        let benchmarkIDs = Set(benchmarkRoutes.map(\.savedRouteID))
-        return savedRoutes.filter { benchmarkIDs.contains($0.id) }
-    }
-
-    private var nonBenchmarkSavedRoutes: [SavedRoute] {
-        let benchmarkIDs = Set(benchmarkRoutes.map(\.savedRouteID))
-        return savedRoutes.filter { !benchmarkIDs.contains($0.id) }
-    }
-
-    private func benchmarkRoute(for route: SavedRoute) -> BenchmarkRoute? {
-        benchmarkRoutes.first { $0.savedRouteID == route.id }
-    }
-
-    @ViewBuilder
-    private var routeLibrarySection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if !benchmarkSavedRoutes.isEmpty {
-                ContentCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(title: "Benchmark routes", trailing: "\(benchmarkSavedRoutes.count)")
-                        ForEach(benchmarkSavedRoutes) { route in
-                            RouteCardView(
-                                route: route,
-                                isBenchmark: true,
-                                benchmarkRoute: benchmarkRoute(for: route),
-                                onTap: { openRouteDetail(route) }
-                            )
-                        }
-                    }
-                }
-            } else {
-                RouteEmptyStateView(
-                    title: "No benchmark routes yet",
-                    message: "Mark a saved route as a benchmark to track your progress over repeated runs.",
-                    symbol: "flag.checkered"
-                )
-            }
-
-            if !nonBenchmarkSavedRoutes.isEmpty {
-                ContentCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(title: "Saved routes", trailing: "\(nonBenchmarkSavedRoutes.count)")
-                        ForEach(nonBenchmarkSavedRoutes) { route in
-                            RouteCardView(
-                                route: route,
-                                isBenchmark: false,
-                                benchmarkRoute: nil,
-                                onTap: { openRouteDetail(route) }
-                            )
-                        }
-                    }
-                }
-            } else if savedRoutes.isEmpty {
-                RouteEmptyStateView(
-                    title: "No saved routes",
-                    message: "Record a GPS run or review a Garmin activity to save your first route.",
-                    symbol: "map"
-                )
-            }
-        }
-    }
 }
 
 private struct ActivityMetricPill: View {
