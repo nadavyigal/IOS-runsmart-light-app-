@@ -137,7 +137,7 @@ struct PlanTabView: View {
                             open(.challenges)
                         }
 
-                        RecoveryPlanCard(recovery: recovery, trainingLoad: trainingLoad)
+                        RecoveryInsightPlanCard(recovery: recovery, trainingLoad: trainingLoad)
 
                         RunTrendChartCard(runs: recentRuns)
                     }
@@ -935,7 +935,7 @@ private struct ChallengePlanCard: View {
     }
 }
 
-private struct RecoveryPlanCard: View {
+struct RecoveryInsightPlanCard: View {
     var recovery: RecoverySnapshot
     var trainingLoad: TrainingLoadSnapshot
 
