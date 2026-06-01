@@ -59,27 +59,7 @@ struct PlanTabView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     header
 
-                    PlanBriefingCard(
-                        name: session.onboardingProfile.displayName,
-                        goal: goal,
-                        recovery: recovery,
-                        onCoach: openPlanCoach
-                    )
-                    .runSmartStaggeredAppear(index: 0)
-
-                    PlanExplanationCard(
-                        title: explanation.isOnTrack ? "Plan is on track" : "Plan adjusted because...",
-                        explanation: explanation,
-                        onAction: { handleExplanationAction(explanation) }
-                    )
-                    .runSmartStaggeredAppear(index: 1)
-
                     if let current {
-                        FlexWeekAdjustPill {
-                            router.openFlexWeek(entryPoint: .planPill)
-                        }
-                        .runSmartStaggeredAppear(index: 2)
-
                         PlanCurrentWeekSection(week: current) { workout in
                             Analytics.trackPlanWorkoutTapped(
                                 workoutType: workout.kind.rawValue,
@@ -87,6 +67,41 @@ struct PlanTabView: View {
                             )
                             openWorkoutDetail(workout)
                         }
+                        .runSmartStaggeredAppear(index: 0)
+
+                        FlexWeekAdjustPill {
+                            router.openFlexWeek(entryPoint: .planPill)
+                        }
+                        .runSmartStaggeredAppear(index: 1)
+                    }
+
+                    Button(action: openPlanCoach) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.accentPrimary)
+                            Text("Explain this week")
+                                .font(.bodyMD.weight(.semibold))
+                                .foregroundStyle(Color.accentPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.accentPrimary)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(height: 44)
+                        .background(Color.accentPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.accentPrimary.opacity(0.2), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .runSmartStaggeredAppear(index: 2)
+
+                    if explanation.trigger != .normal || !explanation.isOnTrack {
+                        PlanExplanationCard(
+                            title: explanation.isOnTrack ? "Plan is on track" : "Plan adjusted because...",
+                            explanation: explanation,
+                            onAction: { handleExplanationAction(explanation) }
+                        )
                         .runSmartStaggeredAppear(index: 3)
                     }
 
@@ -119,13 +134,6 @@ struct PlanTabView: View {
                         showWeeklyReview()
                     }
                     .runSmartStaggeredAppear(index: 5)
-
-                    InsightCard(
-                        title: "Coach Notes",
-                        message: recovery.recommendation,
-                        action: openPlanCoach
-                    )
-                    .runSmartStaggeredAppear(index: 6)
 
                     PlanActionGrid(
                         onAdd: openAddActivity,
@@ -875,7 +883,7 @@ private struct PlanActionGrid: View {
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            PlanActionTile(title: "Add Run", detail: "Manual or synced", symbol: "plus.circle.fill", action: onAdd)
+            PlanActionTile(title: "Add Activity", detail: "Log manually or sync", symbol: "plus.circle.fill", action: onAdd)
             PlanActionTile(title: "Coach", detail: "Ask about the week", symbol: "sparkles", action: onCoach)
         }
     }
