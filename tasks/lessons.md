@@ -268,3 +268,17 @@ Trigger: A Flex Week response compatibility decoder parsed with `swiftc -parse` 
 Lesson: Parser-only validation is useful but not enough for Codable compatibility edits that use throwing expressions.
 
 Future rule: After changing custom `Decodable` fallbacks, run an Xcode build before handoff and prefer explicit `if let` decode branches over throwing `??` expressions.
+
+### 2026-06-01 - xcconfig-Based Secret Injection For API Keys
+Trigger: PostHog API key was hardcoded in `RunSmartInfo.plist`, visible in git history.
+
+Lesson: iOS API keys that must not appear in git should live in a gitignored xcconfig file. The plist references `$(KEY_NAME)`, the xcconfig defines the value, and the Xcode project's target build configurations reference the xcconfig via `baseConfigurationReference`.
+
+Setup for this project:
+1. `RunSmartSecrets.xcconfig` (gitignored) — defines `POSTHOG_API_KEY = phc_...`
+2. `RunSmartSecrets.xcconfig.example` (committed) — template with placeholder value
+3. `RunSmartInfo.plist` uses `$(POSTHOG_API_KEY)` instead of the raw key
+4. App target Debug and Release configs in `project.pbxproj` both have `baseConfigurationReference = AASECRETS012FA0FFFF00001`
+5. On CI: `echo "POSTHOG_API_KEY = $POSTHOG_API_KEY" > RunSmartSecrets.xcconfig` before xcodebuild
+
+Future rule: Never hardcode third-party API keys in plist files. Always use xcconfig injection so keys stay out of git.
