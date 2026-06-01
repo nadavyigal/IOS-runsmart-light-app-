@@ -81,16 +81,6 @@ struct TodayTabView: View {
                     .runSmartStaggeredAppear(index: 3)
                 }
 
-                if FlexWeekEntryPresentation.shouldShowTodayLink(
-                    readiness: recommendation.readiness,
-                    weekWorkouts: weekWorkouts
-                ) {
-                    FlexWeekTodayLink {
-                        router.openFlexWeek(entryPoint: .todayLink)
-                    }
-                    .runSmartStaggeredAppear(index: 4)
-                }
-
                 if resolvedState.showsTodayRoute {
                     TodayRouteRecommendationCard(
                         recommendation: routeRecommendation,
@@ -98,6 +88,16 @@ struct TodayTabView: View {
                         onUseRoute: { route in startRun(with: primaryWorkout, route: route) },
                         onBrowseRoutes: openRouteSelector
                     )
+                    .runSmartStaggeredAppear(index: 4)
+                }
+
+                if FlexWeekEntryPresentation.shouldShowTodayLink(
+                    readiness: recommendation.readiness,
+                    weekWorkouts: weekWorkouts
+                ) {
+                    FlexWeekTodayLink {
+                        router.openFlexWeek(entryPoint: .todayLink)
+                    }
                     .runSmartStaggeredAppear(index: 5)
                 }
 
