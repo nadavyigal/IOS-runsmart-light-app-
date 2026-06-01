@@ -43,26 +43,11 @@ struct TodayTabView: View {
             LazyVStack(alignment: .leading, spacing: 14) {
                 header
 
-                TodayCoachHeroCard(
-                    message: recommendation.coachMessage,
-                    onCoach: openTodayCoach
-                )
-                .runSmartStaggeredAppear(index: 0)
-
-                if activeChallenge.isActive {
-                    ChallengeProgressCard(challenge: activeChallenge, onTap: openChallenges)
-                        .runSmartStaggeredAppear(index: 1)
-                } else if challengeLoaded,
-                          Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
-                    ChallengeInviteCard(onEnrolled: scheduleLoad)
-                        .runSmartStaggeredAppear(index: 1)
-                }
-
                 if !weekWorkouts.isEmpty {
                     TodayWeekStripSection(workouts: weekWorkouts, weekRange: weekRangeLabel) { workout in
                         openWorkoutDetail(workout)
                     }
-                    .runSmartStaggeredAppear(index: 2)
+                    .runSmartStaggeredAppear(index: 0)
                 }
 
                 TodayWorkoutRecommendationCard(
@@ -77,32 +62,24 @@ struct TodayTabView: View {
                     onSkip: { reschedule(primaryWorkout) },
                     onRoute: openRouteSelector
                 )
-                .runSmartStaggeredAppear(index: 3)
-
-                if resolvedState.showsTodayRoute {
-                    TodayRouteRecommendationCard(
-                        recommendation: routeRecommendation,
-                        workout: primaryWorkout,
-                        onUseRoute: { route in startRun(with: primaryWorkout, route: route) },
-                        onBrowseRoutes: openRouteSelector
-                    )
-                    .runSmartStaggeredAppear(index: 4)
-                }
+                .runSmartStaggeredAppear(index: 1)
 
                 if let safety = recommendation.safetyExplanation {
                     SafetyExplanationCard(
                         explanation: safety,
                         onAction: { router.open(.amendWorkout(primaryWorkout)) }
                     )
-                    .runSmartStaggeredAppear(index: 4)
+                    .runSmartStaggeredAppear(index: 2)
                 }
 
-                PlanExplanationCard(
-                    title: "Why this workout?",
-                    explanation: explanation,
-                    onAction: { handleExplanationAction(explanation, workout: primaryWorkout) }
-                )
-                .runSmartStaggeredAppear(index: 5)
+                if explanation.trigger != .normal || !explanation.isOnTrack {
+                    PlanExplanationCard(
+                        title: "Why this workout?",
+                        explanation: explanation,
+                        onAction: { handleExplanationAction(explanation, workout: primaryWorkout) }
+                    )
+                    .runSmartStaggeredAppear(index: 3)
+                }
 
                 if FlexWeekEntryPresentation.shouldShowTodayLink(
                     readiness: recommendation.readiness,
@@ -111,45 +88,76 @@ struct TodayTabView: View {
                     FlexWeekTodayLink {
                         router.openFlexWeek(entryPoint: .todayLink)
                     }
+                    .runSmartStaggeredAppear(index: 4)
+                }
+
+                if resolvedState.showsTodayRoute {
+                    TodayRouteRecommendationCard(
+                        recommendation: routeRecommendation,
+                        workout: primaryWorkout,
+                        onUseRoute: { route in startRun(with: primaryWorkout, route: route) },
+                        onBrowseRoutes: openRouteSelector
+                    )
+                    .runSmartStaggeredAppear(index: 5)
+                }
+
+                if !runReports.isEmpty {
+                    Button { router.selectedTab = .report } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(runReports[0].title)
+                                    .font(.bodyMD.weight(.semibold))
+                                    .foregroundStyle(Color.textPrimary)
+                                    .lineLimit(1)
+                                Text("\(runReports[0].dateLabel) · \(runReports[0].distance) · \(runReports[0].pace)")
+                                    .font(.labelSM)
+                                    .foregroundStyle(Color.textSecondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(Color.textTertiary)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 54)
+                        .background(Color.surfaceCard.opacity(0.78), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.border, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
                     .runSmartStaggeredAppear(index: 6)
                 }
 
-                // E2: weekly progress card — suppressed during 21-Day Rookie Challenge
+                if !nextWorkouts.isEmpty {
+                    UpcomingRunsCard(workouts: nextWorkouts) { workout in
+                        openWorkoutDetail(workout)
+                    }
+                    .runSmartStaggeredAppear(index: 7)
+                }
+
                 let isBeginnerChallenge = Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile)
                 if (!challengeLoaded || !activeChallenge.isActive), isBeginnerChallenge {
                     Beginner5KHabitCard(track: habitTrack)
-                        .runSmartStaggeredAppear(index: 7)
+                        .runSmartStaggeredAppear(index: 8)
                 } else if let summary = weeklySummary {
                     WeeklyProgressCard(
                         summary: summary,
                         onTapCoach: openTodayCoach
                     )
-                    .runSmartStaggeredAppear(index: 7)
+                    .runSmartStaggeredAppear(index: 8)
                 }
 
-                TodayQuickActions(
-                    onRecord: { startRun(with: primaryWorkout) },
-                    onAddActivity: openAddActivity,
-                    onCoach: openTodayCoach
-                )
-                .runSmartStaggeredAppear(index: 7)
-
-                InsightCard(
-                    title: "Coach Insight",
-                    message: recommendation.coachMessage,
-                    action: openTodayCoach
-                )
-                .runSmartStaggeredAppear(index: 8)
-
-                if !coachMessages.isEmpty {
-                    TodayConversationPreview(messages: coachMessages) {
-                        openTodayCoach()
-                    }
+                WeatherConditionsCard()
                     .runSmartStaggeredAppear(index: 9)
-                }
 
-                quickStats
-                    .runSmartStaggeredAppear(index: 10)
+                if activeChallenge.isActive {
+                    ChallengeProgressCard(challenge: activeChallenge, onTap: openChallenges)
+                        .runSmartStaggeredAppear(index: 10)
+                } else if challengeLoaded,
+                          Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
+                    ChallengeInviteCard(onEnrolled: scheduleLoad)
+                        .runSmartStaggeredAppear(index: 10)
+                }
 
                 if isStriver {
                     TodayWellnessTrendCard(
@@ -158,30 +166,11 @@ struct TodayTabView: View {
                     )
                     .runSmartStaggeredAppear(index: 11)
                 }
-
-                if !nextWorkouts.isEmpty {
-                    UpcomingRunsCard(workouts: nextWorkouts) { workout in
-                        openWorkoutDetail(workout)
-                    }
-                    .runSmartStaggeredAppear(index: 12)
-                }
-
-                if !runReports.isEmpty {
-                    RecentRunReportsCard(reports: runReports) { report in
-                        if let detail = report.toDetail() {
-                            openReportDetail(detail)
-                        }
-                    }
-                    .runSmartStaggeredAppear(index: 13)
-                }
-
-                WeatherConditionsCard()
-                    .runSmartStaggeredAppear(index: 14)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
             .padding(.top, 18)
-            .padding(.bottom, 24)
+            .padding(.bottom, 140)
         }
         .task {
             await loadData()
@@ -264,29 +253,28 @@ struct TodayTabView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            RunSmartTopBar(title: nil, showBrand: true)
-                .overlay(alignment: .trailing) {
-                    Button { router.open(.morningCheckin) } label: {
-                        Image(systemName: "checklist.checked")
-                            .font(.headline)
-                            .foregroundStyle(Color.accentPrimary)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .offset(x: -92)
-                }
+        HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("\(greeting), \(displayName)")
                     .font(.displayMD)
                     .foregroundStyle(Color.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-                Text("Your coach is ready when you are.")
-                    .font(.bodyLG)
-                    .foregroundStyle(Color.textSecondary)
+                if recommendation.streak != "--" {
+                    Text("🔥 \(recommendation.streak) day streak")
+                        .font(.bodyLG)
+                        .foregroundStyle(Color.textSecondary)
+                }
             }
+            Spacer(minLength: 12)
+            Button { router.openCoach(context: .today) } label: {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Color.accentPrimary)
+                    .frame(width: 34, height: 34)
+                    .background(Color.accentPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .buttonStyle(.plain)
         }
     }
 
