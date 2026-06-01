@@ -75,10 +75,15 @@ struct ReportTabView: View {
             .padding(.bottom, 140)
         }
         .task {
-            await reloadRuns()
-            runReports = await services.latestRunReports(limit: 50)
-            trainingLoad = await services.trainingLoadSnapshot()
-            recovery = await services.recoverySnapshot()
+            async let runsTask = services.recentRuns()
+            async let reportsTask = services.latestRunReports(limit: 50)
+            async let loadTask = services.trainingLoadSnapshot()
+            async let recoveryTask = services.recoverySnapshot()
+            let (freshRuns, reports, load, rec) = await (runsTask, reportsTask, loadTask, recoveryTask)
+            runs = freshRuns
+            runReports = reports
+            trainingLoad = load
+            recovery = rec
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
             refreshRuns()
