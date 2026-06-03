@@ -155,33 +155,35 @@ private struct OnboardingStepShell<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Spacer(minLength: 20)
-            HStack(spacing: 14) {
-                RunSmartLogoMark(size: 76, filled: false, glow: true)
-                Image(systemName: symbol)
-                    .font(.system(size: 24, weight: .black))
-                    .foregroundStyle(Color.black)
-                    .frame(width: 52, height: 52)
-                    .background(Color.accentPrimary, in: Circle())
-                    .shadow(color: Color.accentPrimary.opacity(0.36), radius: 18)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title)
-                    .font(.displayMD)
-                    .displayTightTracking(-0.8)
-                Text(subtitle)
-                    .font(.bodyLG)
-                    .foregroundStyle(Color.textSecondary)
-            }
-            ContentCard {
-                VStack(alignment: .leading, spacing: 14) {
-                    content
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(spacing: 14) {
+                    RunSmartLogoMark(size: 76, filled: false, glow: true)
+                    Image(systemName: symbol)
+                        .font(.system(size: 24, weight: .black))
+                        .foregroundStyle(Color.black)
+                        .frame(width: 52, height: 52)
+                        .background(Color.accentPrimary, in: Circle())
+                        .shadow(color: Color.accentPrimary.opacity(0.36), radius: 18)
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(title)
+                        .font(.displayMD)
+                        .displayTightTracking(-0.8)
+                    Text(subtitle)
+                        .font(.bodyLG)
+                        .foregroundStyle(Color.textSecondary)
+                }
+                ContentCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        content
+                    }
                 }
             }
-            Spacer(minLength: 20)
+            .padding(24)
+            .padding(.top, 20)
+            .padding(.bottom, 20)
         }
-        .padding(24)
     }
 }
 
