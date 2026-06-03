@@ -272,13 +272,14 @@ Future rule: After changing custom `Decodable` fallbacks, run an Xcode build bef
 ### 2026-06-01 - xcconfig-Based Secret Injection For API Keys
 Trigger: PostHog API key was hardcoded in `RunSmartInfo.plist`, visible in git history.
 
-Lesson: iOS API keys that must not appear in git should live in a gitignored xcconfig file. The plist references `$(KEY_NAME)`, the xcconfig defines the value, and the Xcode project's target build configurations reference the xcconfig via `baseConfigurationReference`.
+Lesson: iOS API keys that must not appear in git should be injected through a committed wrapper xcconfig that optionally includes a gitignored secrets file. Pointing Xcode directly at the gitignored file breaks clean clones and CI before secrets are generated.
 
 Setup for this project:
-1. `RunSmartSecrets.xcconfig` (gitignored) — defines `POSTHOG_API_KEY = phc_...`
-2. `RunSmartSecrets.xcconfig.example` (committed) — template with placeholder value
-3. `RunSmartInfo.plist` uses `$(POSTHOG_API_KEY)` instead of the raw key
-4. App target Debug and Release configs in `project.pbxproj` both have `baseConfigurationReference = AASECRETS012FA0FFFF00001`
-5. On CI: `echo "POSTHOG_API_KEY = $POSTHOG_API_KEY" > RunSmartSecrets.xcconfig` before xcodebuild
+1. `RunSmartConfig.xcconfig` (committed) — defines safe defaults and `#include? "RunSmartSecrets.xcconfig"`
+2. `RunSmartSecrets.xcconfig` (gitignored) — defines `POSTHOG_API_KEY = phc_...`
+3. `RunSmartSecrets.xcconfig.example` (committed) — template with placeholder value
+4. `RunSmartInfo.plist` uses `$(POSTHOG_API_KEY)` instead of the raw key
+5. App target Debug and Release configs in `project.pbxproj` reference the committed wrapper config
+6. On CI: `echo "POSTHOG_API_KEY = $POSTHOG_API_KEY" > RunSmartSecrets.xcconfig` before xcodebuild
 
 Future rule: Never hardcode third-party API keys in plist files. Always use xcconfig injection so keys stay out of git.

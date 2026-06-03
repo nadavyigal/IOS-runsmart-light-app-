@@ -1,0 +1,6 @@
+// Committed defaults for clean local and CI builds.
+// RunSmartSecrets.xcconfig is gitignored and may override these values.
+
+POSTHOG_API_KEY =
+
+#include? "RunSmartSecrets.xcconfig"
