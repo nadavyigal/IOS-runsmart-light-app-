@@ -1,5 +1,27 @@
 # Task State
 
+## Current Task
+
+**Objective:** Monitor App Store review for build 8.
+**Status:** Waiting for Review
+**Branch:** version-2
+
+### Checklist
+- [x] version-2: all 9 redesign stories (A1–A6, B2–B4) complete
+- [x] Build 8: onboarding scroll fix applied
+- [x] Build 8: version bump (1.0.1 → 1.0, build 7 → 8)
+- [x] Full test suite passed
+- [x] Visual QA passed (iPhone 17 Pro, iPhone 17 Pro Max, iPad Air 11-inch)
+- [x] Bug review passed (checks A, B, E, F, G automated; C, D manual)
+- [x] Executive OS gate passed
+- [x] Archived and uploaded to ASC
+- [x] Replied to Apple rejection message
+- [x] Submitted for review
+- [ ] **MONITOR**: Apple review outcome (24–48h)
+- [ ] After approval: merge version-2 → main, run ./agentic-os refresh, publish launch post
+
+---
+
 ## Launch Readiness QA Tracker
 
 ### T1 — Physical Device GPS + Battery QA
