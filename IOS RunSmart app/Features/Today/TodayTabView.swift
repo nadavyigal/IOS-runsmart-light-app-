@@ -685,7 +685,8 @@ private struct TodayWeekStripSection: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 1)
+                .padding(.leading, 1)
+                .padding(.trailing, 18)
                 .padding(.vertical, 8)
             }
         }
