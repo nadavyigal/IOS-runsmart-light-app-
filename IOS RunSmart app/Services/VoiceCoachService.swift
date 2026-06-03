@@ -86,7 +86,7 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
 
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers, .allowBluetooth])
+        try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers, .allowBluetoothHFP])
         try? session.setActive(true)
     }
 

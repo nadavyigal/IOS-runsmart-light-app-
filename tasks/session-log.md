@@ -1513,3 +1513,47 @@ Implemented the RunSmart iOS TestFlight Readiness Audit plan through the safe lo
 
 ### Next Recommended Action
 Retry focused XCTest execution from a healthy simulator, then complete authenticated Today/Coach/route/post-run smoke and physical-device GPS/background/HealthKit QA before TestFlight submission.
+## 2026-06-03
+
+### Task Summary
+Continued RunSmart iOS 1.0.1 work from the latest implementation branch at `origin/version-2` in an isolated worktree/branch, then made one small reviewable cleanup plus simulator QA harness hardening.
+
+### Files Changed
+- `IOS RunSmart app/App/RunSmartLiteAppShell.swift`
+- `IOS RunSmart app/Services/VoiceCoachService.swift`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+
+### Decisions Made
+- Created/used isolated branch `codex/1.0.1-version2-continue` from `origin/version-2` (`4c4d1ce`) instead of the frozen v1.0 review branch.
+- Treated `origin/version-2` as the current implementation branch because it contains the Sprint 11 1.0.1 UX/voice work; noted but did not merge the separate divergent `origin/claude/distracted-proskuriakova-f558f2` security/spec branch.
+- Kept the code change small: replaced deprecated AVAudioSession `.allowBluetooth` with `.allowBluetoothHFP` for voice coach playback.
+- Added DEBUG-only environment-variable fallbacks for screenshot mode (`RUNSMART_SCREENSHOT_MODE=1`) and initial tab (`RUNSMART_INITIAL_TAB`) because simulator launch arguments produced launch/background-only captures in this environment.
+
+### Validation
+- `git fetch --all --prune` succeeded against `https://github.com/nadavyigal/IOS-runsmart-light-app-.git`.
+- Branch evidence: `git branch --show-current` returned `codex/1.0.1-version2-continue`; branch was created from `origin/version-2`.
+- Generic simulator build passed with signing disabled:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-101-version2-derived CODE_SIGNING_ALLOWED=NO build`
+- Post-cleanup generic simulator build passed again after the screenshot harness update:
+  `/tmp/runsmart-101-version2-build-after-screenshot-env.log`
+- Test target build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17 Pro" -derivedDataPath /tmp/runsmart-101-version2-derived CODE_SIGNING_ALLOWED=NO build-for-testing`
+- Full `xcodebuild test` built and installed, then stalled silently after launch; it was terminated and not counted as passed.
+- Simulator screenshots captured on iPhone 17 Pro:
+  `/tmp/runsmart-101-version2-screenshots-env/Today.png`
+  `/tmp/runsmart-101-version2-screenshots-env/Plan.png`
+  `/tmp/runsmart-101-version2-screenshots-env/Run.png`
+  `/tmp/runsmart-101-version2-screenshots-env/Report.png`
+  `/tmp/runsmart-101-version2-screenshots-env/Profile.png`
+- Visual inspection confirmed the redesigned tabs render. Known visual issue observed: the Today week carousel/card is clipped on the right edge in the current upstream implementation.
+- Artifact guard check found no local release/archive/upload/submit activity. Versus `origin/main`, `origin/version-2` already carries the intentional future 1.0.1/build 7 project-version bump; signing, bundle id, and entitlements were not changed in this continuation.
+
+### Remaining Risks
+- No physical-device voice cue/audio playback QA was performed.
+- No live web endpoint or `VOICE_COACH_ENABLED` flag verification was performed.
+- No dedicated `VoiceCoachService` XCTest exists yet.
+- Bridge files requested in the work packet (`PROJECT-BRIDGES/runsmart-web.md`, `PROJECT-BRIDGES/runsmart-ios.md`) were not present in the local workspace.
+
+### Next Recommended Action
+B5 voice coach QA hardening: verify the deployed `/api/coach/voice-cue` flag/contract, run physical-device audio/mute testing, and add a narrow test seam for request construction or disabled-state handling.
