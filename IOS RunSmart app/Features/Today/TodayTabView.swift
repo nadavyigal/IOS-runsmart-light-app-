@@ -11,7 +11,6 @@ struct TodayTabView: View {
     @State private var weekWorkouts: [WorkoutSummary] = []
     @State private var nextWorkouts: [WorkoutSummary] = []
     @State private var runReports: [RunReportSummary] = []
-    @State private var coachMessages: [CoachMessage] = []
     @State private var activePlan: TrainingPlanSnapshot?
     @State private var recentRuns: [RecordedRun] = []
     @State private var recovery: RecoverySnapshot = .loading
@@ -43,26 +42,11 @@ struct TodayTabView: View {
             LazyVStack(alignment: .leading, spacing: 14) {
                 header
 
-                TodayCoachHeroCard(
-                    message: recommendation.coachMessage,
-                    onCoach: openTodayCoach
-                )
-                .runSmartStaggeredAppear(index: 0)
-
-                if activeChallenge.isActive {
-                    ChallengeProgressCard(challenge: activeChallenge, onTap: openChallenges)
-                        .runSmartStaggeredAppear(index: 1)
-                } else if challengeLoaded,
-                          Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
-                    ChallengeInviteCard(onEnrolled: scheduleLoad)
-                        .runSmartStaggeredAppear(index: 1)
-                }
-
                 if !weekWorkouts.isEmpty {
                     TodayWeekStripSection(workouts: weekWorkouts, weekRange: weekRangeLabel) { workout in
                         openWorkoutDetail(workout)
                     }
-                    .runSmartStaggeredAppear(index: 2)
+                    .runSmartStaggeredAppear(index: 0)
                 }
 
                 TodayWorkoutRecommendationCard(
@@ -77,7 +61,24 @@ struct TodayTabView: View {
                     onSkip: { reschedule(primaryWorkout) },
                     onRoute: openRouteSelector
                 )
-                .runSmartStaggeredAppear(index: 3)
+                .runSmartStaggeredAppear(index: 1)
+
+                if let safety = recommendation.safetyExplanation {
+                    SafetyExplanationCard(
+                        explanation: safety,
+                        onAction: { router.open(.amendWorkout(primaryWorkout)) }
+                    )
+                    .runSmartStaggeredAppear(index: 2)
+                }
+
+                if explanation.trigger != .normal || !explanation.isOnTrack {
+                    PlanExplanationCard(
+                        title: "Why this workout?",
+                        explanation: explanation,
+                        onAction: { handleExplanationAction(explanation, workout: primaryWorkout) }
+                    )
+                    .runSmartStaggeredAppear(index: 3)
+                }
 
                 if resolvedState.showsTodayRoute {
                     TodayRouteRecommendationCard(
@@ -89,21 +90,6 @@ struct TodayTabView: View {
                     .runSmartStaggeredAppear(index: 4)
                 }
 
-                if let safety = recommendation.safetyExplanation {
-                    SafetyExplanationCard(
-                        explanation: safety,
-                        onAction: { router.open(.amendWorkout(primaryWorkout)) }
-                    )
-                    .runSmartStaggeredAppear(index: 4)
-                }
-
-                PlanExplanationCard(
-                    title: "Why this workout?",
-                    explanation: explanation,
-                    onAction: { handleExplanationAction(explanation, workout: primaryWorkout) }
-                )
-                .runSmartStaggeredAppear(index: 5)
-
                 if FlexWeekEntryPresentation.shouldShowTodayLink(
                     readiness: recommendation.readiness,
                     weekWorkouts: weekWorkouts
@@ -111,45 +97,65 @@ struct TodayTabView: View {
                     FlexWeekTodayLink {
                         router.openFlexWeek(entryPoint: .todayLink)
                     }
+                    .runSmartStaggeredAppear(index: 5)
+                }
+
+                if !runReports.isEmpty {
+                    Button { router.selectedTab = .report } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(runReports[0].title)
+                                    .font(.bodyMD.weight(.semibold))
+                                    .foregroundStyle(Color.textPrimary)
+                                    .lineLimit(1)
+                                Text("\(runReports[0].dateLabel) · \(runReports[0].distance) · \(runReports[0].pace)")
+                                    .font(.labelSM)
+                                    .foregroundStyle(Color.textSecondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(Color.textTertiary)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 54)
+                        .background(Color.surfaceCard.opacity(0.78), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.border, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
                     .runSmartStaggeredAppear(index: 6)
                 }
 
-                // E2: weekly progress card — suppressed during 21-Day Rookie Challenge
+                if !nextWorkouts.isEmpty {
+                    UpcomingRunsCard(workouts: nextWorkouts) { workout in
+                        openWorkoutDetail(workout)
+                    }
+                    .runSmartStaggeredAppear(index: 7)
+                }
+
                 let isBeginnerChallenge = Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile)
                 if (!challengeLoaded || !activeChallenge.isActive), isBeginnerChallenge {
                     Beginner5KHabitCard(track: habitTrack)
-                        .runSmartStaggeredAppear(index: 7)
+                        .runSmartStaggeredAppear(index: 8)
                 } else if let summary = weeklySummary {
                     WeeklyProgressCard(
                         summary: summary,
                         onTapCoach: openTodayCoach
                     )
-                    .runSmartStaggeredAppear(index: 7)
+                    .runSmartStaggeredAppear(index: 8)
                 }
 
-                TodayQuickActions(
-                    onRecord: { startRun(with: primaryWorkout) },
-                    onAddActivity: openAddActivity,
-                    onCoach: openTodayCoach
-                )
-                .runSmartStaggeredAppear(index: 7)
-
-                InsightCard(
-                    title: "Coach Insight",
-                    message: recommendation.coachMessage,
-                    action: openTodayCoach
-                )
-                .runSmartStaggeredAppear(index: 8)
-
-                if !coachMessages.isEmpty {
-                    TodayConversationPreview(messages: coachMessages) {
-                        openTodayCoach()
-                    }
+                WeatherConditionsCard()
                     .runSmartStaggeredAppear(index: 9)
-                }
 
-                quickStats
-                    .runSmartStaggeredAppear(index: 10)
+                if activeChallenge.isActive {
+                    ChallengeProgressCard(challenge: activeChallenge, onTap: openChallenges)
+                        .runSmartStaggeredAppear(index: 10)
+                } else if challengeLoaded, isBeginnerChallenge {
+                    ChallengeInviteCard(onEnrolled: scheduleLoad)
+                        .runSmartStaggeredAppear(index: 10)
+                }
 
                 if isStriver {
                     TodayWellnessTrendCard(
@@ -158,30 +164,11 @@ struct TodayTabView: View {
                     )
                     .runSmartStaggeredAppear(index: 11)
                 }
-
-                if !nextWorkouts.isEmpty {
-                    UpcomingRunsCard(workouts: nextWorkouts) { workout in
-                        openWorkoutDetail(workout)
-                    }
-                    .runSmartStaggeredAppear(index: 12)
-                }
-
-                if !runReports.isEmpty {
-                    RecentRunReportsCard(reports: runReports) { report in
-                        if let detail = report.toDetail() {
-                            openReportDetail(detail)
-                        }
-                    }
-                    .runSmartStaggeredAppear(index: 13)
-                }
-
-                WeatherConditionsCard()
-                    .runSmartStaggeredAppear(index: 14)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
             .padding(.top, 18)
-            .padding(.bottom, 24)
+            .padding(.bottom, 140)
         }
         .task {
             await loadData()
@@ -211,7 +198,6 @@ struct TodayTabView: View {
         async let weekTask = services.weeklyPlan()
         async let nextWorkoutsTask = services.nextWorkouts(limit: 3)
         async let reportsTask = services.latestRunReports(limit: 3)
-        async let messagesTask = services.recentMessages()
         async let activePlanTask = services.activeTrainingPlan()
         async let runsTask = services.recentRuns()
         async let recoveryTask = services.recoverySnapshot()
@@ -219,12 +205,11 @@ struct TodayTabView: View {
         async let devicesTask = services.deviceStatuses()
         async let runnerTask = services.runnerProfile()
         async let challengeTask = services.activeChallenge()
-        let (rec, week, nw, reports, messages, plan, runs, recov, trends, devices, runner, challenge) = await (
+        let (rec, week, nw, reports, plan, runs, recov, trends, devices, runner, challenge) = await (
             recommendationTask,
             weekTask,
             nextWorkoutsTask,
             reportsTask,
-            messagesTask,
             activePlanTask,
             runsTask,
             recoveryTask,
@@ -242,7 +227,6 @@ struct TodayTabView: View {
         weekWorkouts = week
         nextWorkouts = nw
         runReports = reports
-        coachMessages = messages
         activePlan = plan
         recentRuns = runs
         recovery = recov
@@ -264,56 +248,28 @@ struct TodayTabView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            RunSmartTopBar(title: nil, showBrand: true)
-                .overlay(alignment: .trailing) {
-                    Button { router.open(.morningCheckin) } label: {
-                        Image(systemName: "checklist.checked")
-                            .font(.headline)
-                            .foregroundStyle(Color.accentPrimary)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .offset(x: -92)
-                }
+        HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("\(greeting), \(displayName)")
                     .font(.displayMD)
                     .foregroundStyle(Color.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-                Text("Your coach is ready when you are.")
-                    .font(.bodyLG)
-                    .foregroundStyle(Color.textSecondary)
+                if recommendation.streak != "--" {
+                    Text("🔥 \(recommendation.streak) day streak")
+                        .font(.bodyLG)
+                        .foregroundStyle(Color.textSecondary)
+                }
             }
-        }
-    }
-
-    private var quickStats: some View {
-        let legacyRecoveryBars: [CGFloat] = [0.20, 0.34, 0.46, 0.62, 0.70, 0.55, 0.48]
-        let legacyHRVBars: [CGFloat] = [0.40, 0.52, 0.46, 0.72, 0.58, 0.76, 0.62]
-        let recoveryBars = wellnessTrends.readinessBars.isEmpty
-            ? (isStriver ? [] : legacyRecoveryBars)
-            : wellnessTrends.readinessBars
-        let hrvBars = wellnessTrends.hrvBars.isEmpty
-            ? (isStriver ? [] : legacyHRVBars)
-            : wellnessTrends.hrvBars
-        let recoveryValue = isStriver && wellnessTrends.latestReadinessDisplay != "--"
-            ? wellnessTrends.latestReadinessDisplay
-            : recommendation.recovery
-        let hrvValue = isStriver && wellnessTrends.latestHRVDisplay != "--"
-            ? wellnessTrends.latestHRVDisplay
-            : recommendation.hrv
-
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                TodayMiniStatCard(title: "Weekly Progress", value: recommendation.weeklyProgress, unit: "km", symbol: "chart.bar.fill", tint: .accentPrimary, values: [0.18, 0.35, 0.55, 0.78, 0.62, 0.44, 0.70])
-                TodayMiniStatCard(title: "Streak", value: recommendation.streak, unit: "days", symbol: "flame.fill", tint: .accentAmber, values: [0.35, 0.35, 0.35, 0.35, 0.35])
-                TodayMiniStatCard(title: "Recovery", value: recoveryValue, unit: isStriver ? "readiness" : "sleep", symbol: "moon.fill", tint: .accentMagenta, values: recoveryBars)
-                TodayMiniStatCard(title: "HRV Status", value: hrvValue, unit: isStriver ? "7-day" : "balanced", symbol: "heart", tint: .accentSuccess, values: hrvBars)
+            Spacer(minLength: 12)
+            Button { router.openCoach(context: .today) } label: {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Color.accentPrimary)
+                    .frame(width: 34, height: 34)
+                    .background(Color.accentPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            .padding(.vertical, 2)
+            .buttonStyle(.plain)
         }
     }
 
@@ -382,10 +338,6 @@ struct TodayTabView: View {
 
     private func openPlanAdjustment() {
         router.openFlexWeek(entryPoint: .todayLink)
-    }
-
-    private func openAddActivity() {
-        router.open(.addActivity)
     }
 
     private func openRouteSelector() {
@@ -706,88 +658,6 @@ private struct TodayRouteRecommendationCard: View {
     }
 }
 
-private struct TodayQuickActions: View {
-    var onRecord: () -> Void
-    var onAddActivity: () -> Void
-    var onCoach: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            QuickActionButton(title: "Record Run", symbol: "figure.run", tint: .accentPrimary, action: onRecord)
-            QuickActionButton(title: "Add Activity", symbol: "plus.circle.fill", tint: .accentRecovery, action: onAddActivity)
-            QuickActionButton(title: "Ask Coach", symbol: "sparkles", tint: .accentPrimary, action: onCoach)
-        }
-    }
-}
-
-private struct QuickActionButton: View {
-    var title: String
-    var symbol: String
-    var tint: Color
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(tint)
-                    .frame(width: 42, height: 42)
-                    .background(tint.opacity(0.12), in: Circle())
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.68)
-            }
-            .frame(maxWidth: .infinity, minHeight: 92)
-            .background(Color.surfaceDeepCard.opacity(0.86), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(tint.opacity(0.22), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct TodayCoachHeroCard: View {
-    var message: String
-    var onCoach: () -> Void
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            CoachAvatar(size: 92, showBolt: false)
-                .padding(.leading, 2)
-
-            RunSmartPanel(cornerRadius: 20, padding: 14, accent: .accentPrimary) {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Your AI Coach")
-                    Text(message)
-                        .font(.bodyLG.weight(.medium))
-                        .foregroundStyle(Color.textPrimary)
-                        .lineLimit(4)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Button(action: onCoach) {
-                        HStack {
-                            Text("Talk to Coach")
-                                .font(.buttonLabel)
-                            Spacer()
-                            Image(systemName: "waveform")
-                                .font(.title3.weight(.bold))
-                        }
-                        .foregroundStyle(Color.black)
-                        .padding(.horizontal, 18)
-                        .frame(height: 52)
-                        .background(Color.accentPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(color: Color.accentPrimary.opacity(0.35), radius: 14)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
 private struct TodayWeekStripSection: View {
     var workouts: [WorkoutSummary]
     var weekRange: String
@@ -815,7 +685,8 @@ private struct TodayWeekStripSection: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 1)
+                .padding(.leading, 1)
+                .padding(.trailing, 18)
                 .padding(.vertical, 8)
             }
         }
@@ -1055,70 +926,6 @@ private struct TodayWorkoutStepRow: View {
     }
 }
 
-private struct TodayConversationPreview: View {
-    var messages: [CoachMessage]
-    var onTap: () -> Void
-
-    private var visibleMessages: [CoachMessage] {
-        Array(messages.prefix(2))
-    }
-
-    var body: some View {
-        Button(action: onTap) {
-            RunSmartPanel(cornerRadius: 20, padding: 16) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        SectionLabel(title: "Coach Conversation")
-                        Text("See all")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.accentPrimary)
-                    }
-                    ForEach(visibleMessages) { message in
-                        CoachBubble(message: message)
-                    }
-                }
-            }
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct TodayMiniStatCard: View {
-    var title: String
-    var value: String
-    var unit: String
-    var symbol: String
-    var tint: Color
-    var values: [CGFloat]
-
-    var body: some View {
-        RunSmartPanel(cornerRadius: 16, padding: 12, accent: nil) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title.uppercased())
-                    .font(.labelSM)
-                    .tracking(0.8)
-                    .foregroundStyle(Color.textSecondary)
-                    .lineLimit(2)
-                    .frame(height: 28, alignment: .topLeading)
-                Image(systemName: symbol)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(tint)
-                Text(value)
-                    .font(.metricSM)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text(unit)
-                    .font(.caption2)
-                    .foregroundStyle(Color.textSecondary)
-                MetricBars(values: values, tint: tint)
-            }
-            .frame(width: 104, height: 138, alignment: .topLeading)
-        }
-    }
-}
-
 private struct TodayWellnessTrendCard: View {
     var trends: WellnessTrendSeries
     var onTapRecovery: () -> Void
@@ -1302,58 +1109,6 @@ struct CoachBubble: View {
                     .foregroundStyle(Color.textTertiary)
             }
             if message.isUser { CoachAvatar(size: 30) } else { Spacer(minLength: 44) }
-        }
-    }
-}
-
-struct SmallStatCard: View {
-    var title: String
-    var value: String
-    var unit: String
-    var symbol: String
-    var tint: Color
-
-    var body: some View {
-        CompactCard {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(title.uppercased())
-                        .font(.labelSM)
-                        .tracking(1.1)
-                        .foregroundStyle(Color.textSecondary)
-                        .lineLimit(1)
-                    Spacer()
-                    Image(systemName: symbol)
-                        .foregroundStyle(tint)
-                }
-                Text(value)
-                    .font(.metricSM)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text(unit.isEmpty ? " " : unit)
-                    .font(.caption2)
-                    .foregroundStyle(Color.textTertiary)
-            }
-            .frame(width: 104, alignment: .leading)
-        }
-    }
-}
-
-struct MiniRouteView: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.black.opacity(0.22))
-            Path { path in
-                path.move(to: CGPoint(x: 12, y: 58))
-                path.addCurve(to: CGPoint(x: 72, y: 40), control1: CGPoint(x: 28, y: 48), control2: CGPoint(x: 44, y: 42))
-                path.addCurve(to: CGPoint(x: 132, y: 20), control1: CGPoint(x: 98, y: 40), control2: CGPoint(x: 112, y: 30))
-                path.addLine(to: CGPoint(x: 148, y: 8))
-            }
-            .stroke(Color.accentPrimary, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-            Circle().fill(Color.accentPrimary).frame(width: 10, height: 10).offset(x: 58, y: -22)
         }
     }
 }

@@ -1,5 +1,27 @@
 # Task State
 
+## Current Task
+
+**Objective:** Monitor App Store review for build 8.
+**Status:** Waiting for Review
+**Branch:** version-2
+
+### Checklist
+- [x] version-2: all 9 redesign stories (A1–A6, B2–B4) complete
+- [x] Build 8: onboarding scroll fix applied
+- [x] Build 8: version bump (1.0.1 → 1.0, build 7 → 8)
+- [x] Full test suite passed
+- [x] Visual QA passed (iPhone 17 Pro, iPhone 17 Pro Max, iPad Air 11-inch)
+- [x] Bug review passed (checks A, B, E, F, G automated; C, D manual)
+- [x] Executive OS gate passed
+- [x] Archived and uploaded to ASC
+- [x] Replied to Apple rejection message
+- [x] Submitted for review
+- [ ] **MONITOR**: Apple review outcome (24–48h)
+- [ ] After approval: merge version-2 → main, run ./agentic-os refresh, publish launch post
+
+---
+
 ## Launch Readiness QA Tracker
 
 ### T1 — Physical Device GPS + Battery QA
@@ -8,6 +30,47 @@
 ---
 
 ## Current Task
+1.0.1 version-2 continuation — COMPLETE
+
+### Stories From 1.0.1 Spec
+- [x] A1 — Today v2 and bottom safe area.
+- [x] A2 — Report v2.
+- [x] A3 — Plan explanation guard folded into Today/Plan surfaces.
+- [x] A4 — Plan v2.
+- [x] A5 — Profile v2.
+- [x] A6 — Post-run bridge.
+- [x] B2 — iOS `VoiceCoachService` consuming existing `/api/coach/voice-cue`.
+- [x] B3 — Run tab voice cue wiring.
+- [x] B4 — Live run mute/audio control wiring.
+
+### This Continuation
+- [x] Fetched `https://github.com/nadavyigal/IOS-runsmart-light-app-.git` and continued from `origin/version-2` on isolated branch `codex/1.0.1-version2-continue`.
+- [x] Kept the frozen v1.0 review branch/artifacts untouched; no archive/upload/submit.
+- [x] Modernized voice coach Bluetooth audio session option from deprecated `.allowBluetooth` to `.allowBluetoothHFP`.
+- [x] Added DEBUG-only env fallback for screenshot mode and initial-tab selection to make simulator visual QA repeatable when launch arguments stall.
+- [x] Ran simulator build, test-target build, and screenshot capture for Today/Plan/Run/Report/Profile.
+
+### Validation
+- `xcodebuild build` passed on generic iOS Simulator with signing disabled after the voice coach cleanup.
+- `xcodebuild build-for-testing` passed on `iPhone 17 Pro` simulator with signing disabled.
+- `xcodebuild test` built/installed but stalled after simulator launch and was terminated; no test pass was claimed.
+- Simulator screenshots captured to `/tmp/runsmart-101-version2-screenshots-env/`.
+- Visual inspection found real UI on all five tabs; Today still shows an existing right-edge clipped week card on this upstream branch.
+- Branch evidence: `codex/1.0.1-version2-continue` from `origin/version-2`.
+
+### Remaining Risks
+- Physical-device voice cue/audio-session QA still required.
+- Web `/api/coach/voice-cue` flag/contract was read from spec context but not live-verified here.
+- Dedicated VoiceCoachService tests are still missing.
+- `origin/claude/distracted-proskuriakova-f558f2` contains a separate security/spec cleanup that diverges from `origin/version-2`; not merged in this pass.
+- `PROJECT-BRIDGES/runsmart-web.md` and `PROJECT-BRIDGES/runsmart-ios.md` were not present in the local workspace.
+
+### Next
+- B5 — Voice coach QA hardening: live endpoint/flag verification, physical-device audio playback/mute test, and a small service test seam if feasible.
+
+---
+
+## Previous Task
 E7 — Garmin / Wearable Depth Implementation — COMPLETE
 
 ### Checklist
