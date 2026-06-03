@@ -31,6 +31,13 @@ final class AppRouter: ObservableObject {
            }) {
             return tab
         }
+
+        if let tabName = ProcessInfo.processInfo.environment["RUNSMART_INITIAL_TAB"],
+           let tab = RunSmartTab.allCases.first(where: { tab in
+               tab.rawValue.caseInsensitiveCompare(tabName) == .orderedSame
+           }) {
+            return tab
+        }
 #endif
         return .today
     }
@@ -97,6 +104,7 @@ enum RunSmartScreenshotMode {
     static var isEnabled: Bool {
 #if DEBUG
         ProcessInfo.processInfo.arguments.contains("-RUNSMART_SCREENSHOT_MODE")
+        || ProcessInfo.processInfo.environment["RUNSMART_SCREENSHOT_MODE"] == "1"
 #else
         false
 #endif
