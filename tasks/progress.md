@@ -1,9 +1,9 @@
 Status: Submitted for Review
 Current Phase: App Store Review
-Active Story: Monitor Apple review; respond to feedback if rejected again
-Last Completed Story: Build 8 submitted — onboarding scroll fix + 1.0.1 UX redesign (2026-06-03)
-Next Recommended Story: After review approval — merge version-2 to main, update PROJECT-STATUS.md, publish launch post
-Estimated Completion: 98%
+Active Story: Monitor Apple review for RunSmart 1.0.1 build 9
+Last Completed Story: RunSmart 1.0.1 build 9 submitted to App Store review (2026-06-05)
+Next Recommended Story: Monitor App Store Connect; if Apple responds, handle only the review outcome before starting new release scope
+Estimated Completion: Submitted; awaiting Apple review
 Blockers: Apple review outcome is external
-Last Validation: Build 8 archived and uploaded 2026-06-03. All tests passed. Visual QA passed on iPhone 17 Pro, iPhone 17 Pro Max, iPad Air 11-inch (M3). Onboarding scroll fix confirmed in code review and build. Bug review passed (checks A, B, E, F, G automated; checks C, D require manual verification after sign-in). Executive OS gate passed.
-Last Updated: 2026-06-03
+Last Validation: Founder confirmed App Store Connect submission of RunSmart 1.0.1 build 9 on 2026-06-05. Local release archive validation and git diff checks passed before the founder-controlled upload; Apple review result is pending.
+Last Updated: 2026-06-05

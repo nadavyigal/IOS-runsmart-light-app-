@@ -2,6 +2,43 @@
 
 ## Current Task
 
+**Objective:** Monitor RunSmart 1.0.1 build 9 after App Store submission.
+**Status:** Submitted for Review on 2026-06-05; awaiting Apple.
+**Branch:** main
+
+### Checklist
+- [x] Confirm canonical app repo and preserve existing dirty work.
+- [x] Verify current app identity: `com.runsmart.lite`, RunSmart, version `1.0.1`, build `9`.
+- [x] Confirm no untracked Swift files under app/test source roots.
+- [x] Confirm privacy manifest still covers UserID, Health, Fitness, and PreciseLocation with tracking disabled.
+- [x] Run `git diff --check`.
+- [x] Create fresh release archive:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-Resubmit-2026-06-04-build9.xcarchive" -allowProvisioningUpdates archive`
+- [x] Inspect archive bundle metadata: display name `RunSmart`, bundle id `com.runsmart.lite`, version `1.0.1`, build `9`, iPhone-only, `ITSAppUsesNonExemptEncryption=false`, dSYM present.
+- [x] Export App Store Connect IPA with distribution signing.
+- [x] Upload build 9 to App Store Connect.
+- [x] Select processed build 9 and submit for review.
+
+### Validation
+- Whitespace validation passed: `git diff --check`.
+- Archive succeeded for `build/RunSmart-Resubmit-2026-06-04-build9.xcarchive`.
+- Archive validation ran during Xcode archive (`-validate-for-store`) and completed.
+- Archive inspection confirmed dSYM exists and quick diagnostic-file scan found no bundled `.md`, `.log`, `.txt`, or `.env*` files in the app bundle.
+- Archive is not directly submit-ready because it was initially signed with Apple Development and `get-task-allow=true`.
+- App Store export attempted with `ExportOptionsAppStore.plist`; export reached Apple Distribution signing identity `71915959D76E14CED4D4153118972F034D338A50` but blocked in `codesign` waiting on Security/keychain access to the private key. No IPA was produced.
+
+### Submission Confirmation
+- Founder confirmed the App Store Connect submission completed on 2026-06-05.
+- Apple review outcome is now the only release blocker.
+
+### Remaining Risks
+- The only dirty app-repo source change remains `IOS RunSmart app/Resources/Localizable.xcstrings`; preserve or commit it intentionally before final release handoff.
+- Preserve the existing localization change intentionally; it is unrelated to the completed submission status update.
+
+---
+
+## Previous Task
+
 **Objective:** Monitor App Store review for build 8.
 **Status:** Waiting for Review
 **Branch:** version-2

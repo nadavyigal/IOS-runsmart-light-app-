@@ -1,5 +1,20 @@
 # Session Log
 
+## 2026-06-05 - RunSmart 1.0.1 build 9 submitted
+
+### Task Summary
+Recorded the founder-confirmed App Store Connect submission after the local
+release workflow completed.
+
+### Status
+- RunSmart 1.0.1 build 9 is Submitted for Review.
+- Apple review outcome is pending.
+- No approval, rejection, or live-store status is claimed.
+
+### Next Recommended Action
+Monitor App Store Connect. If Apple responds, handle the review outcome before
+starting new release scope.
+
 ## 2026-05-28 - E7 Garmin/Wearable Depth hardening + branch commit
 
 ### Task Summary
