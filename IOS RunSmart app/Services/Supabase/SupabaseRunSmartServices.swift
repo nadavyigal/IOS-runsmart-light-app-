@@ -268,6 +268,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
             let persisted = await planRepo.persistGeneratedPlan(authUserID: userID, request: request, generated: generated)
             if persisted {
+                Analytics.trackPlanGenerated(
+                    planType: request.goal,
+                    durationWeeks: planWeeks(until: request.targetDate) ?? 0
+                )
                 await MainActor.run {
                     NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
                 }

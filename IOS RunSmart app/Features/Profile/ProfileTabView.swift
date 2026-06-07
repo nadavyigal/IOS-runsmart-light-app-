@@ -307,7 +307,7 @@ struct ProfileTabView: View {
                     ConnectedServiceTile(title: "Garmin", detail: "Garmin Connect", status: statusLabel("Garmin Connect"), symbol: "link.circle.fill", tint: .accentPrimary) {
                         open(.connectedService("Garmin Connect"))
                     }
-                    ConnectedServiceTile(title: "Health", detail: "HealthKit", status: statusLabel("HealthKit"), symbol: "heart.fill", tint: .accentHeart) {
+                    ConnectedServiceTile(title: "HealthKit", detail: "Apple Health read/write", status: statusLabel("HealthKit"), symbol: "heart.fill", tint: .accentHeart) {
                         open(.connectedService("HealthKit"))
                     }
                     ConnectedServiceTile(title: "Prefs", detail: "Reminders", status: session.onboardingProfile.notificationsEnabled ? "On" : "Manage", symbol: "bell.fill", tint: .accentRecovery) {

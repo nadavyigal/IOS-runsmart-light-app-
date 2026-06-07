@@ -39,7 +39,7 @@ struct SignInView: View {
                     VStack(spacing: 12) {
                         FeaturePill(symbol: "waveform", text: "Run guidance and cue previews")
                         FeaturePill(symbol: "calendar", text: "Personalized training plans")
-                        FeaturePill(symbol: "heart.fill", text: "Garmin + HealthKit signals when connected")
+                        FeaturePill(symbol: "heart.fill", text: "HealthKit reads approved workouts and wellness signals")
                     }
                 }
 

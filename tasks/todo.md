@@ -2,38 +2,44 @@
 
 ## Current Task
 
-**Objective:** Monitor RunSmart 1.0.1 build 9 after App Store submission.
-**Status:** Submitted for Review on 2026-06-05; awaiting Apple.
+**Objective:** Fix RunSmart 1.0.1 build 9 rejection and prepare build 10 for resubmission.
+**Status:** Apple rejected build 9 on 2026-06-05 under Guideline 2.5.1 because HealthKit/CareKit API functionality was not clearly identified in the UI.
 **Branch:** main
 
 ### Checklist
 - [x] Confirm canonical app repo and preserve existing dirty work.
-- [x] Verify current app identity: `com.runsmart.lite`, RunSmart, version `1.0.1`, build `9`.
-- [x] Confirm no untracked Swift files under app/test source roots.
-- [x] Confirm privacy manifest still covers UserID, Health, Fitness, and PreciseLocation with tracking disabled.
+- [x] Record Apple rejection: Submission ID `fe1e059b-4eea-46e1-ae4e-980b1b027d84`, review date 2026-06-05, reviewed build `1.0.1 (9)`, devices iPhone 17 Pro Max and iPad Air 11-inch (M3).
+- [x] Confirm HealthKit entitlement and HealthKit permission usage descriptions are present.
+- [x] Confirm CareKit is not used in the repo.
+- [x] Make HealthKit functionality explicit in visible UI: sign-in feature pill, onboarding privacy step, Profile connected-service tile, and HealthKit detail permissions/controls.
+- [x] Add analytics coverage for HealthKit disclosure viewed and HealthKit connect intent.
+- [x] Wire existing `plan_generated` analytics event to successful generated-plan persistence.
+- [x] Bump build number from `9` to `10` for the fixed resubmission.
 - [x] Run `git diff --check`.
-- [x] Create fresh release archive:
-  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-Resubmit-2026-06-04-build9.xcarchive" -allowProvisioningUpdates archive`
-- [x] Inspect archive bundle metadata: display name `RunSmart`, bundle id `com.runsmart.lite`, version `1.0.1`, build `9`, iPhone-only, `ITSAppUsesNonExemptEncryption=false`, dSYM present.
-- [x] Export App Store Connect IPA with distribution signing.
-- [x] Upload build 9 to App Store Connect.
-- [x] Select processed build 9 and submit for review.
+- [x] Signing-disabled simulator build passes for build 10.
+- [ ] Archive build 10 for App Store distribution.
+- [ ] Inspect archive bundle metadata: display name `RunSmart`, bundle id `com.runsmart.lite`, version `1.0.1`, build `10`, iPhone-only, `ITSAppUsesNonExemptEncryption=false`, dSYM present.
+- [ ] Export App Store Connect IPA with distribution signing.
+- [ ] Upload build 10 to App Store Connect.
+- [ ] Select processed build 10 and resubmit for review.
 
 ### Validation
 - Whitespace validation passed: `git diff --check`.
-- Archive succeeded for `build/RunSmart-Resubmit-2026-06-04-build9.xcarchive`.
-- Archive validation ran during Xcode archive (`-validate-for-store`) and completed.
-- Archive inspection confirmed dSYM exists and quick diagnostic-file scan found no bundled `.md`, `.log`, `.txt`, or `.env*` files in the app bundle.
-- Archive is not directly submit-ready because it was initially signed with Apple Development and `get-task-allow=true`.
-- App Store export attempted with `ExportOptionsAppStore.plist`; export reached Apple Distribution signing identity `71915959D76E14CED4D4153118972F034D338A50` but blocked in `codesign` waiting on Security/keychain access to the private key. No IPA was produced.
+- Static HealthKit/CareKit scan passed: HealthKit entitlement and permission strings present; no CareKit usage found.
+- Analytics call-site scan confirmed: onboarding funnel, plan generation, run completion, HealthKit disclosure, HealthKit connect intent, and HealthKit sync completion call sites exist.
+- Signing-disabled simulator build passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-healthkit-resubmission-derived CODE_SIGNING_ALLOWED=NO build`
 
-### Submission Confirmation
-- Founder confirmed the App Store Connect submission completed on 2026-06-05.
-- Apple review outcome is now the only release blocker.
+### Apple Rejection
+- Guideline: 2.5.1 - Performance - Software Requirements.
+- Issue: app uses HealthKit or CareKit APIs but does not clearly identify the HealthKit and CareKit functionality in the UI.
+- Resolution path: keep HealthKit in the binary because the app uses HealthKit; make HealthKit read/write functionality visible in app UI. CareKit is not used.
 
 ### Remaining Risks
-- The only dirty app-repo source change remains `IOS RunSmart app/Resources/Localizable.xcstrings`; preserve or commit it intentionally before final release handoff.
-- Preserve the existing localization change intentionally; it is unrelated to the completed submission status update.
+- App Store archive/export/upload/resubmission were not performed in this session.
+- Physical-device or simulator visual QA of the revised HealthKit surfaces is still required before resubmission.
+- PostHog Live Events verification still requires a real token/configured production build and should confirm `app_launched`, `healthkit_disclosure_viewed`, `healthkit_connect_tapped`, `plan_generated`, and activation funnel events.
+- Preserve pre-existing dirty changes in `IOS RunSmart app/Resources/Localizable.xcstrings` and `tasks/lessons.md` intentionally.
 
 ---
 

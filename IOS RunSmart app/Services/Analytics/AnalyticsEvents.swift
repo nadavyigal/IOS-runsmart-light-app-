@@ -148,6 +148,16 @@ extension Analytics {
         ])
     }
 
+    static func trackHealthKitDisclosureViewed(state: String) {
+        shared.track("healthkit_disclosure_viewed", properties: [
+            "connection_state": state
+        ])
+    }
+
+    static func trackHealthKitConnectTapped() {
+        shared.track("healthkit_connect_tapped", properties: [:])
+    }
+
     // MARK: - User Identity
 
     static func identifyUser(userId: String) {

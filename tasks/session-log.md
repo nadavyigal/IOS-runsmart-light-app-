@@ -1,5 +1,53 @@
 # Session Log
 
+## 2026-06-07 - RunSmart build 9 HealthKit rejection fix
+
+### Task Summary
+Handled Apple rejection for RunSmart 1.0.1 build 9. Apple rejected the app on
+Guideline 2.5.1 because HealthKit/CareKit functionality was not clearly
+identified in the UI. The app uses HealthKit and does not use CareKit, so the
+fix keeps HealthKit enabled and makes HealthKit read/write behavior explicit in
+visible UI before and during connection.
+
+### Apple Review Message
+- Submission ID: `fe1e059b-4eea-46e1-ae4e-980b1b027d84`
+- Review date: 2026-06-05
+- Review device: iPhone 17 Pro Max and iPad Air 11-inch (M3)
+- Version reviewed: `1.0.1 (9)`
+- Guideline: 2.5.1 - Performance - Software Requirements
+- Issue: the app uses HealthKit or CareKit APIs but does not clearly identify
+  HealthKit and CareKit functionality in the UI.
+
+### Fix
+- Made HealthKit explicit on sign-in, onboarding privacy, Profile connected
+  services, and the HealthKit detail screen.
+- Added detail copy stating RunSmart uses HealthKit to read approved workouts,
+  routes, heart rate, HRV, sleep, steps, and active energy, and can write
+  completed GPS runs to Health when allowed.
+- Added analytics events for `healthkit_disclosure_viewed` and
+  `healthkit_connect_tapped`.
+- Wired existing `plan_generated` analytics to successful generated-plan
+  persistence.
+- Bumped build number to `10` for the fixed resubmission.
+
+### Validation
+- `git diff --check` passed.
+- Static scan confirmed HealthKit entitlement and permission strings are present.
+- Static scan found no CareKit usage.
+- Analytics call-site scan confirmed onboarding, plan generation, run
+  completion, HealthKit disclosure, HealthKit connect intent, and HealthKit sync
+  completion events.
+- Signing-disabled simulator build passed with fresh DerivedData:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-healthkit-resubmission-derived CODE_SIGNING_ALLOWED=NO build`
+
+### Remaining Risks
+- Archive/export/upload/resubmission are founder-controlled and not yet done.
+- PostHog Live Events must still be verified from a configured production build.
+- Visual QA should confirm the updated HealthKit wording is visible on the
+  rejected review device classes before resubmission.
+- Pre-existing dirty `Localizable.xcstrings` and `tasks/lessons.md` changes were
+  preserved.
+
 ## 2026-06-05 - RunSmart 1.0.1 build 9 submitted
 
 ### Task Summary

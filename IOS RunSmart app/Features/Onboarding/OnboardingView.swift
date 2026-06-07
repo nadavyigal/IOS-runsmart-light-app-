@@ -106,7 +106,7 @@ struct OnboardingView: View {
                 .font(.caption)
                 .foregroundStyle(Color.textSecondary)
             DevicePreviewRow(title: "Garmin Connect", detail: "Import supported runs and wellness signals after you connect Garmin.", symbol: "link.circle.fill")
-            DevicePreviewRow(title: "HealthKit", detail: "Read workout and health signals you approve; write completed GPS runs when allowed.", symbol: "heart.fill")
+            DevicePreviewRow(title: "HealthKit", detail: "Uses HealthKit to read approved workouts, routes, heart rate, HRV, sleep, steps, and active energy. When you allow it, RunSmart can also write completed GPS runs to Health.", symbol: "heart.fill")
             RookieChallengeCallout()
             OnboardingPrimaryButton(title: "Confirm Privacy", symbol: "arrow.right", action: advance)
         }

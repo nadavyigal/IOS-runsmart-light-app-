@@ -1,9 +1,9 @@
-Status: Submitted for Review
-Current Phase: App Store Review
-Active Story: Monitor Apple review for RunSmart 1.0.1 build 9
-Last Completed Story: RunSmart 1.0.1 build 9 submitted to App Store review (2026-06-05)
-Next Recommended Story: Monitor App Store Connect; if Apple responds, handle only the review outcome before starting new release scope
-Estimated Completion: Submitted; awaiting Apple review
-Blockers: Apple review outcome is external
-Last Validation: Founder confirmed App Store Connect submission of RunSmart 1.0.1 build 9 on 2026-06-05. Local release archive validation and git diff checks passed before the founder-controlled upload; Apple review result is pending.
-Last Updated: 2026-06-05
+Status: Rejected - fix in progress
+Current Phase: App Store Review Response
+Active Story: Fix Guideline 2.5.1 HealthKit UI disclosure and prepare RunSmart 1.0.1 build 10
+Last Completed Story: RunSmart 1.0.1 build 9 rejected by Apple on 2026-06-05 for unclear HealthKit/CareKit API identification in the UI
+Next Recommended Story: Archive build 10, verify HealthKit disclosure screens and PostHog analytics events, then resubmit with a response explaining the UI changes
+Estimated Completion: Ready after build/archive, device/simulator HealthKit disclosure QA, and App Store Connect upload
+Blockers: Founder-controlled archive/export/upload; App Store Connect resubmission
+Last Validation: Static checks confirmed HealthKit entitlement and permission strings are present, CareKit is not used, and HealthKit disclosure/analytics call sites exist. Signing-disabled simulator build passed for the build 10 fix on 2026-06-07.
+Last Updated: 2026-06-07

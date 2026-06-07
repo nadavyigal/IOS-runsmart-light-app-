@@ -2030,6 +2030,11 @@ private struct ConnectedServiceDetailScaffold: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Permissions")
+                    if serviceName == "HealthKit" {
+                        Text("RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health.")
+                            .font(.callout)
+                            .foregroundStyle(Color.mutedText)
+                    }
                     PermissionRow(title: "Activities", enabled: permissions.contains("Activities") || permissions.contains("Workouts"))
                     PermissionRow(title: "Sleep", enabled: permissions.contains("Sleep"))
                     PermissionRow(title: "Heart rate", enabled: permissions.contains("Heart Rate") || permissions.contains("Resting HR"))
@@ -2044,10 +2049,11 @@ private struct ConnectedServiceDetailScaffold: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Controls")
-                    ActionRow(title: "Connect", detail: "Start the real permission or gateway flow.", symbol: "link") {
+                    ActionRow(title: "Connect", detail: connectActionDetail, symbol: "link") {
+                        trackConnectionIntent()
                         run { await services.connect(provider: serviceName) }
                     }
-                    ActionRow(title: "Sync Now", detail: "Pull the latest real activity data.", symbol: "arrow.triangle.2.circlepath") {
+                    ActionRow(title: "Sync Now", detail: syncActionDetail, symbol: "arrow.triangle.2.circlepath") {
                         run { await services.syncNow(provider: serviceName) }
                     }
                     Button("Disconnect \(serviceName)") {
@@ -2113,6 +2119,7 @@ private struct ConnectedServiceDetailScaffold: View {
         }
         .task {
             await load()
+            trackDisclosureViewedIfNeeded()
         }
     }
 
@@ -2150,6 +2157,30 @@ private struct ConnectedServiceDetailScaffold: View {
         case .disconnected: Color.mutedText
         case .error: .orange
         }
+    }
+
+    private var connectActionDetail: String {
+        if serviceName == "HealthKit" {
+            return "Open the HealthKit permission sheet for approved read/write access."
+        }
+        return "Start the real permission or gateway flow."
+    }
+
+    private var syncActionDetail: String {
+        if serviceName == "HealthKit" {
+            return "Import the latest approved HealthKit workout and wellness data."
+        }
+        return "Pull the latest real activity data."
+    }
+
+    private func trackDisclosureViewedIfNeeded() {
+        guard serviceName == "HealthKit" else { return }
+        Analytics.trackHealthKitDisclosureViewed(state: status?.state.rawValue ?? "unknown")
+    }
+
+    private func trackConnectionIntent() {
+        guard serviceName == "HealthKit" else { return }
+        Analytics.trackHealthKitConnectTapped()
     }
 
     private func run(_ action: @escaping () async -> ConnectedDeviceStatus) {
