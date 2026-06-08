@@ -1,5 +1,77 @@
 # Session Log
 
+## 2026-06-08 - RunSmart build 11 rejection recovery
+
+### Task Summary
+Handled the latest App Store rejection for RunSmart 1.0.1 build 11. Apple
+rejected the app for requiring name/email after Sign in with Apple and again for
+unclear HealthKit/CareKit UI identification. The fix keeps Sign in with Apple
+and HealthKit enabled, removes post-auth name collection from onboarding, uses
+Apple-provided account values internally when available, preserves explicit
+HealthKit disclosure surfaces, and prepares build 12 as the next resubmission
+build.
+
+### Apple Review Message
+- Submission ID: `63f48069-3f6c-4279-8f7f-447d9d082a10`
+- Review date: 2026-06-08
+- Review device: iPad Air 11-inch (M3) and iPhone 17 Pro Max
+- Version reviewed: `1.0.1 (11)`
+- Guideline 4 issue: the app offers Sign in with Apple but requires users to
+  provide name and/or email afterward.
+- Guideline 2.5.1 issue: the app uses HealthKit or CareKit APIs but does not
+  clearly identify the HealthKit/CareKit functionality in the UI.
+
+### Fix
+- Removed the `Your name` onboarding field shown after Sign in with Apple.
+- Captured `ASAuthorizationAppleIDCredential.fullName` and `email`, then passed
+  them into `SupabaseSession` as internal profile seeds.
+- Seeded a new user's onboarding profile with Apple-provided display name when
+  available; otherwise RunSmart falls back internally to `RunSmart Runner`
+  without asking the user for name or email.
+- Strengthened visible HealthKit wording on sign-in and Profile surfaces while
+  preserving onboarding Privacy and HealthKit detail disclosures.
+- Disabled Fastlane build-number auto-increment for `beta` and `release` so the
+  committed Xcode project build number, archive, uploaded build, and selected
+  App Store Connect build stay traceable.
+- Replaced the stale build-5 readiness checklist with a current 1.0.1
+  resubmission checklist and reviewer response.
+- Bumped the next intended resubmission build to `12`.
+
+### Validation
+- Static scan found no `TextField("Your name"` call site in app code.
+- Static scan found no app-code CareKit imports or references.
+- HealthKit UI strings are present on sign-in, onboarding Privacy, Profile
+  Connected, and HealthKit detail surfaces.
+- XcodeBuildMCP was configured for project `IOS RunSmart app.xcodeproj`, scheme
+  `IOS RunSmart app`, simulator `iPhone 17 Pro Max`; its build call timed out at
+  120s while the underlying `xcodebuild` continued.
+- Signing-disabled simulator build passed with fresh DerivedData, then passed
+  again after the build 12 bump with output showing
+  `PROJECT:IOS RunSmart app-12`:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Debug -destination "platform=iOS Simulator,id=66F09A08-D5EE-467D-936D-E1406E5FEE0E" -derivedDataPath /tmp/runsmart-app-review-recovery-derived CODE_SIGNING_ALLOWED=NO build`
+- Local Release archive passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-build12-local-validation.xcarchive" archive`
+- Local archive inspection confirmed bundle id `com.runsmart.lite`, version
+  `1.0.1`, build `12`, `ITSAppUsesNonExemptEncryption=false`, HealthKit usage
+  strings, HealthKit entitlement, Sign in with Apple entitlement, and dSYM
+  present.
+- Local archive signing identity was `Apple Development:
+  nadav.yigal@gmail.com (V2D7D57MXR)`, and entitlements showed
+  `get-task-allow=true`; this is a compile/archive proof, not an App Store
+  distribution artifact.
+
+### Remaining Risks
+- Build 11 provenance gap remains: current `main` had build 10 at commit
+  `62823e2`, App Review rejected build 11, and no local build 11 archive was
+  found during investigation.
+- App Store distribution archive/export/upload/resubmission were not performed
+  in this session.
+- Manual visual QA is still required on iPad Air 11-inch (M3) and iPhone 17 Pro
+  Max for SIWA, onboarding Privacy, Profile Connected, and HealthKit detail
+  screens.
+- Distribution archive inspection must verify build 12, distribution signing,
+  `get-task-allow=false`, dSYM, and selected App Store Connect build.
+
 ## 2026-06-07 - RunSmart build 9 HealthKit rejection fix
 
 ### Task Summary

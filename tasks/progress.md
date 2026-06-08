@@ -1,9 +1,9 @@
-Status: Rejected - fix in progress
+Status: Rejected - fix implemented locally
 Current Phase: App Store Review Response
-Active Story: Fix Guideline 2.5.1 HealthKit UI disclosure and prepare RunSmart 1.0.1 build 10
-Last Completed Story: RunSmart 1.0.1 build 9 rejected by Apple on 2026-06-05 for unclear HealthKit/CareKit API identification in the UI
-Next Recommended Story: Archive build 10, verify HealthKit disclosure screens and PostHog analytics events, then resubmit with a response explaining the UI changes
-Estimated Completion: Ready after build/archive, device/simulator HealthKit disclosure QA, and App Store Connect upload
-Blockers: Founder-controlled archive/export/upload; App Store Connect resubmission
-Last Validation: Static checks confirmed HealthKit entitlement and permission strings are present, CareKit is not used, and HealthKit disclosure/analytics call sites exist. Signing-disabled simulator build passed for the build 10 fix on 2026-06-07.
-Last Updated: 2026-06-07
+Active Story: Fix June 08 rejection for Sign in with Apple and HealthKit UI disclosure, then prepare RunSmart 1.0.1 build 12
+Last Completed Story: RunSmart 1.0.1 build 11 rejected by Apple on 2026-06-08 for requiring name/email after Sign in with Apple and for unclear HealthKit/CareKit UI identification
+Next Recommended Story: Run visual QA on reviewer device classes, archive/export build 12 with distribution signing, inspect archive provenance, upload to App Store Connect, and resubmit with the updated reviewer response
+Estimated Completion: Ready after build 12 archive/export/upload, reviewer-device screenshots, and App Store Connect build selection
+Blockers: Founder-controlled distribution archive/export/upload; App Store Connect resubmission; manual SIWA fresh-account visual QA
+Last Validation: Static scans found no app-code CareKit references and no `TextField("Your name"` call site. HealthKit UI strings are present on sign-in, onboarding, Profile, and HealthKit detail surfaces. Signing-disabled simulator build passed on iPhone 17 Pro Max with DerivedData `/tmp/runsmart-app-review-recovery-derived` on 2026-06-08. Local Release archive `build/RunSmart-build12-local-validation.xcarchive` passed and inspected as `1.0.1 (12)`, but it is development-signed with `get-task-allow=true`, so distribution export/upload remains open.
+Last Updated: 2026-06-08
