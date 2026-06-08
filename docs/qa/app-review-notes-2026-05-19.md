@@ -1,5 +1,11 @@
 # App Review Notes - 2026-05-19
 
+## 1.0.1 Resubmission Response - 2026-06-08
+
+Thank you for the review. In this build, we fixed the Sign in with Apple onboarding flow so RunSmart no longer asks users to provide their name or email address after authentication. The app requests the standard full name and email scopes through AuthenticationServices and uses Apple-provided account information when available, with an internal fallback display name if Apple does not return a name.
+
+We also made HealthKit functionality explicit in the app UI. HealthKit is now identified on sign-in, onboarding Privacy, Profile Connected services, and the HealthKit detail screen. The UI explains that HealthKit access is optional, that RunSmart reads only approved workout and wellness data, and that completed GPS runs are written to Health only when the user allows write access. RunSmart does not use CareKit.
+
 ## Reviewer Access
 Provide demo credentials directly in App Store Connect. Do not store credentials in this repository.
 

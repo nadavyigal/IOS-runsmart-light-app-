@@ -1,9 +1,9 @@
-Status: Submitted for Review
-Current Phase: App Store Review
-Active Story: Monitor Apple review; respond to feedback if rejected again
-Last Completed Story: Build 8 submitted — onboarding scroll fix + 1.0.1 UX redesign (2026-06-03)
-Next Recommended Story: After review approval — merge version-2 to main, update PROJECT-STATUS.md, publish launch post
-Estimated Completion: 98%
-Blockers: Apple review outcome is external
-Last Validation: Build 8 archived and uploaded 2026-06-03. All tests passed. Visual QA passed on iPhone 17 Pro, iPhone 17 Pro Max, iPad Air 11-inch (M3). Onboarding scroll fix confirmed in code review and build. Bug review passed (checks A, B, E, F, G automated; checks C, D require manual verification after sign-in). Executive OS gate passed.
-Last Updated: 2026-06-03
+Status: Rejected - fix implemented locally
+Current Phase: App Store Review Response
+Active Story: Fix June 08 rejection for Sign in with Apple and HealthKit UI disclosure, then prepare RunSmart 1.0.1 build 12
+Last Completed Story: RunSmart 1.0.1 build 11 rejected by Apple on 2026-06-08 for requiring name/email after Sign in with Apple and for unclear HealthKit/CareKit UI identification
+Next Recommended Story: Run visual QA on reviewer device classes, archive/export build 12 with distribution signing, inspect archive provenance, upload to App Store Connect, and resubmit with the updated reviewer response
+Estimated Completion: Ready after build 12 archive/export/upload, reviewer-device screenshots, and App Store Connect build selection
+Blockers: Founder-controlled distribution archive/export/upload; App Store Connect resubmission; manual SIWA fresh-account visual QA
+Last Validation: Static scans found no app-code CareKit references and no `TextField("Your name"` call site. HealthKit UI strings are present on sign-in, onboarding, Profile, and HealthKit detail surfaces. Signing-disabled simulator build passed on iPhone 17 Pro Max with DerivedData `/tmp/runsmart-app-review-recovery-derived` on 2026-06-08. Local Release archive `build/RunSmart-build12-local-validation.xcarchive` passed and inspected as `1.0.1 (12)`, but it is development-signed with `get-task-allow=true`, so distribution export/upload remains open.
+Last Updated: 2026-06-08
