@@ -20,6 +20,8 @@ final class SupabaseSession: ObservableObject {
     private(set) var onboardingProfile: OnboardingProfile = .empty
     private let notificationPreferenceKey = "runsmart.notifications.enabled"
     private let planAdjustmentConfirmationsKey = "runsmart.notifications.planAdjustmentConfirmations"
+    private var appleDisplayNameSeed: String?
+    private var appleEmailSeed: String?
 
     init() {
         Task { await initialize() }
@@ -93,7 +95,8 @@ final class SupabaseSession: ObservableObject {
             } else {
                 profile = nil
                 hasCompletedOnboarding = false
-                displayName = ""
+                displayName = appleDisplayNameSeed ?? ""
+                onboardingProfile.displayName = appleDisplayNameSeed ?? ""
                 lastAuthError = nil
             }
         } catch {
@@ -108,24 +111,28 @@ final class SupabaseSession: ObservableObject {
             print("[SupabaseSession] completeOnboarding: no currentUserID")
             return
         }
-        onboardingProfile = onboarding
+        var completedOnboarding = onboarding
+        if completedOnboarding.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            completedOnboarding.displayName = appleDisplayNameSeed ?? "RunSmart Runner"
+        }
+        onboardingProfile = completedOnboarding
         UserDefaults.standard.set(onboarding.notificationsEnabled, forKey: notificationPreferenceKey)
         UserDefaults.standard.set(onboarding.planAdjustmentConfirmationsEnabled, forKey: planAdjustmentConfirmationsKey)
         // email comes from the Apple JWT the auth server decoded — always present after sign-in
-        let email = supabase.auth.currentUser?.email ?? ""
+        let email = supabase.auth.currentUser?.email ?? appleEmailSeed ?? ""
         let insert = DBProfileInsert(
             authUserId: userID.uuidString,
             email: email,
-            name: onboarding.displayName,
-            goal: onboarding.supabaseGoal,
-            experience: onboarding.supabaseExperience,
-            age: onboarding.age,
-            averageWeeklyDistanceKm: onboarding.averageWeeklyDistanceKm,
-            trainingDataSource: onboarding.trainingDataSource?.rawValue,
-            trainingDataUpdatedAt: onboarding.trainingDataUpdatedAt.map(Self.profileDateFormatter.string(from:)),
-            preferredTimes: onboarding.preferredDays,
-            daysPerWeek: onboarding.weeklyRunDays,
-            coachingStyle: onboarding.supabaseCoachingStyle,
+            name: completedOnboarding.displayName,
+            goal: completedOnboarding.supabaseGoal,
+            experience: completedOnboarding.supabaseExperience,
+            age: completedOnboarding.age,
+            averageWeeklyDistanceKm: completedOnboarding.averageWeeklyDistanceKm,
+            trainingDataSource: completedOnboarding.trainingDataSource?.rawValue,
+            trainingDataUpdatedAt: completedOnboarding.trainingDataUpdatedAt.map(Self.profileDateFormatter.string(from:)),
+            preferredTimes: completedOnboarding.preferredDays,
+            daysPerWeek: completedOnboarding.weeklyRunDays,
+            coachingStyle: completedOnboarding.supabaseCoachingStyle,
             onboardingComplete: true
         )
         print("[SupabaseSession] completeOnboarding upsert uid=\(userID) email=\(email)")
@@ -140,7 +147,7 @@ final class SupabaseSession: ObservableObject {
             if let p = rows.first {
                 profile = p
                 hasCompletedOnboarding = true
-                displayName = p.name ?? onboarding.displayName
+                displayName = p.name ?? completedOnboarding.displayName
             }
         } catch {
             print("[SupabaseSession] completeOnboarding rich upsert error:", error)
@@ -150,12 +157,12 @@ final class SupabaseSession: ObservableObject {
                     .upsert(DBProfileInsertLegacy(
                         authUserId: userID.uuidString,
                         email: email,
-                        name: onboarding.displayName,
-                        goal: onboarding.supabaseGoal,
-                        experience: onboarding.supabaseExperience,
-                        preferredTimes: onboarding.preferredDays,
-                        daysPerWeek: onboarding.weeklyRunDays,
-                        coachingStyle: onboarding.supabaseCoachingStyle,
+                        name: completedOnboarding.displayName,
+                        goal: completedOnboarding.supabaseGoal,
+                        experience: completedOnboarding.supabaseExperience,
+                        preferredTimes: completedOnboarding.preferredDays,
+                        daysPerWeek: completedOnboarding.weeklyRunDays,
+                        coachingStyle: completedOnboarding.supabaseCoachingStyle,
                         onboardingComplete: true
                     ), onConflict: "auth_user_id")
                     .select()
@@ -164,7 +171,7 @@ final class SupabaseSession: ObservableObject {
                 if let p = rows.first {
                     profile = p
                     hasCompletedOnboarding = true
-                    displayName = p.name ?? onboarding.displayName
+                    displayName = p.name ?? completedOnboarding.displayName
                     lastAuthError = nil
                 }
             } catch {
@@ -176,6 +183,11 @@ final class SupabaseSession: ObservableObject {
 
     func signOut() async {
         try? await supabase.auth.signOut()
+    }
+
+    func rememberAppleProfile(displayName: String?, email: String?) {
+        appleDisplayNameSeed = Self.trimmedNonEmpty(displayName)
+        appleEmailSeed = Self.trimmedNonEmpty(email)
     }
 
     func setNotificationsEnabled(_ enabled: Bool) {
@@ -201,6 +213,9 @@ final class SupabaseSession: ObservableObject {
         hasCompletedOnboarding = false
         profile = nil
         displayName = ""
+        onboardingProfile = .empty
+        appleDisplayNameSeed = nil
+        appleEmailSeed = nil
         lastAuthError = nil
     }
 
@@ -215,5 +230,11 @@ final class SupabaseSession: ObservableObject {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: value)
+    }
+
+    private static func trimmedNonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

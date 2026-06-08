@@ -1,58 +1,53 @@
-# App Store Readiness Checklist — RunSmart v1.0 (build 5)
+# App Store Readiness Checklist - RunSmart 1.0.1 Resubmission
 
-_Last updated: 2026-05-19_
+_Last updated: 2026-06-08_
 
-## Code & Branch
-- [x] All sprint work (Sprint 1–8) merged to `main`
-- [x] `main` is the GitHub default branch
-- [x] Stale branches deleted (sprint-8, runsmart-lite-build, routes, recovery/*, codex/*, fix/*)
-- [x] GarminBridge polling flood fixed (debounce + 60s cache)
+## Source And Build Provenance
+- [ ] Work is on `main`; no release work is performed from another worktree.
+- [ ] Record source commit SHA before archive.
+- [ ] Record `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` from `IOS RunSmart app.xcodeproj/project.pbxproj`.
+- [ ] Confirm the source build number is greater than the latest rejected App Store Connect build.
+- [ ] Confirm Fastlane did not auto-increment the build number during archive or upload.
+- [ ] Record archive path, archive creation date, and selected App Store Connect build number.
 
-## Build
-- [x] Version: 1.0 / Build: 5
-- [x] Xcode project compiles without errors on Sprint 8 code
-- [x] Privacy manifest (`PrivacyInfo.xcprivacy`) covers UserID, Health, Fitness, PreciseLocation
-- [x] Entitlements: HealthKit, Apple Sign In, Associated Domains (runsmart-ai.com)
-- [x] Fresh archive from build 5 created
-- [x] App Store Connect IPA export succeeds
-- [x] Exported IPA uses distribution signing with `get-task-allow = false`
-- [x] Archive uploaded to App Store Connect
-- [ ] Uploaded build processing complete in App Store Connect
+## App Review Rejection Gates
+- [ ] Sign in with Apple requests `.fullName` and `.email` through AuthenticationServices.
+- [ ] Fresh SIWA flow does not show a name or email field after authentication.
+- [ ] Onboarding collects only running goal, experience, schedule, privacy/tone/reminder preferences, and completion.
+- [ ] Static scan has no `TextField("Your name"` call site.
+- [ ] HealthKit is explicitly named in visible UI on sign-in, onboarding Privacy, Profile Connected, and HealthKit detail screens.
+- [ ] HealthKit UI states RunSmart reads only approved workout/wellness data and can write completed GPS runs only if allowed.
+- [ ] Static scan confirms no CareKit imports or references in app code, entitlements, Info.plist, or project settings.
 
-## Backend & Production
-- [x] Production backend URL: `https://runsmart-ai.com` in Info.plist
-- [x] Garmin gateway URL: `https://www.runsmart-ai.com/api/devices/garmin/connect`
-- [x] Supabase Edge Function `coach_message` deployed
-- [x] Coach RLS policies are owner-scoped
-- [x] Verify runsmart-ai.com is live and SSL is valid
-- [ ] Verify coach_message Edge Function returns 200 for authenticated users
+## Build And Archive Inspection
+- [ ] Signing-disabled simulator build passes.
+- [ ] Release archive succeeds from the recorded source commit.
+- [ ] Archive app Info.plist shows display name `RunSmart`, bundle id `com.runsmart.lite`, version `1.0.1`, expected build number, `ITSAppUsesNonExemptEncryption=false`, and iPhone-only device family.
+- [ ] Archive entitlements include Sign in with Apple, associated domains, and HealthKit.
+- [ ] Exported IPA uses distribution signing with `get-task-allow=false`.
+- [ ] dSYM is present.
+- [ ] No diagnostic markdown, untracked Swift source, secrets, or debug-only artifacts are bundled.
+
+## Reviewer Device QA
+- [ ] iPad Air 11-inch (M3) sign-in screenshot shows Sign in with Apple and HealthKit disclosure.
+- [ ] iPad Air 11-inch (M3) onboarding Privacy screenshot shows HealthKit read/write disclosure and reachable CTA.
+- [ ] iPad Air 11-inch (M3) Profile screenshot shows Connected services above the fold, including HealthKit.
+- [ ] iPad Air 11-inch (M3) HealthKit detail screenshot shows permission/read/write explanation.
+- [ ] Largest available iPhone simulator repeats the same four screenshots.
+- [ ] Fresh install SIWA path reaches onboarding without asking for name or email.
 
 ## App Store Connect
-- [x] App name and subtitle finalized in Fastlane metadata
-- [x] App description written (no medical claims, no overpromised AI)
-- [x] Keywords set
-- [ ] 6.7-inch and 6.1-inch screenshots captured from real device
-- [x] Support URL available
-- [x] Privacy policy URL available
-- [ ] Age rating set (4+)
-- [ ] Category: Health & Fitness
+- [ ] Uploaded build processing completes.
+- [ ] The selected review build matches the inspected archive build number.
+- [ ] Screenshots, category, age rating, privacy questionnaire, support URL, privacy URL, and metadata are current.
+- [ ] Demo credentials are entered directly in App Store Connect, not stored in repo memory.
+- [ ] Notes for App Review include the current rejection response text from `docs/qa/app-review-notes-2026-05-19.md`.
 
-## Compliance & Legal
-- [x] Privacy manifest matches data collection (Health, Fitness, PreciseLocation linked to app functionality)
-- [x] No medical diagnosis claims in UI
-- [x] Location usage string is accurate (background only during active run)
-- [x] HealthKit usage string is accurate
-- [x] Terms of service and privacy policy URL live
-- [x] Health claim copy reviewed for App Review guideline 5.1.3 compliance
+## Reviewer Response Text
+Use this in App Store Connect:
 
-## Test Account for App Review
-- [ ] Test account credentials prepared
-- [ ] Test account has a training plan loaded
-- [x] Instructions for reviewer documented (how to trigger Coach, start a run, view plan)
+```
+Thank you for the review. In this build, we fixed the Sign in with Apple onboarding flow so RunSmart no longer asks users to provide their name or email address after authentication. The app requests the standard full name and email scopes through AuthenticationServices and uses Apple-provided account information when available, with an internal fallback display name if Apple does not return a name.
 
-## Console Errors — Known Benign (do not file as bugs)
-- `Failed to locate resource named "default.csv"` — MapKit framework internal
-- `unsafeForcedSync called from Swift Concurrent context` — Supabase SDK internal
-- `System gesture gate timed out` — iOS gesture subsystem
-- `The variant selector cell index number could not be found` — UIKit emoji picker
-- `PerfPowerTelemetryClientRegistrationService` errors — Sandbox restriction on device
+We also made HealthKit functionality explicit in the app UI. HealthKit is now identified on sign-in, onboarding Privacy, Profile Connected services, and the HealthKit detail screen. The UI explains that HealthKit access is optional, that RunSmart reads only approved workout and wellness data, and that completed GPS runs are written to Health only when the user allows write access. RunSmart does not use CareKit.
+```

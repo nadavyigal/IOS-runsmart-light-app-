@@ -35,8 +35,30 @@ Review this file at the start of future tasks.
 - In this Xcode folder-synchronized project, untracked Swift files inside `IOS RunSmart app/` can still compile; before release, inspect and clean untracked source under the synced app root, not only tracked project references.
 - For plan/workout date-only strings, format and compare with the user's local calendar/timezone; do not normalize date-only schedule values through UTC during Today matching.
 - Treat low stress as healthy or neutral in recovery classifiers; only high or elevated stress should contribute to low-recovery decisions.
+- After Sign in with Apple, do not ask users to type name or email; use AuthenticationServices-provided values when available and an internal fallback when they are not.
 
 ## Lesson Log
+
+### 2026-06-08 - Sign In With Apple Must Not Be Followed By Name Or Email Collection
+Trigger: Apple rejected RunSmart 1.0.1 build 11 under Guideline 4 because the app requested name/email after Sign in with Apple.
+
+Lesson: Requesting `.fullName` and `.email` through AuthenticationServices is fine, but showing a post-auth onboarding name or email field can be treated as requiring information Apple already provides.
+
+Future rule: For Sign in with Apple flows, capture `ASAuthorizationAppleIDCredential.fullName` and `email` when Apple returns them, seed the profile internally, and use an internal display-name fallback instead of asking the user for name or email during onboarding.
+
+### 2026-06-07 - App Review Needs API Names In Visible UI
+Trigger: Apple rejected RunSmart 1.0.1 build 9 under Guideline 2.5.1 because HealthKit/CareKit functionality was not clearly identified in the app UI.
+
+Lesson: Permission strings, App Store copy, and friendly Apple Health wording are not enough when the binary includes HealthKit. The app UI itself needs explicit HealthKit functionality disclosure near the connection flow.
+
+Future rule: Before resubmitting any HealthKit build, verify visible UI names HealthKit and states what is read and written; if CareKit is not used, confirm no CareKit imports, entitlements, or claims remain.
+
+### 2026-06-04 - Distribution Keychain Access Blocks Export
+Trigger: App Store export for RunSmart 1.0.1 build 9 reached the Apple Distribution identity but `codesign` blocked in Security/keychain signing and no IPA was produced.
+
+Lesson: A valid Apple Distribution identity is not enough for unattended release export if the private key still requires a macOS keychain approval prompt.
+
+Future rule: Before a release-day upload, run a tiny distribution-signing/export check or pre-authorize the Apple Distribution key for Apple tool access, then archive/export.
 
 ### 2026-05-20 - Date-Only Plan Matching Must Use User-Local Days
 Trigger: Sprint 10 readiness tests exposed that date-only plan formatting in UTC could make a same-day planned workout look like the wrong day for users outside UTC.
