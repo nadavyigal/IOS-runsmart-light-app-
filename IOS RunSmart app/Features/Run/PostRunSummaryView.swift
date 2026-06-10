@@ -228,7 +228,7 @@ struct PostRunSummaryView: View {
         case .showedUp:
             return "showed_up"
         case .personalBest(let distanceKm, _):
-            return String(format: "pb_%.2f", distanceKm)
+            return String(format: "pb_%.2f", locale: Locale(identifier: "en_US_POSIX"), distanceKm)
         }
     }
 

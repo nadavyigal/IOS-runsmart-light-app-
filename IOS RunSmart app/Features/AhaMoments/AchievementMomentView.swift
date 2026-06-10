@@ -8,6 +8,7 @@ struct AchievementMomentView: View {
     @State private var visible = false
     @State private var showLabel = false
     @State private var showCopy = false
+    @State private var didDismiss = false
 
     private static let autoDismissSeconds: TimeInterval = 4.5
 
@@ -129,6 +130,8 @@ struct AchievementMomentView: View {
     }
 
     private func dismissMoment() {
+        guard !didDismiss else { return }
+        didDismiss = true
         Analytics.trackAhaMomentDismissed(momentId: "achievement")
         Task {
             await AhaMomentStore.shared.record(
