@@ -127,6 +127,7 @@ struct RunSmartLiteAppShell: View {
     @State private var isShowingLaunch = !RunSmartScreenshotMode.isEnabled
     @State private var planNotice: RunSmartPlanNotice?
     @State private var planNoticeDismissTask: Task<Void, Never>?
+    @State private var pendingOnboardingCompletion: OnboardingProfile?
     private let services: any RunSmartServiceProviding = RunSmartScreenshotMode.services
 
     var body: some View {
@@ -144,10 +145,19 @@ struct RunSmartLiteAppShell: View {
                 SignInView()
                     .environmentObject(session)
             } else if !session.hasCompletedOnboarding {
-                OnboardingView(initialProfile: session.onboardingProfile) { profile in
-                    Task { await session.completeOnboarding(profile) }
+                if let pendingProfile = pendingOnboardingCompletion {
+                    OnboardingAhaMomentsContainer(profile: pendingProfile) {
+                        let profile = pendingProfile
+                        pendingOnboardingCompletion = nil
+                        Task { await session.completeOnboarding(profile) }
+                    }
+                    .environmentObject(session)
+                } else {
+                    OnboardingView(initialProfile: session.onboardingProfile) { profile in
+                        pendingOnboardingCompletion = profile
+                    }
+                    .environmentObject(session)
                 }
-                .environmentObject(session)
             } else {
                 tabContent
                 .safeAreaInset(edge: .bottom, spacing: 0) {

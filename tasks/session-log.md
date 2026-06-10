@@ -1,5 +1,28 @@
 # Session Log
 
+## 2026-06-10 - WP-6 Aha Moments iOS port (build 14)
+
+### Task Summary
+Ported four aha moments from `AHA_MOMENTS.md` into native SwiftUI: onboarding
+identity + goal timeline overlays (#1/#3), post-run achievement overlay (#2),
+and inline noticed card (#4). Wired Supabase `user_aha_moments` + profile insight
+columns via `AhaMomentStore`. Bumped `CURRENT_PROJECT_VERSION` to 14 (marketing
+1.0.2 unchanged).
+
+### Validation
+- `xcodebuild build` (generic iOS Simulator): **BUILD SUCCEEDED**
+- `xcodebuild test` (iPhone 17 Pro simulator): **TEST SUCCEEDED** (includes new
+  `AhaMomentsTests` — 13 cases)
+- Manual simulator walkthrough + live Supabase row verification: **not run** in
+  this session (requires signed-in test user)
+
+### Files
+- New: `Services/AhaMoments/*`, `Features/AhaMoments/*`, `AhaMomentsTests.swift`
+- Modified: `RunSmartLiteAppShell.swift`, `PostRunSummaryView.swift`,
+  `AnalyticsEvents.swift`, `project.pbxproj`
+
+---
+
 ## 2026-06-09 - RunSmart build 12 distribution export validation
 
 ### Task Summary

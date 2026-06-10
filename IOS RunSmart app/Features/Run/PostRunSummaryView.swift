@@ -17,8 +17,12 @@ struct PostRunSummaryView: View {
     @State private var rpe = 6
     @State private var showDeleteConfirmation = false
     @State private var showSaveRouteSheet = false
+    @State private var achievementContext: AchievementContext?
+    @State private var showAchievementMoment = false
+    @State private var noticeContext: NoticeContextKind?
 
     var body: some View {
+        ZStack {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
                 HeroCard(accent: .accentSuccess) {
@@ -46,6 +50,10 @@ struct PostRunSummaryView: View {
                 }
 
                 RPESelector(value: $rpe)
+
+                if let noticeContext {
+                    NoticedMomentCard(context: noticeContext)
+                }
 
                 CoachAnalysisCard(run: run, rpe: rpe)
                 Button {
@@ -122,6 +130,21 @@ struct PostRunSummaryView: View {
             .padding(.bottom, 24)
         }
         .background(Color.black.opacity(0.52).ignoresSafeArea())
+
+            if showAchievementMoment, let achievementContext {
+                AchievementMomentView(
+                    context: achievementContext,
+                    recordContext: achievementRecordContext(for: achievementContext)
+                ) {
+                    showAchievementMoment = false
+                }
+                .transition(.opacity)
+                .zIndex(2)
+            }
+        }
+        .task(id: run?.id) {
+            await loadAhaMoments()
+        }
         .confirmationDialog("Delete this activity?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
             Button("Delete Activity", role: .destructive, action: onDelete)
             Button("Keep Activity", role: .cancel) {}
@@ -163,6 +186,49 @@ struct PostRunSummaryView: View {
             let drift = Double((km % 3) - 1) * 4
             let pace = max(1, run.averagePaceSecondsPerKm + drift)
             return SplitRow(km: km, pace: RunRecorder.paceLabel(secondsPerKm: pace))
+        }
+    }
+
+    private func loadAhaMoments() async {
+        guard let run else { return }
+        let recentRuns = await services.recentRuns()
+        let priorRuns = recentRuns.filter { $0.id != run.id }
+
+        if let achievement = AchievementDetector.detect(currentRun: run, priorRuns: priorRuns) {
+            let contextKey = achievementRecordContext(for: achievement)
+            let alreadyFired = await AhaMomentStore.shared.hasFired(momentId: "achievement", context: contextKey)
+            if !alreadyFired {
+                achievementContext = achievement
+                showAchievementMoment = true
+            }
+        }
+
+        let onCooldown = await AhaMomentStore.shared.isNoticedOnCooldown()
+        if let candidate = ContextDetector.detect(
+            currentRun: run,
+            allRuns: recentRuns.contains(where: { $0.id == run.id }) ? recentRuns : priorRuns + [run],
+            noticedOnCooldown: onCooldown
+        ) {
+            let fired = await AhaMomentStore.shared.hasFired(momentId: "noticed", context: candidate.contextKey)
+            if !fired {
+                noticeContext = candidate
+                await AhaMomentStore.shared.record(
+                    momentId: "noticed",
+                    context: candidate.contextKey,
+                    variant: "C"
+                )
+            }
+        }
+    }
+
+    private func achievementRecordContext(for context: AchievementContext) -> String {
+        switch context {
+        case .firstRun:
+            return "first_run"
+        case .showedUp:
+            return "showed_up"
+        case .personalBest(let distanceKm, _):
+            return String(format: "pb_%.2f", distanceKm)
         }
     }
 

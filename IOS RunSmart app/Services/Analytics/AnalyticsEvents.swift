@@ -167,4 +167,31 @@ extension Analytics {
     static func resetUser() {
         shared.reset()
     }
+
+    // MARK: - Aha Moments
+
+    static func trackAhaMomentFired(momentId: String, context: String? = nil) {
+        var props: [String: Any] = [
+            "moment_id": momentId,
+            "variant": "C"
+        ]
+        if let context, !context.isEmpty {
+            props["context"] = context
+        }
+        shared.track("aha_moment_fired", properties: props)
+    }
+
+    static func trackAhaMomentCTAClicked(momentId: String) {
+        shared.track("aha_moment_cta_clicked", properties: [
+            "moment_id": momentId,
+            "variant": "C"
+        ])
+    }
+
+    static func trackAhaMomentDismissed(momentId: String) {
+        shared.track("aha_moment_dismissed", properties: [
+            "moment_id": momentId,
+            "variant": "C"
+        ])
+    }
 }
