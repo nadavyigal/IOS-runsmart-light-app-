@@ -30,6 +30,16 @@
         }
       }
     },
+    "%@ · %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
     "%@, %@" : {
       "localizations" : {
         "en" : {
@@ -79,6 +89,9 @@
 
     },
     "+12%" : {
+
+    },
+    "🔥 %@ day streak" : {
 
     },
     "13-90 years" : {
@@ -242,6 +255,9 @@
     "Complete a challenge to level up your running." : {
 
     },
+    "Complete a run and tap Generate to get your first AI coach report." : {
+
+    },
     "Confirm New Week" : {
 
     },
@@ -361,6 +377,12 @@
     "EXPAND" : {
 
     },
+    "Explain this run ✦" : {
+
+    },
+    "Explain this week" : {
+
+    },
     "Favorite" : {
 
     },
@@ -377,9 +399,6 @@
 
     },
     "Flex Week" : {
-
-    },
-    "Focus: %@ - Build Aerobic Endurance" : {
 
     },
     "From the saved plan structure." : {
@@ -798,6 +817,9 @@
     "RunSmart launch logo" : {
 
     },
+    "RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health." : {
+
+    },
     "RunSmart/manual runs are deleted from RunSmart. Garmin runs are hidden in RunSmart but stay in Garmin." : {
 
     },
@@ -849,9 +871,6 @@
     "Saving goal" : {
 
     },
-    "See all" : {
-
-    },
     "See workout breakdown" : {
 
     },
@@ -893,16 +912,6 @@
     },
     "Stop tracking progress on this route." : {
 
-    },
-    "Strong week ahead%@. Your recovery is %@ and last week's tempo looked solid. We're building fitness with a %@ focus." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Strong week ahead%1$@. Your recovery is %2$@ and last week's tempo looked solid. We're building fitness with a %3$@ focus."
-          }
-        }
-      }
     },
     "tab_design" : {
       "extractionState" : "stale",
@@ -1070,6 +1079,9 @@
     "View all" : {
 
     },
+    "View Report" : {
+
+    },
     "Want to talk through what's going on? Coach can look at the full picture and suggest a more sustainable approach." : {
 
     },
@@ -1101,12 +1113,6 @@
 
     },
     "You completed 4 of 5 planned sessions. The missed strength day is not critical; keep Sunday easy." : {
-
-    },
-    "Your coach is ready when you are." : {
-
-    },
-    "Your name" : {
 
     },
     "Your week is updated" : {

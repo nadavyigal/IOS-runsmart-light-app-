@@ -1,5 +1,88 @@
 # Session Log
 
+## 2026-06-09 - RunSmart build 12 distribution export validation
+
+### Task Summary
+Continued WP-3 for the June 08 App Review rejection recovery. Verified the
+current build 12 source state, reran static App Review gates, produced a fresh
+Release archive, exported a non-upload App Store IPA, inspected the upload
+artifact provenance/entitlements, and captured available reviewer-device
+simulator evidence without submitting to App Store Connect.
+
+### Source State
+- Branch: `codex/app-review-rejection-recovery`.
+- Source commit: `064e66a`.
+- Dirty tree at start: `Resources/Localizable.xcstrings` was already marked
+  modified, but `git diff -- Resources/Localizable.xcstrings` showed no content
+  diff.
+- Version/build source state: `MARKETING_VERSION = 1.0.1` and
+  `CURRENT_PROJECT_VERSION = 12`.
+- Fastlane check: `fastlane/Fastfile` now logs that the committed build number
+  is used; no `increment_build_number` call was found.
+
+### Validation
+- `git diff --check` passed.
+- Active-source guard passed: no untracked Swift files were found under
+  `IOS RunSmart app/` or `IOS RunSmart appTests/`.
+- Static SIWA scan passed: no `TextField("Your name"`, `TextField("Email"`,
+  or `TextField("Your email"` call site remains in app code.
+- Static SIWA implementation scan confirmed `SignInWithAppleButton` requests
+  `.fullName` and `.email`, then passes `credential.fullName` and
+  `credential.email` into `SupabaseSession.signInWithApple` as internal seeds.
+- Static CareKit scan passed across app Swift, plist/entitlement, and project
+  files; no app-code CareKit references were found.
+- HealthKit source strings remain visible on sign-in, onboarding Privacy,
+  Profile Connected, and HealthKit detail surfaces.
+- Signing-disabled simulator build passed on iPhone 17 Pro Max:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Debug -destination "platform=iOS Simulator,id=66F09A08-D5EE-467D-936D-E1406E5FEE0E" -derivedDataPath /tmp/runsmart-build12-resubmission-derived CODE_SIGNING_ALLOWED=NO build`
+
+### Archive And Export
+- Release archive succeeded:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-build12-AppStore.xcarchive" archive`
+- Archive inspection confirmed display name `RunSmart`, bundle id
+  `com.runsmart.lite`, version `1.0.1`, build `12`, iPhone-only
+  `UIDeviceFamily = (1)`, `ITSAppUsesNonExemptEncryption=false`, and dSYM
+  present.
+- Important signing note: the raw archive app was signed with Apple Development
+  and `get-task-allow=true`, so the raw archive app is not the upload-safe
+  artifact.
+- Non-upload App Store export succeeded:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-build12-AppStore.xcarchive" -exportPath "build/RunSmart-build12-AppStoreExport" -exportOptionsPlist ExportOptionsAppStore.plist -allowProvisioningUpdates`
+- Export produced `build/RunSmart-build12-AppStoreExport/RunSmart.ipa`.
+- IPA inspection confirmed Apple Distribution signing, display name `RunSmart`,
+  bundle id `com.runsmart.lite`, version `1.0.1`, build `12`, iPhone-only
+  device family, `ITSAppUsesNonExemptEncryption=false`, HealthKit entitlement,
+  Sign in with Apple entitlement, associated domains entitlement, and
+  `get-task-allow=false`.
+
+### Reviewer-Device Evidence
+- Captured simulator screenshots under
+  `/tmp/runsmart-build12-reviewer-evidence-20260609/`.
+- iPhone 17 Pro Max screenshots captured at `1320x2868`:
+  sign-in HealthKit disclosure and Profile Connected HealthKit row.
+- iPad Air 11-inch (M3) screenshots captured at `1640x2360`:
+  sign-in HealthKit disclosure and Profile Connected HealthKit row.
+- Visual inspection confirmed sign-in screenshots show HealthKit disclosure and
+  Sign in with Apple, and Profile screenshots show HealthKit in Connected
+  services above the fold.
+- Onboarding Privacy and HealthKit detail were verified by static source
+  inspection in this session; direct simulator navigation screenshots were not
+  captured.
+
+### App Review Response
+Use the existing response text in `docs/qa/app-review-notes-2026-05-19.md` and
+`docs/qa/app-store-readiness-checklist.md`. It stays scoped to the two actual
+rejection fixes: no name/email collection after SIWA, explicit optional
+HealthKit read/write disclosure, and no CareKit usage.
+
+### Remaining Risks
+- App Store Connect upload, processing, build selection, and resubmission were
+  not performed.
+- Fresh-account SIWA authentication was not completed manually in this session,
+  so no post-auth visual proof was captured.
+- HealthKit permission-sheet path and HealthKit detail sheet should still be
+  clicked through manually before final resubmission.
+
 ## 2026-06-08 - RunSmart build 11 rejection recovery
 
 ### Task Summary
