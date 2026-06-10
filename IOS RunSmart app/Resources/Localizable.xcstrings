@@ -267,6 +267,9 @@
     "Continue" : {
 
     },
+    "Could not delete account" : {
+
+    },
     "Could not remove that run. Check your connection and try again." : {
 
     },
@@ -300,6 +303,9 @@
     "Delete" : {
 
     },
+    "Delete Account" : {
+
+    },
     "Delete Activity" : {
 
     },
@@ -310,6 +316,9 @@
 
     },
     "Delete this activity?" : {
+
+    },
+    "Delete your account?" : {
 
     },
     "Deleting Route" : {
@@ -664,6 +673,9 @@
     "Off" : {
 
     },
+    "OK" : {
+
+    },
     "Open Share Sheet" : {
 
     },
@@ -687,6 +699,9 @@
       }
     },
     "Pacing intent" : {
+
+    },
+    "Permanently delete your account, training plans, run history, and all personal data from RunSmart. This cannot be undone." : {
 
     },
     "Personal coaching before and after runs.\nSmart reports. Adaptive plan guidance." : {
@@ -1023,6 +1038,9 @@
 
     },
     "This is a real activity, but no generated coach report has been saved yet." : {
+
+    },
+    "This permanently deletes your account and all data stored in RunSmart, including your training plans and run history. This action cannot be undone." : {
 
     },
     "This removes RunSmart's saved route and benchmark tracking. It does not delete the original Garmin activity." : {
