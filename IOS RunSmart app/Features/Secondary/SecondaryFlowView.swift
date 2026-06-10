@@ -2715,6 +2715,9 @@ private struct PermissionRow: View {
 private struct AccountScaffold: View {
     @EnvironmentObject private var session: SupabaseSession
     @State private var isSigningOut = false
+    @State private var showDeleteConfirmation = false
+    @State private var isDeletingAccount = false
+    @State private var deleteAccountError: String?
 
     private var email: String {
         session.currentEmail ?? "--"
@@ -2790,6 +2793,56 @@ private struct AccountScaffold: View {
                 .font(.caption)
                 .foregroundStyle(Color.mutedText)
                 .padding(.horizontal, 4)
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Delete Account")
+                    Text("Permanently delete your account, training plans, run history, and all personal data from RunSmart. This cannot be undone.")
+                        .font(.caption)
+                        .foregroundStyle(Color.mutedText)
+
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        if isDeletingAccount {
+                            ProgressView().tint(.white)
+                        } else {
+                            Label("Delete Account", systemImage: "trash")
+                        }
+                    }
+                    .buttonStyle(NeonButtonStyle(isDestructive: true))
+                    .disabled(isDeletingAccount || isSigningOut)
+                }
+            }
+        }
+        .alert("Delete your account?", isPresented: $showDeleteConfirmation) {
+            Button("Delete Account", role: .destructive) {
+                deleteAccount()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently deletes your account and all data stored in RunSmart, including your training plans and run history. This action cannot be undone.")
+        }
+        .alert("Could not delete account", isPresented: Binding(
+            get: { deleteAccountError != nil },
+            set: { if !$0 { deleteAccountError = nil } }
+        )) {
+            Button("OK", role: .cancel) { deleteAccountError = nil }
+        } message: {
+            Text(deleteAccountError ?? "Please try again.")
+        }
+    }
+
+    private func deleteAccount() {
+        isDeletingAccount = true
+        Task {
+            do {
+                try await session.deleteAccount()
+                // Success: session is cleared and the app returns to sign-in.
+            } catch {
+                deleteAccountError = error.localizedDescription
+            }
+            isDeletingAccount = false
         }
     }
 }

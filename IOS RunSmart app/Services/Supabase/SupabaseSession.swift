@@ -185,6 +185,50 @@ final class SupabaseSession: ObservableObject {
         try? await supabase.auth.signOut()
     }
 
+    struct AccountDeletionError: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
+    }
+
+    /// Permanently deletes the user's account and all server-side data via the
+    /// `delete_account` edge function (App Store Guideline 5.1.1(v)).
+    func deleteAccount() async throws {
+        guard let accessToken = try? await supabase.auth.session.accessToken else {
+            throw AccountDeletionError(message: "You need to be signed in to delete your account.")
+        }
+
+        struct DeleteAccountResponse: Decodable {
+            let success: Bool?
+            let error: String?
+        }
+
+        let client = URLSessionRunSmartAPIClient(
+            baseURL: SupabaseManager.functionsBaseURL,
+            accessToken: accessToken,
+            additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
+        )
+
+        let response: DeleteAccountResponse
+        do {
+            response = try await client.send(
+                RunSmartAPI.Endpoint(path: "delete_account", method: .post, body: Data("{}".utf8)),
+                as: DeleteAccountResponse.self
+            )
+        } catch {
+            print("[SupabaseSession] deleteAccount request failed:", error)
+            throw AccountDeletionError(message: "Could not reach the server. Check your connection and try again.")
+        }
+
+        guard response.success == true else {
+            throw AccountDeletionError(message: response.error ?? "Account deletion failed. Please try again.")
+        }
+
+        // The auth user no longer exists server-side; drop the local session.
+        try? await supabase.auth.signOut(scope: .local)
+        clearSessionState()
+        print("[SupabaseSession] deleteAccount completed — local session cleared")
+    }
+
     func rememberAppleProfile(displayName: String?, email: String?) {
         appleDisplayNameSeed = Self.trimmedNonEmpty(displayName)
         appleEmailSeed = Self.trimmedNonEmpty(email)
