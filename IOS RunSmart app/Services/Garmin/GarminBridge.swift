@@ -60,7 +60,7 @@ final class GarminBridge: NSObject {
                 continuation.resume()
             }
             session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = false
+            session.prefersEphemeralWebBrowserSession = true
             self.webAuthSession = session
             session.start()
         }

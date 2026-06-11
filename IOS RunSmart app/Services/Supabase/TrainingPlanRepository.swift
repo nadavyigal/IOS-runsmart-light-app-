@@ -195,12 +195,6 @@ final class TrainingPlanRepository {
             return active
         }
 
-        if let numericID = resolved.numericUserID,
-           let active = await activePlanByNumericProfile(numericProfileID: numericID) {
-            print("[TrainingPlanRepo] ✅ found active plan via numeric profileID=\(numericID)")
-            return active
-        }
-
         if resolved.planOwnerCandidates.isEmpty {
             print("[TrainingPlanRepo] ❌ identity unresolved for auth=\(authUserID)")
             return nil
