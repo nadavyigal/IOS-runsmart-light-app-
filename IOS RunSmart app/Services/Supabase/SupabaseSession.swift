@@ -222,7 +222,7 @@ final class SupabaseSession: ObservableObject {
                 await loadProfile(userID: uid)
                 if profile == nil {
                     try? await supabase.auth.signOut(scope: .local)
-                    clearSessionState()
+                    clearSessionState(clearLocalData: true)
                     print("[SupabaseSession] deleteAccount: network error but profile gone — signed out")
                     return
                 }
@@ -236,7 +236,7 @@ final class SupabaseSession: ObservableObject {
                 await loadProfile(userID: uid)
                 if profile == nil {
                     try? await supabase.auth.signOut(scope: .local)
-                    clearSessionState()
+                    clearSessionState(clearLocalData: true)
                     print("[SupabaseSession] deleteAccount: error response but profile gone — signed out")
                     return
                 }
@@ -246,7 +246,7 @@ final class SupabaseSession: ObservableObject {
 
         // The auth user no longer exists server-side; drop the local session.
         try? await supabase.auth.signOut(scope: .local)
-        clearSessionState()
+        clearSessionState(clearLocalData: true)
         print("[SupabaseSession] deleteAccount completed — local session cleared")
     }
 
@@ -273,7 +273,7 @@ final class SupabaseSession: ObservableObject {
         }
     }
 
-    private func clearSessionState() {
+    private func clearSessionState(clearLocalData: Bool = false) {
         isAuthenticated = false
         hasCompletedOnboarding = false
         profile = nil
@@ -282,6 +282,10 @@ final class SupabaseSession: ObservableObject {
         appleDisplayNameSeed = nil
         appleEmailSeed = nil
         lastAuthError = nil
+        if clearLocalData {
+            RunSmartLocalStore.shared.clearUserData()
+            GarminBridge.shared.invalidateActivityCache()
+        }
     }
 
     private static let profileDateFormatter: ISO8601DateFormatter = {
