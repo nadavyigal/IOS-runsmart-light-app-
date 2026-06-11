@@ -216,10 +216,31 @@ final class SupabaseSession: ObservableObject {
             )
         } catch {
             print("[SupabaseSession] deleteAccount request failed:", error)
+            // Network error mid-flight: the server may have deleted the profile anyway.
+            // Reload profile — if it's gone, treat as success and sign out cleanly.
+            if let uid = currentUserID {
+                await loadProfile(userID: uid)
+                if profile == nil {
+                    try? await supabase.auth.signOut(scope: .local)
+                    clearSessionState()
+                    print("[SupabaseSession] deleteAccount: network error but profile gone — signed out")
+                    return
+                }
+            }
             throw AccountDeletionError(message: "Could not reach the server. Check your connection and try again.")
         }
 
         guard response.success == true else {
+            // Edge function returned an error. Check if profile is actually gone before surfacing it.
+            if let uid = currentUserID {
+                await loadProfile(userID: uid)
+                if profile == nil {
+                    try? await supabase.auth.signOut(scope: .local)
+                    clearSessionState()
+                    print("[SupabaseSession] deleteAccount: error response but profile gone — signed out")
+                    return
+                }
+            }
             throw AccountDeletionError(message: response.error ?? "Account deletion failed. Please try again.")
         }
 
