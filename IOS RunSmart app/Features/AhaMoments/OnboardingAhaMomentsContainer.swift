@@ -14,9 +14,6 @@ enum OnboardingAhaMomentsFlow {
             paceMinPerKm: nil
         )
         let timeline = UserInsightService.projectGoalTimeline(goal: profile.goal, experience: profile.experience)
-        let knowsMeFired = await AhaMomentStore.shared.hasFired(momentId: "knows_me")
-        let timelineFired = await AhaMomentStore.shared.hasFired(momentId: "future_vision")
-        guard !knowsMeFired || !timelineFired else { return nil }
         return (identity, timeline)
     }
 }
@@ -28,8 +25,6 @@ struct OnboardingAhaMomentsContainer: View {
     @State private var step: OnboardingAhaMomentsFlow.Step = .identity
     @State private var identity: RunnerIdentityPresentation
     @State private var timeline: GoalTimelineProjection
-    @State private var skipIdentity = false
-    @State private var skipTimeline = false
 
     init(profile: OnboardingProfile, onFinished: @escaping () -> Void) {
         self.profile = profile
@@ -63,15 +58,6 @@ struct OnboardingAhaMomentsContainer: View {
                 )
             }
         }
-        .task {
-            skipIdentity = await AhaMomentStore.shared.hasFired(momentId: "knows_me")
-            skipTimeline = await AhaMomentStore.shared.hasFired(momentId: "future_vision")
-            if skipIdentity && skipTimeline {
-                onFinished()
-            } else if skipIdentity {
-                step = .timeline
-            }
-        }
     }
 
     private func completeIdentity(ctaClicked: Bool) {
@@ -82,11 +68,7 @@ struct OnboardingAhaMomentsContainer: View {
             }
             await AhaMomentStore.shared.persistInsightProfile(identity: identity.kind, timeline: timeline)
             await MainActor.run {
-                if skipTimeline {
-                    onFinished()
-                } else {
-                    step = .timeline
-                }
+                step = .timeline
             }
         }
     }

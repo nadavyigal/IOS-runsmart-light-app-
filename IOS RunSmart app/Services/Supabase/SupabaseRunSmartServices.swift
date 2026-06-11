@@ -904,6 +904,28 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
         do {
             try await GarminBridge.shared.connect()
+        } catch let error as GarminError {
+            print("[SupabaseServices] Garmin connect error:", error)
+            if let userID = currentUserID {
+                var status = await fetchGarminConnection(userID: userID)
+                if status.state != .connected {
+                    status = ConnectedDeviceStatus(
+                        provider: status.provider,
+                        state: status.state,
+                        lastSuccessfulSync: status.lastSuccessfulSync,
+                        permissions: status.permissions,
+                        message: error.localizedDescription
+                    )
+                }
+                return status
+            }
+            return ConnectedDeviceStatus(
+                provider: provider,
+                state: .disconnected,
+                lastSuccessfulSync: nil,
+                permissions: [],
+                message: error.localizedDescription
+            )
         } catch {
             print("[SupabaseServices] Garmin connect error:", error)
         }
