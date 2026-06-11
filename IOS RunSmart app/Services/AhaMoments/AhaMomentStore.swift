@@ -58,6 +58,21 @@ actor AhaMomentStore {
         return formatter
     }()
 
+    /// Clears onboarding-only moments so a deleted/re-onboarded account can see them again.
+    func resetOnboardingMoments() async {
+        guard let userID = supabase.auth.currentUser?.id else { return }
+        do {
+            try await supabase
+                .from("user_aha_moments")
+                .delete()
+                .eq("user_id", value: userID.uuidString)
+                .in("moment_id", values: ["knows_me", "future_vision"])
+                .execute()
+        } catch {
+            print("[AhaMomentStore] resetOnboardingMoments error (ignored):", error)
+        }
+    }
+
     func hasFired(momentId: String, context: String? = nil) async -> Bool {
         guard let userID = supabase.auth.currentUser?.id else { return false }
         do {

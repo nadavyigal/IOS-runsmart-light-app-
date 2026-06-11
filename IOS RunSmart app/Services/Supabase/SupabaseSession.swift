@@ -221,6 +221,7 @@ final class SupabaseSession: ObservableObject {
             if let uid = currentUserID {
                 await loadProfile(userID: uid)
                 if profile == nil {
+                    await AhaMomentStore.shared.resetOnboardingMoments()
                     try? await supabase.auth.signOut(scope: .local)
                     clearSessionState()
                     print("[SupabaseSession] deleteAccount: network error but profile gone — signed out")
@@ -235,6 +236,7 @@ final class SupabaseSession: ObservableObject {
             if let uid = currentUserID {
                 await loadProfile(userID: uid)
                 if profile == nil {
+                    await AhaMomentStore.shared.resetOnboardingMoments()
                     try? await supabase.auth.signOut(scope: .local)
                     clearSessionState()
                     print("[SupabaseSession] deleteAccount: error response but profile gone — signed out")
@@ -243,6 +245,8 @@ final class SupabaseSession: ObservableObject {
             }
             throw AccountDeletionError(message: response.error ?? "Account deletion failed. Please try again.")
         }
+
+        await AhaMomentStore.shared.resetOnboardingMoments()
 
         // The auth user no longer exists server-side; drop the local session.
         try? await supabase.auth.signOut(scope: .local)

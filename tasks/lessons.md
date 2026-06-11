@@ -36,8 +36,17 @@ Review this file at the start of future tasks.
 - For plan/workout date-only strings, format and compare with the user's local calendar/timezone; do not normalize date-only schedule values through UTC during Today matching.
 - Treat low stress as healthy or neutral in recovery classifiers; only high or elevated stress should contribute to low-recovery decisions.
 - After Sign in with Apple, do not ask users to type name or email; use AuthenticationServices-provided values when available and an internal fallback when they are not.
+- Onboarding aha moments must not auto-skip from stale `user_aha_moments` rows when the same Apple auth uid returns after account deletion; always show the onboarding container and reset onboarding moments on delete.
+- Garmin OAuth on iOS must use the registered `runsmart://` callback scheme with `ASWebAuthenticationSession`, then poll `garmin_connections` until connected before returning success.
 
 ## Lesson Log
+
+### 2026-06-11 - Re-onboarding Must Replay Aha Moments And Garmin Needs App Callback
+Trigger: Smoke test after delete account + Sign in with Apple showed no onboarding aha moments, and Garmin OAuth finished in Safari without updating iOS connection state.
+
+Lesson: `OnboardingAhaMomentsContainer` skipped both moments when `user_aha_moments` still had rows for the unchanged auth uid. Garmin used `callbackURLScheme: nil` with an https redirect, so the auth session never returned to the app.
+
+Future rule: Do not gate onboarding aha moments on prior `hasFired` state; reset onboarding moments during account deletion. Use `runsmart://garmin/callback`, set `callbackURLScheme: "runsmart"`, and poll Supabase for `garmin_connections.status == connected`.
 
 ### 2026-06-08 - Sign In With Apple Must Not Be Followed By Name Or Email Collection
 Trigger: Apple rejected RunSmart 1.0.1 build 11 under Guideline 4 because the app requested name/email after Sign in with Apple.
