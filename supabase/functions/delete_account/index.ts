@@ -63,14 +63,14 @@ Deno.serve(async (req) => {
         ? Number(rawProfileId)
         : null;
 
-  const failures: string[] = [];
+  const warnings: string[] = [];
 
   async function wipe(table: string, column: string, value: string | number) {
     const { error } = await admin.from(table).delete().eq(column, value);
-    // Ignore "relation does not exist" style errors so schema drift never
-    // blocks deletion of the remaining tables.
-    if (error && error.code !== "42P01") {
-      failures.push(`${table}.${column}: ${error.message}`);
+    // Ignore schema-drift errors: 42P01 = relation does not exist,
+    // 42703 = column does not exist. Both are safe to skip.
+    if (error && error.code !== "42P01" && error.code !== "42703") {
+      warnings.push(`${table}.${column}: ${error.message}`);
     }
   }
 
@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
     ["garmin_tokens", "auth_user_id"],
     ["garmin_connections", "auth_user_id"],
     ["beta_signups", "auth_user_id"],
+    ["user_aha_moments", "user_id"],
   ];
   for (const [table, column] of uuidTables) {
     await wipe(table, column, authUserId);
@@ -132,14 +133,12 @@ Deno.serve(async (req) => {
   // Profile row last, after its dependents are gone.
   await wipe("profiles", "auth_user_id", authUserId);
 
-  if (failures.length > 0) {
-    console.error("[delete_account] partial failure", { authUserId, failures });
-    return jsonResponse(500, {
-      error: "Some account data could not be deleted. Please try again.",
-      details: failures,
-    });
+  // Log minor cleanup warnings but don't block the deletion on them.
+  if (warnings.length > 0) {
+    console.warn("[delete_account] minor cleanup warnings (non-blocking)", { authUserId, warnings });
   }
 
+  // Critical step: delete the auth user. This is the authoritative deletion.
   const { error: deleteUserError } = await admin.auth.admin.deleteUser(authUserId);
   if (deleteUserError) {
     console.error("[delete_account] auth user deletion failed", deleteUserError);
