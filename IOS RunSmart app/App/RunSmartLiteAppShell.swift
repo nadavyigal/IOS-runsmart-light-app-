@@ -149,7 +149,22 @@ struct RunSmartLiteAppShell: View {
                     OnboardingAhaMomentsContainer(profile: pendingProfile) {
                         let profile = pendingProfile
                         pendingOnboardingCompletion = nil
-                        Task { await session.completeOnboarding(profile) }
+                        Task {
+                            await session.completeOnboarding(profile)
+                            let request = TrainingGoalRequest(
+                                displayName: profile.displayName,
+                                goal: profile.goal.isEmpty ? "build a running habit" : profile.goal,
+                                experience: profile.experience.isEmpty ? "beginner" : profile.experience,
+                                age: profile.age,
+                                averageWeeklyDistanceKm: profile.averageWeeklyDistanceKm,
+                                trainingDataSource: profile.trainingDataSource,
+                                weeklyRunDays: profile.weeklyRunDays > 0 ? profile.weeklyRunDays : 3,
+                                preferredDays: profile.preferredDays.isEmpty ? ["Mon", "Wed", "Sat"] : profile.preferredDays,
+                                coachingTone: profile.coachingTone.isEmpty ? "Motivating" : profile.coachingTone,
+                                targetDate: Date().addingTimeInterval(21 * 24 * 3600)
+                            )
+                            await services.saveTrainingGoal(request)
+                        }
                     }
                     .environmentObject(session)
                 } else {
