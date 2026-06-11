@@ -11,7 +11,6 @@ struct TodayTabView: View {
     @State private var weekWorkouts: [WorkoutSummary] = []
     @State private var nextWorkouts: [WorkoutSummary] = []
     @State private var runReports: [RunReportSummary] = []
-    @State private var coachMessages: [CoachMessage] = []
     @State private var activePlan: TrainingPlanSnapshot?
     @State private var recentRuns: [RecordedRun] = []
     @State private var recovery: RecoverySnapshot = .loading
@@ -43,26 +42,11 @@ struct TodayTabView: View {
             LazyVStack(alignment: .leading, spacing: 14) {
                 header
 
-                TodayCoachHeroCard(
-                    message: recommendation.coachMessage,
-                    onCoach: openTodayCoach
-                )
-                .runSmartStaggeredAppear(index: 0)
-
-                if activeChallenge.isActive {
-                    ChallengeProgressCard(challenge: activeChallenge, onTap: openChallenges)
-                        .runSmartStaggeredAppear(index: 1)
-                } else if challengeLoaded,
-                          Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
-                    ChallengeInviteCard(onEnrolled: scheduleLoad)
-                        .runSmartStaggeredAppear(index: 1)
-                }
-
                 if !weekWorkouts.isEmpty {
                     TodayWeekStripSection(workouts: weekWorkouts, weekRange: weekRangeLabel) { workout in
                         openWorkoutDetail(workout)
                     }
-                    .runSmartStaggeredAppear(index: 2)
+                    .runSmartStaggeredAppear(index: 0)
                 }
 
                 TodayWorkoutRecommendationCard(
@@ -77,7 +61,24 @@ struct TodayTabView: View {
                     onSkip: { reschedule(primaryWorkout) },
                     onRoute: openRouteSelector
                 )
-                .runSmartStaggeredAppear(index: 3)
+                .runSmartStaggeredAppear(index: 1)
+
+                if let safety = recommendation.safetyExplanation {
+                    SafetyExplanationCard(
+                        explanation: safety,
+                        onAction: { router.open(.amendWorkout(primaryWorkout)) }
+                    )
+                    .runSmartStaggeredAppear(index: 2)
+                }
+
+                if shouldShowPlanExplanation(explanation) {
+                    PlanExplanationCard(
+                        title: "Why this workout?",
+                        explanation: explanation,
+                        onAction: { handleExplanationAction(explanation, workout: primaryWorkout) }
+                    )
+                    .runSmartStaggeredAppear(index: 3)
+                }
 
                 if resolvedState.showsTodayRoute {
                     TodayRouteRecommendationCard(
@@ -89,21 +90,6 @@ struct TodayTabView: View {
                     .runSmartStaggeredAppear(index: 4)
                 }
 
-                if let safety = recommendation.safetyExplanation {
-                    SafetyExplanationCard(
-                        explanation: safety,
-                        onAction: { router.open(.amendWorkout(primaryWorkout)) }
-                    )
-                    .runSmartStaggeredAppear(index: 4)
-                }
-
-                PlanExplanationCard(
-                    title: "Why this workout?",
-                    explanation: explanation,
-                    onAction: { handleExplanationAction(explanation, workout: primaryWorkout) }
-                )
-                .runSmartStaggeredAppear(index: 5)
-
                 if FlexWeekEntryPresentation.shouldShowTodayLink(
                     readiness: recommendation.readiness,
                     weekWorkouts: weekWorkouts
@@ -114,74 +100,57 @@ struct TodayTabView: View {
                     .runSmartStaggeredAppear(index: 6)
                 }
 
-                // E2: weekly progress card — suppressed during 21-Day Rookie Challenge
-                let isBeginnerChallenge = Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile)
-                if (!challengeLoaded || !activeChallenge.isActive), isBeginnerChallenge {
-                    Beginner5KHabitCard(track: habitTrack)
-                        .runSmartStaggeredAppear(index: 7)
-                } else if let summary = weeklySummary {
-                    WeeklyProgressCard(
-                        summary: summary,
-                        onTapCoach: openTodayCoach
-                    )
-                    .runSmartStaggeredAppear(index: 7)
-                }
-
-                TodayQuickActions(
-                    onRecord: { startRun(with: primaryWorkout) },
-                    onAddActivity: openAddActivity,
-                    onCoach: openTodayCoach
-                )
-                .runSmartStaggeredAppear(index: 7)
-
-                InsightCard(
-                    title: "Coach Insight",
-                    message: recommendation.coachMessage,
-                    action: openTodayCoach
-                )
-                .runSmartStaggeredAppear(index: 8)
-
-                if !coachMessages.isEmpty {
-                    TodayConversationPreview(messages: coachMessages) {
-                        openTodayCoach()
+                if let latestReport = runReports.first {
+                    LatestRunPreviewRow(report: latestReport) {
+                        router.selectedTab = .report
                     }
-                    .runSmartStaggeredAppear(index: 9)
-                }
-
-                quickStats
-                    .runSmartStaggeredAppear(index: 10)
-
-                if isStriver {
-                    TodayWellnessTrendCard(
-                        trends: wellnessTrends,
-                        onTapRecovery: { router.open(.recoveryDashboard) }
-                    )
-                    .runSmartStaggeredAppear(index: 11)
+                    .runSmartStaggeredAppear(index: 7)
                 }
 
                 if !nextWorkouts.isEmpty {
                     UpcomingRunsCard(workouts: nextWorkouts) { workout in
                         openWorkoutDetail(workout)
                     }
-                    .runSmartStaggeredAppear(index: 12)
+                    .runSmartStaggeredAppear(index: 8)
                 }
 
-                if !runReports.isEmpty {
-                    RecentRunReportsCard(reports: runReports) { report in
-                        if let detail = report.toDetail() {
-                            openReportDetail(detail)
-                        }
-                    }
-                    .runSmartStaggeredAppear(index: 13)
+                // E2: weekly progress card — suppressed during 21-Day Rookie Challenge
+                let isBeginnerChallenge = Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile)
+                if (!challengeLoaded || !activeChallenge.isActive), isBeginnerChallenge {
+                    Beginner5KHabitCard(track: habitTrack)
+                        .runSmartStaggeredAppear(index: 9)
+                } else if let summary = weeklySummary {
+                    WeeklyProgressCard(
+                        summary: summary,
+                        onTapCoach: openTodayCoach
+                    )
+                    .runSmartStaggeredAppear(index: 9)
                 }
 
                 WeatherConditionsCard()
-                    .runSmartStaggeredAppear(index: 14)
+                    .runSmartStaggeredAppear(index: 10)
+
+                if activeChallenge.isActive {
+                    ChallengeProgressCard(challenge: activeChallenge, onTap: openChallenges)
+                        .runSmartStaggeredAppear(index: 11)
+                } else if challengeLoaded,
+                          Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
+                    ChallengeInviteCard(onEnrolled: scheduleLoad)
+                        .runSmartStaggeredAppear(index: 11)
+                }
+
+                if isStriver {
+                    TodayWellnessTrendCard(
+                        trends: wellnessTrends,
+                        onTapRecovery: { router.open(.recoveryDashboard) }
+                    )
+                    .runSmartStaggeredAppear(index: 12)
+                }
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
             .padding(.top, 18)
-            .padding(.bottom, 24)
+            .padding(.bottom, 140)
         }
         .task {
             await loadData()
@@ -211,7 +180,6 @@ struct TodayTabView: View {
         async let weekTask = services.weeklyPlan()
         async let nextWorkoutsTask = services.nextWorkouts(limit: 3)
         async let reportsTask = services.latestRunReports(limit: 3)
-        async let messagesTask = services.recentMessages()
         async let activePlanTask = services.activeTrainingPlan()
         async let runsTask = services.recentRuns()
         async let recoveryTask = services.recoverySnapshot()
@@ -219,12 +187,11 @@ struct TodayTabView: View {
         async let devicesTask = services.deviceStatuses()
         async let runnerTask = services.runnerProfile()
         async let challengeTask = services.activeChallenge()
-        let (rec, week, nw, reports, messages, plan, runs, recov, trends, devices, runner, challenge) = await (
+        let (rec, week, nw, reports, plan, runs, recov, trends, devices, runner, challenge) = await (
             recommendationTask,
             weekTask,
             nextWorkoutsTask,
             reportsTask,
-            messagesTask,
             activePlanTask,
             runsTask,
             recoveryTask,
@@ -242,7 +209,6 @@ struct TodayTabView: View {
         weekWorkouts = week
         nextWorkouts = nw
         runReports = reports
-        coachMessages = messages
         activePlan = plan
         recentRuns = runs
         recovery = recov
@@ -264,56 +230,35 @@ struct TodayTabView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            RunSmartTopBar(title: nil, showBrand: true)
-                .overlay(alignment: .trailing) {
-                    Button { router.open(.morningCheckin) } label: {
-                        Image(systemName: "checklist.checked")
-                            .font(.headline)
-                            .foregroundStyle(Color.accentPrimary)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .offset(x: -92)
-                }
+        HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("\(greeting), \(displayName)")
                     .font(.displayMD)
                     .foregroundStyle(Color.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-                Text("Your coach is ready when you are.")
+                Text("🔥 \(recommendation.streak)")
                     .font(.bodyLG)
                     .foregroundStyle(Color.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
             }
-        }
-    }
 
-    private var quickStats: some View {
-        let legacyRecoveryBars: [CGFloat] = [0.20, 0.34, 0.46, 0.62, 0.70, 0.55, 0.48]
-        let legacyHRVBars: [CGFloat] = [0.40, 0.52, 0.46, 0.72, 0.58, 0.76, 0.62]
-        let recoveryBars = wellnessTrends.readinessBars.isEmpty
-            ? (isStriver ? [] : legacyRecoveryBars)
-            : wellnessTrends.readinessBars
-        let hrvBars = wellnessTrends.hrvBars.isEmpty
-            ? (isStriver ? [] : legacyHRVBars)
-            : wellnessTrends.hrvBars
-        let recoveryValue = isStriver && wellnessTrends.latestReadinessDisplay != "--"
-            ? wellnessTrends.latestReadinessDisplay
-            : recommendation.recovery
-        let hrvValue = isStriver && wellnessTrends.latestHRVDisplay != "--"
-            ? wellnessTrends.latestHRVDisplay
-            : recommendation.hrv
+            Spacer(minLength: 8)
 
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                TodayMiniStatCard(title: "Weekly Progress", value: recommendation.weeklyProgress, unit: "km", symbol: "chart.bar.fill", tint: .accentPrimary, values: [0.18, 0.35, 0.55, 0.78, 0.62, 0.44, 0.70])
-                TodayMiniStatCard(title: "Streak", value: recommendation.streak, unit: "days", symbol: "flame.fill", tint: .accentAmber, values: [0.35, 0.35, 0.35, 0.35, 0.35])
-                TodayMiniStatCard(title: "Recovery", value: recoveryValue, unit: isStriver ? "readiness" : "sleep", symbol: "moon.fill", tint: .accentMagenta, values: recoveryBars)
-                TodayMiniStatCard(title: "HRV Status", value: hrvValue, unit: isStriver ? "7-day" : "balanced", symbol: "heart", tint: .accentSuccess, values: hrvBars)
+            Button(action: openTodayCoach) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(Color.accentPrimary)
+                    .frame(width: 34, height: 34)
+                    .background(
+                        Color.accentPrimary.opacity(0.12),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
-            .padding(.vertical, 2)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open Coach")
         }
     }
 
@@ -340,6 +285,10 @@ struct TodayTabView: View {
             recovery: recovery,
             recommendation: recommendation
         )
+    }
+
+    private func shouldShowPlanExplanation(_ explanation: PlanExplanation) -> Bool {
+        !(explanation.trigger == .normal && explanation.isOnTrack)
     }
 
     private var habitTrack: Beginner5KHabitTrack {
@@ -1173,6 +1122,42 @@ private struct TodayWellnessTrendCard: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title), \(value), \(summary)")
+    }
+}
+
+private struct LatestRunPreviewRow: View {
+    var report: RunReportSummary
+    var onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            ContentCard {
+                HStack(spacing: 12) {
+                    RunSmartIconMark(size: 34, tint: .accentPrimary)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        SectionLabel(title: "Latest Run")
+                        Text(report.title)
+                            .font(.bodyLG.weight(.semibold))
+                            .foregroundStyle(Color.textPrimary)
+                            .lineLimit(1)
+                        Text("\(report.dateLabel) - \(report.distance) - \(report.pace)")
+                            .font(.labelSM)
+                            .foregroundStyle(Color.textSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.textTertiary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Latest run, \(report.title), \(report.dateLabel), \(report.distance), \(report.pace)")
     }
 }
 
