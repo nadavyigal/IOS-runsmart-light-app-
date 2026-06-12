@@ -154,6 +154,8 @@ extension ISO8601DateFormatter {
 
 final class TrainingPlanRepository {
     private let supabase = SupabaseManager.client
+    private var activePlanCache: [UUID: (plan: ActivePlan?, expiry: Date)] = [:]
+    private static let activePlanCacheTTL: TimeInterval = 30
     private static let profileDateFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -187,7 +189,25 @@ final class TrainingPlanRepository {
         }
     }
 
+    func invalidateActivePlanCache(authUserID: UUID? = nil) {
+        if let authUserID {
+            activePlanCache.removeValue(forKey: authUserID)
+        } else {
+            activePlanCache.removeAll()
+        }
+    }
+
     func activePlan(authUserID: UUID) async -> ActivePlan? {
+        if let cached = activePlanCache[authUserID], Date() < cached.expiry {
+            return cached.plan
+        }
+
+        let resolved = await resolveActivePlan(authUserID: authUserID)
+        activePlanCache[authUserID] = (resolved, Date().addingTimeInterval(Self.activePlanCacheTTL))
+        return resolved
+    }
+
+    private func resolveActivePlan(authUserID: UUID) async -> ActivePlan? {
         let resolved = await identity(authUserID: authUserID)
 
         if let active = await activePlanByAuthUserID(authUserID) {

@@ -598,20 +598,16 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
         if let userID = currentUserID {
             let identity = await planRepo.identity(authUserID: userID)
-            if let profileID = identity.numericUserID {
-                do {
-                    try await supabase
-                        .from("runs")
-                        .upsert(DBRunInsert(run: run, profileID: profileID, kind: kind, notes: notes), onConflict: "source_provider,source_activity_id")
-                        .execute()
-                    run.syncedAt = Date()
-                } catch {
-                    if !(error is CancellationError) {
-                        print("[SupabaseServices] saveManualRun Supabase error:", error)
-                    }
-                    run.syncedAt = nil
+            do {
+                try await supabase
+                    .from("runs")
+                    .upsert(DBRunInsert(run: run, identity: identity, kind: kind, notes: notes), onConflict: "source_provider,source_activity_id")
+                    .execute()
+                run.syncedAt = Date()
+            } catch {
+                if !(error is CancellationError) {
+                    print("[SupabaseServices] saveManualRun Supabase error:", error)
                 }
-            } else {
                 run.syncedAt = nil
             }
         } else {
@@ -660,18 +656,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 guard let run = activity.toRecordedRun() else { return false }
                 return !store.isRunHidden(run)
             }
-        // Bucket by rounded distance (in km), keep one representative per bucket.
-        let buckets = [3, 5, 8, 10, 15]
-        var pickedByBucket: [Int: DBGarminActivity] = [:]
-        for activity in activities {
-            guard let m = activity.distanceM, m > 0 else { continue }
-            let km = m / 1000
-            let bucket = buckets.min(by: { abs(Double($0) - km) < abs(Double($1) - km) }) ?? Int(km.rounded())
-            if pickedByBucket[bucket] == nil {
-                pickedByBucket[bucket] = activity
-            }
-        }
-        return pickedByBucket
+        return GarminDistanceBucket.representativeActivities(from: activities)
             .sorted(by: { $0.key < $1.key })
             .compactMap { (bucket, activity) -> RouteSuggestion? in
                 guard let m = activity.distanceM else { return nil }
@@ -691,13 +676,18 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion] {
-        var suggestions: [RouteSuggestion] = []
-        for distanceKm in distancesKm {
-            if let route = await generatedLoopRoute(around: coordinate, distanceKm: distanceKm) {
-                suggestions.append(route)
+        await withTaskGroup(of: RouteSuggestion?.self) { group in
+            for distanceKm in distancesKm {
+                group.addTask {
+                    await self.generatedLoopRoute(around: coordinate, distanceKm: distanceKm)
+                }
             }
+            var suggestions: [RouteSuggestion] = []
+            for await route in group {
+                if let route { suggestions.append(route) }
+            }
+            return suggestions
         }
-        return suggestions
     }
 
     func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion] {
@@ -732,14 +722,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     guard let run = activity.toRecordedRun() else { return false }
                     return !store.isRunHidden(run)
                 }
-            let buckets = [3, 5, 8, 10, 15]
-            var pickedByBucket: [Int: DBGarminActivity] = [:]
-            for activity in activities {
-                guard let m = activity.distanceM, m > 0 else { continue }
-                let km = m / 1000
-                let bucket = buckets.min(by: { abs(Double($0) - km) < abs(Double($1) - km) }) ?? Int(km.rounded())
-                if pickedByBucket[bucket] == nil { pickedByBucket[bucket] = activity }
-            }
+            let buckets = GarminDistanceBucket.standardKmBuckets
+            var pickedByBucket = GarminDistanceBucket.representativeActivities(from: activities)
             for (bucket, activity) in pickedByBucket.sorted(by: { $0.key < $1.key }) {
                 guard let m = activity.distanceM else { continue }
                 let km = m / 1000
@@ -946,7 +930,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 from: activities,
                 isHidden: store.isRunHidden,
                 routePointLoader: { activityID in
-                    await GarminBridge.shared.activityRoutePoints(activityID: activityID)
+                    await GarminBridge.shared.activityRoutePoints(activityID: activityID, authUserID: userID)
                 }
             )
             let existingIDs = Set(store.loadRuns().compactMap(\.providerActivityID))
@@ -973,7 +957,55 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func disconnect(provider: String) async -> ConnectedDeviceStatus {
-        ConnectedDeviceStatus(provider: provider, state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: "Disconnected")
+        guard let userID = currentUserID else {
+            return ConnectedDeviceStatus(provider: provider, state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: nil)
+        }
+
+        if provider == "Garmin Connect" {
+            GarminBridge.shared.invalidateActivityCache()
+            do {
+                try await supabase
+                    .from("garmin_connections")
+                    .delete()
+                    .eq("auth_user_id", value: userID.uuidString)
+                    .execute()
+                try await supabase
+                    .from("garmin_tokens")
+                    .delete()
+                    .eq("auth_user_id", value: userID.uuidString)
+                    .execute()
+            } catch {
+                if !(error is CancellationError) {
+                    print("[SupabaseServices] Garmin disconnect error:", error)
+                }
+                return ConnectedDeviceStatus(
+                    provider: provider,
+                    state: .error,
+                    lastSuccessfulSync: nil,
+                    permissions: [],
+                    message: error.localizedDescription
+                )
+            }
+            return ConnectedDeviceStatus(
+                provider: provider,
+                state: .disconnected,
+                lastSuccessfulSync: nil,
+                permissions: [],
+                message: "Garmin disconnected."
+            )
+        }
+
+        let disconnected = ConnectedDeviceStatus(
+            provider: provider,
+            state: .disconnected,
+            lastSuccessfulSync: nil,
+            permissions: [],
+            message: "Disconnected"
+        )
+        if provider == HealthKitSyncService.providerName {
+            store.saveDeviceStatus(disconnected)
+        }
+        return disconnected
     }
 
     // MARK: HealthSyncing
@@ -1043,10 +1075,18 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     func latestRunReports(limit: Int) async -> [RunReportSummary] {
         guard limit > 0 else { return [] }
 
-        var reports: [RunReportDetail] = []
         let runs = await recentRuns(limit: max(limit * 3, limit))
-        for run in runs {
-            reports.append(await runReport(for: run) ?? Self.reportSkeleton(for: run))
+        let reports = await withTaskGroup(of: RunReportDetail.self) { group in
+            for run in runs {
+                group.addTask {
+                    await self.runReport(for: run) ?? Self.reportSkeleton(for: run)
+                }
+            }
+            var collected: [RunReportDetail] = []
+            for await report in group {
+                collected.append(report)
+            }
+            return collected
         }
 
         var seen = Set<String>()
@@ -1062,13 +1102,6 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func runReport(for run: RecordedRun) async -> RunReportDetail? {
-        if run.source == .garmin,
-           let activityID = run.providerActivityID,
-           let insight = await fetchPostRunInsight(activityID: activityID),
-           let report = Self.report(from: insight, run: run) {
-            return report
-        }
-
         for runID in Self.reportRunIDCandidates(for: run) {
             if let cached = store.cachedRunReport(runID: runID) {
                 return cached
@@ -1164,7 +1197,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     )
                 }
                 group.addTask {
-                    try await Task.sleep(nanoseconds: 3_000_000_000)  // iOS 13+ compatible
+                    try await Task.sleep(nanoseconds: 12_000_000_000)
                     throw DebriefTimeoutError()
                 }
                 do {
@@ -1195,7 +1228,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         } catch {
             switch error {
             case is DebriefTimeoutError:
-                print("[SupabaseServices] run_debrief timed out after 3s, using fallback")
+                print("[SupabaseServices] run_debrief timed out after 12s, using fallback")
             case is CancellationError:
                 break  // parent task was cancelled — silent
             default:
@@ -1714,16 +1747,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     private func upsertCompletedRunIfPossible(_ run: RecordedRun) async {
         guard let userID = currentUserID else { return }
         let identity = await planRepo.identity(authUserID: userID)
-        guard let profileID = identity.numericUserID else {
-            print("[SupabaseServices] completed run local-only: missing numeric profile id")
-            return
-        }
 
         do {
             try await supabase
                 .from("runs")
                 .upsert(
-                    DBRunInsert(run: run, profileID: profileID, kind: .easy, notes: "Completed activity from \(run.source.rawValue)"),
+                    DBRunInsert(run: run, identity: identity, kind: .easy, notes: "Completed activity from \(run.source.rawValue)"),
                     onConflict: "source_provider,source_activity_id"
                 )
                 .execute()
@@ -1738,28 +1767,24 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     private func upsertHealthKitRuns(_ runs: [RecordedRun]) async -> Int {
-        guard let userID = currentUserID else { return 0 }
+        guard let userID = currentUserID, !runs.isEmpty else { return 0 }
         let identity = await planRepo.identity(authUserID: userID)
-        guard let profileID = identity.numericUserID else { return 0 }
-
-        var synced = 0
-        for run in runs {
-            do {
-                try await supabase
-                    .from("runs")
-                    .upsert(
-                        DBRunInsert(run: run, profileID: profileID, kind: .easy, notes: "Imported from Apple Health"),
-                        onConflict: "source_provider,source_activity_id"
-                    )
-                    .execute()
-                synced += 1
-            } catch {
-                if !(error is CancellationError) {
-                    print("[SupabaseServices] HealthKit run upsert error:", error)
-                }
-            }
+        let inserts = runs.map {
+            DBRunInsert(run: $0, identity: identity, kind: .easy, notes: "Imported from Apple Health")
         }
-        return synced
+
+        do {
+            try await supabase
+                .from("runs")
+                .upsert(inserts, onConflict: "source_provider,source_activity_id")
+                .execute()
+            return runs.count
+        } catch {
+            if !(error is CancellationError) {
+                print("[SupabaseServices] HealthKit bulk run upsert error:", error)
+            }
+            return 0
+        }
     }
 
     private func latestGarminMetrics(userID: UUID) async -> DBGarminDailyMetrics? {
@@ -1810,14 +1835,19 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     message: nil
                 )
             }
-        } catch {}
+        } catch {
+            if !(error is CancellationError) {
+                print("[SupabaseServices] fetchGarminConnection error:", error)
+                return ConnectedDeviceStatus(
+                    provider: "Garmin Connect",
+                    state: .error,
+                    lastSuccessfulSync: nil,
+                    permissions: [],
+                    message: error.localizedDescription
+                )
+            }
+        }
         return ConnectedDeviceStatus(provider: "Garmin Connect", state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: nil)
-    }
-
-    private func fetchPostRunInsight(activityID: String) async -> DBAIInsight? {
-        guard Self.remotePostRunInsightLookupEnabled else { return nil }
-        _ = activityID
-        return nil
     }
 
     private func planProgress(_ plan: TrainingPlanSnapshot) -> Double {
@@ -2213,7 +2243,8 @@ private extension ISO8601DateFormatter {
 }
 
 struct DBRunInsert: Encodable {
-    let profileID: Int
+    let profileID: Int?
+    let authUserID: String
     let type: String
     let distance: Double
     let duration: Int
@@ -2225,9 +2256,10 @@ struct DBRunInsert: Encodable {
     let sourceActivityID: String
     let lastSyncedAt: String
 
-    init(run: RecordedRun, profileID: Int, kind: WorkoutKind, notes: String?) {
+    init(run: RecordedRun, identity: RunSmartIdentity, kind: WorkoutKind, notes: String?) {
         let syncedAt = Date()
-        self.profileID = profileID
+        self.profileID = identity.numericUserID
+        self.authUserID = identity.authUserID.uuidString
         self.type = kind.supabaseType
         let distanceKm: Double = (run.distanceMeters / 1_000 * 1_000).rounded() / 1_000
         self.distance = distanceKm
@@ -2244,12 +2276,29 @@ struct DBRunInsert: Encodable {
 
     enum CodingKeys: String, CodingKey {
         case profileID = "profile_id"
+        case authUserID = "auth_user_id"
         case type, distance, duration, pace, notes
         case heartRate = "heart_rate"
         case completedAt = "completed_at"
         case sourceProvider = "source_provider"
         case sourceActivityID = "source_activity_id"
         case lastSyncedAt = "last_synced_at"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(profileID, forKey: .profileID)
+        try container.encode(authUserID, forKey: .authUserID)
+        try container.encode(type, forKey: .type)
+        try container.encode(distance, forKey: .distance)
+        try container.encode(duration, forKey: .duration)
+        try container.encodeIfPresent(pace, forKey: .pace)
+        try container.encodeIfPresent(heartRate, forKey: .heartRate)
+        try container.encodeIfPresent(notes, forKey: .notes)
+        try container.encode(completedAt, forKey: .completedAt)
+        try container.encode(sourceProvider, forKey: .sourceProvider)
+        try container.encode(sourceActivityID, forKey: .sourceActivityID)
+        try container.encode(lastSyncedAt, forKey: .lastSyncedAt)
     }
 }
 
@@ -2331,8 +2380,6 @@ extension SupabaseRunSmartServices {
     static func reportRunID(for run: RecordedRun) -> String {
         run.consolidatedActivityID ?? run.providerActivityID ?? run.id.uuidString
     }
-
-    static let remotePostRunInsightLookupEnabled = false
 
     static func reportRunIDCandidates(for run: RecordedRun) -> [String] {
         var seen = Set<String>()

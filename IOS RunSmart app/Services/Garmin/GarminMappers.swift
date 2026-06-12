@@ -58,7 +58,7 @@ extension DBGarminActivity {
         let pace = durationS / (distanceM / 1000)
 
         return RecordedRun(
-            id: UUID(),
+            id: HealthKitRecordedRunMapper.stableUUID(for: trimmedActivityID),
             providerActivityID: trimmedActivityID,
             source: .garmin,
             startedAt: startDate,
@@ -126,6 +126,26 @@ struct GarminReadiness {
         }
 
         return GarminReadiness(readiness: readiness, readinessLabel: label, recoveryLabel: recovery, hrvLabel: hrv)
+    }
+}
+
+enum GarminDistanceBucket {
+    static let standardKmBuckets = [3, 5, 8, 10, 15]
+
+    static func bucket(forKm km: Double) -> Int {
+        standardKmBuckets.min(by: { abs(Double($0) - km) < abs(Double($1) - km) }) ?? Int(km.rounded())
+    }
+
+    static func representativeActivities(from activities: [DBGarminActivity]) -> [Int: DBGarminActivity] {
+        var pickedByBucket: [Int: DBGarminActivity] = [:]
+        for activity in activities {
+            guard let meters = activity.distanceM, meters > 0 else { continue }
+            let bucket = bucket(forKm: meters / 1_000)
+            if pickedByBucket[bucket] == nil {
+                pickedByBucket[bucket] = activity
+            }
+        }
+        return pickedByBucket
     }
 }
 

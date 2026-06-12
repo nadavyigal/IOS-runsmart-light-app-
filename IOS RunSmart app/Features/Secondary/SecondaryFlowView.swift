@@ -985,6 +985,7 @@ private struct RouteSelectorScaffold: View {
 
 private struct RunReportScaffold: View {
     @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var session: SupabaseSession
     var activity: DBGarminActivity
     @State private var routePoints: [RunRoutePoint] = []
     @State private var report: RunReportDetail?
@@ -1117,8 +1118,8 @@ private struct RunReportScaffold: View {
     private func loadActivityReport() async {
         isLoadingRoutePoints = true
         routePoints = activity.toRecordedRun()?.routePoints ?? []
-        if routePoints.isEmpty {
-            routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activity.activityId)
+        if routePoints.isEmpty, let authUserID = session.currentUserID {
+            routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activity.activityId, authUserID: authUserID)
         }
         isLoadingRoutePoints = false
         if var run = activity.toRecordedRun() {

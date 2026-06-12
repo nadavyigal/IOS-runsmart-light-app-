@@ -2,6 +2,71 @@
 
 ## Current Task
 
+**Objective:** Execute code review fix plan (identity, security, correctness, performance, cleanup).  
+**Plan:** `docs/plans/2026-06-11-code-review-fix-plan.md`  
+**Status:** Phases 0–3 complete; Phase 4 partial (4.3/4.4 file splits deferred). Build green; simulator XCTest blocked by SIGILL bootstrap (infra).  
+**Branch:** `fix/code-review-p0-identity`
+
+### Phase 0 — Baseline
+- [x] 0.1 Export live schema (`profiles`, `challenge_enrollments`, `garmin_*`, `runs`, route tables)
+- [x] 0.2 Audit RLS on `garmin_activity_points`, `garmin_activities`, `runs`
+- [x] 0.3 List/verify indexes on hot query columns
+- [x] 0.4 Xcode build green on branch (`/tmp/runsmart-dd`, iPhone 17 Pro Max sim); XCTest blocked by simulator SIGILL bootstrap — run tests locally after sim reset
+- [x] 0.5 Create branch `fix/code-review-p0-identity`
+
+### Phase 1 — P0 Identity, auth, data deletion
+- [x] 1.1a Decide profile identity model (document in `docs/decisions/`)
+- [x] 1.1b Fix challenge enrollment — stop using `userIdInt64` hash
+- [x] 1.1c Fix Garmin connect for UUID profiles
+- [x] 1.1d Fix cloud run upsert for UUID profiles (`upsertCompletedRunIfPossible`)
+- [x] 1.1e Add integration test: profile → Garmin → run sync → challenge enroll
+- [x] 1.2a Scope `activityRoutePoints` by `auth_user_id`
+- [x] 1.2b RLS migration/verify for `garmin_activity_points`
+- [x] 1.2c Restrict CORS on `delete_account` and `coach_message`
+- [x] 1.2d Cap `coach_message` message length
+- [x] 1.2e Externalize Supabase URL/key from Swift source
+- [x] 1.2f Wipe `user_saved_routes` + `user_benchmark_routes` in `delete_account`
+- [x] 1.2g Return partial-failure signal when delete wipe warnings exist
+- [x] **PR-1** Identity (1.1b–1.1d) + tests
+- [x] **PR-2** Security (1.2a–1.2d, 1.2g)
+- [x] **PR-3** Account deletion + config (1.2e–1.2f)
+
+### Phase 2 — P1 Correctness
+- [x] 2.1 Implement real `disconnect(provider:)` (Garmin revoke + DB + local state)
+- [x] 2.2 HealthKit: check `authorizationStatus` after prompt
+- [x] 2.3 Garmin OAuth: strict callback, ephemeral session, fail on bad callback
+- [x] 2.4 Align debrief client timeout with server (≥10s or async debrief)
+- [x] 2.5 Stable Garmin run IDs from `providerActivityID`
+- [x] 2.6 Surface Garmin/RLS errors in device status (not silent disconnected)
+- [x] 2.7 Remove hardcoded production Garmin gateway fallback
+
+### Phase 3 — P2 Performance
+- [x] 3.1 Deduplicate `planRepo.activePlan()` on Today load
+- [x] 3.2 Parallelize `latestRunReports`
+- [x] 3.3 Bulk HealthKit run upsert
+- [x] 3.4 Parallel Garmin route point fetch
+- [x] 3.5 Debounce Activity tab refresh on run/report notifications
+- [x] 3.6 Parallel `nearbyLoopRoutes`
+- [x] 3.7 Add DB indexes (after prod EXPLAIN)
+
+### Phase 4 — P3 Cleanup
+- [x] 4.1 Remove dead code (`fetchPostRunInsight`, stub `finishRun`) — insight lookup removed; `finishRun` remains protocol stub
+- [x] 4.2 Extract shared Garmin bucket logic — `GarminDistanceBucket` in `GarminMappers.swift`
+- [ ] 4.3 Split `SupabaseRunSmartServices.swift` by protocol
+- [ ] 4.4 Split `SecondaryFlowView.swift` by scaffold
+- [x] 4.5 Gate/remove `LiveRunSmartServices` from release target — not wired in app shell
+- [x] 4.6 Update stale `technical-risks.md`
+- [x] 4.7 Harden `AhaMomentStore` (LIKE escape, error propagation)
+
+### Validation (plan complete)
+- [ ] TestFlight smoke: SIWA, Garmin connect, run sync, challenge, delete account
+- [ ] No critical code-review findings remain open
+- [x] Update `tasks/lessons.md` with identity-model decision
+
+---
+
+## Previous Task — App Review Build 12
+
 **Objective:** Fix RunSmart 1.0.1 build 11 rejection and prepare build 12 for resubmission.
 **Status:** Apple rejected build 11 on 2026-06-08 under Guideline 4 because onboarding asked for name/email after Sign in with Apple, and under Guideline 2.5.1 because HealthKit/CareKit API functionality was not clearly identified in the UI. Build 12 source/export validation passed locally on 2026-06-09; upload/resubmission are still pending.
 **Branch:** codex/app-review-rejection-recovery

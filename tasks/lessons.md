@@ -41,6 +41,20 @@ Review this file at the start of future tasks.
 
 ## Lesson Log
 
+### 2026-06-12 - Keep WellnessTrendMapper When Extracting Garmin Helpers
+Trigger: Phase 4.2 added `GarminDistanceBucket` but closed the enum before `WellnessTrendMapper`, leaving orphaned static methods and a compile failure.
+
+Lesson: When adding a new type mid-file, verify the following enum/struct still has its opening brace; run `xcodebuild` before marking cleanup done.
+
+Future rule: After editing `GarminMappers.swift`, confirm both `GarminDistanceBucket` and `WellnessTrendMapper` compile; parallel route loads in `GarminImportProcessor` need `@escaping RoutePointLoader`.
+
+### 2026-06-12 - Hybrid auth_user_id Identity For iOS + Web Profiles
+Trigger: Code review found hashed challenge `user_id`, unscoped Garmin GPS reads, and UUID profile run-sync failures.
+
+Lesson: Treat `auth_user_id` as canonical for enrollments, RLS, and new writes; keep legacy numeric `profiles.id` only where gateway or bigint FKs still require it.
+
+Future rule: Resolve identity via `RunSmartIdentity` / `TrainingPlanRepository.identity(authUserID:)`; never synthesize enrollment IDs from UUID hashes; scope Garmin route queries by `(auth_user_id, activity_id)`; coordinate Garmin gateway `authUserId` support before claiming UUID-only connect works.
+
 ### 2026-06-11 - Re-onboarding Must Replay Aha Moments And Garmin Needs App Callback
 Trigger: Smoke test after delete account + Sign in with Apple showed no onboarding aha moments, and Garmin OAuth finished in Safari without updating iOS connection state.
 

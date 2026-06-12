@@ -1,40 +1,41 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, isOriginAllowed } from "../_shared/cors.ts";
 
 // Account deletion endpoint required by App Store Guideline 5.1.1(v).
 // Validates the caller's JWT, removes all rows owned by the user across
 // public tables, then deletes the auth user itself via the admin API.
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function jsonResponse(status: number, body: Record<string, unknown>): Response {
+function jsonResponse(req: Request, status: number, body: Record<string, unknown>): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeaders(req), "Content-Type": "application/json" },
   });
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    if (!isOriginAllowed(req)) {
+      return new Response("Forbidden", { status: 403, headers: corsHeaders(req) });
+    }
+    return new Response("ok", { headers: corsHeaders(req) });
   }
   if (req.method !== "POST") {
-    return jsonResponse(405, { error: "Method not allowed" });
+    return jsonResponse(req, 405, { error: "Method not allowed" });
+  }
+  if (!isOriginAllowed(req)) {
+    return jsonResponse(req, 403, { error: "Origin not allowed" });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) {
-    return jsonResponse(500, { error: "Server configuration missing" });
+    return jsonResponse(req, 500, { error: "Server configuration missing" });
   }
 
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
   if (!token) {
-    return jsonResponse(401, { error: "Missing access token" });
+    return jsonResponse(req, 401, { error: "Missing access token" });
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -43,7 +44,7 @@ Deno.serve(async (req) => {
 
   const { data: userData, error: userError } = await admin.auth.getUser(token);
   if (userError || !userData?.user) {
-    return jsonResponse(401, { error: "Invalid or expired access token" });
+    return jsonResponse(req, 401, { error: "Invalid or expired access token" });
   }
   const authUserId = userData.user.id;
 
@@ -94,6 +95,9 @@ Deno.serve(async (req) => {
     ["garmin_connections", "auth_user_id"],
     ["beta_signups", "auth_user_id"],
     ["user_aha_moments", "user_id"],
+    ["user_saved_routes", "auth_user_id"],
+    ["user_benchmark_routes", "auth_user_id"],
+    ["runs", "auth_user_id"],
   ];
   for (const [table, column] of uuidTables) {
     await wipe(table, column, authUserId);
@@ -133,18 +137,21 @@ Deno.serve(async (req) => {
   // Profile row last, after its dependents are gone.
   await wipe("profiles", "auth_user_id", authUserId);
 
-  // Log minor cleanup warnings but don't block the deletion on them.
   if (warnings.length > 0) {
-    console.warn("[delete_account] minor cleanup warnings (non-blocking)", { authUserId, warnings });
+    console.warn("[delete_account] partial cleanup warnings", { authUserId, warnings });
   }
 
   // Critical step: delete the auth user. This is the authoritative deletion.
   const { error: deleteUserError } = await admin.auth.admin.deleteUser(authUserId);
   if (deleteUserError) {
     console.error("[delete_account] auth user deletion failed", deleteUserError);
-    return jsonResponse(500, { error: "Account data was removed but the account could not be deleted. Please try again." });
+    return jsonResponse(req, 500, {
+      error: "Account data was removed but the account could not be deleted. Please try again.",
+      warnings,
+    });
   }
 
-  console.log("[delete_account] account deleted", { authUserId });
-  return jsonResponse(200, { success: true });
+  console.log("[delete_account] account deleted", { authUserId, warningCount: warnings.length });
+  const status = warnings.length > 0 ? 207 : 200;
+  return jsonResponse(req, status, { success: true, warnings });
 });

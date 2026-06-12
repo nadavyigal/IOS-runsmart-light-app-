@@ -191,6 +191,14 @@ actor AhaMomentStore {
         return elapsed < Double(minimumGapDays)
     }
 
+
+    private static func likePatternPrefix(_ prefix: String) -> String {
+        prefix
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_") + "%"
+    }
+
     func hasFiredAnyContext(momentId: String, contextPrefix: String) async -> Bool {
         guard let userID = supabase.auth.currentUser?.id else { return false }
         do {
@@ -199,7 +207,7 @@ actor AhaMomentStore {
                 .select("id")
                 .eq("user_id", value: userID.uuidString)
                 .eq("moment_id", value: momentId)
-                .like("context", pattern: "\(contextPrefix)%")
+                .like("context", pattern: Self.likePatternPrefix(contextPrefix))
                 .limit(1)
                 .execute()
                 .value
