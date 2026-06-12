@@ -1,16 +1,12 @@
 -- Owner-scoped RLS for Garmin activity data and runs (code review P0).
 -- Safe to re-run: uses DROP POLICY IF EXISTS before CREATE.
 
-ALTER TABLE IF EXISTS public.garmin_activity_points ENABLE ROW LEVEL SECURITY;
+-- garmin_activity_points is a view over garmin_activities telemetry_json in
+-- production. Run it as the querying user so garmin_activities RLS is enforced.
+ALTER VIEW IF EXISTS public.garmin_activity_points SET (security_invoker = true);
+
 ALTER TABLE IF EXISTS public.garmin_activities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.runs ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS garmin_activity_points_select_own ON public.garmin_activity_points;
-CREATE POLICY garmin_activity_points_select_own
-  ON public.garmin_activity_points
-  FOR SELECT
-  TO authenticated
-  USING (auth_user_id = auth.uid());
 
 DROP POLICY IF EXISTS garmin_activities_select_own ON public.garmin_activities;
 CREATE POLICY garmin_activities_select_own

@@ -1,5 +1,87 @@
 # Session Log
 
+## 2026-06-12 - PR #46 backend + build 14 resubmission readiness
+
+### Task Summary
+Finished the open code-review blocker follow-up for PR #46 on
+`cursor/e7-wearable-depth-trends`: applied the missing production Supabase
+identity/RLS/index migrations, verified Garmin gateway `authUserId` propagation
+in the web repo, reran local iOS release-readiness gates, and produced a
+non-upload App Store export for build 14.
+
+### Files Changed
+- `supabase/migrations/20260611120000_garmin_activity_points_rls.sql`
+- `supabase/migrations/20260611121000_code_review_performance_indexes.sql`
+- `supabase/migrations/20260612100000_runs_auth_user_identity_support.sql`
+- `supabase/migrations/20260612101000_drop_duplicate_challenge_auth_index.sql`
+- `docs/architecture/technical-risks.md`
+- `docs/qa/app-store-readiness-checklist.md`
+- `tasks/todo.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Backend
+- Applied `runs_auth_user_identity_support` to add/backfill
+  `runs.auth_user_id` and add the unique
+  `(auth_user_id, challenge_id)` challenge enrollment index needed by iOS
+  upsert conflict handling.
+- Corrected the Garmin route-points RLS migration after production showed
+  `garmin_activity_points` is a view, not a table. The view is now
+  `security_invoker=true`, with owner RLS enforced on `garmin_activities`.
+- Applied the hot-path indexes on `garmin_activities(auth_user_id, activity_id)`,
+  `garmin_activities(auth_user_id, start_time desc)`, and
+  `runs(auth_user_id, completed_at desc)`.
+- Applied cleanup migration to drop the duplicate non-unique challenge
+  enrollment auth/challenge index.
+- Verified production catalog state through Supabase MCP: the intended column,
+  indexes, policies, and security-invoker view option are present.
+- Supabase advisors still report broader pre-existing warnings, including
+  mutable function search paths, public/security-definer RPC access, multiple
+  permissive policies, and older duplicate indexes. The remaining `runs`
+  multiple-permissive warning comes from the existing `users_own_runs` policy
+  combining with the new owner policies.
+
+### App Store Readiness
+- Version/build source state: `MARKETING_VERSION = 1.0.2`,
+  `CURRENT_PROJECT_VERSION = 14`.
+- Static App Review scans passed: no active untracked Swift source under app or
+  test roots; HealthKit entitlement/usage strings present; no CareKit usage was
+  found in app Swift/plist/entitlement/project files; no visible onboarding name
+  or email text fields found.
+- Release archive succeeded:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-build14-AppStore.xcarchive" archive`
+- Non-upload App Store export succeeded:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-build14-AppStore.xcarchive" -exportPath "build/RunSmart-build14-AppStoreExport" -exportOptionsPlist ExportOptionsAppStore.plist -allowProvisioningUpdates`
+- Exported IPA inspection confirmed `build/RunSmart-build14-AppStoreExport/RunSmart.ipa`
+  has bundle id `com.runsmart.lite`, version `1.0.2`, build `14`,
+  `ITSAppUsesNonExemptEncryption=false`, HealthKit entitlement, Sign in with
+  Apple entitlement, associated domains entitlement, `get-task-allow=false`, and
+  one dSYM in the archive.
+- Xcode emitted an expired App Store Connect session warning during export, but
+  the non-upload export still succeeded. Upload/submission were not performed.
+
+### Validation
+- `git diff --check` passed.
+- Simulator erase/reset passed for iPhone 17 Pro Max simulator
+  `66F09A08-D5EE-467D-936D-E1406E5FEE0E`.
+- Focused `xcodebuild build-for-testing` passed for
+  `RunSmartReadinessTests` and `WellnessTrendMapperTests` using
+  `/tmp/runsmart-pr-readiness-focused-dd2`.
+- Focused XCTest execution built but stalled at simulator install/launch worker
+  materialization and was not counted as passed.
+- Release archive/export validation passed for build 14 as described above.
+- Web gateway static inspection confirmed Garmin callback/client/service paths
+  carry `authUserId` through connection state and activity import.
+
+### Remaining Risks
+- `delete_account` and `coach_message` Edge Function deploys were not run from
+  this machine because `supabase` CLI and `SUPABASE_ACCESS_TOKEN` are not
+  available.
+- Live TestFlight smoke still needs SIWA, Garmin connect, run sync, challenge,
+  and delete-account coverage before App Store resubmission.
+- Build output still includes existing Swift 6 actor-isolation and unused-value
+  warnings; they did not block archive/export.
+
 ## 2026-06-10 - WP-6 Aha Moments iOS port (build 14)
 
 ### Task Summary

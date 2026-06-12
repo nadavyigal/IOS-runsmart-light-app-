@@ -38,8 +38,16 @@ Review this file at the start of future tasks.
 - After Sign in with Apple, do not ask users to type name or email; use AuthenticationServices-provided values when available and an internal fallback when they are not.
 - Onboarding aha moments must not auto-skip from stale `user_aha_moments` rows when the same Apple auth uid returns after account deletion; always show the onboarding container and reset onboarding moments on delete.
 - Garmin OAuth on iOS must use the registered `runsmart://` callback scheme with `ASWebAuthenticationSession`, then poll `garmin_connections` until connected before returning success.
+- Before applying RLS or index migrations, inspect the live relation type in `pg_class`; views need `security_invoker` and protection on underlying tables, not table RLS or direct indexes.
 
 ## Lesson Log
+
+### 2026-06-12 - Inspect Supabase Relation Types Before RLS
+Trigger: The Garmin RLS migration assumed `garmin_activity_points` was a table, but production has it as a view over `garmin_activities.telemetry_json`, so `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` failed.
+
+Lesson: Live Supabase schemas can drift from migration assumptions. For views, RLS belongs on the underlying tables and the view should run with invoker security when exposed to authenticated clients.
+
+Future rule: Before applying RLS or index migrations, inspect `pg_class.relkind` and existing view definitions. Use `ALTER VIEW ... SET (security_invoker = true)` for exposed owner-scoped views, and index the underlying base tables instead of the view.
 
 ### 2026-06-12 - Keep WellnessTrendMapper When Extracting Garmin Helpers
 Trigger: Phase 4.2 added `GarminDistanceBucket` but closed the enum before `WellnessTrendMapper`, leaving orphaned static methods and a compile failure.

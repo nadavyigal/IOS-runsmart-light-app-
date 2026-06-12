@@ -3,7 +3,7 @@
 ## Resolved in code-review fix sprint
 
 - Challenge enrollment no longer uses a hashed synthetic `user_id`; writes use `auth_user_id`.
-- Garmin route points are scoped by `(auth_user_id, activity_id)` on the client; RLS migration added for `garmin_activity_points`, `garmin_activities`, and `runs`.
+- Garmin route points are scoped by `(auth_user_id, activity_id)` on the client; `garmin_activity_points` is a security-invoker view over `garmin_activities`, with owner RLS on `garmin_activities` and `runs`.
 - Account deletion now wipes `user_saved_routes` and `user_benchmark_routes` and returns HTTP 207 when partial cleanup warnings exist.
 - Supabase URL and publishable key are injected via xcconfig / Info.plist instead of hardcoded Swift constants.
 - Garmin gateway fallback URL removed; missing config fails fast in `GarminBridge`.

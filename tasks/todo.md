@@ -4,8 +4,8 @@
 
 **Objective:** Execute code review fix plan (identity, security, correctness, performance, cleanup).  
 **Plan:** `docs/plans/2026-06-11-code-review-fix-plan.md`  
-**Status:** Phases 0–3 complete; Phase 4 partial (4.3/4.4 file splits deferred). Build green; simulator XCTest blocked by SIGILL bootstrap (infra).  
-**Branch:** `fix/code-review-p0-identity`
+**Status:** Phases 0–3 complete; Phase 4 partial (4.3/4.4 file splits deferred). Backend migrations applied; build 14 archive/export validation passed; simulator XCTest execution still blocked by simulator install/launch infra.
+**Branch:** `cursor/e7-wearable-depth-trends`
 
 ### Phase 0 — Baseline
 - [x] 0.1 Export live schema (`profiles`, `challenge_enrollments`, `garmin_*`, `runs`, route tables)
@@ -60,8 +60,14 @@
 
 ### Validation (plan complete)
 - [ ] TestFlight smoke: SIWA, Garmin connect, run sync, challenge, delete account
-- [ ] No critical code-review findings remain open
+- [x] No critical code-review findings remain open in source/backend validation; live TestFlight smoke remains open
 - [x] Update `tasks/lessons.md` with identity-model decision
+- [x] 2026-06-12 simulator reset completed on iPhone 17 Pro Max.
+- [x] 2026-06-12 `xcodebuild build-for-testing` passed for `RunSmartReadinessTests` + `WellnessTrendMapperTests` using `/tmp/runsmart-pr-readiness-focused-dd2`.
+- [ ] 2026-06-12 focused XCTest execution built but stalled at simulator install/launch worker materialization; rerun from Xcode GUI or a healthier simulator before final TestFlight smoke.
+- [x] 2026-06-12 production Supabase migrations applied and verified: `runs.auth_user_id`, `garmin_activity_points` security-invoker view, owner RLS on `garmin_activities`/`runs`, hot-path indexes, and duplicate challenge auth index cleanup.
+- [ ] 2026-06-12 Edge Function deploy for `delete_account` / `coach_message` not run locally because Supabase CLI/token are unavailable in this environment.
+- [x] 2026-06-12 App Store readiness package validation passed for build 14: Release archive, non-upload App Store export, IPA version/build/entitlements/signing inspection.
 
 ---
 
