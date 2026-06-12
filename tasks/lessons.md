@@ -42,6 +42,13 @@ Review this file at the start of future tasks.
 
 ## Lesson Log
 
+### 2026-06-12 - xcconfig URLs Must Escape Double Slashes
+Trigger: Build 14 smoke test crashed at `SupabaseClient.init` because the built app had `SUPABASE_URL = https:` instead of the full Supabase host.
+
+Lesson: In `.xcconfig`, `//` starts a comment, so `SUPABASE_URL = https://...` silently truncates to `https:` and the app fatals on launch.
+
+Future rule: Never put raw `https://` values in xcconfig. Use `https:/$()/host/path` or keep full URLs in `Info.plist` literals. After changing xcconfig secrets, verify the built app `Info.plist` contains the full `SUPABASE_URL` before archiving.
+
 ### 2026-06-12 - Inspect Supabase Relation Types Before RLS
 Trigger: The Garmin RLS migration assumed `garmin_activity_points` was a table, but production has it as a view over `garmin_activities.telemetry_json`, so `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` failed.
 
