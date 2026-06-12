@@ -1780,11 +1780,25 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 .execute()
             return runs.count
         } catch {
-            if !(error is CancellationError) {
-                print("[SupabaseServices] HealthKit bulk run upsert error:", error)
-            }
-            return 0
+            if error is CancellationError { return 0 }
+            print("[SupabaseServices] HealthKit bulk run upsert error, retrying per run:", error)
         }
+
+        var synced = 0
+        for insert in inserts {
+            do {
+                try await supabase
+                    .from("runs")
+                    .upsert(insert, onConflict: "source_provider,source_activity_id")
+                    .execute()
+                synced += 1
+            } catch {
+                if !(error is CancellationError) {
+                    print("[SupabaseServices] HealthKit run upsert error:", error)
+                }
+            }
+        }
+        return synced
     }
 
     private func latestGarminMetrics(userID: UUID) async -> DBGarminDailyMetrics? {

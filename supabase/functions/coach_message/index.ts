@@ -373,7 +373,7 @@ Deno.serve(async (req) => {
   if (!message) {
     return jsonResponse(req, { error: "Message is required" }, 400);
   }
-  if (message.count > MAX_CHAT_MESSAGE_LENGTH) {
+  if (message.length > MAX_CHAT_MESSAGE_LENGTH) {
     return jsonResponse(req, { error: `Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer` }, 400);
   }
   if (!clientMessageId) {
