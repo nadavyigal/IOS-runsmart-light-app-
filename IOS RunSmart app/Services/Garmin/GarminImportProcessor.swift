@@ -7,7 +7,7 @@ enum GarminImportProcessor {
     static func normalizedRuns(
         from activities: [DBGarminActivity],
         isHidden: HiddenRunChecker,
-        routePointLoader: RoutePointLoader
+        routePointLoader: @escaping RoutePointLoader
     ) async -> [RecordedRun] {
         let visibleRuns = activities
             .compactMap { $0.toRecordedRun() }
@@ -17,20 +17,34 @@ enum GarminImportProcessor {
             .consolidatedRuns(visibleRuns)
             .sorted { $0.startedAt > $1.startedAt }
 
-        var normalized: [RecordedRun] = []
-        for var run in consolidated {
-            if let activityID = run.providerActivityID, run.routePoints.isEmpty {
-                run.routePoints = await routePointLoader(activityID)
+        let routeLoads = await withTaskGroup(of: (String, [RunRoutePoint]).self) { group in
+            for run in consolidated where run.providerActivityID != nil && run.routePoints.isEmpty {
+                let activityID = run.providerActivityID!
+                group.addTask {
+                    (activityID, await routePointLoader(activityID))
+                }
             }
-            normalized.append(run)
+
+            var loaded: [String: [RunRoutePoint]] = [:]
+            for await (activityID, points) in group {
+                loaded[activityID] = points
+            }
+            return loaded
         }
-        return normalized
+
+        return consolidated.map { run in
+            var copy = run
+            if let activityID = copy.providerActivityID, copy.routePoints.isEmpty {
+                copy.routePoints = routeLoads[activityID] ?? []
+            }
+            return copy
+        }
     }
 
     static func newestNormalizedRun(
         from activities: [DBGarminActivity],
         isHidden: HiddenRunChecker,
-        routePointLoader: RoutePointLoader
+        routePointLoader: @escaping RoutePointLoader
     ) async -> RecordedRun? {
         await normalizedRuns(
             from: activities,

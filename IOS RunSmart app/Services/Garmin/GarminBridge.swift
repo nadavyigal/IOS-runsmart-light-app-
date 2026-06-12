@@ -19,12 +19,13 @@ final class GarminBridge: NSObject {
     private var activityCache: [UUID: (rows: [DBGarminActivity], expiry: Date)] = [:]
     private static let cacheTTL: TimeInterval = 60
 
-    private var garminGatewayURL: URL {
+    private var garminGatewayURL: URL? {
         if let raw = Bundle.main.object(forInfoDictionaryKey: "RUNSMART_GARMIN_GATEWAY_URL") as? String,
-           let url = URL(string: raw) {
+           let url = URL(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+           !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return url
         }
-        return URL(string: "https://www.runsmart-ai.com/api/devices/garmin/connect")!
+        return nil
     }
 
     func connect() async throws {
@@ -32,16 +33,19 @@ final class GarminBridge: NSObject {
             throw GarminError.notAuthenticated
         }
 
-        guard let numericUserID = try await garminUserID(authUserID: session.user.id) else {
-            throw GarminError.missingProfile
+        guard garminGatewayURL != nil else {
+            throw GarminError.gatewayFailed("Garmin gateway URL is not configured.")
         }
 
+        let authUserID = session.user.id
+        let numericUserID = try await garminUserID(authUserID: authUserID)
+
         let startURL = try await garminAuthorizationURL(
-            userID: numericUserID,
+            authUserID: authUserID,
+            numericUserID: numericUserID,
             accessToken: session.accessToken
         )
 
-        let authUserID = session.user.id
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let session = ASWebAuthenticationSession(
                 url: startURL,
@@ -55,8 +59,9 @@ final class GarminBridge: NSObject {
                     }
                     return
                 }
-                if let url = callbackURL, !Self.isGarminCallback(url) {
-                    print("[GarminBridge] connect ignored unexpected callback url=\(url.absoluteString)")
+                guard let url = callbackURL, Self.isGarminCallback(url) else {
+                    continuation.resume(throwing: GarminError.gatewayFailed("Garmin authorization returned an unexpected callback."))
+                    return
                 }
                 continuation.resume()
             }
@@ -103,14 +108,23 @@ final class GarminBridge: NSObject {
         return rows.first?.numericUserID
     }
 
-    private func garminAuthorizationURL(userID: Int, accessToken: String) async throws -> URL {
-        var request = URLRequest(url: garminGatewayURL)
+    private func garminAuthorizationURL(authUserID: UUID, numericUserID: Int?, accessToken: String) async throws -> URL {
+        guard let gatewayURL = garminGatewayURL else {
+            throw GarminError.gatewayFailed("Garmin gateway URL is not configured.")
+        }
+        var request = URLRequest(url: gatewayURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
         let redirectURI = Self.redirectURI
-        request.httpBody = try JSONEncoder().encode(GarminConnectRequest(userID: userID, redirectURI: redirectURI))
+        request.httpBody = try JSONEncoder().encode(
+            GarminConnectRequest(
+                userID: numericUserID,
+                authUserId: authUserID.uuidString,
+                redirectURI: redirectURI
+            )
+        )
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
@@ -257,11 +271,12 @@ final class GarminBridge: NSObject {
         }
     }
 
-    func activityRoutePoints(activityID: String) async -> [RunRoutePoint] {
+    func activityRoutePoints(activityID: String, authUserID: UUID) async -> [RunRoutePoint] {
         do {
             let rows: [DBGarminActivityPoint] = try await supabase
                 .from("garmin_activity_points")
                 .select()
+                .eq("auth_user_id", value: authUserID.uuidString)
                 .eq("activity_id", value: activityID)
                 .order("sequence", ascending: true)
                 .execute()
@@ -345,12 +360,21 @@ extension GarminBridge: ASWebAuthenticationPresentationContextProviding {
 }
 
 private struct GarminConnectRequest: Encodable {
-    let userID: Int
+    let userID: Int?
+    let authUserId: String
     let redirectURI: String
 
     enum CodingKeys: String, CodingKey {
         case userID = "userId"
+        case authUserId
         case redirectURI = "redirectUri"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(userID, forKey: .userID)
+        try container.encode(authUserId, forKey: .authUserId)
+        try container.encode(redirectURI, forKey: .redirectURI)
     }
 }
 

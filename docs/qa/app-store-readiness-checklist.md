@@ -1,12 +1,12 @@
-# App Store Readiness Checklist - RunSmart 1.0.1 Resubmission
+# App Store Readiness Checklist - RunSmart 1.0.2 Build 14 Resubmission
 
-_Last updated: 2026-06-08_
+_Last updated: 2026-06-12_
 
 ## Source And Build Provenance
 - [ ] Work is on `main`; no release work is performed from another worktree.
 - [ ] Record source commit SHA before archive.
 - [ ] Record `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` from `IOS RunSmart app.xcodeproj/project.pbxproj`.
-- [ ] Confirm the source build number is greater than the latest rejected App Store Connect build.
+- [x] Confirm the source build number is greater than the latest rejected App Store Connect build (`14` > rejected `11`).
 - [ ] Confirm Fastlane did not auto-increment the build number during archive or upload.
 - [ ] Record archive path, archive creation date, and selected App Store Connect build number.
 
@@ -21,11 +21,11 @@ _Last updated: 2026-06-08_
 
 ## Build And Archive Inspection
 - [ ] Signing-disabled simulator build passes.
-- [ ] Release archive succeeds from the recorded source commit.
-- [ ] Archive app Info.plist shows display name `RunSmart`, bundle id `com.runsmart.lite`, version `1.0.1`, expected build number, `ITSAppUsesNonExemptEncryption=false`, and iPhone-only device family.
-- [ ] Archive entitlements include Sign in with Apple, associated domains, and HealthKit.
-- [ ] Exported IPA uses distribution signing with `get-task-allow=false`.
-- [ ] dSYM is present.
+- [x] Release archive succeeds from the recorded source commit.
+- [x] Archive/export Info.plist shows bundle id `com.runsmart.lite`, version `1.0.2`, build `14`, and `ITSAppUsesNonExemptEncryption=false`.
+- [x] Exported IPA entitlements include Sign in with Apple, associated domains, and HealthKit.
+- [x] Exported IPA uses distribution signing with `get-task-allow=false`.
+- [x] dSYM is present.
 - [ ] No diagnostic markdown, untracked Swift source, secrets, or debug-only artifacts are bundled.
 
 ## Reviewer Device QA

@@ -10,6 +10,7 @@ struct ReportTabView: View {
     @State private var recovery: RecoverySnapshot = .loading
     @State private var runPendingRemoval: RecordedRun?
     @State private var removalFailed = false
+    @State private var refreshDebounceTask: Task<Void, Never>?
 
     private enum ReportSegment: String, CaseIterable, Hashable, Identifiable {
         case runs = "Runs"
@@ -86,12 +87,10 @@ struct ReportTabView: View {
             recovery = rec
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
-            refreshRuns()
-            Task { runReports = await services.latestRunReports(limit: 50) }
+            scheduleDebouncedRefresh()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
-            refreshRuns()
-            Task { runReports = await services.latestRunReports(limit: 50) }
+            scheduleDebouncedRefresh()
         }
         .confirmationDialog("Remove this run?", isPresented: Binding(
             get: { runPendingRemoval != nil },
@@ -104,6 +103,17 @@ struct ReportTabView: View {
             Button("Cancel", role: .cancel) { runPendingRemoval = nil }
         } message: {
             Text("RunSmart/manual runs are deleted from RunSmart. Garmin runs are hidden in RunSmart but stay in Garmin.")
+        }
+    }
+
+
+    private func scheduleDebouncedRefresh() {
+        refreshDebounceTask?.cancel()
+        refreshDebounceTask = Task {
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            refreshRuns()
+            runReports = await services.latestRunReports(limit: 50)
         }
     }
 
