@@ -7,8 +7,8 @@ enum FlexWeekServiceSupport {
         let reasonPayload = reasonPayload(for: request.reason)
         return RunSmartDTO.FlexWeekRequestDTO(
             reason: reasonPayload.reason,
-            currentWeek: request.currentWeek.map(workoutDTO(from:)),
-            readinessContext: request.readinessContext.map(readinessDTO(from:)),
+            currentWeek: request.currentWeek.map { workoutDTO(from: $0) },
+            readinessContext: request.readinessContext.map { readinessDTO(from: $0) },
             blockedDays: reasonPayload.blockedDays,
             missedWorkoutID: reasonPayload.missedWorkoutID,
             sickDaysOut: reasonPayload.sickDaysOut

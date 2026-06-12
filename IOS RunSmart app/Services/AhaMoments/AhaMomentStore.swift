@@ -45,7 +45,7 @@ struct DBAhaProfileInsightUpdate: Encodable, Sendable {
     }
 }
 
-actor AhaMomentStore {
+@MainActor final class AhaMomentStore {
     static let shared = AhaMomentStore()
 
     private let supabase = SupabaseManager.client

@@ -757,7 +757,7 @@ final class TrainingPlanRepository {
                 }
                 for (rollbackID, _) in applied {
                     guard let rollbackPatch = pendingUpdates.first(where: { $0.0 == rollbackID })?.2 else { continue }
-                    try? await supabase
+                    _ = try? await supabase
                         .from("workouts")
                         .update(rollbackPatch)
                         .eq("id", value: rollbackID.uuidString)

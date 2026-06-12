@@ -163,7 +163,7 @@ struct RunSmartLiteAppShell: View {
                                 coachingTone: profile.coachingTone.isEmpty ? "Motivating" : profile.coachingTone,
                                 targetDate: Date().addingTimeInterval(21 * 24 * 3600)
                             )
-                            await services.saveTrainingGoal(request)
+                            _ = await services.saveTrainingGoal(request)
                         }
                     }
                     .environmentObject(session)

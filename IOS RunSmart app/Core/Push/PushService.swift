@@ -274,7 +274,7 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
         content.title = "Your week is updated"
         if let workout, PlanPresentationModels.isWorkout(workout) {
             content.body = "Tomorrow: \(workout.title.lowercased()) · \(workout.distance) — tap to see your plan."
-        } else if let workout {
+        } else if workout != nil {
             content.body = "Tomorrow: rest day — tap to see your updated week."
         } else {
             content.body = "Tap to see tomorrow's updated workout."

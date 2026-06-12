@@ -155,14 +155,14 @@ enum WellnessTrendMapper {
         let points = metrics
             .sorted(by: { $0.date < $1.date })
             .suffix(maxDays)
-            .compactMap(point(from:))
+            .compactMap { point(from: $0) }
         guard !points.isEmpty else { return .empty }
 
         let hrvValues = points.compactMap(\.hrvMilliseconds)
-        let readinessValues = points.compactMap(readinessValue(from:))
+        let readinessValues = points.compactMap { readinessValue(from: $0) }
         let latest = points.last
         let latestHRV = latest?.hrvMilliseconds
-        let latestReadiness = latest.flatMap(readinessValue(from:))
+        let latestReadiness = latest.flatMap { readinessValue(from: $0) }
 
         return WellnessTrendSeries(
             days: points,

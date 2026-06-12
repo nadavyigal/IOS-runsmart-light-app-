@@ -95,7 +95,7 @@ struct NoticedMomentCard: View {
                 "You're back.",
                 "Gaps aren't failures. Getting back out is what matters."
             )
-        case .highEffort(let percentAbove):
+        case .highEffort:
             return (
                 "We noticed you ran harder than usual today.",
                 "So did your legs, probably. Good."
