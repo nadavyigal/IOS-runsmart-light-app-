@@ -2,6 +2,38 @@
 
 ## Current Task
 
+**Objective:** Resolve smoke-test blockers for delete account, register/sign in again, and Garmin connect before RunSmart 1.0.2 build 14 resubmission.
+**Status:** Source fixes complete and local validation passed. Final resubmission remains blocked until the updated Supabase `delete_account` Edge Function and RunSmart web Garmin gateway are deployed, then the live account-cycle and Garmin-connect smoke passes.
+**Branch:** `main`
+
+### Checklist
+- [x] Inspect user-provided Xcode smoke logs for relevant app/backend errors.
+- [x] Check Supabase Edge Function and Postgres logs for the delete-account failure.
+- [x] Fix `delete_account` source so it no longer tries to delete from the production `garmin_activity_points` view.
+- [x] Fix native Garmin OAuth so the iOS callback completes the gateway token exchange instead of only observing the callback URL.
+- [x] Fix RunSmart web Garmin gateway source so native `runsmart://` redirects are accepted, request redirect URIs win, and signed state carries native identity context.
+- [x] Run local compile/type validation.
+- [ ] Deploy updated Supabase `delete_account` Edge Function.
+- [ ] Deploy updated RunSmart web Garmin gateway to production.
+- [ ] Rerun live smoke: SIWA/register, Garmin connect, delete account, register/sign in again.
+- [ ] Archive/upload/resubmit build 14 only after the live smoke passes.
+
+### Validation - 2026-06-14
+- Supabase Edge Function logs showed `delete_account` returning 500 during the account-deletion smoke.
+- Supabase Postgres logs showed the underlying database error: `cannot delete from view "garmin_activity_points"`.
+- Xcode logs showed Garmin connect ending as `canceled`; source inspection found native OAuth returned from `ASWebAuthenticationSession` without POSTing the Garmin `code`/`state` to the gateway callback endpoint.
+- iOS simulator build passed with signing disabled:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Debug -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-bugfix-dd CODE_SIGNING_ALLOWED=NO build`
+- RunSmart web type-check passed:
+  `npm run type-check` from `/Users/nadavyigal/Documents/Projects /RunSmart /Running-coach-/v0`.
+- `git diff --check` passed in both the iOS app repo and the RunSmart web repo.
+- Deno Edge Function validation was not run because `deno` is not installed in this environment.
+- Supabase CLI/token and Vercel deploy permissions are unavailable in this session, so production deployment and live smoke are still pending.
+
+---
+
+## Previous Current Task
+
 **Objective:** Execute code review fix plan (identity, security, correctness, performance, cleanup).  
 **Plan:** `docs/plans/2026-06-11-code-review-fix-plan.md`  
 **Status:** Phases 0–3 complete; Phase 4 partial (4.3/4.4 file splits deferred). Backend migrations applied; build 14 archive/export validation passed; simulator XCTest execution still blocked by simulator install/launch infra.

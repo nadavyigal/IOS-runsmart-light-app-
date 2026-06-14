@@ -1,9 +1,9 @@
-Status: 1.0.2 build 14 code complete on main. All 22 Swift concurrency warnings fixed (commit 81c9226, 2026-06-12). Build passes clean. One intentionally deferred item: HKWorkout deprecated init (iOS 17) — non-blocking.
-Current Phase: 1.0.2 build 14 — code on main, build verified clean, ready for Xcode archive and App Store submission
-Active Story: Archive 1.0.2 build 14 in Xcode (scheme: IOS RunSmart app, destination: Any iOS Device arm64), then upload and submit via App Store Connect
-Last Completed Story: Fixed 22 Swift concurrency warnings: method-ref → explicit-closure, AhaMomentStore actor→@MainActor class, nonisolated Decodable inits for DTOs, unused vars/results (2026-06-12)
-Next Recommended Story: Xcode Product → Archive → Distribute → App Store Connect → Upload → Select build 14 in ASC → Submit for Review with reviewer response
-Estimated Completion: Pending Xcode archive + ASC upload/processing (approx 30-60 min portal work)
-Blockers: Xcode archive and App Store Connect upload/submission require founder portal action
-Last Validation: xcodebuild build — zero Swift compiler warnings (2026-06-12). Only output: appintentsmetadataprocessor noise. Pushed to origin/main as 81c9226.
-Last Updated: 2026-06-12
+Status: 1.0.2 build 14 smoke-test blocker fixes are source-complete locally. Do not archive/resubmit yet; production deploys and live smoke are still required.
+Current Phase: 1.0.2 build 14 - delete-account and Garmin-connect regression fix validation
+Active Story: Deploy updated Supabase `delete_account` and RunSmart web Garmin gateway, then rerun live SIWA -> Garmin connect -> delete account -> register/sign in again smoke.
+Last Completed Story: Patched `delete_account` to skip the production `garmin_activity_points` view; patched iOS Garmin OAuth to complete the callback exchange; patched web Garmin gateway to support native `runsmart://` redirects and signed native identity context (2026-06-14).
+Next Recommended Story: Deploy the Edge Function and Vercel web gateway, then rerun live smoke on an Apple-auth-capable simulator/device before App Store archive/resubmission.
+Estimated Completion: Pending backend/web deployment plus live smoke (approx 45-90 min after deploy access is available).
+Blockers: Supabase CLI/token and Vercel deploy permissions are unavailable in this session; live delete-account and Garmin-connect smoke cannot pass until deployed code is live.
+Last Validation: 2026-06-14 iOS simulator build passed with signing disabled; RunSmart web `npm run type-check` passed; `git diff --check` passed in both iOS and web repos; Deno validation was not run because `deno` is not installed.
+Last Updated: 2026-06-14

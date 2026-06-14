@@ -1,5 +1,41 @@
 # Session Log
 
+## 2026-06-14 - Build 14 simulator smoke and App Store handoff check
+
+### Task Summary
+Checked RunSmart 1.0.2 build 14 before App Store resubmission, including the
+Apple review-critical account deletion/register-again path. The app repo was
+clean on `main` at `11bf497`; source version/build remained `1.0.2 (14)`.
+
+### Validation
+- Fresh install reset: uninstalled `com.runsmart.lite` from the iPhone 17 Pro
+  simulator before installing the current build.
+- The first XcodeBuildMCP build/run attempt timed out, but a direct simulator
+  `xcodebuild` with a fresh DerivedData path completed with `** BUILD SUCCEEDED **`.
+- Simulator install and launch succeeded for `com.runsmart.lite`.
+- Fresh sign-in UI showed the RunSmart sign-in screen, Sign in with Apple, and
+  visible HealthKit disclosure: "HealthKit reads approved data and can save
+  completed GPS runs".
+- Tapping Sign in with Apple failed locally with
+  `com.apple.AuthenticationServices.AuthorizationError error 1000`; therefore
+  live onboarding, delete account, and register-again smoke were not reachable.
+- Static scan found no active name/email onboarding text-field call sites.
+- Static inspection confirmed SIWA requests `.fullName` and `.email`; account
+  deletion calls the `delete_account` Edge Function, clears local session/user
+  data, and resets onboarding aha moments.
+- Existing build 14 App Store archive/export inspection passed: bundle id
+  `com.runsmart.lite`, display name `RunSmart`, version `1.0.2`, build `14`,
+  encryption flag `false`, dSYM present, Apple Distribution signing, SIWA,
+  associated domains, HealthKit, and `get-task-allow=false`.
+- `git diff --check` passed after task-memory cleanup.
+- No untracked Swift source exists under active app or test roots.
+
+### Result
+Not ready to archive/upload/resubmit yet. The remaining blocker is a real
+Apple-auth-capable smoke pass: Sign in with Apple, complete onboarding, delete
+account from the app, then Sign in with Apple/register again and confirm
+onboarding replays without name/email collection.
+
 ## 2026-06-12 - PR #46 backend + build 14 resubmission readiness
 
 ### Task Summary
@@ -1880,3 +1916,47 @@ Continued RunSmart iOS 1.0.1 work from the latest implementation branch at `orig
 
 ### Next Recommended Action
 B5 voice coach QA hardening: verify the deployed `/api/coach/voice-cue` flag/contract, run physical-device audio/mute testing, and add a narrow test seam for request construction or disabled-state handling.
+
+## 2026-06-14
+
+### Task Summary
+Investigated user smoke-test failures for delete account, register/sign in again, and Garmin connect from Xcode logs plus production Supabase logs. Source fixes are complete locally; production deployment and live smoke are still required before App Store resubmission.
+
+### Files Changed
+- `IOS RunSmart app/Services/Garmin/GarminBridge.swift`
+- `supabase/functions/delete_account/index.ts`
+- `/Users/nadavyigal/Documents/Projects /RunSmart /Running-coach-/v0/app/api/devices/garmin/connect/route.ts`
+- `/Users/nadavyigal/Documents/Projects /RunSmart /Running-coach-/v0/app/api/devices/garmin/callback/route.ts`
+- `/Users/nadavyigal/Documents/Projects /RunSmart /Running-coach-/v0/app/api/devices/garmin/oauth-state.ts`
+- `docs/qa/app-store-readiness-checklist.md`
+- `tasks/todo.md`
+- `tasks/progress.md`
+- `tasks/session-log.md`
+- `tasks/lessons.md`
+
+### Findings
+- Supabase Edge Function logs showed `delete_account` returning 500 during the deletion smoke.
+- Supabase Postgres logs showed `cannot delete from view "garmin_activity_points"` at the matching failure time.
+- Xcode logs showed Garmin connect ending as `canceled`, and source inspection found the iOS native callback was not completing the gateway callback exchange with Garmin `code`/`state`.
+- RunSmart web Garmin connect source prioritized the environment redirect over the native request redirect and allowed only `http`/`https`, preventing the app's registered `runsmart://` callback from being used.
+
+### Decisions Made
+- Removed direct deletion from `garmin_activity_points` in `delete_account`; production treats it as a view and the underlying `garmin_activities` delete covers the data.
+- Made iOS Garmin OAuth POST the callback `code` and `state` to the gateway callback endpoint before polling for the connection.
+- Updated the web Garmin gateway to let the native request redirect win, allow `runsmart://`, and carry native auth/profile identity through signed OAuth state for callback persistence.
+
+### Validation
+- iOS simulator build passed with signing disabled:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Debug -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-bugfix-dd CODE_SIGNING_ALLOWED=NO build`
+- RunSmart web type-check passed:
+  `npm run type-check` from `/Users/nadavyigal/Documents/Projects /RunSmart /Running-coach-/v0`.
+- `git diff --check` passed in both the iOS app repo and RunSmart web repo.
+- Deno validation was not run because `deno` is not installed in this environment.
+
+### Remaining Risks
+- Supabase Edge Function deployment was not performed because Supabase CLI/token deploy access is unavailable in this environment.
+- RunSmart web/Vercel deployment was not performed because deploy permission is unavailable in this environment.
+- Live delete-account, register/sign-in-again, and Garmin-connect smoke still must be rerun after production deployment.
+
+### Next Recommended Action
+Deploy the patched Supabase `delete_account` Edge Function and RunSmart web Garmin gateway, then rerun live SIWA/register, Garmin connect, delete account, and register/sign in again smoke before archiving or resubmitting build 14.

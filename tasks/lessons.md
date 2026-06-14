@@ -42,6 +42,13 @@ Review this file at the start of future tasks.
 
 ## Lesson Log
 
+### 2026-06-14 - SIWA Smoke Needs Apple-Auth-Capable Simulator Or Device
+Trigger: Final build 14 smoke reached the fresh Sign in with Apple screen, but tapping SIWA on the local simulator returned `ASAuthorizationError 1000`, blocking the delete-account and register-again path.
+
+Lesson: Source/build/archive checks cannot substitute for the Apple review account-cycle smoke when the rejection risk is auth/onboarding behavior.
+
+Future rule: Before promising App Store resubmission readiness for SIWA/delete-account fixes, run the account-cycle smoke on a simulator signed into Apple ID or an Apple-auth-capable physical device. If SIWA returns authorization error 1000, report the live smoke as blocked and do not green-light archive/upload solely from static checks.
+
 ### 2026-06-12 - xcconfig URLs Must Escape Double Slashes
 Trigger: Build 14 smoke test crashed at `SupabaseClient.init` because the built app had `SUPABASE_URL = https:` instead of the full Supabase host.
 
@@ -343,3 +350,17 @@ Setup for this project:
 6. On CI: `echo "POSTHOG_API_KEY = $POSTHOG_API_KEY" > RunSmartSecrets.xcconfig` before xcodebuild
 
 Future rule: Never hardcode third-party API keys in plist files. Always use xcconfig injection so keys stay out of git.
+
+### 2026-06-14 - Account Delete Must Not Delete From Views
+Trigger: Live account-deletion smoke failed because the deployed `delete_account` Edge Function attempted to delete directly from the production `garmin_activity_points` view.
+
+Lesson: Account deletion code must delete owned base tables or call safe RPCs; direct deletes against views can fail in production even when the table-like name looks deleteable in source.
+
+Future rule: Before adding a relation to account-deletion cleanup, verify whether it is a base table or view in the live schema. If it is a view, delete the underlying owner-scoped base rows instead.
+
+### 2026-06-14 - Native OAuth Must Complete The Server Exchange
+Trigger: Garmin connect returned to the iOS app through `ASWebAuthenticationSession`, but the app only observed the callback and then polled Supabase; the gateway never received the returned `code` and `state` to persist tokens.
+
+Lesson: Native OAuth callbacks are not complete until the app hands the authorization result back to the backend that owns the client secret/token exchange.
+
+Future rule: For native OAuth flows routed through a web gateway, validate the full loop: request native redirect, receive custom-scheme callback, POST `code`/`state` to the gateway callback, persist connection/tokens, then poll or refresh UI.

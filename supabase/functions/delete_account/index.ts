@@ -88,7 +88,9 @@ Deno.serve(async (req) => {
     ["challenge_enrollments", "auth_user_id"],
     ["training_derived_metrics", "auth_user_id"],
     ["ai_insights", "auth_user_id"],
-    ["garmin_activity_points", "auth_user_id"],
+    // garmin_activity_points is a view over garmin_activities in production.
+    // Delete the underlying activities below; deleting from the view raises
+    // "cannot delete from view" and blocks account deletion.
     ["garmin_activities", "auth_user_id"],
     ["garmin_daily_metrics", "auth_user_id"],
     ["garmin_tokens", "auth_user_id"],

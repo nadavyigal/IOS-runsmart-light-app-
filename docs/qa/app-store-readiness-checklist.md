@@ -1,6 +1,6 @@
 # App Store Readiness Checklist - RunSmart 1.0.2 Build 14 Resubmission
 
-_Last updated: 2026-06-12_
+_Last updated: 2026-06-14_
 
 ## Source And Build Provenance
 - [ ] Work is on `main`; no release work is performed from another worktree.
@@ -35,6 +35,28 @@ _Last updated: 2026-06-12_
 - [ ] iPad Air 11-inch (M3) HealthKit detail screenshot shows permission/read/write explanation.
 - [ ] Largest available iPhone simulator repeats the same four screenshots.
 - [ ] Fresh install SIWA path reaches onboarding without asking for name or email.
+
+2026-06-14 note: Fresh install reached the expected sign-in screen on the
+iPhone 17 Pro simulator, including Sign in with Apple and visible HealthKit
+disclosure. Tapping Sign in with Apple failed locally with
+`com.apple.AuthenticationServices.AuthorizationError error 1000`, so live
+onboarding, delete account, and register-again smoke remain blocked until the
+test runs on a simulator/device with working Apple auth.
+
+2026-06-14 update after user smoke logs: production delete account failed in
+the deployed Edge Function because it attempted to delete from the
+`garmin_activity_points` view. Source now skips that view and deletes the
+underlying Garmin activity rows. Garmin native connect source now completes the
+OAuth callback token exchange, and the web gateway source accepts the native
+`runsmart://` redirect. These fixes must be deployed and live-smoked before
+archive/upload/resubmission.
+
+## Deployment Gates Before Archive
+- [ ] Deploy Supabase Edge Function `delete_account` from the patched source.
+- [ ] Deploy the RunSmart web Garmin gateway changes to production.
+- [ ] Confirm delete account succeeds for the smoke-test user and removes the account without Edge Function 500s.
+- [ ] Confirm the same Apple account can register/sign in again and does not see name/email collection.
+- [ ] Confirm Garmin connect completes from iOS and creates the production `garmin_connections`/token records.
 
 ## App Store Connect
 - [ ] Uploaded build processing completes.
