@@ -153,10 +153,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     daysPerWeek: request.weeklyRunDays,
                     preferredTimes: request.preferredDays.isEmpty ? ["morning"] : request.preferredDays,
                     coachingStyle: request.supabaseCoachingStyle,
-                    averageWeeklyKm: recentWeeklyKm(runs: recent)
+                    averageWeeklyKm: request.averageWeeklyKm ?? recentWeeklyKm(runs: recent)
                 ),
                 trainingHistory: .init(
-                    weeklyVolumeKm: recentWeeklyKm(runs: recent),
+                    weeklyVolumeKm: request.averageWeeklyKm ?? recentWeeklyKm(runs: recent),
                     consistencyScore: min(100, recent.count * 10),
                     recentRuns: recent.map { run in
                         .init(
@@ -1198,6 +1198,25 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: str)
     }
+
+    // Added per instruction:
+    private func estimatedAverageWeeklyKm() async -> Double? {
+        // Prefer a 28-day average from recent runs; fall back to 7-day if sparse.
+        let runs = await recentRuns()
+        guard !runs.isEmpty else { return nil }
+        let now = Date()
+        let start28 = Calendar.current.date(byAdding: .day, value: -28, to: now) ?? now
+        let last28 = runs.filter { $0.startedAt >= start28 }
+        if !last28.isEmpty {
+            let totalKm = last28.reduce(0.0) { $0 + $1.distanceMeters } / 1_000
+            return totalKm / 4.0
+        }
+        let start7 = Calendar.current.date(byAdding: .day, value: -7, to: now) ?? now
+        let last7 = runs.filter { $0.startedAt >= start7 }
+        guard !last7.isEmpty else { return nil }
+        let totalKm = last7.reduce(0.0) { $0 + $1.distanceMeters } / 1_000
+        return totalKm
+    }
 }
 
 extension Notification.Name {
@@ -1552,3 +1571,4 @@ extension TodayRecommendation {
         coachMessage: "Loading your training data…"
     )
 }
+
