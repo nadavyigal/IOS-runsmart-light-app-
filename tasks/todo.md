@@ -2,8 +2,8 @@
 
 ## Current Task
 
-**Objective:** Fix App Store rejection for RunSmart iOS v1.0.2 build 14: make Delete Account flow clear in-app and declare full privacy manifest data/API usage.
-**Status:** Source fixes complete; Release generic iOS build passed. Manual App Store Connect privacy label, screen recording, archive/upload, and resubmission remain.
+**Objective:** Fix App Store rejection for RunSmart iOS v1.0.2 and prepare fresh build 15 for resubmission: make Delete Account flow clear in-app and declare full privacy manifest data/API usage.
+**Status:** Source fixes are pushed; build number bumped to 15 for the fresh upload. Archive/export/upload and manual App Store Connect resubmission remain.
 **Branch:** `main`
 
 ### Checklist
@@ -11,7 +11,9 @@
 - [x] Update Account screen delete flow confirmation copy and error handling.
 - [x] Expand `PrivacyInfo.xcprivacy` collected data declarations.
 - [x] Run Release build validation with signing disabled.
-- [ ] Commit and push app repo changes, then update outer submodule pointer if needed.
+- [x] Commit and push app repo privacy/account-deletion source changes.
+- [x] Bump build number to 15 for fresh App Store Connect upload.
+- [ ] Archive/export/upload build 15, then update outer pointer if needed.
 
 ### Validation - 2026-06-15
 - `plutil -lint "IOS RunSmart app/PrivacyInfo.xcprivacy"` passed.
@@ -19,6 +21,11 @@
 - Release generic iOS build passed:
   `xcodebuild -scheme "IOS RunSmart app" -destination "generic/platform=iOS" -configuration Release build CODE_SIGNING_ALLOWED=NO`
 - Built app bundle contains the updated `PrivacyInfo.xcprivacy`.
+- Build 15 archive succeeded:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-build15-AppStore-20260615.xcarchive" archive -allowProvisioningUpdates`
+- Build 15 App Store export succeeded:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-build15-AppStore-20260615.xcarchive" -exportPath "build/RunSmart-build15-AppStoreExport-20260615" -exportOptionsPlist "ExportOptionsAppStore.plist" -allowProvisioningUpdates`
+- Exported IPA inspection confirmed bundle id `com.runsmart.lite`, version `1.0.2`, build `15`, `ITSAppUsesNonExemptEncryption=false`, `get-task-allow=false`, HealthKit, Sign in with Apple, associated domains, and expanded `PrivacyInfo.xcprivacy`.
 
 ---
 
