@@ -3,7 +3,7 @@
 ## Current Task
 
 **Objective:** Fix App Store rejection for RunSmart iOS v1.0.2 and prepare fresh build 15 for resubmission: make Delete Account flow clear in-app and declare full privacy manifest data/API usage.
-**Status:** Source fixes are pushed; build number bumped to 15 for the fresh upload. Archive/export/upload and manual App Store Connect resubmission remain.
+**Status:** Source fixes are pushed; build 15 archive/export/upload succeeded and is processing in App Store Connect. Manual App Store Connect privacy label, screen recording, build selection, and final resubmission remain.
 **Branch:** `main`
 
 ### Checklist
@@ -13,7 +13,9 @@
 - [x] Run Release build validation with signing disabled.
 - [x] Commit and push app repo privacy/account-deletion source changes.
 - [x] Bump build number to 15 for fresh App Store Connect upload.
-- [ ] Archive/export/upload build 15, then update outer pointer if needed.
+- [x] Archive/export/upload build 15.
+- [ ] Update App Store Connect App Privacy, App Review notes/screen recording, build selection, and final resubmission.
+- [ ] Update outer pointer if needed.
 
 ### Validation - 2026-06-15
 - `plutil -lint "IOS RunSmart app/PrivacyInfo.xcprivacy"` passed.
@@ -26,6 +28,8 @@
 - Build 15 App Store export succeeded:
   `xcodebuild -exportArchive -archivePath "build/RunSmart-build15-AppStore-20260615.xcarchive" -exportPath "build/RunSmart-build15-AppStoreExport-20260615" -exportOptionsPlist "ExportOptionsAppStore.plist" -allowProvisioningUpdates`
 - Exported IPA inspection confirmed bundle id `com.runsmart.lite`, version `1.0.2`, build `15`, `ITSAppUsesNonExemptEncryption=false`, `get-task-allow=false`, HealthKit, Sign in with Apple, associated domains, and expanded `PrivacyInfo.xcprivacy`.
+- Build 15 upload to App Store Connect succeeded:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-build15-AppStore-20260615.xcarchive" -exportPath "build/RunSmart-build15-AppStoreUpload-20260615" -exportOptionsPlist "ExportOptionsAppStoreUpload.plist" -allowProvisioningUpdates`
 
 ---
 
