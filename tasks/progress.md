@@ -1,9 +1,9 @@
-Status: All code fixes committed and deployed. One remaining gate before resubmission: live smoke test on a real device (SIWA -> Garmin connect -> delete account -> register again).
-Current Phase: 1.0.2 build 14 - live smoke verification before archive/resubmit
+Status: Archive/export/package validation is green from current `main`; direct CoreDevice install and launch on the paired iPhone now works. Final resubmission confidence still depends on a real-device/TestFlight authenticated smoke because the local simulator still rejects Sign in with Apple.
+Current Phase: 1.0.2 build 14 - archive/export complete; live smoke before upload/resubmit
 Active Story: Perform live smoke on a physical device or TestFlight: SIWA sign-in, Garmin connect, delete account, SIWA re-register.
-Last Completed Story: Deployed patched delete_account Edge Function (v2, ACTIVE) and RunSmart web Garmin gateway (Vercel Production, 2026-06-14). Committed iOS GarminBridge.swift callback-completion patch. iOS simulator build confirmed clean.
-Next Recommended Story: Archive iOS build 14 from Xcode Organizer (or re-archive from source), upload to App Store Connect, then run live smoke before submitting.
-Estimated Completion: Ready to archive and smoke-test now.
-Blockers: None (code). Live SIWA smoke still requires a real device (simulator rejects SIWA with error 1000).
-Last Validation: 2026-06-14 iOS simulator build ** BUILD SUCCEEDED **; RunSmart web npm run type-check passed; delete_account Edge Function v2 deployed via Supabase MCP; Vercel Production deployment Ready (4 min ago).
-Last Updated: 2026-06-14
+Last Completed Story: 2026-06-15 device-install/archive recovery from `main` commit `c543ffe`: direct physical-device install and launch passed, Debug generic iphoneos build passed, Release archive passed, and non-upload App Store export passed.
+Next Recommended Story: Run the live smoke on an Apple-auth-capable physical device/TestFlight build: SIWA -> Garmin connect -> delete account -> SIWA re-register. If that passes, upload/select build 14 and resubmit.
+Estimated Completion: Ready to archive/export now; live smoke should take roughly 20-40 minutes on a device with Apple auth and Garmin credentials.
+Blockers: Local simulator SIWA still returns `ASAuthorizationError 1000`, so this machine cannot complete authenticated Garmin/delete/re-register flow. Vercel runtime logs remain permission-limited here.
+Last Validation: 2026-06-15 direct CoreDevice install/launch passed for `com.runsmart.lite`; Debug generic iphoneos build passed; Release archive succeeded at `build/RunSmart-build14-AppStore-20260615.xcarchive`; App Store export succeeded at `build/RunSmart-build14-AppStoreExport-20260615/RunSmart.ipa`; exported IPA inspection confirmed version `1.0.2`, build `14`, distribution signing, `get-task-allow=false`, HealthKit, Sign in with Apple, associated domains, dSYM symbols, and `ITSAppUsesNonExemptEncryption=false`.
+Last Updated: 2026-06-15
