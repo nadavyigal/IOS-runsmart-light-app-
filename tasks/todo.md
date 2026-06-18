@@ -2,6 +2,31 @@
 
 ## Current Task
 
+**Objective:** Open, review, and merge all remaining remote app branches into `main`.
+**Status:** Complete. Four active branch PRs were refreshed, reviewed with PR comments, merged into `main`, and their remote branches were deleted. The already-merged empty branch was cleaned up.
+**Branch:** `main`
+
+### Checklist
+- [x] Read canonical task memory/lessons and inspect repo branch state.
+- [x] Refresh stale remote branches against current `main` in temporary worktrees without touching the local untracked plan.
+- [x] Open PRs for branches with real diffs.
+- [x] Review PR diffs and leave review summary comments.
+- [x] Merge PRs into `main` and delete merged remote branches.
+- [x] Clean stale already-merged branch.
+- [x] Sync local `main` to `origin/main`.
+- [x] Run merged-state validation.
+
+### Validation - 2026-06-18
+- `git diff --check HEAD~4..HEAD` passed.
+- Debug generic iOS Simulator build passed with signing disabled:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Debug -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-merged-prs-dd CODE_SIGNING_ALLOWED=NO -quiet build`
+- Known warning remains: `HealthKitSyncService.swift` uses deprecated `HKWorkout` initializer.
+- Open PR check returned none after merges.
+
+---
+
+## Previous Current Task
+
 **Objective:** RunSmart iOS Analytics Coverage QA: root-cause and fix dead run funnel instrumentation, document launch canonicalization, and verify identity wiring.
 **Status:** Source fix implemented; local focused XCTest and Release build validation passed. Live physical-device PostHog confirmation remains blocked outside this session.
 **Branch:** `main`
