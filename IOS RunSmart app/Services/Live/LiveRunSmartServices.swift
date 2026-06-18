@@ -12,7 +12,8 @@ struct LiveTodayService: TodayProviding {
             plannedDistanceLabel: "8.0 km",
             targetPaceLabel: "5'20\" /km",
             elevationLabel: "120 m",
-            coachMessage: "Live endpoint not wired yet. This payload shape is the planned contract."
+            coachMessage: "Live endpoint not wired yet. This payload shape is the planned contract.",
+            rationale: "Three solid runs this week and resting HR is stable. A tempo effort today builds on that base."
         )
         return RunSmartDTOMapper.todayRecommendation(from: dto)
     }
@@ -60,10 +61,9 @@ struct LiveCoachChatService: CoachChatting {
     }
 
     func send(message: String) async -> CoachMessage {
-        let request = RunSmartDTO.SendCoachMessageRequest(threadID: nil, text: message)
         let dto = RunSmartDTO.CoachChatMessage(
             messageID: "msg_local_echo",
-            text: request.text,
+            text: message,
             timeLabel: "Just now",
             role: "user"
         )
@@ -245,6 +245,14 @@ struct LiveRunSmartServices: RunSmartServiceProviding {
 
     func disconnect(provider: String) async -> ConnectedDeviceStatus {
         await ProductionRunSmartServices().disconnect(provider: provider)
+    }
+
+    func firstSyncReview(provider: String) async -> FirstSyncReview? {
+        await ProductionRunSmartServices().firstSyncReview(provider: provider)
+    }
+
+    func markFirstSyncReviewSeen(provider: String) async {
+        await ProductionRunSmartServices().markFirstSyncReviewSeen(provider: provider)
     }
 
     func requestHealthAccess() async -> ConnectedDeviceStatus {

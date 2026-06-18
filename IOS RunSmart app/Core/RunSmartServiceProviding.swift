@@ -1,10 +1,10 @@
 import Foundation
 import SwiftUI
 
-protocol RunSmartServiceProviding: TodayProviding, PlanProviding, CoachChatting, ProfileProviding, RunLogging, WebParityProviding, RouteProviding, DeviceSyncing, HealthSyncing {}
+protocol RunSmartServiceProviding: TodayProviding, PlanProviding, CoachChatting, ProfileProviding, RunLogging, WebParityProviding, RouteProviding, DeviceSyncing, HealthSyncing, TrainingContextProviding {}
 
 #if DEBUG
-extension MockRunSmartServices: RunSmartServiceProviding {}
+extension DemoRunSmartServices: RunSmartServiceProviding {}
 #endif
 
 private struct RunSmartServicesKey: EnvironmentKey {

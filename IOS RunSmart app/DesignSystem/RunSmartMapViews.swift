@@ -4,17 +4,20 @@ import MapKit
 struct RouteMapView: View {
     var points: [RunRoutePoint]
     var title: String?
+    @State private var position: MapCameraPosition = .region(Self.defaultRegion)
 
     private var coordinates: [CLLocationCoordinate2D] {
         points.map(\.coordinate)
     }
 
+    private static let defaultRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 32.0853, longitude: 34.7818),
+        span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
+    )
+
     private var region: MKCoordinateRegion {
         guard !coordinates.isEmpty else {
-            return MKCoordinateRegion(
-                center: CLLocationCoordinate2D(latitude: 32.0853, longitude: 34.7818),
-                span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
-            )
+            return Self.defaultRegion
         }
         let latitudes = coordinates.map(\.latitude)
         let longitudes = coordinates.map(\.longitude)
@@ -28,10 +31,15 @@ struct RouteMapView: View {
         )
     }
 
+    private var cameraUpdateToken: Int {
+        if coordinates.count < 3 { return coordinates.count }
+        return coordinates.count / 20
+    }
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             if coordinates.count >= 2 {
-                Map(initialPosition: .region(region)) {
+                Map(position: $position) {
                     MapPolyline(coordinates: coordinates)
                         .stroke(Color.accentPrimary, lineWidth: 5)
                     if let first = coordinates.first {
@@ -44,6 +52,12 @@ struct RouteMapView: View {
                     }
                 }
                 .mapStyle(.standard(elevation: .realistic))
+                .onAppear {
+                    position = .region(region)
+                }
+                .onChange(of: cameraUpdateToken) { _, _ in
+                    position = .region(region)
+                }
             } else {
                 ZStack {
                     Rectangle()

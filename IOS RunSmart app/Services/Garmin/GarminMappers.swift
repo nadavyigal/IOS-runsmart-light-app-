@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // MARK: - DBGarminActivity → RecordedRun
 
@@ -45,17 +46,20 @@ extension DBGarminActivity {
     }
 
     func toRecordedRun() -> RecordedRun? {
-        guard let startStr = startTime,
+        let trimmedActivityID = activityId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedActivityID.isEmpty,
+              isRunningSport,
+              let startStr = startTime,
               let startDate = parseISO8601(startStr),
-              let durationS = durationS, durationS > 0 else { return nil }
+              let durationS = durationS, durationS > 0,
+              let distanceM = distanceM, distanceM > 0 else { return nil }
 
-        let distanceM = distanceM ?? 0
         let endDate = startDate.addingTimeInterval(durationS)
-        let pace = distanceM > 0 ? durationS / (distanceM / 1000) : 0
+        let pace = durationS / (distanceM / 1000)
 
         return RecordedRun(
-            id: UUID(),
-            providerActivityID: activityId,
+            id: HealthKitRecordedRunMapper.stableUUID(for: trimmedActivityID),
+            providerActivityID: trimmedActivityID,
             source: .garmin,
             startedAt: startDate,
             endedAt: endDate,
@@ -74,6 +78,12 @@ extension DBGarminActivity {
         if let d = f.date(from: str) { return d }
         f.formatOptions = [.withInternetDateTime]
         return f.date(from: str)
+    }
+
+    private var isRunningSport: Bool {
+        guard let sport else { return false }
+        let normalized = sport.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "run" || normalized.contains("run") || normalized.contains("running")
     }
 }
 
@@ -116,5 +126,98 @@ struct GarminReadiness {
         }
 
         return GarminReadiness(readiness: readiness, readinessLabel: label, recoveryLabel: recovery, hrvLabel: hrv)
+    }
+}
+
+enum GarminDistanceBucket {
+    static let standardKmBuckets = [3, 5, 8, 10, 15]
+
+    static func bucket(forKm km: Double) -> Int {
+        standardKmBuckets.min(by: { abs(Double($0) - km) < abs(Double($1) - km) }) ?? Int(km.rounded())
+    }
+
+    static func representativeActivities(from activities: [DBGarminActivity]) -> [Int: DBGarminActivity] {
+        var pickedByBucket: [Int: DBGarminActivity] = [:]
+        for activity in activities {
+            guard let meters = activity.distanceM, meters > 0 else { continue }
+            let bucket = bucket(forKm: meters / 1_000)
+            if pickedByBucket[bucket] == nil {
+                pickedByBucket[bucket] = activity
+            }
+        }
+        return pickedByBucket
+    }
+}
+
+enum WellnessTrendMapper {
+    static func series(from metrics: [DBGarminDailyMetrics], maxDays: Int = 7) -> WellnessTrendSeries {
+        guard !metrics.isEmpty else { return .empty }
+        let points = metrics
+            .sorted(by: { $0.date < $1.date })
+            .suffix(maxDays)
+            .compactMap { point(from: $0) }
+        guard !points.isEmpty else { return .empty }
+
+        let hrvValues = points.compactMap(\.hrvMilliseconds)
+        let readinessValues = points.compactMap { readinessValue(from: $0) }
+        let latest = points.last
+        let latestHRV = latest?.hrvMilliseconds
+        let latestReadiness = latest.flatMap { readinessValue(from: $0) }
+
+        return WellnessTrendSeries(
+            days: points,
+            hrvBars: bars(from: hrvValues),
+            readinessBars: bars(from: readinessValues.map(Double.init)),
+            hrvTrendSummary: summary(for: hrvValues, metricName: "HRV"),
+            readinessTrendSummary: summary(for: readinessValues.map(Double.init), metricName: "Readiness"),
+            latestHRVDisplay: latestHRV.map { String(format: "%.0f ms", $0) } ?? "--",
+            latestReadinessDisplay: latestReadiness.map { "\($0)" } ?? "--"
+        )
+    }
+
+    static func readinessValue(from point: DailyWellnessPoint) -> Int? {
+        if let trainingReadiness = point.trainingReadiness {
+            return min(100, max(0, trainingReadiness))
+        }
+        if let bodyBattery = point.bodyBattery {
+            return min(100, max(0, bodyBattery))
+        }
+        return nil
+    }
+
+    private static func point(from metrics: DBGarminDailyMetrics) -> DailyWellnessPoint? {
+        guard let date = parseDate(metrics.date) else { return nil }
+        return DailyWellnessPoint(
+            date: date,
+            hrvMilliseconds: metrics.hrv,
+            trainingReadiness: metrics.trainingReadiness,
+            bodyBattery: metrics.bodyBattery
+        )
+    }
+
+    private static func parseDate(_ value: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: value)
+    }
+
+    private static func bars(from values: [Double]) -> [CGFloat] {
+        guard let maxValue = values.max(), maxValue > 0 else { return [] }
+        return values.map { max(0.08, CGFloat($0 / maxValue)) }
+    }
+
+    private static func summary(for values: [Double], metricName: String) -> String {
+        guard values.count >= 3 else { return "Building \(metricName.lowercased()) trend" }
+        guard let first = values.first, let last = values.last else { return "Building \(metricName.lowercased()) trend" }
+        let delta = last - first
+        if abs(delta) < max(2.0, first * 0.03) {
+            return "\(metricName) is stable over 7 days"
+        }
+        return delta > 0
+            ? "\(metricName) is trending up"
+            : "\(metricName) is trending down"
     }
 }

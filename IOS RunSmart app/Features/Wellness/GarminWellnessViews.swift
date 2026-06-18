@@ -4,6 +4,7 @@ struct GarminWellnessViews: View {
     @Environment(\.runSmartServices) private var services
     @State private var recovery: RecoverySnapshot = .loading
     @State private var wellness: WellnessSnapshot = .empty
+    @State private var trends: WellnessTrendSeries = .empty
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -23,16 +24,67 @@ struct GarminWellnessViews: View {
             WellnessPanel(title: "Sleep", value: recovery.sleep, detail: "Latest Garmin sleep value when connected.", tint: .accentRecovery, symbol: "bed.double.fill")
             WellnessPanel(title: "HRV", value: recovery.hrv, detail: "Latest synced HRV value.", tint: .accentHeart, symbol: "waveform.path.ecg")
             WellnessPanel(title: "Manual Check-In", value: wellness.mood, detail: "Soreness \(wellness.soreness)", tint: .accentEnergy, symbol: "checklist.checked")
+            WellnessTrendPanel(
+                title: "HRV Trend (7-day)",
+                value: trends.latestHRVDisplay,
+                summary: trends.hrvTrendSummary,
+                bars: trends.hrvBars,
+                tint: .accentHeart
+            )
+            WellnessTrendPanel(
+                title: "Training Readiness (7-day)",
+                value: trends.latestReadinessDisplay,
+                summary: trends.readinessTrendSummary,
+                bars: trends.readinessBars,
+                tint: .accentPrimary
+            )
         }
         .task {
             async let recoveryTask = services.recoverySnapshot()
             async let wellnessTask = services.wellnessSnapshot()
-            (recovery, wellness) = await (recoveryTask, wellnessTask)
+            async let trendTask = services.wellnessTrendSeries(days: 7)
+            (recovery, wellness, trends) = await (recoveryTask, wellnessTask, trendTask)
         }
     }
 
     private var sourceTitle: String {
         recovery.readiness > 0 ? "Synced health signals" : "No Garmin recovery data yet"
+    }
+}
+
+private struct WellnessTrendPanel: View {
+    var title: String
+    var value: String
+    var summary: String
+    var bars: [CGFloat]
+    var tint: Color
+
+    var body: some View {
+        ContentCard {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(title)
+                        .font(.headingMD)
+                    Spacer()
+                    Text(value)
+                        .font(.metricXS)
+                        .foregroundStyle(tint)
+                        .monospacedDigit()
+                }
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+                if bars.isEmpty {
+                    Text("Need more synced days")
+                        .font(.caption)
+                        .foregroundStyle(Color.textTertiary)
+                } else {
+                    MetricBars(values: bars, tint: tint)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(title), \(value), \(summary)")
+        }
     }
 }
 

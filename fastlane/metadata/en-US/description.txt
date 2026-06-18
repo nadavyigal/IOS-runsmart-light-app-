@@ -1,0 +1,7 @@
+RunSmart gives beginner and returning runners a clear daily answer: what to run today, a plan that adjusts when life gets in the way, and an honest post-run summary.
+
+Use the Today screen to see your next recommended session, your readiness context, and a route suggestion. Record outdoor runs with GPS, review your effort in plain language, and keep your plan aligned with what you actually completed.
+
+When connected, RunSmart imports activity data from Garmin and Apple Health to update your training readiness and workout history. Private progress sharing, local workout reminders, and a coach chat that explains your training context round out the experience.
+
+RunSmart is built for calm, consistent running. It does not diagnose medical conditions, replace professional medical advice, or guarantee race outcomes. Always listen to your body and seek professional guidance when pain, dizziness, chest pain, fainting, or unusual symptoms appear.

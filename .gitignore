@@ -1,7 +1,14 @@
 DerivedData/
+build/
+env.local
+local.env
+.env
+.env.local
 *.xcresult
 *.xcactivitylog
 .DS_Store
 xcuserdata/
 *.xcuserstate
 *.xcscmblueprint
+supabase/.temp/
+RunSmartSecrets.xcconfig

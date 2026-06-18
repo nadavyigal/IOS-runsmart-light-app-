@@ -53,6 +53,7 @@ enum RunSmartBackgroundContext {
     case today(readiness: Int?)
     case plan
     case run(isRecording: Bool)
+    case report
     case profile
     case neutral
 
@@ -64,6 +65,8 @@ enum RunSmartBackgroundContext {
             self = .plan
         case .run:
             self = .run(isRecording: false)
+        case .report:
+            self = .report
         case .profile:
             self = .profile
         }
@@ -80,9 +83,10 @@ struct RunSmartBackground: View {
             case 80...100: return .accentSuccess
             case 55..<80: return .accentPrimary
             default: return .accentHeart
-            }
+        }
         case .plan: return .accentRecovery
         case .run(let isRecording): return isRecording ? .clear : .accentEnergy
+        case .report: return .accentSuccess
         case .profile: return .clear
         case .neutral: return .accentPrimary
         }
@@ -93,6 +97,7 @@ struct RunSmartBackground: View {
         case .today: return .accentEnergy
         case .plan: return .accentPrimary
         case .run: return .accentHeart
+        case .report: return .accentRecovery
         case .profile: return .clear
         case .neutral: return .accentRecovery
         }

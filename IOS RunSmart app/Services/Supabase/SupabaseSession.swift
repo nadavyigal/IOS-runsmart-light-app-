@@ -18,19 +18,52 @@ final class SupabaseSession: ObservableObject {
     let supabase = SupabaseManager.client
 
     private(set) var onboardingProfile: OnboardingProfile = .empty
+    private let notificationPreferenceKey = "runsmart.notifications.enabled"
+    private let planAdjustmentConfirmationsKey = "runsmart.notifications.planAdjustmentConfirmations"
+    private var appleDisplayNameSeed: String?
+    private var appleEmailSeed: String?
 
     init() {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled {
+            configureDemoSession()
+            return
+        }
+#endif
         Task { await initialize() }
     }
 
-    var currentUserID: UUID? { supabase.auth.currentUser?.id }
-    var currentEmail: String? { supabase.auth.currentUser?.email }
-    var currentMemberSince: Date? { supabase.auth.currentUser?.createdAt }
+    var currentUserID: UUID? {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled { return RunSmartDemoMode.userID }
+#endif
+        return supabase.auth.currentUser?.id
+    }
+
+    var currentEmail: String? {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled { return RunSmartDemoMode.email }
+#endif
+        return supabase.auth.currentUser?.email
+    }
+
+    var currentMemberSince: Date? {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled { return RunSmartDemoMode.memberSince }
+#endif
+        return supabase.auth.currentUser?.createdAt
+    }
 
     // plans/conversations use auth.uid() as profile_id (uuid), not profiles.id (bigint)
     var profileID: UUID? { currentUserID }
 
     func initialize() async {
+#if DEBUG
+        guard !RunSmartDemoMode.isEnabled else {
+            configureDemoSession()
+            return
+        }
+#endif
         // Resolve the initial session before entering the infinite auth-change stream
         if let session = try? await supabase.auth.session, !session.isExpired {
             isAuthenticated = true
@@ -77,16 +110,22 @@ final class SupabaseSession: ObservableObject {
                     displayName: p.name ?? "",
                     goal: p.goal.isEmpty ? "" : p.goal,
                     experience: p.experience.isEmpty ? "" : p.experience,
+                    age: p.age,
+                    averageWeeklyDistanceKm: p.averageWeeklyDistanceKm,
+                    trainingDataSource: p.trainingDataSource.flatMap(TrainingDataSource.init(rawValue:)),
+                    trainingDataUpdatedAt: p.trainingDataUpdatedAt.flatMap(Self.parseProfileDate),
                     weeklyRunDays: p.daysPerWeek,
                     preferredDays: p.preferredTimes,
                     units: "Metric",
                     coachingTone: p.coachingStyle ?? "Motivating",
-                    notificationsEnabled: false
+                    notificationsEnabled: UserDefaults.standard.object(forKey: notificationPreferenceKey) as? Bool ?? false,
+                    planAdjustmentConfirmationsEnabled: UserDefaults.standard.object(forKey: planAdjustmentConfirmationsKey) as? Bool ?? true
                 )
             } else {
                 profile = nil
                 hasCompletedOnboarding = false
-                displayName = ""
+                displayName = appleDisplayNameSeed ?? ""
+                onboardingProfile.displayName = appleDisplayNameSeed ?? ""
                 lastAuthError = nil
             }
         } catch {
@@ -97,22 +136,40 @@ final class SupabaseSession: ObservableObject {
     }
 
     func completeOnboarding(_ onboarding: OnboardingProfile) async {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled {
+            onboardingProfile = onboarding
+            displayName = onboarding.displayName.isEmpty ? RunSmartDemoData.runner.name : onboarding.displayName
+            hasCompletedOnboarding = true
+            return
+        }
+#endif
         guard let userID = currentUserID else {
             print("[SupabaseSession] completeOnboarding: no currentUserID")
             return
         }
-        onboardingProfile = onboarding
+        var completedOnboarding = onboarding
+        if completedOnboarding.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            completedOnboarding.displayName = appleDisplayNameSeed ?? "RunSmart Runner"
+        }
+        onboardingProfile = completedOnboarding
+        UserDefaults.standard.set(onboarding.notificationsEnabled, forKey: notificationPreferenceKey)
+        UserDefaults.standard.set(onboarding.planAdjustmentConfirmationsEnabled, forKey: planAdjustmentConfirmationsKey)
         // email comes from the Apple JWT the auth server decoded — always present after sign-in
-        let email = supabase.auth.currentUser?.email ?? ""
+        let email = supabase.auth.currentUser?.email ?? appleEmailSeed ?? ""
         let insert = DBProfileInsert(
             authUserId: userID.uuidString,
             email: email,
-            name: onboarding.displayName,
-            goal: onboarding.supabaseGoal,
-            experience: onboarding.supabaseExperience,
-            preferredTimes: onboarding.preferredDays,
-            daysPerWeek: onboarding.weeklyRunDays,
-            coachingStyle: onboarding.supabaseCoachingStyle,
+            name: completedOnboarding.displayName,
+            goal: completedOnboarding.supabaseGoal,
+            experience: completedOnboarding.supabaseExperience,
+            age: completedOnboarding.age,
+            averageWeeklyDistanceKm: completedOnboarding.averageWeeklyDistanceKm,
+            trainingDataSource: completedOnboarding.trainingDataSource?.rawValue,
+            trainingDataUpdatedAt: completedOnboarding.trainingDataUpdatedAt.map(Self.profileDateFormatter.string(from:)),
+            preferredTimes: completedOnboarding.preferredDays,
+            daysPerWeek: completedOnboarding.weeklyRunDays,
+            coachingStyle: completedOnboarding.supabaseCoachingStyle,
             onboardingComplete: true
         )
         print("[SupabaseSession] completeOnboarding upsert uid=\(userID) email=\(email)")
@@ -127,23 +184,192 @@ final class SupabaseSession: ObservableObject {
             if let p = rows.first {
                 profile = p
                 hasCompletedOnboarding = true
-                displayName = p.name ?? onboarding.displayName
+                displayName = p.name ?? completedOnboarding.displayName
             }
         } catch {
-            lastAuthError = "Could not save onboarding. Check the profiles auth_user_id unique constraint and RLS policies."
-            print("[SupabaseSession] completeOnboarding error:", error)
+            print("[SupabaseSession] completeOnboarding rich upsert error:", error)
+            do {
+                let rows: [DBProfile] = try await supabase
+                    .from("profiles")
+                    .upsert(DBProfileInsertLegacy(
+                        authUserId: userID.uuidString,
+                        email: email,
+                        name: completedOnboarding.displayName,
+                        goal: completedOnboarding.supabaseGoal,
+                        experience: completedOnboarding.supabaseExperience,
+                        preferredTimes: completedOnboarding.preferredDays,
+                        daysPerWeek: completedOnboarding.weeklyRunDays,
+                        coachingStyle: completedOnboarding.supabaseCoachingStyle,
+                        onboardingComplete: true
+                    ), onConflict: "auth_user_id")
+                    .select()
+                    .execute()
+                    .value
+                if let p = rows.first {
+                    profile = p
+                    hasCompletedOnboarding = true
+                    displayName = p.name ?? completedOnboarding.displayName
+                    lastAuthError = nil
+                }
+            } catch {
+                lastAuthError = "Could not save onboarding. Check the profiles auth_user_id unique constraint and RLS policies."
+                print("[SupabaseSession] completeOnboarding legacy upsert error:", error)
+            }
         }
     }
 
     func signOut() async {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled {
+            configureDemoSession()
+            return
+        }
+#endif
         try? await supabase.auth.signOut()
     }
 
-    private func clearSessionState() {
+    struct AccountDeletionError: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
+    }
+
+    /// Permanently deletes the user's account and all server-side data via the
+    /// `delete_account` edge function (App Store Guideline 5.1.1(v)).
+    func deleteAccount() async throws {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled {
+            throw AccountDeletionError(message: "Account deletion is disabled in Demo Mode. No real account or backend data exists in this simulator session.")
+        }
+#endif
+        guard let accessToken = try? await supabase.auth.session.accessToken else {
+            throw AccountDeletionError(message: "You need to be signed in to delete your account.")
+        }
+
+        struct DeleteAccountResponse: Decodable {
+            let success: Bool?
+            let error: String?
+        }
+
+        let client = URLSessionRunSmartAPIClient(
+            baseURL: SupabaseManager.functionsBaseURL,
+            accessToken: accessToken,
+            additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
+        )
+
+        let response: DeleteAccountResponse
+        do {
+            response = try await client.send(
+                RunSmartAPI.Endpoint(path: "delete_account", method: .post, body: Data("{}".utf8)),
+                as: DeleteAccountResponse.self
+            )
+        } catch {
+            print("[SupabaseSession] deleteAccount request failed:", error)
+            // Network error mid-flight: the server may have deleted the profile anyway.
+            // Reload profile — if it's gone, treat as success and sign out cleanly.
+            if let uid = currentUserID {
+                await loadProfile(userID: uid)
+                if profile == nil {
+                    await AhaMomentStore.shared.resetOnboardingMoments()
+                    try? await supabase.auth.signOut(scope: .local)
+                    clearSessionState(clearLocalData: true)
+                    print("[SupabaseSession] deleteAccount: network error but profile gone — signed out")
+                    return
+                }
+            }
+            throw AccountDeletionError(message: "Could not reach the server. Check your connection and try again.")
+        }
+
+        guard response.success == true else {
+            // Edge function returned an error. Check if profile is actually gone before surfacing it.
+            if let uid = currentUserID {
+                await loadProfile(userID: uid)
+                if profile == nil {
+                    await AhaMomentStore.shared.resetOnboardingMoments()
+                    try? await supabase.auth.signOut(scope: .local)
+                    clearSessionState(clearLocalData: true)
+                    print("[SupabaseSession] deleteAccount: error response but profile gone — signed out")
+                    return
+                }
+            }
+            throw AccountDeletionError(message: response.error ?? "Account deletion failed. Please try again.")
+        }
+
+        await AhaMomentStore.shared.resetOnboardingMoments()
+
+        // The auth user no longer exists server-side; drop the local session.
+        try? await supabase.auth.signOut(scope: .local)
+        clearSessionState(clearLocalData: true)
+        print("[SupabaseSession] deleteAccount completed — local session cleared")
+    }
+
+    func rememberAppleProfile(displayName: String?, email: String?) {
+        appleDisplayNameSeed = Self.trimmedNonEmpty(displayName)
+        appleEmailSeed = Self.trimmedNonEmpty(email)
+    }
+
+    func setNotificationsEnabled(_ enabled: Bool) {
+        onboardingProfile.notificationsEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: notificationPreferenceKey)
+        objectWillChange.send()
+        if !enabled {
+            PushService.shared.cancelAllRunSmartReminders()
+        }
+    }
+
+    func setPlanAdjustmentConfirmationsEnabled(_ enabled: Bool) {
+        onboardingProfile.planAdjustmentConfirmationsEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: planAdjustmentConfirmationsKey)
+        objectWillChange.send()
+        if !enabled {
+            PushService.shared.cancelPlanAdjustmentConfirmation()
+        }
+    }
+
+    private func clearSessionState(clearLocalData: Bool = false) {
         isAuthenticated = false
         hasCompletedOnboarding = false
         profile = nil
         displayName = ""
+        onboardingProfile = .empty
+        appleDisplayNameSeed = nil
+        appleEmailSeed = nil
         lastAuthError = nil
+        if clearLocalData {
+            RunSmartLocalStore.shared.clearUserData()
+            GarminBridge.shared.invalidateActivityCache()
+        }
     }
+
+    private static let profileDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static func parseProfileDate(_ value: String) -> Date? {
+        if let date = profileDateFormatter.date(from: value) { return date }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+
+    private static func trimmedNonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+#if DEBUG
+    private func configureDemoSession() {
+        isAuthenticated = true
+        hasCompletedOnboarding = true
+        profile = nil
+        displayName = RunSmartDemoData.runner.name
+        isLoading = false
+        lastAuthError = nil
+        onboardingProfile = RunSmartDemoData.onboardingProfile
+        appleDisplayNameSeed = RunSmartDemoData.runner.name
+        appleEmailSeed = RunSmartDemoMode.email
+    }
+#endif
 }

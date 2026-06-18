@@ -1,12 +1,23 @@
 import SwiftUI
 
-struct ActivityTabView: View {
+struct ReportTabView: View {
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
     @State private var runs: [RecordedRun] = []
-    @State private var filter = "All"
+    @State private var segment: ReportSegment = .runs
+    @State private var runReports: [RunReportSummary] = []
+    @State private var trainingLoad: TrainingLoadSnapshot = .loading
+    @State private var recovery: RecoverySnapshot = .loading
     @State private var runPendingRemoval: RecordedRun?
     @State private var removalFailed = false
+    @State private var refreshDebounceTask: Task<Void, Never>?
+
+    private enum ReportSegment: String, CaseIterable, Hashable, Identifiable {
+        case runs = "Runs"
+        case reports = "Reports"
+        case progress = "Progress"
+        var id: String { rawValue }
+    }
 
     private var totalDistanceKm: Double {
         runs.reduce(0) { $0 + $1.distanceMeters / 1_000 }
@@ -18,24 +29,8 @@ struct ActivityTabView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                RunSmartHeader(title: "Activity")
-
-                HStack(spacing: 0) {
-                    ForEach(["All", "Runs", "Workouts"], id: \.self) { option in
-                        Button { filter = option } label: {
-                            Text(option.uppercased())
-                                .font(.labelSM)
-                                .tracking(1.1)
-                                .foregroundStyle(filter == option ? Color.black : Color.textSecondary)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(filter == option ? Color.accentPrimary : Color.surfaceElevated)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            LazyVStack(alignment: .leading, spacing: 16) {
+                RunSmartHeader(title: "Report")
 
                 HeroCard(accent: .accentSuccess) {
                     VStack(alignment: .leading, spacing: 18) {
@@ -54,7 +49,6 @@ struct ActivityTabView: View {
                                 .font(.title2)
                                 .foregroundStyle(Color.accentSuccess)
                         }
-
                         HStack(spacing: 10) {
                             ActivityMetricPill(title: "Runs", value: "\(runs.count)", tint: .accentSuccess)
                             ActivityMetricPill(title: "Time", value: totalMovingTime.activityDurationLabel, tint: .accentRecovery)
@@ -64,73 +58,39 @@ struct ActivityTabView: View {
                 }
                 .runSmartStaggeredAppear(index: 0)
 
-                ContentCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(title: "Running activities", trailing: "\(runs.count)")
-                        if runs.isEmpty {
-                            Text("No verified runs yet. Start a GPS run, add a manual run, or connect Garmin to import real activity.")
-                                .font(.bodyMD)
-                                .foregroundStyle(Color.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        } else {
-                            ForEach(runs) { run in
-                                ActivityRow(
-                                    run: run,
-                                    onTap: { router.open(.runReportDetail(SupabaseRunSmartServices.reportSkeleton(for: run))) },
-                                    onDelete: { runPendingRemoval = run }
-                                )
-                                if run.id != runs.last?.id {
-                                    Divider()
-                                        .background(Color.border)
-                                }
-                            }
-                        }
+                SegmentedPillPicker(values: ReportSegment.allCases, selection: $segment) { $0.rawValue }
+                    .runSmartStaggeredAppear(index: 1)
 
-                        if removalFailed {
-                            Text("Could not remove that run. Check your connection and try again.")
-                                .font(.bodyMD)
-                                .foregroundStyle(Color.accentHeart)
-                        }
-                    }
+                switch segment {
+                case .runs:
+                    runsContent
+                case .reports:
+                    reportsContent
+                case .progress:
+                    progressContent
                 }
-                .runSmartStaggeredAppear(index: 1)
-
-                Button { router.open(.zoneAnalysis) } label: {
-                    ContentCard {
-                        HStack(spacing: 14) {
-                            Image(systemName: "heart.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(Color.accentHeart)
-                                .frame(width: 46, height: 46)
-                                .background(Color.accentHeart.opacity(0.12), in: Circle())
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Zone Analysis")
-                                    .font(.headingMD)
-                                Text("Review effort distribution across recent training.")
-                                    .font(.bodyMD)
-                                    .foregroundStyle(Color.textSecondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(Color.textTertiary)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .runSmartStaggeredAppear(index: 2)
-
-                PersonalRecordsCard()
-                .runSmartStaggeredAppear(index: 3)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
             .padding(.top, 16)
+            .padding(.bottom, 140)
         }
         .task {
-            await reloadRuns()
+            async let runsTask = services.recentRuns()
+            async let reportsTask = services.latestRunReports(limit: 50)
+            async let loadTask = services.trainingLoadSnapshot()
+            async let recoveryTask = services.recoverySnapshot()
+            let (freshRuns, reports, load, rec) = await (runsTask, reportsTask, loadTask, recoveryTask)
+            runs = freshRuns
+            runReports = reports
+            trainingLoad = load
+            recovery = rec
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
-            Task { await reloadRuns() }
+            scheduleDebouncedRefresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
+            scheduleDebouncedRefresh()
         }
         .confirmationDialog("Remove this run?", isPresented: Binding(
             get: { runPendingRemoval != nil },
@@ -140,16 +100,178 @@ struct ActivityTabView: View {
                 guard let run = runPendingRemoval else { return }
                 Task { await remove(run) }
             }
-            Button("Cancel", role: .cancel) {
-                runPendingRemoval = nil
-            }
+            Button("Cancel", role: .cancel) { runPendingRemoval = nil }
         } message: {
             Text("RunSmart/manual runs are deleted from RunSmart. Garmin runs are hidden in RunSmart but stay in Garmin.")
         }
     }
 
+
+    private func scheduleDebouncedRefresh() {
+        refreshDebounceTask?.cancel()
+        refreshDebounceTask = Task {
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            refreshRuns()
+            runReports = await services.latestRunReports(limit: 50)
+        }
+    }
+
+    @ViewBuilder
+    private var runsContent: some View {
+        ContentCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(title: "Running activities", trailing: "\(runs.count)")
+                if runs.isEmpty {
+                    Text("No verified runs yet. Start a GPS run, add a manual run, or connect Garmin to import real activity.")
+                        .font(.bodyMD)
+                        .foregroundStyle(Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    ForEach(runs) { run in
+                        ActivityRow(
+                            run: run,
+                            onTap: { openReport(for: run) },
+                            onDelete: { runPendingRemoval = run }
+                        )
+                        if run.id != runs.last?.id {
+                            Divider().background(Color.border)
+                        }
+                    }
+                }
+                if removalFailed {
+                    Text("Could not remove that run. Check your connection and try again.")
+                        .font(.bodyMD)
+                        .foregroundStyle(Color.accentHeart)
+                }
+            }
+        }
+        .runSmartStaggeredAppear(index: 2)
+    }
+
+    @ViewBuilder
+    private var reportsContent: some View {
+        ContentCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(title: "Run Reports", trailing: "\(runReports.count)")
+                if runReports.isEmpty {
+                    Text("Complete a run and tap Generate to get your first AI coach report.")
+                        .font(.bodyMD)
+                        .foregroundStyle(Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    ForEach(runReports) { report in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Button { openReportSummary(report) } label: {
+                                HStack(spacing: 12) {
+                                    RunSmartIconMark(size: 32, tint: .accentPrimary)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(report.title)
+                                            .font(.bodyMD.weight(.semibold))
+                                            .foregroundStyle(Color.textPrimary)
+                                        Text("\(report.dateLabel) · \(report.distance) · \(report.pace)")
+                                            .font(.labelSM)
+                                            .foregroundStyle(Color.textSecondary)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer()
+                                    if report.hasGeneratedReport, report.score > 0 {
+                                        Text("\(report.score)")
+                                            .font(.caption.bold())
+                                            .foregroundStyle(Color.black)
+                                            .frame(width: 30, height: 30)
+                                            .background(Color.accentPrimary, in: Circle())
+                                    } else if !report.hasGeneratedReport {
+                                        Text("Generate")
+                                            .font(.caption2.bold())
+                                            .foregroundStyle(Color.accentPrimary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+
+                            Button { router.openCoach(context: .report) } label: {
+                                Label("Explain this run ✦", systemImage: "sparkles")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.accentPrimary)
+                            }
+                            .buttonStyle(.plain)
+
+                            if report.id != runReports.last?.id {
+                                Divider().background(Color.border)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .runSmartStaggeredAppear(index: 2)
+    }
+
+    @ViewBuilder
+    private var progressContent: some View {
+        Button(action: openZoneAnalysis) {
+            ContentCard {
+                HStack(spacing: 14) {
+                    Image(systemName: "heart.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.accentHeart)
+                        .frame(width: 46, height: 46)
+                        .background(Color.accentHeart.opacity(0.12), in: Circle())
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Zone Analysis")
+                            .font(.headingMD)
+                        Text("Review effort distribution across recent training.")
+                            .font(.bodyMD)
+                            .foregroundStyle(Color.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(Color.textTertiary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .runSmartStaggeredAppear(index: 2)
+
+        RecoveryInsightPlanCard(recovery: recovery, trainingLoad: trainingLoad)
+            .runSmartStaggeredAppear(index: 3)
+
+        RunTrendChartCard(runs: runs)
+            .runSmartStaggeredAppear(index: 4)
+    }
+
     private func reloadRuns() async {
         runs = await services.recentRuns()
+    }
+
+    private func refreshRuns() {
+        Task { await reloadRuns() }
+    }
+
+    private func openZoneAnalysis() {
+        router.open(.zoneAnalysis)
+    }
+
+    private func openReportDetail(_ report: RunReportDetail) {
+        router.open(.runReportDetail(report))
+    }
+
+    private func openReport(for run: RecordedRun) {
+        Task {
+            let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
+            await MainActor.run {
+                openReportDetail(report)
+            }
+        }
+    }
+
+    private func openReportSummary(_ report: RunReportSummary) {
+        if let detail = report.toDetail() {
+            router.open(.runReportDetail(detail))
+        } else {
+            router.openCoach(context: .report)
+        }
     }
 
     private func remove(_ run: RecordedRun) async {
@@ -167,6 +289,7 @@ struct ActivityTabView: View {
             await reloadRuns()
         }
     }
+
 }
 
 private struct ActivityMetricPill: View {

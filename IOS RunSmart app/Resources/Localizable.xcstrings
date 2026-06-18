@@ -1,0 +1,1147 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    " " : {
+
+    },
+    "-" : {
+
+    },
+    "(%lld)" : {
+
+    },
+    "%@ - %@ - %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ - %2$@ - %3$@"
+          }
+        }
+      }
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%@ · %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, %3$@"
+          }
+        }
+      }
+    },
+    "%@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "%lld days" : {
+
+    },
+    "%lld m" : {
+
+    },
+    "%lld run days per week" : {
+
+    },
+    "%lld splits" : {
+
+    },
+    "%lld/10" : {
+
+    },
+    "+12%" : {
+
+    },
+    "🔥 %@ day streak" : {
+
+    },
+    "13-90 years" : {
+
+    },
+    "20°C · 11 km/h wind · 54% humidity" : {
+
+    },
+    "21-Day Rookie Challenge" : {
+
+    },
+    "31.4" : {
+
+    },
+    "A lightweight starter block for confidence, consistency, and safe progression." : {
+
+    },
+    "A single nudge after Flex Week confirms, summarizing tomorrow's workout." : {
+
+    },
+    "Active" : {
+
+    },
+    "Adaptive. Motivating. Data-driven." : {
+
+    },
+    "Add a workout to your plan, generate a guided version, or use it to keep this week's progress accurate." : {
+
+    },
+    "Add Missing Activity" : {
+
+    },
+    "Adjust Your Week" : {
+
+    },
+    "Adopt Challenge" : {
+
+    },
+    "Age" : {
+
+    },
+    "AI - GPS - RunSmart" : {
+
+    },
+    "and" : {
+
+    },
+    "app_name" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RunSmart"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "RunSmart"
+          }
+        }
+      }
+    },
+    "Apple" : {
+
+    },
+    "Approve Garmin Check-In" : {
+
+    },
+    "Approve Garmin readiness?" : {
+
+    },
+    "Ask Coach" : {
+
+    },
+    "Ask Coach anything..." : {
+
+    },
+    "Auth provider" : {
+
+    },
+    "Average heart rate (optional)" : {
+
+    },
+    "Back" : {
+
+    },
+    "Badges are designed for shareable moments and long-term motivation." : {
+
+    },
+    "Benchmark comparison for %@" : {
+
+    },
+    "Benchmark Route" : {
+
+    },
+    "Browse Routes" : {
+
+    },
+    "Building your report and matching this run to your plan..." : {
+
+    },
+    "By continuing you agree to our" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Challenges" : {
+
+    },
+    "Changes save to the active Supabase workout and refresh Today and Plan." : {
+
+    },
+    "Chat with Coach" : {
+
+    },
+    "Close" : {
+
+    },
+    "COACH ANALYSIS" : {
+
+    },
+    "Coach can now use" : {
+
+    },
+    "Coach details will appear once the workout structure is available." : {
+
+    },
+    "Coach is rewriting your week…" : {
+
+    },
+    "COACH LEARNED" : {
+
+    },
+    "COACH REACTION" : {
+
+    },
+    "Coach safety · Heuristic" : {
+
+    },
+    "Coach Spark" : {
+
+    },
+    "Coach Spark checks load spacing before suggesting a new day." : {
+
+    },
+    "Coach will mark these as rest and shift key workouts when it’s safe." : {
+
+    },
+    "Coach will rest you through recovery and ease you back with an easy return run." : {
+
+    },
+    "COLLAPSE" : {
+
+    },
+    "Comparisons get sharper after one more matched run on this benchmark route." : {
+
+    },
+    "Complete a challenge to level up your running." : {
+
+    },
+    "Complete a run and tap Generate to get your first AI coach report." : {
+
+    },
+    "Confirm New Week" : {
+
+    },
+    "Confirm only if this rewrite matches what you need. Every change includes Coach's rationale." : {
+
+    },
+    "Continue" : {
+
+    },
+    "Could not delete account" : {
+
+    },
+    "Could not remove that run. Check your connection and try again." : {
+
+    },
+    "Could not save check-in. Try again in a moment." : {
+
+    },
+    "Could not save this amendment. Check your connection and try again." : {
+
+    },
+    "Couldn't generate a nearby loop. Check your connection and tap Retry." : {
+
+    },
+    "Create a full coach report from this real activity and save it under Recent Run Reports." : {
+
+    },
+    "Create or sync a plan to see weekly workouts here." : {
+
+    },
+    "Create or sync a training plan first, then come back to flex the week." : {
+
+    },
+    "Created %@" : {
+
+    },
+    "Cue audio will play during a run with your selected coach tone." : {
+
+    },
+    "Date" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Delete Account" : {
+
+    },
+    "Delete Activity" : {
+
+    },
+    "Delete Route" : {
+
+    },
+    "Delete saved route?" : {
+
+    },
+    "Delete this activity?" : {
+
+    },
+    "Delete your RunSmart account?" : {
+
+    },
+    "Deleting Route" : {
+
+    },
+    "design_apply_cta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply Design"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "החל עיצוב"
+          }
+        }
+      }
+    },
+    "Discard this workout?" : {
+
+    },
+    "Discard Workout" : {
+
+    },
+    "Disconnect %@" : {
+
+    },
+    "Distance" : {
+
+    },
+    "Distance: %@" : {
+
+    },
+    "Done" : {
+
+    },
+    "Duration: %lld min" : {
+
+    },
+    "e.g. Morning Park Loop" : {
+
+    },
+    "Edit training data" : {
+
+    },
+    "Effort distribution" : {
+
+    },
+    "Email" : {
+
+    },
+    "Enabled" : {
+
+    },
+    "Enter an age between 13 and 90." : {
+
+    },
+    "Estimated from the saved workout targets." : {
+
+    },
+    "EXPAND" : {
+
+    },
+    "Explain this run ✦" : {
+
+    },
+    "Explain this week" : {
+
+    },
+    "Favorite" : {
+
+    },
+    "Finding routes" : {
+
+    },
+    "Finding routes near you" : {
+
+    },
+    "Finish" : {
+
+    },
+    "FIRST 5K" : {
+
+    },
+    "Flex Week" : {
+
+    },
+    "From the saved plan structure." : {
+
+    },
+    "Garmin metrics are not fresh enough to approve. Use the manual check-in below." : {
+
+    },
+    "Generate" : {
+
+    },
+    "Generate Report" : {
+
+    },
+    "Generate Route" : {
+
+    },
+    "Generating..." : {
+
+    },
+    "Goal & Plan" : {
+
+    },
+    "Goal saved locally, but the web coach did not generate a plan. Try again later." : {
+
+    },
+    "Goals saved!" : {
+
+    },
+    "Good conditions for a controlled tempo run." : {
+
+    },
+    "Got it" : {
+
+    },
+    "GPS route" : {
+
+    },
+    "home_score_excellent" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excellent — ready to apply"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "מצוין — מוכן להגשה"
+          }
+        }
+      }
+    },
+    "home_score_good" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Good — a few improvements left"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "טוב — כמה שיפורים נותרו"
+          }
+        }
+      }
+    },
+    "home_score_needs_work" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs work — let's improve it"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "דורש שיפור — בואו נשפר"
+          }
+        }
+      }
+    },
+    "How ready do you feel before today’s training?" : {
+
+    },
+    "How your training trend looks right now." : {
+
+    },
+    "I use your recent training to give personal coaching before and after runs, with adaptive plan guidance you control." : {
+
+    },
+    "improve_optimize_cta" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optimize for This Job"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "אופטימיזציה לתפקיד זה"
+          }
+        }
+      }
+    },
+    "Intermediate and advanced plans need a weekly distance baseline." : {
+
+    },
+    "Just adjust this week" : {
+
+    },
+    "Keep Activity" : {
+
+    },
+    "Keep Original Plan" : {
+
+    },
+    "Keep Workout" : {
+
+    },
+    "Key Insights" : {
+
+    },
+    "km" : {
+
+    },
+    "km / week" : {
+
+    },
+    "km %lld" : {
+
+    },
+    "KM SPLITS" : {
+
+    },
+    "Learning from this run now..." : {
+
+    },
+    "Loading Garmin route points." : {
+
+    },
+    "Loading saved routes and nearby loops." : {
+
+    },
+    "Loading training context..." : {
+
+    },
+    "Loading your week…" : {
+
+    },
+    "Low-frequency prompts for planned runs, gentle recovery, and weekly recap." : {
+
+    },
+    "Make Benchmark" : {
+
+    },
+    "Map appears when GPS points are available" : {
+
+    },
+    "Mark as a favorite route." : {
+
+    },
+    "Member since" : {
+
+    },
+    "Modify" : {
+
+    },
+    "Momentum Snapshot" : {
+
+    },
+    "Most training is easy, with enough tempo stimulus to move the goal forward." : {
+
+    },
+    "Moving time" : {
+
+    },
+    "Need more synced days" : {
+
+    },
+    "Need to adjust?" : {
+
+    },
+    "Need to adjust? Open Flex Week" : {
+
+    },
+    "NEW RUNNER" : {
+
+    },
+    "NEXT WEEK" : {
+
+    },
+    "No active run" : {
+
+    },
+    "No activities synced yet. Tap Sync Now above once Garmin is connected." : {
+
+    },
+    "No change" : {
+
+    },
+    "No coach report yet." : {
+
+    },
+    "No coach report yet. Report generation failed, but you can retry from this real activity." : {
+
+    },
+    "No Garmin map data for this activity. Route saving, matching, and benchmark comparisons need GPS points; the run report still works." : {
+
+    },
+    "No Health workouts imported yet. Tap Sync Now after granting Health access." : {
+
+    },
+    "No missed workouts found in this week." : {
+
+    },
+    "No plan week to adjust" : {
+
+    },
+    "No Route Available" : {
+
+    },
+    "No scheduled workouts found for this month." : {
+
+    },
+    "No selected run" : {
+
+    },
+    "No verified coach conversation yet. Ask a question to start a new thread with your current RunSmart context." : {
+
+    },
+    "No verified runs yet. Start a GPS run, add a manual run, or connect Garmin to import real activity." : {
+
+    },
+    "No visible workout changes in this proposal." : {
+
+    },
+    "Not feeling 100 percent? Adjust your week" : {
+
+    },
+    "Not feeling 100%?" : {
+
+    },
+    "Notes" : {
+
+    },
+    "NOTES" : {
+
+    },
+    "Now: rehydrate and refuel with a light snack." : {
+
+    },
+    "Off" : {
+
+    },
+    "OK" : {
+
+    },
+    "Open Share Sheet" : {
+
+    },
+    "Optional notes about this route" : {
+
+    },
+    "Pace" : {
+
+    },
+    "Pace seconds: %lld" : {
+
+    },
+    "Pace: %lld:%@ /km" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Pace: %1$lld:%2$@ /km"
+          }
+        }
+      }
+    },
+    "Pacing intent" : {
+
+    },
+    "Permanently delete your account, training plans, run history, and all personal data from RunSmart. This cannot be undone." : {
+
+    },
+    "Personal coaching before and after runs.\nSmart reports. Adaptive plan guidance." : {
+
+    },
+    "Pick what’s going on and Coach will rewrite the rest of this week with a clear rationale for every change." : {
+
+    },
+    "Plan adjustment confirmations" : {
+
+    },
+    "Plan changes now write to your real RunSmart training plan. Open a workout to move, remove, or start it; use the goal wizard to regenerate the block from the web coach." : {
+
+    },
+    "PLAN IMPACT" : {
+
+    },
+    "PLAN UPDATE" : {
+
+    },
+    "Precise route data" : {
+
+    },
+    "Privacy Policy" : {
+
+    },
+    "profile_sign_out" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign Out"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "התנתק"
+          }
+        }
+      }
+    },
+    "Quick access in your route library." : {
+
+    },
+    "READY TO TRAIN" : {
+
+    },
+    "Recent imports" : {
+
+    },
+    "Recommended Next Run" : {
+
+    },
+    "Recovery Timeline" : {
+
+    },
+    "Reminders are local, low-frequency, and can be turned off from Profile." : {
+
+    },
+    "Remove Benchmark" : {
+
+    },
+    "Remove from favorites." : {
+
+    },
+    "Remove run" : {
+
+    },
+    "Remove Run" : {
+
+    },
+    "Remove this run?" : {
+
+    },
+    "Remove this saved route and benchmark tracking from RunSmart." : {
+
+    },
+    "Report generation failed. Check your connection and try again." : {
+
+    },
+    "Review Changes" : {
+
+    },
+    "Review effort distribution across recent training." : {
+
+    },
+    "Route" : {
+
+    },
+    "Route for Today" : {
+
+    },
+    "Route generation unavailable" : {
+
+    },
+    "ROUTE NAME" : {
+
+    },
+    "Route selected" : {
+
+    },
+    "RS" : {
+
+    },
+    "Run" : {
+
+    },
+    "Run by feel, no pressure. Listen to your body." : {
+
+    },
+    "Run this route to start tracking your benchmark progress." : {
+
+    },
+    "Runner identity, earned over time" : {
+
+    },
+    "Runs per week" : {
+
+    },
+    "RunSmart" : {
+
+    },
+    "RunSmart Coach" : {
+
+    },
+    "RunSmart launch logo" : {
+
+    },
+    "RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health." : {
+
+    },
+    "RunSmart/manual runs are deleted from RunSmart. Garmin runs are hidden in RunSmart but stay in Garmin." : {
+
+    },
+    "Safety notes" : {
+
+    },
+    "Save" : {
+
+    },
+    "Save Amendment" : {
+
+    },
+    "Save Check-In" : {
+
+    },
+    "Save goal and generate plan" : {
+
+    },
+    "Save Goals" : {
+
+    },
+    "Save Route" : {
+
+    },
+    "Save Run" : {
+
+    },
+    "Save the route from this run to your route library." : {
+
+    },
+    "Save this Garmin route to your route library." : {
+
+    },
+    "Save Training Data" : {
+
+    },
+    "Saved %@ km to your training history." : {
+
+    },
+    "Saved routes include GPS points. You can delete the RunSmart copy or remove benchmark tracking from route details; Garmin activities are not deleted." : {
+
+    },
+    "Saved to your history" : {
+
+    },
+    "Saving" : {
+
+    },
+    "Saving goal" : {
+
+    },
+    "See workout breakdown" : {
+
+    },
+    "Share Progress" : {
+
+    },
+    "Shares a private progress summary without raw coordinates or a route map." : {
+
+    },
+    "Sign Out" : {
+
+    },
+    "Signing out returns you to the sign-in screen, where you can register a new account or switch users." : {
+
+    },
+    "Skip" : {
+
+    },
+    "Smart return reminders" : {
+
+    },
+    "Splits appear after at least 500m of GPS distance." : {
+
+    },
+    "Start" : {
+
+    },
+    "Start a GPS run on the Run tab to capture splits and lap markers." : {
+
+    },
+    "Start the Challenge" : {
+
+    },
+    "Start This Workout" : {
+
+    },
+    "Start Workout" : {
+
+    },
+    "Stop tracking progress on this route." : {
+
+    },
+    "tab_design" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Design"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "עיצוב"
+          }
+        }
+      }
+    },
+    "tab_home" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "בית"
+          }
+        }
+      }
+    },
+    "tab_improve" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Improve"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "שיפור"
+          }
+        }
+      }
+    },
+    "tab_profile" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "פרופיל"
+          }
+        }
+      }
+    },
+    "tab_scan" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "needs_translation",
+            "value" : "סריקה"
+          }
+        }
+      }
+    },
+    "TAGS" : {
+
+    },
+    "Talk to Coach" : {
+
+    },
+    "Tap anywhere to continue" : {
+
+    },
+    "Target · %@" : {
+
+    },
+    "Target date" : {
+
+    },
+    "Tell Coach what changed" : {
+
+    },
+    "Tell Coach what changed and rewrite this week." : {
+
+    },
+    "Terms of Service" : {
+
+    },
+    "This Garmin map has too few GPS points to save as a repeatable route; the run report still works." : {
+
+    },
+    "This is a real activity, but no generated coach report has been saved yet." : {
+
+    },
+    "This permanently deletes your account, training plans, and run history. This cannot be undone." : {
+
+    },
+    "This removes RunSmart's saved route and benchmark tracking. It does not delete the original Garmin activity." : {
+
+    },
+    "This removes the current timer, distance, and route." : {
+
+    },
+    "This removes the run from RunSmart. It will not delete anything from Garmin." : {
+
+    },
+    "This Week" : {
+
+    },
+    "This week has needed adjusting a few times" : {
+
+    },
+    "Today, Plan, and weekly progress will reflect the new schedule." : {
+
+    },
+    "TOMORROW" : {
+
+    },
+    "Total Workouts: %lld" : {
+
+    },
+    "Track your progress each time you run this route." : {
+
+    },
+    "Training data could not be saved to your RunSmart profile. Check your connection and try again." : {
+
+    },
+    "Training data saved." : {
+
+    },
+    "Unfavorite" : {
+
+    },
+    "Up next: %@" : {
+
+    },
+    "Upcoming from Your Coach" : {
+
+    },
+    "Use Estimate" : {
+
+    },
+    "Use This Route" : {
+
+    },
+    "Verified RunSmart activity" : {
+
+    },
+    "View all" : {
+
+    },
+    "View Report" : {
+
+    },
+    "Want to talk through what's going on? Coach can look at the full picture and suggest a more sustainable approach." : {
+
+    },
+    "We'll build your plan around it." : {
+
+    },
+    "Week by week" : {
+
+    },
+    "WEEK IN REVIEW" : {
+
+    },
+    "Weekly Review" : {
+
+    },
+    "WELCOME TO RUNSMART" : {
+
+    },
+    "What's your\nrunning goal?" : {
+
+    },
+    "Workout Breakdown" : {
+
+    },
+    "Workout breakdown unavailable for this plan item." : {
+
+    },
+    "Workout details will appear once the structure loads." : {
+
+    },
+    "You completed 4 of 5 planned sessions. The missed strength day is not critical; keep Sunday easy." : {
+
+    },
+    "Your week is updated" : {
+
+    },
+    "Zone Analysis" : {
+
+    }
+  },
+  "version" : "1.0"
+}

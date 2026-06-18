@@ -4,11 +4,32 @@ import Supabase
 // MARK: - Client singleton
 
 enum SupabaseManager {
+    private static func requiredInfoPlistString(_ key: String) -> String {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String else {
+            fatalError("Missing \(key) in Info.plist / xcconfig")
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.hasPrefix("$(") else {
+            fatalError("Unsubstituted \(key) in Info.plist / xcconfig")
+        }
+        return trimmed
+    }
+
+    static let supabaseURL: URL = {
+        guard let url = URL(string: requiredInfoPlistString("SUPABASE_URL")) else {
+            fatalError("Invalid SUPABASE_URL in Info.plist / xcconfig")
+        }
+        return url
+    }()
+
+    static let supabasePublishableKey = requiredInfoPlistString("SUPABASE_PUBLISHABLE_KEY")
+    static let functionsBaseURL = supabaseURL.appendingPathComponent("functions/v1")
+
     static let client: SupabaseClient = {
         let auth = SupabaseClientOptions.AuthOptions(emitLocalSessionAsInitialSession: true)
         return SupabaseClient(
-            supabaseURL: URL(string: "https://dxqglotcyirxzyqaxqln.supabase.co")!,
-            supabaseKey: "sb_publishable_PpDpqkqVaKFnOyoLR7mdyA_UNTeeoqN",
+            supabaseURL: supabaseURL,
+            supabaseKey: supabasePublishableKey,
             options: SupabaseClientOptions(auth: auth)
         )
     }()
@@ -23,6 +44,10 @@ struct DBProfile: Sendable {
     let name: String?
     let goal: String         // nullable in DB; defaults to ""
     let experience: String   // nullable in DB; defaults to ""
+    let age: Int?
+    let averageWeeklyDistanceKm: Double?
+    let trainingDataSource: String?
+    let trainingDataUpdatedAt: String?
     let preferredTimes: [String]
     let coachingStyle: String?
     let daysPerWeek: Int     // nullable in DB; defaults to 0
@@ -37,6 +62,10 @@ extension DBProfile: Codable {
         case name
         case goal
         case experience
+        case age
+        case averageWeeklyDistanceKm = "average_weekly_distance_km"
+        case trainingDataSource = "training_data_source"
+        case trainingDataUpdatedAt = "training_data_updated_at"
         case preferredTimes = "preferred_times"
         case coachingStyle = "coaching_style"
         case daysPerWeek = "days_per_week"
@@ -59,6 +88,10 @@ extension DBProfile: Codable {
         name = try? c.decodeIfPresent(String.self, forKey: .name)
         goal = (try? c.decode(String.self, forKey: .goal)) ?? ""
         experience = (try? c.decode(String.self, forKey: .experience)) ?? ""
+        age = try? c.decodeIfPresent(Int.self, forKey: .age)
+        averageWeeklyDistanceKm = try? c.decodeIfPresent(Double.self, forKey: .averageWeeklyDistanceKm)
+        trainingDataSource = try? c.decodeIfPresent(String.self, forKey: .trainingDataSource)
+        trainingDataUpdatedAt = try? c.decodeIfPresent(String.self, forKey: .trainingDataUpdatedAt)
         preferredTimes = (try? c.decode([String].self, forKey: .preferredTimes)) ?? []
         coachingStyle = try? c.decodeIfPresent(String.self, forKey: .coachingStyle)
         daysPerWeek = (try? c.decode(Int.self, forKey: .daysPerWeek)) ?? 0
@@ -69,6 +102,38 @@ extension DBProfile: Codable {
 struct DBProfileInsert: Encodable, Sendable {
     let authUserId: String   // UUID string — matches auth_user_id uuid column
     let email: String        // NOT NULL in DB
+    let name: String
+    let goal: String
+    let experience: String
+    let age: Int?
+    let averageWeeklyDistanceKm: Double?
+    let trainingDataSource: String?
+    let trainingDataUpdatedAt: String?
+    let preferredTimes: [String]
+    let daysPerWeek: Int
+    let coachingStyle: String
+    let onboardingComplete: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case authUserId = "auth_user_id"
+        case email
+        case name
+        case goal
+        case experience
+        case age
+        case averageWeeklyDistanceKm = "average_weekly_distance_km"
+        case trainingDataSource = "training_data_source"
+        case trainingDataUpdatedAt = "training_data_updated_at"
+        case preferredTimes = "preferred_times"
+        case daysPerWeek = "days_per_week"
+        case coachingStyle = "coaching_style"
+        case onboardingComplete = "onboarding_complete"
+    }
+}
+
+struct DBProfileInsertLegacy: Encodable, Sendable {
+    let authUserId: String
+    let email: String
     let name: String
     let goal: String
     let experience: String
@@ -87,49 +152,6 @@ struct DBProfileInsert: Encodable, Sendable {
         case daysPerWeek = "days_per_week"
         case coachingStyle = "coaching_style"
         case onboardingComplete = "onboarding_complete"
-    }
-}
-
-enum DBProfileReference: Codable, Hashable, Sendable {
-    case numeric(Int)
-    case uuid(UUID)
-    case string(String)
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.singleValueContainer()
-        if let int = try? c.decode(Int.self) {
-            self = .numeric(int)
-        } else if let uuid = try? c.decode(UUID.self) {
-            self = .uuid(uuid)
-        } else if let string = try? c.decode(String.self), let uuid = UUID(uuidString: string) {
-            self = .uuid(uuid)
-        } else if let string = try? c.decode(String.self), let int = Int(string) {
-            self = .numeric(int)
-        } else if let string = try? c.decode(String.self) {
-            self = .string(string)
-        } else {
-            self = .string("")
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.singleValueContainer()
-        switch self {
-        case .numeric(let value):
-            try c.encode(value)
-        case .uuid(let value):
-            try c.encode(value.uuidString)
-        case .string(let value):
-            try c.encode(value)
-        }
-    }
-
-    var debugValue: String {
-        switch self {
-        case .numeric(let value): "\(value)"
-        case .uuid(let value): value.uuidString
-        case .string(let value): value
-        }
     }
 }
 
@@ -172,6 +194,8 @@ struct DBWorkout: Codable, Sendable {
     let workoutStructure: String?
     let intensity: String?
     let trainingPhase: String?
+    let adjustedAt: String?
+    let adjustedReason: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -188,6 +212,8 @@ struct DBWorkout: Codable, Sendable {
         case workoutStructure = "workout_structure"
         case intensity
         case trainingPhase = "training_phase"
+        case adjustedAt = "adjusted_at"
+        case adjustedReason = "adjusted_reason"
     }
 
     init(from decoder: Decoder) throws {
@@ -206,16 +232,32 @@ struct DBWorkout: Codable, Sendable {
         workoutStructure = try? c.decodeIfPresent(String.self, forKey: .workoutStructure)
         intensity = try? c.decodeIfPresent(String.self, forKey: .intensity)
         trainingPhase = try? c.decodeIfPresent(String.self, forKey: .trainingPhase)
+        adjustedAt = try? c.decodeIfPresent(String.self, forKey: .adjustedAt)
+        adjustedReason = try? c.decodeIfPresent(String.self, forKey: .adjustedReason)
     }
 }
 
 struct DBConversation: Codable, Sendable {
     let id: UUID
     let profileId: UUID
+    let authUserId: UUID?
 
     enum CodingKeys: String, CodingKey {
         case id
         case profileId = "profile_id"
+        case authUserId = "auth_user_id"
+    }
+}
+
+struct DBConversationInsert: Encodable, Sendable {
+    let profileId: String
+    var authUserId: String? = nil
+    var title: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case profileId = "profile_id"
+        case authUserId = "auth_user_id"
+        case title
     }
 }
 
@@ -232,6 +274,40 @@ struct DBMessage: Codable, Sendable {
         case role
         case content
         case createdAt = "created_at"
+    }
+}
+
+struct DBMessageInsert: Encodable, Sendable {
+    let conversationId: String
+    var authUserId: String? = nil
+    let role: String
+    let content: String
+    let createdAt: String
+    var clientMessageId: String? = nil
+    var source: String? = nil
+    var metadata: [String: String]? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case conversationId = "conversation_id"
+        case authUserId = "auth_user_id"
+        case role
+        case content
+        case createdAt = "created_at"
+        case clientMessageId = "client_message_id"
+        case source
+        case metadata
+    }
+}
+
+struct DBCoachMessagesForConversationParams: Encodable, Sendable {
+    let conversationID: String
+    let limit: Int
+    let assistantOnly: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case conversationID = "p_conversation_id"
+        case limit = "p_limit"
+        case assistantOnly = "p_assistant_only"
     }
 }
 
@@ -379,9 +455,13 @@ struct DBChallengeEnrollment: Codable, Sendable {
 extension OnboardingProfile {
     var supabaseGoal: String {
         let lower = goal.lowercased()
-        if lower.contains("habit") || lower.contains("consistency") { return "habit" }
-        if lower.contains("speed") || lower.contains("5k") || lower.contains("interval") { return "speed" }
-        return "distance"
+        if lower.contains("habit") || lower.contains("consistency") || lower.contains("just") { return "habit" }
+        if lower.contains("injury") || lower.contains("prevent") { return "injury_prevention" }
+        if lower.contains("weight") { return "weight_loss" }
+        if lower.contains("race") || lower.contains("5k") || lower.contains("10k") || lower.contains("half") || lower.contains("marathon") || lower.contains("pr") {
+            return "race"
+        }
+        return "fitness"
     }
 
     var supabaseExperience: String {
@@ -402,11 +482,25 @@ extension OnboardingProfile {
 }
 
 extension TrainingGoalRequest {
+    var webPlanGoal: String {
+        let lower = goal.lowercased()
+        if lower.contains("habit") || lower.contains("consistency") || lower.contains("just") { return "habit" }
+        if lower.contains("fast") || lower.contains("speed") || lower.contains("pr") || lower.contains("breakthrough") { return "speed" }
+        if lower.contains("race") || lower.contains("5k") || lower.contains("10k") || lower.contains("half") || lower.contains("marathon") || lower.contains("distance") {
+            return "distance"
+        }
+        return "habit"
+    }
+
     var supabaseGoal: String {
         let lower = goal.lowercased()
         if lower.contains("habit") || lower.contains("consistency") || lower.contains("just") { return "habit" }
-        if lower.contains("speed") || lower.contains("5k") || lower.contains("pr") { return "speed" }
-        return "distance"
+        if lower.contains("injury") || lower.contains("prevent") { return "injury_prevention" }
+        if lower.contains("weight") { return "weight_loss" }
+        if lower.contains("race") || lower.contains("5k") || lower.contains("10k") || lower.contains("half") || lower.contains("marathon") || lower.contains("pr") {
+            return "race"
+        }
+        return "fitness"
     }
 
     var supabaseExperience: String {
@@ -442,17 +536,3 @@ extension WorkoutKind {
     }
 }
 
-// MARK: - Helpers
-
-func userIdInt64(from uuid: UUID) -> Int64 {
-    let (a, b, c, d, e, f, g, h, _, _, _, _, _, _, _, _) = uuid.uuid
-    var val = Int64(a) << 56
-    val |= Int64(b) << 48
-    val |= Int64(c) << 40
-    val |= Int64(d) << 32
-    val |= Int64(e) << 24
-    val |= Int64(f) << 16
-    val |= Int64(g) << 8
-    val |= Int64(h)
-    return val < 0 ? -val : val
-}

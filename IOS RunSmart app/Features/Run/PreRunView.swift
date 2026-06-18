@@ -3,6 +3,7 @@ import SwiftUI
 struct PreRunView: View {
     var metrics: [MetricTile]
     var plannedWorkout: WorkoutSummary?
+    var selectedRoute: RouteSuggestion?
     var phase: RunRecordingPhase
     var gpsStatus: String
     var gpsDetail: String
@@ -33,7 +34,7 @@ struct PreRunView: View {
                         }
 
                         HStack(alignment: .center, spacing: 16) {
-                            StartRunButton(title: startTitle, isWaiting: phase == .requestingPermission, action: onStart)
+                            StartRunButton(title: startTitle, isWaiting: phase == .requestingPermission || phase == .acquiringLocation, action: onStart)
                             Spacer()
                             VStack(alignment: .leading, spacing: 9) {
                                 Label("GPS route", systemImage: "location.fill")
@@ -49,6 +50,12 @@ struct PreRunView: View {
                             RunOptionButton(title: "Route", symbol: "map.fill", tint: .accentRecovery, action: onRoute)
                             RunOptionButton(title: "Audio", symbol: "speaker.wave.2.fill", tint: .accentPrimary, action: onAudio)
                         }
+
+                        if let selectedRoute {
+                            SelectedPreRunRouteCard(route: selectedRoute)
+                        }
+
+                        PreRunCueTimeline(plannedWorkout: plannedWorkout)
                     }
                 }
 
@@ -98,11 +105,50 @@ struct PreRunView: View {
         switch phase {
         case .requestingPermission:
             return "Starting..."
+        case .acquiringLocation:
+            return "Finding GPS"
         case .denied:
             return "Allow GPS"
         default:
             return "Start Run"
         }
+    }
+}
+
+private struct SelectedPreRunRouteCard: View {
+    var route: RouteSuggestion
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: route.points.isEmpty ? "map" : "map.fill")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Color.accentRecovery)
+                .frame(width: 32, height: 32)
+                .background(Color.accentRecovery.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Route selected")
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Text(routeSummary)
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.surfaceBase.opacity(0.34), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.border, lineWidth: 1))
+    }
+
+    private var routeSummary: String {
+        let distance = String(format: "%.1f km", route.distanceKm)
+        let elevation = "\(route.elevationGainMeters)m gain"
+        let mapState = route.points.isEmpty ? "no saved map points" : "map ready"
+        return "\(route.name) - \(distance) - \(elevation) - \(mapState)"
     }
 }
 
@@ -154,6 +200,7 @@ private struct StartRunButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
+        .disabled(isWaiting)
     }
 }
 
@@ -192,7 +239,7 @@ struct GPSStatusPill: View {
         switch phase {
         case .recording:
             return "location.fill"
-        case .requestingPermission:
+        case .requestingPermission, .acquiringLocation:
             return "location.circle"
         case .denied, .failed:
             return "location.slash.fill"
@@ -205,10 +252,122 @@ struct GPSStatusPill: View {
         switch phase {
         case .denied, .failed:
             return .accentHeart
-        case .paused:
+        case .paused, .acquiringLocation:
             return .accentEnergy
         default:
             return .accentPrimary
         }
+    }
+}
+
+private struct PreRunCueTimeline: View {
+    var plannedWorkout: WorkoutSummary?
+    @State private var isExpanded = false
+
+    var body: some View {
+        if let workout = plannedWorkout {
+            plannedCues(for: workout)
+        } else {
+            freeRunIntent
+        }
+    }
+
+    private var freeRunIntent: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "waveform.path")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.accentPrimary)
+                .frame(width: 30, height: 30)
+                .background(Color.accentPrimary.opacity(0.12), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Pacing intent")
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Text("Run by feel, no pressure. Listen to your body.")
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.surfaceBase.opacity(0.34), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.border, lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func plannedCues(for workout: WorkoutSummary) -> some View {
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "list.bullet.clipboard")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                    Text("See workout breakdown")
+                        .font(.bodyMD.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.textSecondary)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .padding(.horizontal, 12)
+                .frame(height: 48)
+                .background(Color.surfaceBase.opacity(0.34), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                VStack(spacing: 8) {
+                    let steps = StructuredWorkoutFactory.makeSteps(for: workout)
+                    if let steps, !steps.isEmpty {
+                        ForEach(steps) { step in
+                            CueStepRow(step: step)
+                        }
+                    } else {
+                        Text("Workout details will appear once the structure loads.")
+                            .font(.bodyMD)
+                            .foregroundStyle(Color.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 8)
+                    }
+                }
+                .padding(.top, 6)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+}
+
+private struct CueStepRow: View {
+    var step: WorkoutStep
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(step.tint)
+                .frame(width: 9, height: 9)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(step.title)
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Text("\(step.duration) · \(step.target)")
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color.surfaceCard.opacity(0.58), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }

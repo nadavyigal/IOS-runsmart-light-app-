@@ -11,6 +11,8 @@ struct PlanTabView: View {
     @State private var displayedMonth: Date = Date()
     @State private var isLoadingMonthWorkouts: Bool = true
     @State private var recentRuns: [RecordedRun] = []
+    @State private var activePlan: TrainingPlanSnapshot?
+    @State private var todayRecommendation: TodayRecommendation = .placeholder
     @State private var goal: GoalSummary = .loading
     @State private var challenge: ChallengeSummary = .loading
     @State private var recovery: RecoverySnapshot = .loading
@@ -48,46 +50,75 @@ struct PlanTabView: View {
     }
 
     var body: some View {
+        let explanation = planExplanation
+        let current = currentWeek
+        let weeksForReview = reviewWeeks.isEmpty ? planWeeks : reviewWeeks
+
         NavigationStack(path: $navPath) {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 14) {
+                LazyVStack(alignment: .leading, spacing: 14) {
                     header
 
-                    PlanBriefingCard(
-                        name: session.onboardingProfile.displayName,
-                        goal: goal,
-                        recovery: recovery,
-                        onCoach: { router.openCoach(context: "Plan") }
-                    )
-                    .runSmartStaggeredAppear(index: 0)
+                    if let current {
+                        PlanCurrentWeekSection(week: current) { workout in
+                            Analytics.trackPlanWorkoutTapped(
+                                workoutType: workout.kind.rawValue,
+                                weekNumber: current.weekNumber
+                            )
+                            openWorkoutDetail(workout)
+                        }
+                        .runSmartStaggeredAppear(index: 0)
 
-                    if let currentWeek {
-                        PlanCurrentWeekSection(week: currentWeek) { workout in
-                            navPath.append(.workoutDetail(workout))
+                        FlexWeekAdjustPill {
+                            router.openFlexWeek(entryPoint: .planPill)
                         }
                         .runSmartStaggeredAppear(index: 1)
                     }
 
+                    Button(action: openPlanCoach) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.accentPrimary)
+                            Text("Explain this week")
+                                .font(.bodyMD.weight(.semibold))
+                                .foregroundStyle(Color.accentPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.accentPrimary)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(height: 44)
+                        .background(Color.accentPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.accentPrimary.opacity(0.2), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .runSmartStaggeredAppear(index: 2)
+
+                    if explanation.trigger != .normal || !explanation.isOnTrack {
+                        PlanExplanationCard(
+                            title: explanation.isOnTrack ? "Plan is on track" : "Plan adjusted because...",
+                            explanation: explanation,
+                            onAction: { handleExplanationAction(explanation) }
+                        )
+                        .runSmartStaggeredAppear(index: 3)
+                    }
+
                     SegmentedPillPicker(values: PlanViewMode.allCases, selection: $viewMode) { $0.rawValue }
-                        .runSmartStaggeredAppear(index: 2)
+                        .runSmartStaggeredAppear(index: 4)
 
                     switch viewMode {
                     case .month:
                         MonthlyScheduleCard(
                             displayedMonth: displayedMonth,
                             workoutsByDate: workoutsByDate,
-                            onSelectWorkout: { workout in navPath.append(.workoutDetail(workout)) },
-                            onPreviousMonth: {
-                                displayedMonth = Calendar.current.date(byAdding: .month, value: -1, to: displayedMonth) ?? displayedMonth
-                            },
-                            onNextMonth: {
-                                displayedMonth = Calendar.current.date(byAdding: .month, value: 1, to: displayedMonth) ?? displayedMonth
-                            }
+                            onSelectWorkout: openWorkoutDetail,
+                            onPreviousMonth: showPreviousMonth,
+                            onNextMonth: showNextMonth
                         )
                     case .weekly:
-                        PlanWeeklyReviewSection(weeks: reviewWeeks.isEmpty ? planWeeks : reviewWeeks) { workout in
-                            navPath.append(.workoutDetail(workout))
-                        }
+                        PlanWeeklyReviewSection(weeks: weeksForReview, onWorkout: openWorkoutDetail)
                     case .progress:
                         PlanProgressSection(
                             goal: goal,
@@ -98,32 +129,23 @@ struct PlanTabView: View {
                     }
 
                     PlanCoachNotesCard(workouts: nextWorkouts, goal: goal) { workout in
-                        navPath.append(.workoutDetail(workout))
+                        openWorkoutDetail(workout)
                     } onAll: {
-                        viewMode = .weekly
+                        showWeeklyReview()
                     }
-                    .runSmartStaggeredAppear(index: 3)
-
-                    InsightCard(
-                        title: "Coach Notes",
-                        message: recovery.recommendation,
-                        action: { router.openCoach(context: "Plan") }
-                    )
-                    .runSmartStaggeredAppear(index: 4)
+                    .runSmartStaggeredAppear(index: 5)
 
                     PlanActionGrid(
-                        onAdd: { router.open(.addActivity) },
-                        onAdjust: { router.open(.goalWizard) },
-                        onChallenges: { navPath.append(.challenges) },
-                        onCoach: { router.openCoach(context: "Plan") }
+                        onAdd: openAddActivity,
+                        onCoach: openPlanCoach
                     )
 
                     if viewMode == .progress {
                         ChallengePlanCard(challenge: challenge) {
-                            navPath.append(.challenges)
+                            open(.challenges)
                         }
 
-                        RecoveryPlanCard(recovery: recovery, trainingLoad: trainingLoad)
+                        RecoveryInsightPlanCard(recovery: recovery, trainingLoad: trainingLoad)
 
                         RunTrendChartCard(runs: recentRuns)
                     }
@@ -138,6 +160,12 @@ struct PlanTabView: View {
                 SecondaryFlowView(destination: destination)
             }
         }
+        .onAppear {
+            Analytics.trackPlanViewed(
+                weekNumber: currentWeek?.weekNumber,
+                hasActivePlan: activePlan != nil
+            )
+        }
         .task {
             await loadPlanData()
         }
@@ -145,16 +173,10 @@ struct PlanTabView: View {
             await loadMonthData()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanDidChange)) { _ in
-            Task {
-                await loadPlanData()
-                await loadMonthData()
-            }
+            refreshPlanAndMonth()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
-            Task {
-                await loadPlanData()
-                await loadMonthData()
-            }
+            refreshPlanAndMonth()
         }
     }
 
@@ -162,16 +184,28 @@ struct PlanTabView: View {
         async let weekTask = services.weeklyPlan()
         async let nextTask = services.nextWorkouts(limit: 3)
         async let runsTask = services.recentRuns()
+        async let planTask = services.activeTrainingPlan()
+        async let todayTask = services.todayRecommendation()
         async let goalTask = services.activeGoal()
         async let challengeTask = services.activeChallenge()
         async let recoveryTask = services.recoverySnapshot()
         async let loadTask = services.trainingLoadSnapshot()
-        let (ww, nw, runs, g, ch, rec, load) = await (
-            weekTask, nextTask, runsTask, goalTask, challengeTask, recoveryTask, loadTask
+        let (ww, nw, runs, plan, today, g, ch, rec, load) = await (
+            weekTask,
+            nextTask,
+            runsTask,
+            planTask,
+            todayTask,
+            goalTask,
+            challengeTask,
+            recoveryTask,
+            loadTask
         )
         weekWorkouts = ww
         nextWorkouts = nw
         recentRuns = runs
+        activePlan = plan
+        todayRecommendation = today
         goal = g
         challenge = ch
         recovery = rec
@@ -189,19 +223,82 @@ struct PlanTabView: View {
         isLoadingMonthWorkouts = false
     }
 
+    private func refreshPlanAndMonth() {
+        Task {
+            await loadPlanData()
+            await loadMonthData()
+        }
+    }
+
+    private func open(_ destination: SecondaryDestination) {
+        navPath.append(destination)
+    }
+
+    private func openWorkoutDetail(_ workout: WorkoutSummary) {
+        open(.workoutDetail(workout))
+    }
+
+    private func openAddActivity() {
+        router.open(.addActivity)
+    }
+
+    private func openPlanCoach() {
+        router.openCoach(context: .plan)
+    }
+
+    private func showPreviousMonth() {
+        displayedMonth = Calendar.current.date(byAdding: .month, value: -1, to: displayedMonth) ?? displayedMonth
+    }
+
+    private func showNextMonth() {
+        displayedMonth = Calendar.current.date(byAdding: .month, value: 1, to: displayedMonth) ?? displayedMonth
+    }
+
+    private func showWeeklyReview() {
+        viewMode = .weekly
+    }
+
     private var header: some View {
         RunSmartTopBar(title: "Plan")
-            .overlay(alignment: .trailing) {
-                Button { router.open(.goalWizard) } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.headline)
-                        .foregroundStyle(Color.accentPrimary)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .offset(x: -92)
+    }
+
+    private var plannedTodayWorkout: WorkoutSummary? {
+        nextWorkouts.first(where: { $0.isToday }) ?? weekWorkouts.first(where: { Calendar.current.isDateInToday($0.scheduledDate) })
+    }
+
+    private var planExplanation: PlanExplanation {
+        PlanExplanation.make(
+            activePlan: activePlan,
+            todayWorkout: plannedTodayWorkout,
+            weekWorkouts: weekWorkouts,
+            nextWorkouts: nextWorkouts,
+            recentRuns: recentRuns,
+            recovery: recovery,
+            recommendation: todayRecommendation
+        )
+    }
+
+    private func handleExplanationAction(_ explanation: PlanExplanation) {
+        switch explanation.trigger {
+        case .missedWorkout:
+            if let reason = FlexWeekEntryPresentation.preselectedMissedReason(from: weekWorkouts) {
+                router.openFlexWeek(preselectedReason: reason, entryPoint: .missedWorkoutReschedule)
+            } else {
+                router.openFlexWeek(entryPoint: .planExplanation)
             }
+        case .lowRecovery:
+            if let workout = plannedTodayWorkout ?? nextWorkouts.first {
+                open(.amendWorkout(workout))
+            } else {
+                router.openFlexWeek(entryPoint: .planExplanation)
+            }
+        case .extraRun:
+            router.openFlexWeek(entryPoint: .planExplanation)
+        case .normal where explanation.action == "Set a goal":
+            open(.goalWizard)
+        default:
+            openPlanCoach()
+        }
     }
 }
 
@@ -210,187 +307,6 @@ private enum PlanViewMode: String, CaseIterable, Hashable, Identifiable {
     case weekly = "Weekly"
     case progress = "Progress"
     var id: String { rawValue }
-}
-
-private struct PlanBriefingCard: View {
-    var name: String
-    var goal: GoalSummary
-    var recovery: RecoverySnapshot
-    var onCoach: () -> Void
-
-    var body: some View {
-        RunSmartPanel(cornerRadius: 22, padding: 18, accent: .accentPrimary) {
-            HStack(alignment: .top, spacing: 16) {
-                CoachAvatar(size: 94, showBolt: false)
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "AI Coach Briefing")
-                    Text("Strong week ahead\(name.isEmpty ? "" : ", \(name)"). Your recovery is \(recovery.hrv.lowercased()) and last week's tempo looked solid. We're building fitness with a \(goal.title.lowercased()) focus.")
-                        .font(.bodyLG)
-                        .foregroundStyle(Color.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("Focus: \(goal.trendLabel) - Build Aerobic Endurance")
-                        .font(.bodyMD.weight(.semibold))
-                        .foregroundStyle(Color.accentPrimary)
-
-                    Button(action: onCoach) {
-                        HStack {
-                            CoachGlowBadge(size: 34)
-                            Text("Ask Coach anything...")
-                                .font(.bodyMD)
-                                .foregroundStyle(Color.textSecondary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(Color.textSecondary)
-                        }
-                        .padding(.horizontal, 12)
-                        .frame(height: 52)
-                        .background(Color.surfaceCard.opacity(0.72), in: Capsule())
-                        .overlay(Capsule().stroke(Color.border, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-}
-
-private struct PlanWeekStripSection: View {
-    var workouts: [WorkoutSummary]
-    var weekRange: String
-    var onWorkout: (WorkoutSummary) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("This Week")
-                    .font(.bodyLG.weight(.semibold))
-                Spacer()
-                Text(weekRange)
-                    .font(.bodyMD)
-                    .foregroundStyle(Color.textSecondary)
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(workouts) { workout in
-                        Button { onWorkout(workout) } label: {
-                            WorkoutDayCard(workout: workout)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 1)
-            }
-        }
-    }
-}
-
-private struct PlanMonthOverviewStrip: View {
-    var displayedMonth: Date
-    var workoutsByDate: [String: WorkoutSummary]
-    var onSelectWorkout: (WorkoutSummary) -> Void
-    var onPreviousMonth: () -> Void
-    var onNextMonth: () -> Void
-
-    private var days: [Date] {
-        let calendar = Calendar.current
-        let start = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())) ?? Date()
-        return (0..<14).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
-    }
-
-    private var title: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM 'Overview'"
-        return formatter.string(from: displayedMonth)
-    }
-
-    var body: some View {
-        RunSmartPanel(cornerRadius: 20, padding: 14) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text(title)
-                        .font(.bodyLG.weight(.semibold))
-                    Spacer()
-                    Button(action: onPreviousMonth) {
-                        Image(systemName: "chevron.left")
-                            .frame(width: 32, height: 32)
-                    }
-                    .buttonStyle(.plain)
-                    Button(action: onNextMonth) {
-                        Image(systemName: "chevron.right")
-                            .frame(width: 32, height: 32)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .foregroundStyle(Color.textSecondary)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 11) {
-                        ForEach(days, id: \.self) { date in
-                            let key = ISO8601DateFormatter.shortDate.string(from: date)
-                            let workout = workoutsByDate[key]
-                            PlanOverviewDay(date: date, workout: workout) {
-                                if let workout { onSelectWorkout(workout) }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct PlanOverviewDay: View {
-    var date: Date
-    var workout: WorkoutSummary?
-    var onTap: () -> Void
-
-    private var isToday: Bool {
-        Calendar.current.isDateInToday(date)
-    }
-
-    var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: 8) {
-                Text(weekday)
-                    .font(.caption2.bold())
-                    .foregroundStyle(Color.textSecondary)
-                Text(day)
-                    .font(.bodyMD.weight(.semibold))
-                    .foregroundStyle(isToday ? Color.black : Color.textPrimary)
-                    .frame(width: 30, height: 30)
-                    .background(isToday ? Color.accentPrimary : Color.clear, in: Circle())
-                Circle()
-                    .fill(workout == nil ? Color.textTertiary.opacity(0.5) : (workout?.isComplete == true ? Color.accentPrimary : tint))
-                    .frame(width: 6, height: 6)
-            }
-            .frame(width: 36)
-        }
-        .buttonStyle(.plain)
-        .disabled(workout == nil)
-    }
-
-    private var weekday: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "E"
-        return String(formatter.string(from: date).prefix(1))
-    }
-
-    private var day: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d"
-        return formatter.string(from: date)
-    }
-
-    private var tint: Color {
-        guard let workout else { return .textTertiary }
-        switch workout.kind {
-        case .tempo, .intervals: return .accentAmber
-        case .hills, .strength: return .accentMagenta
-        case .long: return .accentRecovery
-        default: return .accentPrimary
-        }
-    }
 }
 
 private struct PlanCoachNotesCard: View {
@@ -600,38 +516,6 @@ private struct PlanWeekWorkoutRow: View {
     }
 }
 
-private struct PlanWeekSection: View {
-    var workouts: [WorkoutSummary]
-    var weekRange: String
-    var onWorkout: (WorkoutSummary) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("This Week")
-                    .font(.headline)
-                Spacer()
-                Text(weekRange)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.textSecondary)
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(workouts) { workout in
-                        Button { onWorkout(workout) } label: {
-                            WorkoutDayCard(workout: workout)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 2)
-                .padding(.vertical, 8)
-            }
-        }
-    }
-}
-
 struct WorkoutDayCard: View {
     var workout: WorkoutSummary
 
@@ -782,15 +666,11 @@ private struct PlanProgressSection: View {
 
 private struct PlanActionGrid: View {
     var onAdd: () -> Void
-    var onAdjust: () -> Void
-    var onChallenges: () -> Void
     var onCoach: () -> Void
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            PlanActionTile(title: "Add Run", detail: "Manual or synced", symbol: "plus.circle.fill", action: onAdd)
-            PlanActionTile(title: "Adjust Plan", detail: "Keep load safe", symbol: "slider.horizontal.3", action: onAdjust)
-            PlanActionTile(title: "Challenges", detail: "Sync to plan", symbol: "trophy.fill", action: onChallenges)
+            PlanActionTile(title: "Add Activity", detail: "Log manually or sync", symbol: "plus.circle.fill", action: onAdd)
             PlanActionTile(title: "Coach", detail: "Ask about the week", symbol: "sparkles", action: onCoach)
         }
     }
@@ -850,7 +730,7 @@ private struct ChallengePlanCard: View {
     }
 }
 
-private struct RecoveryPlanCard: View {
+struct RecoveryInsightPlanCard: View {
     var recovery: RecoverySnapshot
     var trainingLoad: TrainingLoadSnapshot
 

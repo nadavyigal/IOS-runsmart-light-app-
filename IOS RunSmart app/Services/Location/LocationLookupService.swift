@@ -7,6 +7,7 @@ final class LocationLookupService: NSObject, CLLocationManagerDelegate {
 
     private let manager = CLLocationManager()
     private var continuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
+    private var timeoutTask: Task<Void, Never>?
 
     override private init() {
         super.init()
@@ -19,9 +20,16 @@ final class LocationLookupService: NSObject, CLLocationManagerDelegate {
             continuation.resume(returning: nil)
             self.continuation = nil
         }
+        timeoutTask?.cancel()
 
         return await withCheckedContinuation { continuation in
             self.continuation = continuation
+            timeoutTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 8_000_000_000)
+                await MainActor.run {
+                    self?.finish(with: nil)
+                }
+            }
             switch manager.authorizationStatus {
             case .notDetermined:
                 manager.requestWhenInUseAuthorization()
@@ -65,5 +73,7 @@ final class LocationLookupService: NSObject, CLLocationManagerDelegate {
     private func finish(with coordinate: CLLocationCoordinate2D?) {
         continuation?.resume(returning: coordinate)
         continuation = nil
+        timeoutTask?.cancel()
+        timeoutTask = nil
     }
 }

@@ -1,0 +1,9 @@
+// Committed defaults for clean local and CI builds.
+// RunSmartSecrets.xcconfig is gitignored and may override these values.
+
+POSTHOG_API_KEY =
+// xcconfig treats // as a comment; use $()/ to preserve the URL scheme.
+SUPABASE_URL = https:/$()/dxqglotcyirxzyqaxqln.supabase.co
+SUPABASE_PUBLISHABLE_KEY = sb_publishable_PpDpqkqVaKFnOyoLR7mdyA_UNTeeoqN
+
+#include? "RunSmartSecrets.xcconfig"

@@ -107,6 +107,16 @@ struct HealthKitSyncService {
         let store = HKHealthStore()
         do {
             try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
+            let authorization = store.authorizationStatus(for: workoutType)
+            guard authorization != .notDetermined else {
+                return ConnectedDeviceStatus(
+                    provider: Self.providerName,
+                    state: .disconnected,
+                    lastSuccessfulSync: nil,
+                    permissions: [],
+                    message: "Health access was not granted."
+                )
+            }
             return ConnectedDeviceStatus(
                 provider: Self.providerName,
                 state: .connected,
@@ -212,13 +222,13 @@ private extension HealthKitSyncService {
     var readTypes: Set<HKObjectType> {
         var types: Set<HKObjectType> = [workoutType]
         types.insert(HKSeriesType.workoutRoute())
-        optionalQuantity(.heartRate).map { types.insert($0) }
-        optionalQuantity(.restingHeartRate).map { types.insert($0) }
-        optionalQuantity(.heartRateVariabilitySDNN).map { types.insert($0) }
-        optionalQuantity(.stepCount).map { types.insert($0) }
-        optionalQuantity(.distanceWalkingRunning).map { types.insert($0) }
-        optionalQuantity(.activeEnergyBurned).map { types.insert($0) }
-        optionalCategory(.sleepAnalysis).map { types.insert($0) }
+        insertIfAvailable(optionalQuantity(.heartRate), into: &types)
+        insertIfAvailable(optionalQuantity(.restingHeartRate), into: &types)
+        insertIfAvailable(optionalQuantity(.heartRateVariabilitySDNN), into: &types)
+        insertIfAvailable(optionalQuantity(.stepCount), into: &types)
+        insertIfAvailable(optionalQuantity(.distanceWalkingRunning), into: &types)
+        insertIfAvailable(optionalQuantity(.activeEnergyBurned), into: &types)
+        insertIfAvailable(optionalCategory(.sleepAnalysis), into: &types)
         return types
     }
 
@@ -232,6 +242,11 @@ private extension HealthKitSyncService {
 
     func optionalCategory(_ identifier: HKCategoryTypeIdentifier) -> HKCategoryType? {
         HKObjectType.categoryType(forIdentifier: identifier)
+    }
+
+    func insertIfAvailable(_ objectType: HKObjectType?, into types: inout Set<HKObjectType>) {
+        guard let objectType else { return }
+        types.insert(objectType)
     }
 
     func readRecentRunningWorkouts(store: HKHealthStore, lookbackDays: Int, limit: Int) async -> [RecordedRun] {

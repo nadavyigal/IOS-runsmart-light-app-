@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 
 enum SecondaryDestination: Hashable, Identifiable {
@@ -14,6 +15,7 @@ enum SecondaryDestination: Hashable, Identifiable {
     case lapMarker
     case voiceCoaching
     case coachingTone
+    case trainingData
     case goalFocus
     case reminders
     case connectedService(String)
@@ -27,6 +29,7 @@ enum SecondaryDestination: Hashable, Identifiable {
     case routeCreator
     case badgeCabinet
     case shareRun(RecordedRun?)
+    case routeDetail(SavedRoute)
     case account
 
     var id: String {
@@ -44,6 +47,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .lapMarker: "lapMarker"
         case .voiceCoaching: "voiceCoaching"
         case .coachingTone: "coachingTone"
+        case .trainingData: "trainingData"
         case .goalFocus: "goalFocus"
         case .reminders: "reminders"
         case .connectedService(let name): "connectedService-\(name)"
@@ -57,6 +61,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .routeCreator: "routeCreator"
         case .badgeCabinet: "badgeCabinet"
         case .shareRun(let run): "shareRun-\(run?.id.uuidString ?? "nil")"
+        case .routeDetail(let route): "routeDetail-\(route.id)"
         case .account: "account"
         }
     }
@@ -75,6 +80,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .lapMarker: "Lap Marker"
         case .voiceCoaching: "Voice Coaching"
         case .coachingTone: "Coaching Tone"
+        case .trainingData: "Training Data"
         case .goalFocus: "Goal Focus"
         case .reminders: "Reminders & Preferences"
         case .connectedService(let name): name
@@ -88,7 +94,102 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .routeCreator: "Route Creator"
         case .badgeCabinet: "Badge Cabinet"
         case .shareRun: "Share Run"
+        case .routeDetail(let route): route.name
         case .account: "Account"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .workoutDetail:
+            "Session plan, purpose, and execution cues."
+        case .planAdjustment:
+            "Coach logic for safe plan changes."
+        case .reschedule:
+            "Move a workout without spiking weekly load."
+        case .amendWorkout:
+            "Adjust the workout details in your active plan."
+        case .addActivity:
+            "Log a manual run or cross-training session."
+        case .routeSelector:
+            "Choose a route that fits today's workout."
+        case .runReport, .runReportDetail:
+            "Review a saved run from your history."
+        case .postRunSummary:
+            "Review effort and save the completed run."
+        case .audioCues:
+            "Tune voice prompts, timing, and coaching moments."
+        case .lapMarker:
+            "Capture a split and annotate the effort."
+        case .voiceCoaching:
+            "Manage reminder and cue preferences for planned training."
+        case .coachingTone:
+            "Pick the coach personality for future guidance."
+        case .trainingData:
+            "Save the baseline your coach uses to size training load."
+        case .goalFocus:
+            "Tell the coach what to optimize this block around."
+        case .reminders:
+            "Schedule nudges, check-ins, and recovery prompts."
+        case .connectedService:
+            "Inspect sync status, permissions, and controls."
+        case .challenges:
+            "Adopt a challenge and track your progress."
+        case .recoveryDashboard:
+            "Readiness, sleep, HRV, and recovery signals."
+        case .morningCheckin:
+            "Capture how the runner feels before training."
+        case .goalWizard:
+            "Set or revise the training goal."
+        case .weeklyRecap:
+            "Summarize the week and next coaching move."
+        case .garminWellness:
+            "Wellness panels from connected Garmin data."
+        case .zoneAnalysis:
+            "Understand effort distribution and heart rate zones."
+        case .routeCreator:
+            "Build a route that matches the workout."
+        case .badgeCabinet:
+            "Browse earned and locked achievements."
+        case .shareRun:
+            "Prepare a polished run share card."
+        case .routeDetail:
+            "Route details, benchmark stats, and actions."
+        case .account:
+            "Manage your sign-in and profile data."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .workoutDetail(let workout): workout.kind.symbol
+        case .planAdjustment: "slider.horizontal.3"
+        case .reschedule: "calendar.badge.clock"
+        case .amendWorkout: "slider.horizontal.3"
+        case .addActivity: "plus.circle.fill"
+        case .routeSelector: "map.fill"
+        case .runReport, .runReportDetail: "chart.xyaxis.line"
+        case .postRunSummary: "checkmark.seal.fill"
+        case .audioCues: "speaker.wave.2.fill"
+        case .lapMarker: "flag.fill"
+        case .voiceCoaching: "waveform"
+        case .coachingTone: "sparkles"
+        case .trainingData: "figure.run"
+        case .goalFocus: "target"
+        case .reminders: "bell.badge.fill"
+        case .connectedService: "link.circle.fill"
+        case .challenges: "trophy.fill"
+        case .recoveryDashboard: "heart.text.square.fill"
+        case .morningCheckin: "sunrise.fill"
+        case .goalWizard: "target"
+        case .weeklyRecap: "calendar.badge.checkmark"
+        case .garminWellness: "waveform.path.ecg"
+        case .zoneAnalysis: "heart.circle.fill"
+        case .routeCreator: "point.topleft.down.curvedto.point.bottomright.up"
+        case .badgeCabinet: "seal.fill"
+        case .shareRun: "square.and.arrow.up"
+        case .routeDetail: "map.fill"
+        case .account: "person.crop.circle.fill"
         }
     }
 }
@@ -99,22 +200,31 @@ struct SecondaryFlowView: View {
     var body: some View {
         ZStack {
             RunSmartBackground()
-
-            if destination == .goalWizard {
-                GoalWizardView()
-            } else {
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
-                        FlowHeader(destination: destination, subtitle: subtitle, symbol: symbol)
-                        content
-                        Spacer(minLength: 20)
-                    }
-                    .foregroundStyle(Color.textPrimary)
-                    .padding(20)
-                }
-            }
+            SecondaryContentView(destination: destination)
         }
         .preferredColorScheme(.dark)
+    }
+}
+
+private struct SecondaryContentView: View {
+    var destination: SecondaryDestination
+
+    var body: some View {
+        if destination == .goalWizard {
+            GoalWizardView()
+        } else {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+                    FlowHeader(destination: destination)
+                    content
+                    Spacer(minLength: 20)
+                }
+                .foregroundStyle(Color.textPrimary)
+                .padding(20)
+                .padding(.bottom, destination == .trainingData ? 120 : 0)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
     }
 
     @ViewBuilder
@@ -146,6 +256,8 @@ struct SecondaryFlowView: View {
             VoiceCoachingScaffold()
         case .coachingTone:
             CoachingToneScaffold()
+        case .trainingData:
+            TrainingDataEditor()
         case .goalFocus:
             GoalFocusEditor()
         case .reminders:
@@ -172,104 +284,16 @@ struct SecondaryFlowView: View {
             BadgeCabinetView()
         case .shareRun(let run):
             ShareRunView(run: run)
+        case .routeDetail(let route):
+            RouteDetailScaffold(route: route)
         case .account:
             AccountScaffold()
-        }
-    }
-
-    private var subtitle: String {
-        switch destination {
-        case .workoutDetail:
-            "Session plan, purpose, and execution cues."
-        case .planAdjustment:
-            "Coach logic for safe plan changes."
-        case .reschedule:
-            "Move a workout without spiking weekly load."
-        case .amendWorkout:
-            "Adjust the workout details in your active plan."
-        case .addActivity:
-            "Log a manual run or cross-training session."
-        case .routeSelector:
-            "Choose a route that fits today's workout."
-        case .runReport, .runReportDetail:
-            "Review a saved run from your history."
-        case .postRunSummary:
-            "Review effort and save the completed run."
-        case .audioCues:
-            "Tune voice prompts, timing, and coaching moments."
-        case .lapMarker:
-            "Capture a split and annotate the effort."
-        case .voiceCoaching:
-            "Set how active Coach Spark should be during runs."
-        case .coachingTone:
-            "Pick the coach personality for future guidance."
-        case .goalFocus:
-            "Tell the coach what to optimize this block around."
-        case .reminders:
-            "Schedule nudges, check-ins, and recovery prompts."
-        case .connectedService:
-            "Inspect sync status, permissions, and controls."
-        case .challenges:
-            "Adopt a challenge and track your progress."
-        case .recoveryDashboard:
-            "Readiness, sleep, HRV, and recovery signals."
-        case .morningCheckin:
-            "Capture how the runner feels before training."
-        case .goalWizard:
-            "Set or revise the training goal."
-        case .weeklyRecap:
-            "Summarize the week and next coaching move."
-        case .garminWellness:
-            "Wellness panels from connected Garmin data."
-        case .zoneAnalysis:
-            "Understand effort distribution and heart rate zones."
-        case .routeCreator:
-            "Build a route that matches the workout."
-        case .badgeCabinet:
-            "Browse earned and locked achievements."
-        case .shareRun:
-            "Prepare a polished run share card."
-        case .account:
-            "Manage your sign-in and profile data."
-        }
-    }
-
-    private var symbol: String {
-        switch destination {
-        case .workoutDetail(let workout): workout.kind.symbol
-        case .planAdjustment: "slider.horizontal.3"
-        case .reschedule: "calendar.badge.clock"
-        case .amendWorkout: "slider.horizontal.3"
-        case .addActivity: "plus.circle.fill"
-        case .routeSelector: "map.fill"
-        case .runReport, .runReportDetail: "chart.xyaxis.line"
-        case .postRunSummary: "checkmark.seal.fill"
-        case .audioCues: "speaker.wave.2.fill"
-        case .lapMarker: "flag.fill"
-        case .voiceCoaching: "waveform"
-        case .coachingTone: "sparkles"
-        case .goalFocus: "target"
-        case .reminders: "bell.badge.fill"
-        case .connectedService: "link.circle.fill"
-        case .challenges: "trophy.fill"
-        case .recoveryDashboard: "heart.text.square.fill"
-        case .morningCheckin: "sunrise.fill"
-        case .goalWizard: "target"
-        case .weeklyRecap: "calendar.badge.checkmark"
-        case .garminWellness: "waveform.path.ecg"
-        case .zoneAnalysis: "heart.circle.fill"
-        case .routeCreator: "point.topleft.down.curvedto.point.bottomright.up"
-        case .badgeCabinet: "seal.fill"
-        case .shareRun: "square.and.arrow.up"
-        case .account: "person.crop.circle.fill"
         }
     }
 }
 
 private struct FlowHeader: View {
     var destination: SecondaryDestination
-    var subtitle: String
-    var symbol: String
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -280,7 +304,7 @@ private struct FlowHeader: View {
                 Text(destination.title)
                     .font(.displayMD)
                     .foregroundStyle(Color.textPrimary)
-                Text(subtitle)
+                Text(destination.subtitle)
                     .font(.callout)
                     .foregroundStyle(Color.textSecondary)
             }
@@ -537,7 +561,7 @@ private struct RescheduleScaffold: View {
 
             ForEach(Array(options.enumerated()), id: \.offset) { _, option in
                 Button {
-                    Task { await move(to: option.date) }
+                    move(to: option.date)
                 } label: {
                     GlassCard {
                         HStack(spacing: 12) {
@@ -564,7 +588,13 @@ private struct RescheduleScaffold: View {
         }
     }
 
-    private func move(to date: Date) async {
+    private func move(to date: Date) {
+        Task {
+            await moveAsync(to: date)
+        }
+    }
+
+    private func moveAsync(to date: Date) async {
         isSaving = true
         let moved: Bool
         if Calendar.current.isDate(date, inSameDayAs: Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date())) ?? date) {
@@ -577,6 +607,7 @@ private struct RescheduleScaffold: View {
             dismiss()
         }
     }
+
 }
 
 private struct AmendWorkoutScaffold: View {
@@ -594,6 +625,8 @@ private struct AmendWorkoutScaffold: View {
     @State private var isSaving = false
     @State private var failed = false
 
+    private let kinds: [WorkoutKind] = [.easy, .tempo, .intervals, .hills, .long, .race, .recovery]
+
     init(workout: WorkoutSummary) {
         self.workout = workout
         _kind = State(initialValue: workout.kind)
@@ -604,8 +637,6 @@ private struct AmendWorkoutScaffold: View {
         _paceSeconds = State(initialValue: max(0, pace % 60))
         _notes = State(initialValue: workout.detail)
     }
-
-    private let kinds: [WorkoutKind] = [.easy, .tempo, .intervals, .hills, .long, .race, .recovery]
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -650,14 +681,12 @@ private struct AmendWorkoutScaffold: View {
             }
 
             if failed {
-                Text("Could not save this amendment. Check the console for the Supabase error.")
+                Text("Could not save this amendment. Check your connection and try again.")
                     .font(.callout)
                     .foregroundStyle(Color.red)
             }
 
-            Button {
-                Task { await save() }
-            } label: {
+            Button(action: saveTapped) {
                 HStack {
                     if isSaving {
                         ProgressView().tint(.black)
@@ -668,6 +697,12 @@ private struct AmendWorkoutScaffold: View {
             }
             .buttonStyle(NeonButtonStyle())
             .disabled(isSaving)
+        }
+    }
+
+    private func saveTapped() {
+        Task {
+            await save()
         }
     }
 
@@ -762,7 +797,7 @@ private struct AddActivityScaffold: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
-            Button(action: { Task { await saveRun() } }) {
+            Button(action: saveRunTapped) {
                 HStack {
                     if isSaving {
                         ProgressView().tint(.black)
@@ -773,6 +808,12 @@ private struct AddActivityScaffold: View {
             }
                 .buttonStyle(NeonButtonStyle())
                 .disabled(isSaving)
+        }
+    }
+
+    private func saveRunTapped() {
+        Task {
+            await saveRun()
         }
     }
 
@@ -794,145 +835,164 @@ private struct AddActivityScaffold: View {
 
 private struct RouteSelectorScaffold: View {
     @Environment(\.runSmartServices) private var services
-    @State private var pastRoutes: [RouteSuggestion] = []
-    @State private var nearbyRoutes: [RouteSuggestion] = []
+    @EnvironmentObject private var router: AppRouter
+    @State private var allSuggestions: [RouteSuggestion] = []
     @State private var selectedRouteID: String?
-    @State private var isLoadingNearby = false
-    @State private var locationUnavailable = false
+    @State private var isLoading = false
+    @State private var distanceFilter: Double? = nil
+
+    private let filterOptions: [Double?] = [nil, 3, 5, 8, 10, 15]
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
-            GlassCard(padding: 10, glow: Color.lime) {
-                ZStack(alignment: .bottomLeading) {
-                    RouteMapView(points: selectedRoute?.points ?? [], title: selectedRoute?.name)
-                        .frame(height: 180)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(selectedRoute?.name ?? "No saved GPS route yet")
-                            .font(.headline)
-                        Text(routeDetail)
-                            .font(.caption)
-                            .foregroundStyle(Color.mutedText)
-                    }
-                    .padding(12)
-                    .background(.black.opacity(0.42))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .padding(10)
+
+            // Distance filter bar
+            RouteDistanceFilterBar(options: filterOptions, selected: $distanceFilter)
+
+            // Route buckets
+            if isLoading {
+                HStack(spacing: 10) {
+                    ProgressView().tint(Color.lime)
+                    Text("Finding routes near you")
+                        .font(.callout)
+                        .foregroundStyle(Color.mutedText)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            } else if allSuggestions.isEmpty {
+                RouteDiscoveryEmptyCard(
+                    title: "No routes found",
+                    message: "Record a GPS run or enable location to generate nearby loops.",
+                    systemImage: "point.topleft.down.curvedto.point.bottomright.up"
+                )
+            } else {
+                routeBuckets
             }
 
-            GlassCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Nearby Loops", trailing: isLoadingNearby ? "Searching" : nil)
-                    if isLoadingNearby {
-                        HStack(spacing: 10) {
-                            ProgressView()
-                                .tint(Color.lime)
-                            Text("Finding runnable loops near you...")
-                                .font(.callout)
-                                .foregroundStyle(Color.mutedText)
-                        }
-                    } else if nearbyRoutes.isEmpty {
-                        Text(locationUnavailable ? "Location is unavailable. Enable location access to generate loops near you." : "Generate loop routes around your current location.")
-                            .font(.callout)
-                            .foregroundStyle(Color.mutedText)
-                        Button(locationUnavailable ? "Enable Location" : "Generate Nearby Loops") {
-                            Task { await loadNearbyRoutes() }
-                        }
-                        .buttonStyle(NeonButtonStyle())
-                    } else {
-                        ForEach(nearbyRoutes) { route in
-                            Button {
-                                selectedRouteID = route.id
-                            } label: {
-                                RouteOptionRow(
-                                    title: route.name,
-                                    detail: "\(String(format: "%.1f", route.distanceKm)) km | \(route.estimatedDurationMinutes) min",
-                                    selected: route.id == selectedRouteID
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        Button("Regenerate") {
-                            Task { await loadNearbyRoutes() }
-                        }
-                        .buttonStyle(NeonButtonStyle())
-                    }
-                }
+            Button {
+                guard let selectedRoute else { return }
+                router.startRun(with: router.plannedWorkout, route: selectedRoute)
+            } label: {
+                Text(selectedRoute == nil ? "No Route Available" : "Use This Route")
             }
-
-            GlassCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Past Routes")
-                    if pastRoutes.isEmpty {
-                        Text("Record a GPS run first, then RunSmart can suggest real routes from your activity history.")
-                            .font(.callout)
-                            .foregroundStyle(Color.mutedText)
-                    } else {
-                        ForEach(pastRoutes) { route in
-                            Button {
-                                selectedRouteID = route.id
-                            } label: {
-                                RouteOptionRow(
-                                    title: route.name,
-                                    detail: "\(String(format: "%.1f", route.distanceKm)) km | \(route.elevationGainMeters) m gain",
-                                    selected: route.id == selectedRouteID
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-
-            Button("Use This Route") {}
                 .buttonStyle(NeonButtonStyle())
                 .disabled(selectedRoute == nil)
         }
-        .task {
-            pastRoutes = await services.routeSuggestions()
-            await loadNearbyRoutes()
-            selectedRouteID = nearbyRoutes.first?.id ?? pastRoutes.first?.id
+        .task { await load() }
+    }
+
+    // MARK: - Buckets
+
+    private var displayed: [RouteSuggestion] {
+        RouteSuggestionRanker.filter(allSuggestions, targetDistanceKm: distanceFilter)
+    }
+
+    private var benchmarks: [RouteSuggestion] {
+        displayed.filter { $0.kind == .benchmark }
+    }
+
+    private var myRoutes: [RouteSuggestion] {
+        displayed.filter { $0.kind == .saved || $0.kind == .past }
+    }
+
+    private var generatedNearby: [RouteSuggestion] {
+        displayed.filter { $0.kind == .generated }
+    }
+
+    @ViewBuilder
+    private var routeBuckets: some View {
+        let hasAny = !benchmarks.isEmpty || !myRoutes.isEmpty || !generatedNearby.isEmpty
+
+        if !hasAny {
+            RouteDiscoveryEmptyCard(
+                title: "No matching routes",
+                message: "Try a different distance filter.",
+                systemImage: "slider.horizontal.3"
+            )
+        } else {
+            if !benchmarks.isEmpty {
+                RouteDiscoverySectionHeader(title: "Benchmarks", count: benchmarks.count)
+                ForEach(benchmarks) { r in
+                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
+                        selectedRouteID = r.id
+                    }
+                }
+            }
+
+            if !myRoutes.isEmpty {
+                RouteDiscoverySectionHeader(title: "My Routes", count: myRoutes.count)
+                ForEach(myRoutes) { r in
+                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
+                        selectedRouteID = r.id
+                    }
+                }
+            }
+
+            if !generatedNearby.isEmpty {
+                RouteDiscoverySectionHeader(title: "Generated Nearby", count: generatedNearby.count)
+                ForEach(generatedNearby) { r in
+                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
+                        selectedRouteID = r.id
+                    }
+                }
+            }
         }
     }
 
     private var selectedRoute: RouteSuggestion? {
-        allRoutes.first(where: { $0.id == selectedRouteID }) ?? allRoutes.first
+        allSuggestions.first(where: { $0.id == selectedRouteID }) ?? allSuggestions.first
     }
 
-    private var allRoutes: [RouteSuggestion] {
-        nearbyRoutes + pastRoutes
-    }
-
-    private var routeDetail: String {
-        guard let route = selectedRoute else { return "Route suggestions use real recorded GPS data." }
-        return "\(String(format: "%.1f", route.distanceKm)) km | \(route.elevationGainMeters) m gain | \(route.estimatedDurationMinutes) min"
-    }
-
-    private func loadNearbyRoutes() async {
-        isLoadingNearby = true
-        locationUnavailable = false
-        defer { isLoadingNearby = false }
-
-        guard let coordinate = await LocationLookupService.shared.currentLocation() else {
-            nearbyRoutes = []
-            locationUnavailable = true
-            return
-        }
-
-        nearbyRoutes = await services.nearbyLoopRoutes(around: coordinate, distancesKm: [3, 5, 8, 10])
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        async let rankedTask = services.rankedRouteSuggestions(targetDistanceKm: nil)
+        let location = await LocationLookupService.shared.currentLocation()
+        let generated = await generatedSuggestions(around: location)
+        let ranked = await rankedTask
+        allSuggestions = mergedSuggestions(ranked + generated)
         if selectedRouteID == nil {
-            selectedRouteID = nearbyRoutes.first?.id ?? pastRoutes.first?.id
+            selectedRouteID = allSuggestions.first?.id
+        }
+    }
+
+    private func generatedSuggestions(around location: CLLocationCoordinate2D?) async -> [RouteSuggestion] {
+        guard let location else { return [] }
+        let generated = await services.nearbyLoopRoutes(around: location, distancesKm: [5, 8, 10])
+        return generated.map { suggestion in
+            var enriched = suggestion
+            enriched.recommendationReason = RouteSuggestionRanker.reason(
+                kind: .generated,
+                distanceKm: suggestion.distanceKm,
+                targetDistanceKm: nil,
+                isFavorite: false,
+                daysSinceLastRun: nil
+            )
+            return enriched
+        }
+    }
+
+    private func mergedSuggestions(_ suggestions: [RouteSuggestion]) -> [RouteSuggestion] {
+        var seen = Set<String>()
+        return suggestions.filter { suggestion in
+            guard !seen.contains(suggestion.id) else { return false }
+            seen.insert(suggestion.id)
+            return true
         }
     }
 }
 
 private struct RunReportScaffold: View {
     @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var session: SupabaseSession
     var activity: DBGarminActivity
     @State private var routePoints: [RunRoutePoint] = []
     @State private var report: RunReportDetail?
     @State private var isGenerating = false
     @State private var generationFailed = false
+    @State private var showSaveRouteSheet = false
+    @State private var isLoadingRoutePoints = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -961,19 +1021,25 @@ private struct RunReportScaffold: View {
             }
 
             if let report {
+                PostRunLearningCard(run: garminRunWithRoutePoints, outcome: nil, report: report)
                 RunReportCoachNotesCard(report: report)
+                BenchmarkComparisonLoaderView(run: garminRunWithRoutePoints)
                 RunReportRichSignalsCard(report: report)
                 RunReportNextWorkoutCard(report: report)
             } else {
+                PostRunLearningCard(
+                    run: garminRunWithRoutePoints,
+                    outcome: nil,
+                    report: nil,
+                    isProcessing: isGenerating
+                )
                 GlassCard {
                     VStack(alignment: .leading, spacing: 12) {
                         SectionLabel(title: "Coach Report")
                         Text(generationFailed ? "No coach report yet. Report generation failed, but you can retry from this real activity." : "No coach report yet.")
                             .font(.callout)
                             .foregroundStyle(Color.mutedText)
-                        Button(isGenerating ? "Generating..." : "Generate Report") {
-                            Task { await generateReport() }
-                        }
+                        Button(isGenerating ? "Generating..." : "Generate Report", action: generateReportTapped)
                         .buttonStyle(NeonButtonStyle())
                         .disabled(isGenerating)
                     }
@@ -985,6 +1051,41 @@ private struct RunReportScaffold: View {
                     .frame(height: 210)
             }
 
+            if routePoints.count >= RouteMatchingService.minimumRoutePoints {
+                Button {
+                    showSaveRouteSheet = true
+                } label: {
+                    Label("Save Route", systemImage: "map.fill")
+                        .font(.buttonLabel)
+                        .foregroundStyle(Color.accentPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(Color.accentPrimary.opacity(0.10), in: Capsule())
+                        .overlay(Capsule().stroke(Color.accentPrimary.opacity(0.55), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Save this Garmin route to your route library.")
+            } else if isLoadingRoutePoints {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .tint(Color.textSecondary)
+                    Text("Loading Garmin route points.")
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                }
+                .padding(.horizontal, 4)
+            } else if !isLoadingRoutePoints {
+                HStack(spacing: 8) {
+                    Image(systemName: "map")
+                        .foregroundStyle(Color.textSecondary)
+                    Text(routePoints.isEmpty ? "No Garmin map data for this activity. Route saving, matching, and benchmark comparisons need GPS points; the run report still works." : "This Garmin map has too few GPS points to save as a repeatable route; the run report still works.")
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 4)
+            }
+
             Text("Saved to your history")
                 .font(.caption.bold())
                 .foregroundStyle(Color.lime)
@@ -993,15 +1094,37 @@ private struct RunReportScaffold: View {
                 .background(Color.lime.opacity(0.11))
                 .clipShape(Capsule(style: .continuous))
         }
-        .task(id: activity.id) {
-            routePoints = activity.toRecordedRun()?.routePoints ?? []
-            if routePoints.isEmpty {
-                routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activity.activityId)
+        .sheet(isPresented: $showSaveRouteSheet) {
+            if let run = garminRunWithRoutePoints {
+                SaveRouteSheet(run: run)
+                    .preferredColorScheme(.dark)
             }
-            if var run = activity.toRecordedRun() {
-                if !routePoints.isEmpty { run.routePoints = routePoints }
-                report = await services.runReport(for: run)
-            }
+        }
+        .task(id: activity.id) { await loadActivityReport() }
+    }
+
+    private var garminRunWithRoutePoints: RecordedRun? {
+        guard var run = activity.toRecordedRun() else { return nil }
+        run.routePoints = routePoints
+        return run
+    }
+
+    private func generateReportTapped() {
+        Task {
+            await generateReport()
+        }
+    }
+
+    private func loadActivityReport() async {
+        isLoadingRoutePoints = true
+        routePoints = activity.toRecordedRun()?.routePoints ?? []
+        if routePoints.isEmpty, let authUserID = session.currentUserID {
+            routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activity.activityId, authUserID: authUserID)
+        }
+        isLoadingRoutePoints = false
+        if var run = activity.toRecordedRun() {
+            if !routePoints.isEmpty { run.routePoints = routePoints }
+            report = await services.runReport(for: run)
         }
     }
 
@@ -1056,6 +1179,7 @@ private struct RunReportDetailScaffold: View {
     @State private var report: RunReportDetail
     @State private var isGenerating = false
     @State private var generationFailed = false
+    @State private var reportRun: RecordedRun?
 
     init(report: RunReportDetail) {
         _report = State(initialValue: report)
@@ -1084,11 +1208,21 @@ private struct RunReportDetailScaffold: View {
                 }
             }
             RunReportCoachNotesCard(report: report)
+            ProgressShareCard(payload: .runReport(report))
+            ProgressShareButton(payload: .runReport(report))
+            PostRunLearningCard(run: reportRun, outcome: nil, report: report, isProcessing: isGenerating)
+            BenchmarkComparisonLoaderView(run: reportRun)
             if !report.hasGeneratedReport {
                 generateReportCard
             }
             RunReportRichSignalsCard(report: report)
             RunReportNextWorkoutCard(report: report)
+        }
+        .task(id: report.runID) {
+            await loadReportRun()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
+            Task { await reloadReportIfNeeded() }
         }
     }
 
@@ -1099,12 +1233,16 @@ private struct RunReportDetailScaffold: View {
                 Text(generationFailed ? "Report generation failed. Check your connection and try again." : "Create a full coach report from this real activity and save it under Recent Run Reports.")
                     .font(.callout)
                     .foregroundStyle(Color.mutedText)
-                Button(isGenerating ? "Generating..." : "Generate Report") {
-                    Task { await generateReport() }
-                }
+                Button(isGenerating ? "Generating..." : "Generate Report", action: generateReportTapped)
                 .buttonStyle(NeonButtonStyle())
                 .disabled(isGenerating)
             }
+        }
+    }
+
+    private func generateReportTapped() {
+        Task {
+            await generateReport()
         }
     }
 
@@ -1115,10 +1253,27 @@ private struct RunReportDetailScaffold: View {
 
         if let generated = await services.generateRunReportIfMissing(forRunID: report.runID) {
             report = generated
+            await loadReportRun()
             RunSmartHaptics.success()
         } else {
             generationFailed = true
         }
+    }
+
+    private func loadReportRun() async {
+        let runs = await services.recentRuns()
+        reportRun = runs.first { run in
+            run.consolidatedActivityID == report.runID ||
+            run.providerActivityID == report.runID ||
+            run.id.uuidString == report.runID
+        }
+    }
+
+    private func reloadReportIfNeeded() async {
+        if let generated = await services.generateRunReportIfMissing(forRunID: report.runID) {
+            report = generated
+        }
+        await loadReportRun()
     }
 }
 
@@ -1233,7 +1388,7 @@ private struct RunReportNextWorkoutCard: View {
                     .disabled(isSaving || saveState == .saved)
 
                     if saveState == .failed {
-                        Text("Could not save this workout to your plan. Make sure an active plan is loaded and try again.")
+                        Text(saveFailureMessage)
                             .font(.caption)
                             .foregroundStyle(Color.accentHeart)
                     }
@@ -1244,6 +1399,10 @@ private struct RunReportNextWorkoutCard: View {
                 }
             }
         }
+    }
+
+    private var saveFailureMessage: String {
+        PostRunSuggestedWorkoutSaveCopy.failureMessage
     }
 
     private func save(_ next: StructuredNextWorkout) async {
@@ -1329,6 +1488,7 @@ private struct LapMarkerScaffold: View {
 }
 
 private struct PostRunSummaryScaffold: View {
+    @Environment(\.dismiss) private var dismiss
     var run: RecordedRun?
 
     private var distanceLabel: String {
@@ -1355,13 +1515,13 @@ private struct PostRunSummaryScaffold: View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Run Complete")
+                    SectionLabel(title: run == nil ? "Run Not Saved" : "Run Complete")
                     HStack {
                         MetricBadge(title: "Distance", value: distanceLabel)
                         MetricBadge(title: "Avg Pace", value: paceLabel)
                         MetricBadge(title: "Time", value: timeLabel)
                     }
-                    Text("Run saved. Great work — your coach will factor this into next week's plan.")
+                    Text(statusCopy)
                         .font(.callout)
                         .foregroundStyle(.white.opacity(0.84))
                 }
@@ -1374,9 +1534,18 @@ private struct PostRunSummaryScaffold: View {
                 }
             }
 
-            Button("Done") {}
+            Button("Done") {
+                dismiss()
+            }
                 .buttonStyle(NeonButtonStyle())
         }
+    }
+
+    private var statusCopy: String {
+        if run == nil {
+            return "RunSmart could not find completed run metrics for this summary. Return to the Run tab and try finishing again."
+        }
+        return "Run saved. Great work - your coach will factor this into the plan."
     }
 }
 
@@ -1410,6 +1579,232 @@ private struct CoachingToneScaffold: View {
             }
 
             VoicePreviewCard(text: "Strong and steady. This is the kind of controlled work that moves your goal forward.")
+        }
+    }
+}
+
+private struct TrainingDataEditor: View {
+    @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var session: SupabaseSession
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedExperience = ""
+    @State private var ageText = ""
+    @State private var weeklyDistanceKm = 0.0
+    @State private var selectedSource: TrainingDataSource = .manual
+    @State private var daysPerWeek = 4
+    @State private var recentRuns: [RecordedRun] = []
+    @State private var isSaving = false
+    @State private var saved = false
+    @State private var failed = false
+
+    private let experiences = ["Beginner", "Intermediate", "Advanced", "Competitive"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            if let estimate = estimatedWeeklyDistance {
+                GlassCard(glow: Color.lime) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(title: "Detected Baseline", trailing: estimateSource.displayName)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(String(format: "%.1f", estimate))
+                                .font(.metric)
+                                .monospacedDigit()
+                            Text("km / week")
+                                .font(.bodyMD.weight(.semibold))
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                        Button {
+                            weeklyDistanceKm = estimate
+                            selectedSource = estimateSource
+                        } label: {
+                            Label("Use Estimate", systemImage: "checkmark.seal.fill")
+                        }
+                        .buttonStyle(NeonButtonStyle())
+                    }
+                }
+            }
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    SectionLabel(title: "Running Experience")
+                    ForEach(experiences, id: \.self) { exp in
+                        Button { selectedExperience = exp } label: {
+                            FlowSelectionTile(title: exp, value: experienceDetail(exp), symbol: "figure.run", selected: selectedExperience == exp)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Age")
+                    TextField("Age", text: $ageText)
+                        .keyboardType(.numberPad)
+                        .font(.metricSM)
+                        .foregroundStyle(Color.textPrimary)
+                        .padding(.horizontal, 14)
+                        .frame(height: 52)
+                        .background(Color.white.opacity(0.055))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    Text("13-90 years")
+                        .font(.caption)
+                        .foregroundStyle(Color.mutedText)
+                }
+            }
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Average Weekly Distance")
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(String(format: "%.0f", weeklyDistanceKm))
+                            .font(.metric)
+                            .monospacedDigit()
+                        Text("km / week")
+                            .font(.bodyMD.weight(.semibold))
+                            .foregroundStyle(Color.textSecondary)
+                    }
+                    Slider(value: $weeklyDistanceKm, in: 0...120, step: 1)
+                        .tint(Color.lime)
+                    Stepper("\(daysPerWeek) run days per week", value: $daysPerWeek, in: 1...7)
+                        .foregroundStyle(Color.textPrimary)
+                }
+            }
+
+            if weeklyDistanceRequired && weeklyDistanceKm <= 0 {
+                Label("Intermediate and advanced plans need a weekly distance baseline.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(Color.accentRecovery)
+            }
+
+            if !ageText.isEmpty && parsedAge == nil {
+                Label("Enter an age between 13 and 90.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout)
+                    .foregroundStyle(Color.accentRecovery)
+            }
+
+            if saved {
+                Label("Training data saved.", systemImage: "checkmark.seal.fill")
+                    .foregroundStyle(Color.lime)
+                    .font(.headline)
+            }
+
+            if failed {
+                Text("Training data could not be saved to your RunSmart profile. Check your connection and try again.")
+                    .font(.callout)
+                    .foregroundStyle(Color.red)
+            }
+
+            Button(action: saveTapped) {
+                HStack {
+                    if isSaving {
+                        ProgressView().tint(.black)
+                    } else {
+                        Label("Save Training Data", systemImage: "checkmark")
+                    }
+                }
+            }
+            .buttonStyle(NeonButtonStyle())
+            .disabled(isSaving || selectedExperience.isEmpty || parsedAge == nil || (weeklyDistanceRequired && weeklyDistanceKm <= 0))
+
+            Color.clear.frame(height: 96)
+        }
+        .task {
+            loadInitialState()
+            recentRuns = await services.recentRuns()
+            if session.onboardingProfile.averageWeeklyDistanceKm == nil,
+               let estimate = estimatedWeeklyDistance,
+               weeklyDistanceKm <= 0 {
+                weeklyDistanceKm = estimate
+                selectedSource = estimateSource
+            }
+        }
+    }
+
+    private var estimatedWeeklyDistance: Double? {
+        TrainingDataBaseline.averageWeeklyDistanceKm(from: recentRuns)
+    }
+
+    private var parsedAge: Int? {
+        let trimmed = ageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let age = Int(trimmed), (13...90).contains(age) else { return nil }
+        return age
+    }
+
+    private var estimateSource: TrainingDataSource {
+        TrainingDataBaseline.inferredSource(from: recentRuns) ?? .runSmart
+    }
+
+    private var weeklyDistanceRequired: Bool {
+        let lower = selectedExperience.lowercased()
+        return lower.contains("intermediate") || lower.contains("advanced") || lower.contains("competitive")
+    }
+
+    private func saveTapped() {
+        Task {
+            await save()
+        }
+    }
+
+    private func loadInitialState() {
+        let profile = session.onboardingProfile
+        selectedExperience = normalizedExperience(profile.experience)
+        ageText = profile.age.map(String.init) ?? ""
+        weeklyDistanceKm = profile.averageWeeklyDistanceKm ?? 0
+        selectedSource = profile.trainingDataSource ?? .manual
+        daysPerWeek = max(1, min(7, profile.weeklyRunDays))
+    }
+
+    private func normalizedExperience(_ value: String) -> String {
+        let lower = value.lowercased()
+        if lower.contains("advanced") { return "Advanced" }
+        if lower.contains("competitive") { return "Competitive" }
+        if lower.contains("beginner") || lower.contains("base") || lower.contains("new") { return "Beginner" }
+        if lower.contains("intermediate") || lower.contains("consistent") { return "Intermediate" }
+        return "Intermediate"
+    }
+
+    private func experienceDetail(_ value: String) -> String {
+        switch value {
+        case "Beginner": "New or rebuilding"
+        case "Intermediate": "Steady weekly running"
+        case "Advanced": "Higher volume or workouts"
+        default: "Race-focused training"
+        }
+    }
+
+    private func save() async {
+        var updated = session.onboardingProfile
+        updated.experience = selectedExperience
+        updated.age = parsedAge
+        updated.averageWeeklyDistanceKm = weeklyDistanceKm > 0 ? weeklyDistanceKm : nil
+        updated.trainingDataSource = updated.averageWeeklyDistanceKm == nil ? nil : selectedSource
+        updated.trainingDataUpdatedAt = Date()
+        updated.weeklyRunDays = daysPerWeek
+
+        isSaving = true
+        await session.completeOnboarding(updated)
+        let request = TrainingGoalRequest(
+            displayName: updated.displayName,
+            goal: updated.goal.isEmpty ? "10K Improvement" : updated.goal,
+            experience: updated.experience,
+            age: updated.age,
+            averageWeeklyDistanceKm: updated.averageWeeklyDistanceKm,
+            trainingDataSource: updated.trainingDataSource,
+            weeklyRunDays: updated.weeklyRunDays,
+            preferredDays: updated.preferredDays,
+            coachingTone: updated.coachingTone,
+            targetDate: Calendar.current.date(byAdding: .month, value: 4, to: Date()) ?? Date()
+        )
+        let savedToPlan = await services.saveTrainingGoal(request)
+        isSaving = false
+        saved = savedToPlan
+        failed = !savedToPlan
+
+        if savedToPlan {
+            RunSmartHaptics.success()
+            dismiss()
         }
     }
 }
@@ -1484,12 +1879,12 @@ private struct GoalFocusEditor: View {
             }
 
             if failed {
-                Text("Goal saved locally, but the web coach did not generate a plan. Check the console and try again.")
+                Text("Goal saved locally, but the web coach did not generate a plan. Try again later.")
                     .font(.callout)
                     .foregroundStyle(Color.red)
             }
 
-            Button(action: { Task { await save() } }) {
+            Button(action: saveTapped) {
                 HStack {
                     if isSaving { ProgressView().tint(.black) }
                     else { Label("Save Goals", systemImage: "checkmark") }
@@ -1503,6 +1898,12 @@ private struct GoalFocusEditor: View {
             selectedExperience = session.onboardingProfile.experience
             selectedStyle = session.onboardingProfile.coachingTone
             daysPerWeek = session.onboardingProfile.weeklyRunDays
+        }
+    }
+
+    private func saveTapped() {
+        Task {
+            await save()
         }
     }
 
@@ -1524,6 +1925,9 @@ private struct GoalFocusEditor: View {
             displayName: updated.displayName,
             goal: updated.goal,
             experience: updated.experience,
+            age: updated.age,
+            averageWeeklyDistanceKm: updated.averageWeeklyDistanceKm,
+            trainingDataSource: updated.trainingDataSource,
             weeklyRunDays: updated.weeklyRunDays,
             preferredDays: updated.preferredDays,
             coachingTone: updated.coachingTone,
@@ -1542,15 +1946,43 @@ private struct GoalFocusEditor: View {
 }
 
 private struct ReminderPreferencesScaffold: View {
+    @EnvironmentObject private var session: SupabaseSession
+
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Reminders")
-                    PreferenceRow(title: "Workout reminder", value: "7:00 AM", symbol: "bell")
-                    PreferenceRow(title: "Recovery check-in", value: "Evening", symbol: "moon")
-                    PreferenceRow(title: "Shoe mileage alert", value: "At 500 km", symbol: "shoeprints.fill")
-                    PreferenceRow(title: "Weekly recap", value: "Sunday", symbol: "calendar")
+                    Toggle(isOn: Binding(
+                        get: { session.onboardingProfile.notificationsEnabled },
+                        set: { session.setNotificationsEnabled($0) }
+                    )) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Smart return reminders")
+                                .font(.bodyMD.weight(.semibold))
+                            Text("Low-frequency prompts for planned runs, gentle recovery, and weekly recap.")
+                                .font(.caption)
+                                .foregroundStyle(Color.mutedText)
+                        }
+                    }
+                    .tint(Color.lime)
+                    Toggle(isOn: Binding(
+                        get: { session.onboardingProfile.planAdjustmentConfirmationsEnabled },
+                        set: { session.setPlanAdjustmentConfirmationsEnabled($0) }
+                    )) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Plan adjustment confirmations")
+                                .font(.bodyMD.weight(.semibold))
+                            Text("A single nudge after Flex Week confirms, summarizing tomorrow's workout.")
+                                .font(.caption)
+                                .foregroundStyle(Color.mutedText)
+                        }
+                    }
+                    .tint(Color.lime)
+                    PreferenceRow(title: "Workout due", value: session.onboardingProfile.notificationsEnabled ? "Morning" : "Off", symbol: "bell")
+                    PreferenceRow(title: "Recovery re-plan", value: session.onboardingProfile.notificationsEnabled ? "Evening if needed" : "Off", symbol: "arrow.triangle.2.circlepath")
+                    PreferenceRow(title: "Rest day reminder", value: session.onboardingProfile.notificationsEnabled ? "Late morning" : "Off", symbol: "moon")
+                    PreferenceRow(title: "Weekly recap", value: session.onboardingProfile.notificationsEnabled ? "Sunday" : "Off", symbol: "calendar")
                 }
             }
 
@@ -1570,10 +2002,12 @@ private struct ConnectedServiceDetailScaffold: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
     var serviceName: String
+    private let store = RunSmartLocalStore.shared
     @State private var status: ConnectedDeviceStatus?
     @State private var isWorking = false
     @State private var recentActivities: [DBGarminActivity] = []
     @State private var healthRuns: [RecordedRun] = []
+    @State private var firstSyncReview: FirstSyncReview?
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -1597,6 +2031,11 @@ private struct ConnectedServiceDetailScaffold: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Permissions")
+                    if serviceName == "HealthKit" {
+                        Text("RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health.")
+                            .font(.callout)
+                            .foregroundStyle(Color.mutedText)
+                    }
                     PermissionRow(title: "Activities", enabled: permissions.contains("Activities") || permissions.contains("Workouts"))
                     PermissionRow(title: "Sleep", enabled: permissions.contains("Sleep"))
                     PermissionRow(title: "Heart rate", enabled: permissions.contains("Heart Rate") || permissions.contains("Resting HR"))
@@ -1611,10 +2050,11 @@ private struct ConnectedServiceDetailScaffold: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Controls")
-                    ActionRow(title: "Connect", detail: "Start the real permission or gateway flow.", symbol: "link") {
+                    ActionRow(title: "Connect", detail: connectActionDetail, symbol: "link") {
+                        trackConnectionIntent()
                         run { await services.connect(provider: serviceName) }
                     }
-                    ActionRow(title: "Sync Now", detail: "Pull the latest real activity data.", symbol: "arrow.triangle.2.circlepath") {
+                    ActionRow(title: "Sync Now", detail: syncActionDetail, symbol: "arrow.triangle.2.circlepath") {
                         run { await services.syncNow(provider: serviceName) }
                     }
                     Button("Disconnect \(serviceName)") {
@@ -1623,6 +2063,14 @@ private struct ConnectedServiceDetailScaffold: View {
                         .buttonStyle(NeonButtonStyle(isDestructive: true))
                         .disabled(isWorking)
                 }
+            }
+
+            if let firstSyncReview, !firstSyncReview.seen {
+                FirstSyncReviewCard(
+                    review: firstSyncReview,
+                    onNextAction: handleFirstSyncNextAction,
+                    onDismiss: markFirstSyncReviewSeen
+                )
             }
 
             if serviceName == "Garmin Connect" {
@@ -1660,9 +2108,9 @@ private struct ConnectedServiceDetailScaffold: View {
                         } else {
                             VStack(spacing: 8) {
                                 ForEach(healthRuns.prefix(8)) { run in
-                                    ActivityRow(run: run) {
+                                    ActivityRow(run: run, onTap: {
                                         router.open(.postRunSummary(run))
-                                    }
+                                    })
                                 }
                             }
                         }
@@ -1672,6 +2120,7 @@ private struct ConnectedServiceDetailScaffold: View {
         }
         .task {
             await load()
+            trackDisclosureViewedIfNeeded()
         }
     }
 
@@ -1711,6 +2160,30 @@ private struct ConnectedServiceDetailScaffold: View {
         }
     }
 
+    private var connectActionDetail: String {
+        if serviceName == "HealthKit" {
+            return "Open the HealthKit permission sheet for approved read/write access."
+        }
+        return "Start the real permission or gateway flow."
+    }
+
+    private var syncActionDetail: String {
+        if serviceName == "HealthKit" {
+            return "Import the latest approved HealthKit workout and wellness data."
+        }
+        return "Pull the latest real activity data."
+    }
+
+    private func trackDisclosureViewedIfNeeded() {
+        guard serviceName == "HealthKit" else { return }
+        Analytics.trackHealthKitDisclosureViewed(state: status?.state.rawValue ?? "unknown")
+    }
+
+    private func trackConnectionIntent() {
+        guard serviceName == "HealthKit" else { return }
+        Analytics.trackHealthKitConnectTapped()
+    }
+
     private func run(_ action: @escaping () async -> ConnectedDeviceStatus) {
         isWorking = true
         Task {
@@ -1724,12 +2197,136 @@ private struct ConnectedServiceDetailScaffold: View {
         let statuses = await services.deviceStatuses()
         status = statuses.first(where: { $0.provider == serviceName })
         if serviceName == "Garmin Connect", let userID = session.currentUserID {
-            recentActivities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 10)
+            let activities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 20)
+            recentActivities = Array(GarminImportProcessor.normalizedActivities(from: activities, isHidden: store.isRunHidden).prefix(10))
         }
         if serviceName == "HealthKit" {
             let runs = await services.recentRuns()
             healthRuns = runs.filter { $0.source == .healthKit }
         }
+        firstSyncReview = await services.firstSyncReview(provider: serviceName)
+    }
+
+    private func markFirstSyncReviewSeen() {
+        Task {
+            await services.markFirstSyncReviewSeen(provider: serviceName)
+            firstSyncReview = await services.firstSyncReview(provider: serviceName)
+        }
+    }
+
+    private func handleFirstSyncNextAction() {
+        guard let action = firstSyncReview?.nextAction else { return }
+        Task {
+            await services.markFirstSyncReviewSeen(provider: serviceName)
+            await MainActor.run {
+                switch action {
+                case .today:
+                    router.selectedTab = .today
+                case .report:
+                    router.selectedTab = .report
+                case .plan:
+                    router.selectedTab = .plan
+                }
+                router.activeSheet = nil
+            }
+        }
+    }
+}
+
+private struct FirstSyncReviewCard: View {
+    var review: FirstSyncReview
+    var onNextAction: () -> Void
+    var onDismiss: () -> Void
+
+    var body: some View {
+        GlassCard(glow: Color.accentPrimary) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.accentPrimary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        SectionLabel(title: "\(review.provider.displayName) first sync")
+                        Text(review.summary)
+                            .font(.callout)
+                            .foregroundStyle(Color.textPrimary)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    DetailLine(label: "Imported", value: "\(review.importedCount)")
+                    DetailLine(label: "Skipped", value: "\(review.skippedDuplicateCount) duplicate or hidden")
+                    DetailLine(label: "Routes", value: "\(review.routeAvailabilityCount) available / \(review.routeLessCount) route-less")
+                }
+
+                Text(review.routeSummary)
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+
+                if !review.recentImportedActivities.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Recent imports")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.textSecondary)
+                        ForEach(review.recentImportedActivities) { activity in
+                            FirstSyncActivityRow(activity: activity)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Coach can now use")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.textSecondary)
+                    ForEach(review.coachCanUse, id: \.self) { item in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: "sparkle")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(Color.accentPrimary)
+                            Text(item)
+                                .font(.caption)
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    Button(review.nextAction.title, action: onNextAction)
+                        .buttonStyle(NeonButtonStyle())
+                    Button("Got it", action: onDismiss)
+                        .buttonStyle(.plain)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(Color.textSecondary)
+                }
+            }
+        }
+    }
+}
+
+private struct FirstSyncActivityRow: View {
+    var activity: FirstSyncActivitySummary
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: activity.hasRoute ? "map.fill" : "map")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(activity.hasRoute ? Color.accentPrimary : Color.textTertiary)
+                .frame(width: 28, height: 28)
+                .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(activity.title)
+                    .font(.caption.weight(.semibold))
+                Text(activity.dateLabel)
+                    .font(.caption2)
+                    .foregroundStyle(Color.textTertiary)
+            }
+            Spacer()
+            Text(activity.distanceLabel)
+                .font(.caption.weight(.semibold))
+        }
+        .padding(8)
+        .background(.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
@@ -2119,6 +2716,9 @@ private struct PermissionRow: View {
 private struct AccountScaffold: View {
     @EnvironmentObject private var session: SupabaseSession
     @State private var isSigningOut = false
+    @State private var showDeleteAccountConfirmation = false
+    @State private var isDeletingAccount = false
+    @State private var deleteAccountError: String?
 
     private var email: String {
         session.currentEmail ?? "--"
@@ -2131,8 +2731,24 @@ private struct AccountScaffold: View {
         return fmt.string(from: createdAt)
     }
 
+    private var isDemoMode: Bool {
+        RunSmartDemoMode.isEnabled
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            if isDemoMode {
+                GlassCard(glow: Color.accentAmber) {
+                    Label(
+                        "Demo Mode is local only. No Apple, Supabase, Garmin, HealthKit, analytics, or account deletion calls are made.",
+                        systemImage: "video.badge.checkmark"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Signed In")
@@ -2188,12 +2804,65 @@ private struct AccountScaffold: View {
                 }
             }
             .buttonStyle(NeonButtonStyle(isDestructive: true))
-            .disabled(isSigningOut)
+            .disabled(isSigningOut || isDemoMode)
 
-            Text("Signing out returns you to the sign-in screen, where you can register a new account or switch users.")
+            Text(isDemoMode ? "Sign out is disabled while recording Demo Mode." : "Signing out returns you to the sign-in screen, where you can register a new account or switch users.")
                 .font(.caption)
                 .foregroundStyle(Color.mutedText)
                 .padding(.horizontal, 4)
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Delete Account")
+                    Text("Permanently delete your account, training plans, run history, and all personal data from RunSmart. This cannot be undone.")
+                        .font(.caption)
+                        .foregroundStyle(Color.mutedText)
+
+                    // Delete Account
+                    Button(role: .destructive) {
+                        showDeleteAccountConfirmation = true
+                    } label: {
+                        if isDeletingAccount {
+                            ProgressView().tint(.white)
+                        } else {
+                            Label("Delete Account", systemImage: "person.crop.circle.badge.minus")
+                        }
+                    }
+                    .buttonStyle(NeonButtonStyle(isDestructive: true))
+                    .disabled(isDeletingAccount || isSigningOut || isDemoMode)
+                }
+            }
         }
+        .confirmationDialog(
+            "Delete your RunSmart account?",
+            isPresented: $showDeleteAccountConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Account", role: .destructive) {
+                Task { await deleteAccount() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently deletes your account, training plans, and run history. This cannot be undone.")
+        }
+        .alert("Could not delete account", isPresented: Binding(
+            get: { deleteAccountError != nil },
+            set: { if !$0 { deleteAccountError = nil } }
+        )) {
+            Button("OK", role: .cancel) { deleteAccountError = nil }
+        } message: {
+            Text(deleteAccountError ?? "Please try again.")
+        }
+    }
+
+    private func deleteAccount() async {
+        isDeletingAccount = true
+        do {
+            try await session.deleteAccount()
+            // Success: session is cleared and the app returns to sign-in.
+        } catch {
+            deleteAccountError = error.localizedDescription
+        }
+        isDeletingAccount = false
     }
 }

@@ -52,10 +52,15 @@ final class RunSmartLocalStore {
         guard !isRunHidden(run) else { return }
         var runs = loadRuns()
         if let providerID = run.providerActivityID,
-           runs.contains(where: { $0.providerActivityID == providerID && $0.source == run.source }) {
+           let index = runs.firstIndex(where: { $0.providerActivityID == providerID && $0.source == run.source }) {
+            runs[index] = run
+            runs.sort { $0.startedAt > $1.startedAt }
+            save(runs, key: "runsmart.runs")
             return
         }
-        if !runs.contains(where: { $0.id == run.id }) {
+        if let index = runs.firstIndex(where: { $0.id == run.id }) {
+            runs[index] = run
+        } else {
             runs.append(run)
         }
         runs.sort { $0.startedAt > $1.startedAt }
@@ -132,12 +137,98 @@ final class RunSmartLocalStore {
         ]
     }
 
+    func saveFirstSyncReview(_ review: FirstSyncReview) {
+        var reviews = loadFirstSyncReviews()
+        reviews.removeAll { $0.provider == review.provider }
+        reviews.append(review)
+        save(reviews, key: "runsmart.firstSync.reviews")
+    }
+
+    func firstSyncReview(provider: FirstSyncReviewProvider) -> FirstSyncReview? {
+        loadFirstSyncReviews().first { $0.provider == provider }
+    }
+
+    func hasSeenFirstSyncReview(provider: FirstSyncReviewProvider) -> Bool {
+        firstSyncReview(provider: provider)?.seen ?? false
+    }
+
+    func markFirstSyncReviewSeen(provider: FirstSyncReviewProvider) {
+        var review = firstSyncReview(provider: provider) ?? FirstSyncReview.make(
+            provider: provider,
+            importedRuns: [],
+            skippedDuplicateCount: 0,
+            seen: true
+        )
+        review.seen = true
+        saveFirstSyncReview(review)
+    }
+
+    private func loadFirstSyncReviews() -> [FirstSyncReview] {
+        load([FirstSyncReview].self, key: "runsmart.firstSync.reviews") ?? []
+    }
+
     func saveHealthKitDailySnapshot(_ snapshot: HealthKitDailySnapshot) {
         save(snapshot, key: "runsmart.healthkit.dailySnapshot")
     }
 
     func loadHealthKitDailySnapshot() -> HealthKitDailySnapshot? {
         load(HealthKitDailySnapshot.self, key: "runsmart.healthkit.dailySnapshot")
+    }
+
+    // MARK: - Saved Routes
+
+    func saveSavedRoute(_ route: SavedRoute) {
+        var routes = loadSavedRoutes()
+        routes.removeAll { $0.id == route.id }
+        routes.append(route)
+        routes.sort { $0.updatedAt > $1.updatedAt }
+        save(routes, key: "runsmart.savedRoutes")
+    }
+
+    func loadSavedRoutes() -> [SavedRoute] {
+        load([SavedRoute].self, key: "runsmart.savedRoutes") ?? []
+    }
+
+    @discardableResult
+    func removeSavedRoute(_ routeID: UUID) -> Bool {
+        var routes = loadSavedRoutes()
+        let before = routes.count
+        routes.removeAll { $0.id == routeID }
+        guard routes.count != before else { return false }
+        save(routes, key: "runsmart.savedRoutes")
+        removeBenchmarkRoute(routeID)
+        return true
+    }
+
+    // MARK: - Benchmark Routes
+
+    func saveBenchmarkRoute(_ benchmark: BenchmarkRoute) {
+        var benchmarks = loadBenchmarkRoutes()
+        benchmarks.removeAll { $0.savedRouteID == benchmark.savedRouteID }
+        benchmarks.append(benchmark)
+        save(benchmarks, key: "runsmart.benchmarkRoutes")
+    }
+
+    func loadBenchmarkRoutes() -> [BenchmarkRoute] {
+        load([BenchmarkRoute].self, key: "runsmart.benchmarkRoutes") ?? []
+    }
+
+    @discardableResult
+    func removeBenchmarkRoute(_ savedRouteID: UUID) -> Bool {
+        var benchmarks = loadBenchmarkRoutes()
+        let before = benchmarks.count
+        benchmarks.removeAll { $0.savedRouteID == savedRouteID }
+        guard benchmarks.count != before else { return false }
+        save(benchmarks, key: "runsmart.benchmarkRoutes")
+        return true
+    }
+
+    // MARK: - Benchmark stat hydration
+
+    func refreshBenchmarkStats() {
+        let runs = visibleRuns(loadRuns())
+        let updated = BenchmarkStatRefresh.refresh(loadBenchmarkRoutes(), from: runs)
+        save(updated, key: "runsmart.benchmarkRoutes")
     }
 
     private func save<Value: Encodable>(_ value: Value, key: String) {
@@ -148,6 +239,18 @@ final class RunSmartLocalStore {
     private func load<Value: Decodable>(_ type: Value.Type, key: String) -> Value? {
         guard let data = defaults.data(forKey: key) else { return nil }
         return try? decoder.decode(type, from: data)
+    }
+
+    func clearUserData() {
+        let keys = [
+            "runsmart.runs",
+            "runsmart.runReports",
+            "runsmart.hiddenRuns",
+            "runsmart.device.statuses",
+            "runsmart.firstSync.reviews",
+            "runsmart.healthkit.dailySnapshot",
+        ]
+        for key in keys { defaults.removeObject(forKey: key) }
     }
 
     private func hideRun(_ run: RecordedRun) {
@@ -169,6 +272,7 @@ final class RunSmartLocalStore {
 final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published private(set) var phase: RunRecordingPhase = .idle
     @Published private(set) var routePoints: [RunRoutePoint] = []
+    @Published private(set) var displayRoutePoints: [RunRoutePoint] = []
     @Published private(set) var distanceMeters: Double = 0
     @Published private(set) var elapsedSeconds: TimeInterval = 0
     @Published private(set) var movingSeconds: TimeInterval = 0
@@ -183,7 +287,16 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     private var accumulatedPausedSeconds: TimeInterval = 0
     private var timer: Timer?
     private var lastAcceptedLocation: CLLocation?
+    private var lastDisplayLocation: CLLocation?
+    private var lastDisplayRouteUpdate: Date?
     private var shouldStartAfterPermission = false
+
+    nonisolated static let requiredStartAccuracy: CLLocationAccuracy = 35
+    nonisolated static let acceptedRecordingAccuracy: CLLocationAccuracy = 65
+    nonisolated static let maximumLocationAge: TimeInterval = 15
+    nonisolated static let liveRouteMinimumInterval: TimeInterval = 2
+    nonisolated static let liveRouteMinimumDistance: CLLocationDistance = 12
+    nonisolated static let maximumDisplayRoutePoints = 240
 
     override convenience init() {
         self.init(store: .shared)
@@ -197,6 +310,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = 5
         manager.pausesLocationUpdatesAutomatically = false
+        manager.allowsBackgroundLocationUpdates = true
+        manager.showsBackgroundLocationIndicator = true
         updatePhaseForAuthorization()
     }
 
@@ -237,22 +352,25 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             return
         }
 
-        beginRecording()
+        startAcquiringLocation()
     }
 
-    private func beginRecording() {
+    func startAcquiringLocation(startLocationUpdates: Bool = true) {
         shouldStartAfterPermission = false
-        startedAt = Date()
+        resetCurrentRun()
+        phase = .acquiringLocation
+        if startLocationUpdates {
+            manager.startUpdatingLocation()
+        }
+    }
+
+    private func beginRecording(from firstLocation: CLLocation, startedAt startDate: Date = Date()) {
+        startedAt = startDate
         pausedAt = nil
         accumulatedPausedSeconds = 0
-        routePoints = []
-        distanceMeters = 0
-        elapsedSeconds = 0
-        movingSeconds = 0
-        lastAcceptedLocation = nil
         lastErrorMessage = nil
         phase = .recording
-        manager.startUpdatingLocation()
+        acceptRecordingLocation(firstLocation, forceDisplay: true)
         startTimer()
         tick()
     }
@@ -279,11 +397,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     func discard() {
         shouldStartAfterPermission = false
         stopTracking()
-        routePoints = []
-        distanceMeters = 0
-        elapsedSeconds = 0
-        movingSeconds = 0
-        lastAcceptedLocation = nil
+        resetCurrentRun()
         lastSavedRun = nil
         updatePhaseForAuthorization()
     }
@@ -324,30 +438,12 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         updatePhaseForAuthorization()
         if shouldStartAfterPermission,
            manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
-            beginRecording()
+            startAcquiringLocation()
         }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard phase == .recording else { return }
-        for location in locations where location.horizontalAccuracy >= 0 && location.horizontalAccuracy <= 65 {
-            horizontalAccuracy = location.horizontalAccuracy
-            if let previous = lastAcceptedLocation {
-                let delta = location.distance(from: previous)
-                guard delta >= 1 else { continue }
-                distanceMeters += delta
-            }
-            routePoints.append(
-                RunRoutePoint(
-                    latitude: location.coordinate.latitude,
-                    longitude: location.coordinate.longitude,
-                    timestamp: location.timestamp,
-                    horizontalAccuracy: location.horizontalAccuracy,
-                    altitude: location.verticalAccuracy >= 0 ? location.altitude : nil
-                )
-            )
-            lastAcceptedLocation = location
-        }
+        handleLocationUpdates(locations)
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
@@ -358,7 +454,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     private func updatePhaseForAuthorization() {
         switch manager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
-            if phase == .idle || phase == .requestingPermission || phase == .denied {
+            if phase == .idle || phase == .requestingPermission || phase == .denied || phase == .failed {
                 phase = .ready
             }
         case .denied, .restricted:
@@ -369,6 +465,100 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         @unknown default:
             phase = .failed
         }
+    }
+
+    func handleLocationUpdates(_ locations: [CLLocation], now: Date = Date()) {
+        guard phase == .acquiringLocation || phase == .recording else { return }
+
+        for location in locations {
+            if phase == .acquiringLocation {
+                guard Self.isFreshLocation(location, now: now) else { continue }
+                horizontalAccuracy = location.horizontalAccuracy
+                guard location.horizontalAccuracy <= Self.requiredStartAccuracy else { continue }
+                beginRecording(from: location, startedAt: now)
+                continue
+            }
+
+            guard Self.isUsable(location, maxAccuracy: Self.acceptedRecordingAccuracy, now: now) else { continue }
+            horizontalAccuracy = location.horizontalAccuracy
+            acceptRecordingLocation(location)
+        }
+    }
+
+    static func isUsable(_ location: CLLocation, maxAccuracy: CLLocationAccuracy, now: Date = Date()) -> Bool {
+        guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= maxAccuracy else { return false }
+        return isFreshLocation(location, now: now)
+    }
+
+    static func isFreshLocation(_ location: CLLocation, now: Date = Date()) -> Bool {
+        guard location.horizontalAccuracy >= 0 else { return false }
+        guard abs(location.timestamp.timeIntervalSince(now)) <= maximumLocationAge else { return false }
+        return location.coordinate.latitude.isFinite && location.coordinate.longitude.isFinite
+    }
+
+    static func simplifiedDisplayRoute(from points: [RunRoutePoint], maxPoints: Int = maximumDisplayRoutePoints) -> [RunRoutePoint] {
+        guard points.count > maxPoints, maxPoints > 2 else { return points }
+        let lastIndex = points.count - 1
+        let step = Double(lastIndex) / Double(maxPoints - 1)
+        var result: [RunRoutePoint] = []
+        var usedIndices = Set<Int>()
+
+        for displayIndex in 0..<maxPoints {
+            let sourceIndex = displayIndex == maxPoints - 1 ? lastIndex : Int((Double(displayIndex) * step).rounded())
+            if usedIndices.insert(sourceIndex).inserted {
+                result.append(points[sourceIndex])
+            }
+        }
+
+        if result.last?.id != points.last?.id {
+            result.append(points[lastIndex])
+        }
+        return result
+    }
+
+    private func acceptRecordingLocation(_ location: CLLocation, forceDisplay: Bool = false) {
+        if let previous = lastAcceptedLocation {
+            let delta = location.distance(from: previous)
+            guard delta >= 1 else { return }
+            distanceMeters += delta
+        }
+
+        let point = RunRoutePoint(
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            timestamp: location.timestamp,
+            horizontalAccuracy: location.horizontalAccuracy,
+            altitude: location.verticalAccuracy >= 0 ? location.altitude : nil
+        )
+        routePoints.append(point)
+        lastAcceptedLocation = location
+        updateDisplayRoute(with: location, force: forceDisplay)
+    }
+
+    private func updateDisplayRoute(with location: CLLocation, force: Bool) {
+        let interval = lastDisplayRouteUpdate.map { location.timestamp.timeIntervalSince($0) } ?? .infinity
+        let distance = lastDisplayLocation.map { location.distance(from: $0) } ?? .infinity
+        guard force || interval >= Self.liveRouteMinimumInterval || distance >= Self.liveRouteMinimumDistance else { return }
+
+        displayRoutePoints = Self.simplifiedDisplayRoute(from: routePoints)
+        lastDisplayLocation = location
+        lastDisplayRouteUpdate = location.timestamp
+    }
+
+    private func resetCurrentRun() {
+        routePoints = []
+        displayRoutePoints = []
+        distanceMeters = 0
+        elapsedSeconds = 0
+        movingSeconds = 0
+        horizontalAccuracy = nil
+        lastAcceptedLocation = nil
+        lastDisplayLocation = nil
+        lastDisplayRouteUpdate = nil
+        lastErrorMessage = nil
+        startedAt = nil
+        pausedAt = nil
+        accumulatedPausedSeconds = 0
     }
 
     private func startTimer() {
@@ -428,6 +618,30 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
 protocol RouteProviding {
     func routeSuggestions() async -> [RouteSuggestion]
     func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion]
+    func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion]
+    func routeRecommendation(for workout: WorkoutSummary?, fallbackDistanceLabel: String?) async -> RouteRecommendation
+    func savedRoutes() async -> [SavedRoute]
+    func saveRoute(_ route: SavedRoute) async -> Bool
+    func deleteRoute(_ routeID: UUID) async -> Bool
+    func updateRoute(_ route: SavedRoute) async -> Bool
+    func benchmarkRoutes() async -> [BenchmarkRoute]
+    func enableBenchmark(for routeID: UUID) async -> Bool
+    func disableBenchmark(for routeID: UUID) async -> Bool
+}
+
+extension RouteProviding {
+    func savedRoutes() async -> [SavedRoute] { [] }
+    func saveRoute(_ route: SavedRoute) async -> Bool { false }
+    func deleteRoute(_ routeID: UUID) async -> Bool { false }
+    func updateRoute(_ route: SavedRoute) async -> Bool { false }
+    func benchmarkRoutes() async -> [BenchmarkRoute] { [] }
+    func enableBenchmark(for routeID: UUID) async -> Bool { false }
+    func disableBenchmark(for routeID: UUID) async -> Bool { false }
+    func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion] { [] }
+    func routeRecommendation(for workout: WorkoutSummary?, fallbackDistanceLabel: String?) async -> RouteRecommendation {
+        let routes = await rankedRouteSuggestions(targetDistanceKm: nil)
+        return RouteSuggestionRanker.recommendation(from: routes, workout: workout, fallbackDistanceLabel: fallbackDistanceLabel)
+    }
 }
 
 protocol DeviceSyncing {
@@ -435,6 +649,13 @@ protocol DeviceSyncing {
     func connect(provider: String) async -> ConnectedDeviceStatus
     func syncNow(provider: String) async -> ConnectedDeviceStatus
     func disconnect(provider: String) async -> ConnectedDeviceStatus
+    func firstSyncReview(provider: String) async -> FirstSyncReview?
+    func markFirstSyncReviewSeen(provider: String) async
+}
+
+extension DeviceSyncing {
+    func firstSyncReview(provider: String) async -> FirstSyncReview? { nil }
+    func markFirstSyncReviewSeen(provider: String) async {}
 }
 
 protocol HealthSyncing {
@@ -510,8 +731,11 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func runnerProfile() async -> RunnerProfile {
         let profile = store.loadOnboardingProfile() ?? .empty
         let runs = ActivityConsolidationService.userVisibleRecentRuns(store.visibleRuns(store.loadRuns()))
-        let totalDistance = Int((runs.reduce(0) { $0 + $1.distanceMeters } / 1_000).rounded())
-        let totalSeconds = runs.reduce(0) { $0 + $1.movingTimeSeconds }
+        let totalDistanceMeters: Double = runs.reduce(0) { $0 + $1.distanceMeters }
+        let totalDistance: Int = Int((totalDistanceMeters / 1_000).rounded())
+        let totalSeconds: Double = runs.reduce(0) { $0 + $1.movingTimeSeconds }
+        let totalHours: Int = Int(totalSeconds / 3_600)
+        let totalMinutes: Int = Int(totalSeconds.truncatingRemainder(dividingBy: 3_600)) / 60
         return RunnerProfile(
             name: profile.displayName.isEmpty ? "RunSmart Runner" : profile.displayName,
             goal: profile.goal,
@@ -519,7 +743,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
             level: profile.experience,
             totalRuns: runs.count,
             totalDistance: totalDistance,
-            totalTime: "\(Int(totalSeconds / 3600))h \(Int(totalSeconds.truncatingRemainder(dividingBy: 3600)) / 60)m"
+            totalTime: "\(totalHours)h \(totalMinutes)m"
         )
     }
 
@@ -566,8 +790,46 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         return run
     }
 
+    func matchRoute(for run: RecordedRun) async -> RouteMatchResult? {
+        RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes())
+    }
+
+    func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? {
+        BenchmarkRouteAnalyticsService.comparison(
+            for: run,
+            runs: store.visibleRuns(store.loadRuns()),
+            savedRoutes: store.loadSavedRoutes(),
+            benchmarkRoutes: store.loadBenchmarkRoutes()
+        )
+    }
+
+    func saveRouteMatch(for run: RecordedRun) -> RecordedRun {
+        var matchedRun = run
+        matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes())
+        store.saveRun(matchedRun)
+        return matchedRun
+    }
+
+    func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
+        let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: store.visibleRuns(store.loadRuns())))
+        store.refreshBenchmarkStats()
+        Analytics.trackCompletedRunIfNeeded(canonical)
+        await MainActor.run {
+            NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+        }
+        return PostActivityOutcome(
+            canonicalRun: canonical,
+            report: nil,
+            completedWorkout: nil,
+            didCompletePlannedWorkout: false,
+            debrief: nil
+        )
+    }
+
     func removeRun(_ run: RecordedRun) async -> Bool {
-        store.removeRun(run)
+        let removed = store.removeRun(run)
+        if removed { store.refreshBenchmarkStats() }
+        return removed
     }
 
     func finishRun() async {}
@@ -594,6 +856,120 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         []
     }
 
+    func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion] {
+        let saved = store.loadSavedRoutes()
+        let benchmarks = store.loadBenchmarkRoutes()
+        let benchmarkRouteIDs = Set(benchmarks.map(\.savedRouteID))
+        let calendar = Calendar.current
+        var suggestions: [RouteSuggestion] = []
+
+        for route in saved {
+            let isBenchmark = benchmarkRouteIDs.contains(route.id)
+            let kind: RouteKind = isBenchmark ? .benchmark : .saved
+            let reason = RouteSuggestionRanker.reason(
+                kind: kind, distanceKm: route.distanceKm,
+                targetDistanceKm: targetDistanceKm,
+                isFavorite: route.isFavorite, daysSinceLastRun: nil
+            )
+            suggestions.append(RouteSuggestion(
+                id: route.id.uuidString, name: route.name,
+                distanceKm: route.distanceKm,
+                elevationGainMeters: route.elevationGainMeters,
+                estimatedDurationMinutes: max(1, Int((route.distanceKm * 360).rounded() / 60)),
+                points: route.points, kind: kind,
+                recommendationReason: reason,
+                savedRouteID: route.id, isFavorite: route.isFavorite
+            ))
+        }
+
+        let pastRuns = store.visibleRuns(store.loadRuns()).filter { !$0.routePoints.isEmpty }
+        for run in pastRuns.prefix(5) {
+            let days = calendar.dateComponents([.day], from: run.startedAt, to: Date()).day
+            let reason = RouteSuggestionRanker.reason(
+                kind: .past, distanceKm: run.distanceMeters / 1000,
+                targetDistanceKm: targetDistanceKm,
+                isFavorite: false, daysSinceLastRun: days
+            )
+            suggestions.append(RouteSuggestion(
+                id: run.id.uuidString,
+                name: "Run \(DateFormatter.localizedString(from: run.startedAt, dateStyle: .short, timeStyle: .none))",
+                distanceKm: run.distanceMeters / 1000,
+                elevationGainMeters: elevationGain(points: run.routePoints),
+                estimatedDurationMinutes: max(1, Int(run.movingTimeSeconds / 60)),
+                points: run.routePoints, kind: .past,
+                recommendationReason: reason, savedRouteID: nil, isFavorite: false
+            ))
+        }
+
+        let filtered = RouteSuggestionRanker.filter(suggestions, targetDistanceKm: targetDistanceKm)
+        return RouteSuggestionRanker.rank(filtered, targetDistanceKm: targetDistanceKm)
+    }
+
+    func savedRoutes() async -> [SavedRoute] {
+        store.loadSavedRoutes()
+    }
+
+    func saveRoute(_ route: SavedRoute) async -> Bool {
+        store.saveSavedRoute(route)
+        postRouteChange()
+        return true
+    }
+
+    func deleteRoute(_ routeID: UUID) async -> Bool {
+        let removed = store.removeSavedRoute(routeID)
+        if removed {
+            store.refreshBenchmarkStats()
+            postRouteChange()
+        }
+        return removed
+    }
+
+    func updateRoute(_ route: SavedRoute) async -> Bool {
+        var updated = route
+        updated.updatedAt = Date()
+        store.saveSavedRoute(updated)
+        postRouteChange()
+        return true
+    }
+
+    func benchmarkRoutes() async -> [BenchmarkRoute] {
+        store.loadBenchmarkRoutes()
+    }
+
+    func enableBenchmark(for routeID: UUID) async -> Bool {
+        let routes = store.loadSavedRoutes()
+        guard routes.contains(where: { $0.id == routeID }) else { return false }
+        let benchmark = BenchmarkRoute(
+            id: UUID(),
+            savedRouteID: routeID,
+            enabledAt: Date(),
+            historicalRunCount: 0,
+            personalBestSeconds: nil,
+            personalBestDate: nil,
+            averagePaceSecondsPerKm: nil,
+            averageDurationSeconds: nil
+        )
+        store.saveBenchmarkRoute(benchmark)
+        store.refreshBenchmarkStats()
+        postRouteChange()
+        return true
+    }
+
+    func disableBenchmark(for routeID: UUID) async -> Bool {
+        let removed = store.removeBenchmarkRoute(routeID)
+        if removed {
+            store.refreshBenchmarkStats()
+            postRouteChange()
+        }
+        return removed
+    }
+
+    private func postRouteChange() {
+        Task { @MainActor in
+            NotificationCenter.default.post(name: .runSmartRoutesDidChange, object: nil)
+        }
+    }
+
     func deviceStatuses() async -> [ConnectedDeviceStatus] {
         store.loadDeviceStatuses()
     }
@@ -615,8 +991,23 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func syncNow(provider: String) async -> ConnectedDeviceStatus {
         if provider == "Garmin Connect" {
             let result = await garmin.syncActivities()
-            result.runs.forEach(store.saveRun)
+            let existingIDs = Set(store.loadRuns().compactMap(\.providerActivityID))
+            let newRuns = result.runs
+                .sorted { $0.startedAt > $1.startedAt }
+                .filter { run in
+                    guard let pid = run.providerActivityID else { return true }
+                    return !existingIDs.contains(pid)
+                }
+            for run in newRuns {
+                _ = await processCompletedActivity(run)
+            }
             store.saveDeviceStatus(result.status)
+            saveFirstSyncReviewIfNeeded(
+                provider: .garmin,
+                status: result.status,
+                importedRuns: newRuns,
+                skippedDuplicateCount: max(0, result.runs.count - newRuns.count)
+            )
             return result.status
         }
         if provider == "HealthKit" {
@@ -645,11 +1036,41 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
                 NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
             }
         }
+        saveFirstSyncReviewIfNeeded(
+            provider: .healthKit,
+            status: result.status,
+            importedRuns: result.runs,
+            skippedDuplicateCount: result.skippedDuplicates
+        )
         return result.status
     }
 
     func saveToHealth(_ run: RecordedRun) async {
         await health.save(run)
+    }
+
+    func firstSyncReview(provider: String) async -> FirstSyncReview? {
+        guard let provider = FirstSyncReviewProvider(serviceName: provider) else { return nil }
+        return store.firstSyncReview(provider: provider)
+    }
+
+    func markFirstSyncReviewSeen(provider: String) async {
+        guard let provider = FirstSyncReviewProvider(serviceName: provider) else { return }
+        store.markFirstSyncReviewSeen(provider: provider)
+    }
+
+    private func saveFirstSyncReviewIfNeeded(
+        provider: FirstSyncReviewProvider,
+        status: ConnectedDeviceStatus,
+        importedRuns: [RecordedRun],
+        skippedDuplicateCount: Int
+    ) {
+        guard status.state == .connected, !store.hasSeenFirstSyncReview(provider: provider) else { return }
+        store.saveFirstSyncReview(FirstSyncReview.make(
+            provider: provider,
+            importedRuns: importedRuns,
+            skippedDuplicateCount: skippedDuplicateCount
+        ))
     }
 
     private func deviceSubtitle(_ provider: String) -> String {
@@ -664,6 +1085,38 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
             }
         }
         return Int(gain.rounded())
+    }
+}
+
+// MARK: - Benchmark stat hydration (pure, testable)
+
+enum BenchmarkStatRefresh {
+    /// Recomputes cached aggregate stats for each BenchmarkRoute from the current run history.
+    /// Only high-confidence matched runs contribute to a route's stats.
+    static func refresh(_ benchmarks: [BenchmarkRoute], from runs: [RecordedRun]) -> [BenchmarkRoute] {
+        benchmarks.map { benchmark -> BenchmarkRoute in
+            let matched: [RecordedRun] = runs.filter {
+                $0.routeMatchResult?.routeID == benchmark.savedRouteID &&
+                $0.routeMatchResult?.confidence == .matched
+            }
+            var updated: BenchmarkRoute = benchmark
+            updated.historicalRunCount = matched.count
+            if matched.isEmpty {
+                updated.personalBestSeconds = nil
+                updated.personalBestDate = nil
+                updated.averagePaceSecondsPerKm = nil
+                updated.averageDurationSeconds = nil
+            } else {
+                if let best: RecordedRun = matched.min(by: { $0.movingTimeSeconds < $1.movingTimeSeconds }) {
+                    updated.personalBestSeconds = best.movingTimeSeconds
+                    updated.personalBestDate = best.startedAt
+                }
+                let count: Double = Double(matched.count)
+                updated.averagePaceSecondsPerKm = matched.reduce(0.0) { $0 + $1.averagePaceSecondsPerKm } / count
+                updated.averageDurationSeconds = matched.reduce(0.0) { $0 + $1.movingTimeSeconds } / count
+            }
+            return updated
+        }
     }
 }
 

@@ -1,11 +1,12 @@
 import SwiftUI
 
 struct CoachFlowView: View {
-    var context: String
+    var entryPoint: CoachEntryPoint
     @Environment(\.runSmartServices) private var services
     @State private var draft = ""
     @State private var isTyping = false
     @State private var messages: [CoachMessage] = []
+    @State private var trainingContext: TrainingContextSnapshot?
 
     private let prompts = ["Explain today’s workout", "Should I run today?", "Adjust my plan", "Recovery advice"]
 
@@ -21,8 +22,15 @@ struct CoachFlowView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .task {
-            messages = await services.recentMessages()
+        .task(id: entryPoint) {
+            async let messagesTask = services.recentMessages()
+            async let contextTask = services.trainingContext(for: entryPoint)
+            let (loadedMessages, loadedContext) = await (messagesTask, contextTask)
+            messages = loadedMessages
+            trainingContext = loadedContext
+        }
+        .onAppear {
+            Analytics.trackCoachThreadOpened(entryPoint: entryPoint.rawValue)
         }
     }
 
@@ -32,7 +40,7 @@ struct CoachFlowView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("RunSmart Coach")
                     .font(.headingMD)
-                Text("\(context) context")
+                Text(entryPoint.contextLabel)
                     .font(.labelSM)
                     .tracking(1.1)
                     .foregroundStyle(Color.accentPrimary)
@@ -47,16 +55,52 @@ struct CoachFlowView: View {
 
     private var contextPanel: some View {
         ContentCard {
-            HStack(spacing: 12) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(Color.accentPrimary)
-                Text("Coach can use readiness, plan week, recent runs, routes, and wellness summaries.")
-                    .font(.bodyMD)
-                    .foregroundStyle(Color.textSecondary)
-                Spacer()
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(Color.accentPrimary)
+                    Text(contextPanelTitle)
+                        .font(.bodyMD.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
+                    Spacer()
+                }
+
+                if let trainingContext {
+                    FlowLayout(spacing: 7) {
+                        ForEach(trainingContext.contextChips, id: \.self) { chip in
+                            Text(chip)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.accentPrimary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.accentPrimary.opacity(0.10), in: Capsule())
+                        }
+                    }
+
+                    if let limitation = trainingContext.limitations.first {
+                        Text(limitation)
+                            .font(.caption)
+                            .foregroundStyle(Color.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    Text("Loading training context...")
+                        .font(.bodyMD)
+                        .foregroundStyle(Color.textSecondary)
+                }
             }
         }
         .padding(.horizontal, 20)
+    }
+
+    private var contextPanelTitle: String {
+        guard let trainingContext else {
+            return "Preparing Coach context"
+        }
+        if trainingContext.limitations.isEmpty {
+            return "Using your current training context"
+        }
+        return "Using limited training context"
     }
 
     private var promptRow: some View {
@@ -72,6 +116,7 @@ struct CoachFlowView: View {
                             .background(Color.accentPrimary.opacity(0.10), in: Capsule())
                     }
                     .buttonStyle(.plain)
+                    .disabled(isTyping)
                 }
             }
             .padding(.horizontal, 20)
@@ -112,6 +157,7 @@ struct CoachFlowView: View {
                 .background(Color.surfaceCard)
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.border))
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .disabled(isTyping)
             Button { RunSmartHaptics.light() } label: {
                 Image(systemName: "mic.fill")
                     .foregroundStyle(Color.textSecondary)
@@ -119,6 +165,7 @@ struct CoachFlowView: View {
                     .background(Color.surfaceCard, in: Circle())
             }
             .buttonStyle(.plain)
+            .disabled(isTyping)
             Button { send(draft) } label: {
                 Image(systemName: "arrow.up")
                     .font(.headline.bold())
@@ -127,21 +174,56 @@ struct CoachFlowView: View {
                     .background(Color.accentPrimary, in: Circle())
             }
             .buttonStyle(.plain)
+            .disabled(isTyping || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(20)
     }
 
     private func send(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty, !isTyping else { return }
+        Analytics.trackCoachMessageSent(
+            entryPoint: entryPoint.rawValue,
+            messageLength: trimmed.count
+        )
         messages.append(CoachMessage(text: trimmed, time: "Now", isUser: true))
         draft = ""
         isTyping = true
         Task {
-            let response = await services.send(message: trimmed)
+            let currentContext: TrainingContextSnapshot
+            if let trainingContext {
+                currentContext = trainingContext
+            } else {
+                currentContext = await services.trainingContext(for: entryPoint)
+            }
+            let response = await services.send(message: trimmed, context: currentContext)
             try? await Task.sleep(nanoseconds: 550_000_000)
-            messages.append(CoachMessage(text: response.text.isEmpty ? "I’ll adjust that against your plan and recovery signals." : response.text, time: "Now", isUser: false))
-            isTyping = false
+            await MainActor.run {
+                trainingContext = currentContext
+                messages.append(CoachMessage(text: response.text.isEmpty ? "I’ll adjust that against your plan and recovery signals." : response.text, time: "Now", isUser: false))
+                isTyping = false
+            }
+        }
+    }
+}
+
+private struct FlowLayout<Content: View>: View {
+    var spacing: CGFloat
+    @ViewBuilder var content: Content
+
+    init(spacing: CGFloat = 8, @ViewBuilder content: () -> Content) {
+        self.spacing = spacing
+        self.content = content()
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: spacing) {
+                content
+            }
+            VStack(alignment: .leading, spacing: spacing) {
+                content
+            }
         }
     }
 }

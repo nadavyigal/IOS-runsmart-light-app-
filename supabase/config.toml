@@ -1,0 +1,10 @@
+project_id = "dxqglotcyirxzyqaxqln"
+
+[functions.coach_message]
+# The function performs its own Supabase JWT validation so it can return stable
+# JSON errors and support local OPTIONS/POST smoke tests consistently.
+verify_jwt = false
+
+[functions.delete_account]
+# Performs its own JWT validation, same pattern as coach_message.
+verify_jwt = false

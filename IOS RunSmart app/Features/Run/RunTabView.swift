@@ -9,6 +9,7 @@ struct RunTabView: View {
     @State private var finishedRun: RecordedRun?
     @State private var postActivityOutcome: PostActivityOutcome?
     @State private var isProcessingFinishedRun = false
+    @State private var isConfirmingDiscard = false
 
     var body: some View {
         Group {
@@ -23,35 +24,74 @@ struct RunTabView: View {
             } else if recorder.phase == .recording || recorder.phase == .paused {
                 LiveRunView(
                     metrics: liveMetrics,
-                    routePoints: recorder.routePoints,
+                    routePoints: recorder.displayRoutePoints,
                     phase: recorder.phase,
                     gpsStatus: gpsStatus,
                     gpsDetail: gpsDetail,
                     elapsedSeconds: recorder.movingSeconds,
                     onPauseResume: primaryRunAction,
-                    onFinish: finishRun
+                    onFinish: finishRun,
+                    onDiscard: { isConfirmingDiscard = true }
                 )
             } else {
                 PreRunView(
                     metrics: metrics,
                     plannedWorkout: router.plannedWorkout,
+                    selectedRoute: router.plannedRoute,
                     phase: recorder.phase,
                     gpsStatus: gpsStatus,
                     gpsDetail: gpsDetail,
-                    onStart: {
-                        RunSmartHaptics.medium()
-                        recorder.start()
-                    },
-                    onRoute: { router.open(.routeCreator) },
-                    onAudio: { router.open(.audioCues) }
+                    onStart: startRun,
+                    onRoute: openRouteCreator,
+                    onAudio: openAudioCues
                 )
             }
         }
         .task {
-            metrics = await services.currentRunMetrics()
+            await reloadMetrics()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
-            Task { metrics = await services.currentRunMetrics() }
+            refreshMetrics()
+        }
+        .onChange(of: recorder.phase) { oldPhase, newPhase in
+            switch newPhase {
+            case .recording where oldPhase == .paused:
+                VoiceCoachService.shared.resumeSession()
+            case .recording:
+                VoiceCoachService.shared.startSession()
+            case .paused:
+                VoiceCoachService.shared.pauseSession()
+            case .idle, .ready, .denied, .failed:
+                VoiceCoachService.shared.stopSession()
+            default:
+                break
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .voiceCoachCueTimerFired)) { _ in
+            guard recorder.phase == .recording else { return }
+            let context = VoiceCueContext(
+                elapsedMinutes: recorder.movingSeconds / 60.0,
+                distanceKm: recorder.distanceMeters / 1000.0,
+                currentPaceMinPerKm: recorder.distanceMeters > 0
+                    ? (recorder.movingSeconds / (recorder.distanceMeters / 1000.0)) / 60.0
+                    : 0.0,
+                targetPaceMinPerKm: nil,
+                workoutGoal: router.plannedWorkout?.title,
+                heartRateBPM: nil
+            )
+            VoiceCoachService.shared.deliverCue(context: context)
+        }
+        .confirmationDialog(
+            "Discard this workout?",
+            isPresented: $isConfirmingDiscard,
+            titleVisibility: .visible
+        ) {
+            Button("Discard Workout", role: .destructive) {
+                discardRun()
+            }
+            Button("Keep Workout", role: .cancel) {}
+        } message: {
+            Text("This removes the current timer, distance, and route.")
         }
     }
 
@@ -70,6 +110,8 @@ struct RunTabView: View {
             "GPS ready to request"
         case .requestingPermission:
             "Waiting for location permission"
+        case .acquiringLocation:
+            "Finding GPS"
         case .ready:
             "GPS ready"
         case .recording:
@@ -87,12 +129,28 @@ struct RunTabView: View {
         if let message = recorder.lastErrorMessage {
             return message
         }
+        func accuracyMessage(_ accuracy: Double) -> String {
+            let meters = Int(accuracy)
+            if accuracy > 50 {
+                return "Weak GPS at \(meters)m. RunSmart keeps recording, but route matching may be less precise."
+            }
+            if accuracy > 25 {
+                return "GPS accuracy \(meters)m. Open sky helps route matching and pace settle."
+            }
+            return "GPS accuracy \(meters)m. Route recording looks solid."
+        }
+
         switch recorder.phase {
         case .requestingPermission:
             return "Approve location access and the run will start automatically."
+        case .acquiringLocation:
+            if let accuracy = recorder.horizontalAccuracy {
+                return accuracyMessage(accuracy)
+            }
+            return "Stand near open sky while RunSmart gets a clean first point."
         case .recording:
             if let accuracy = recorder.horizontalAccuracy {
-                return "Timer running - GPS accuracy \(Int(accuracy))m"
+                return "Timer running. \(accuracyMessage(accuracy))"
             }
             return "Timer running - finding the first GPS point."
         case .paused:
@@ -117,10 +175,35 @@ struct RunTabView: View {
         }
     }
 
+    private func startRun() {
+        RunSmartHaptics.medium()
+        let source = router.plannedWorkout != nil ? "planned" : "free"
+        Analytics.trackRunStarted(source: source)
+        recorder.start()
+    }
+
+    private func openRouteCreator() {
+        router.open(.routeCreator)
+    }
+
+    private func openAudioCues() {
+        router.open(.audioCues)
+    }
+
+    private func reloadMetrics() async {
+        metrics = await services.currentRunMetrics()
+    }
+
+    private func refreshMetrics() {
+        Task { await reloadMetrics() }
+    }
+
     private func finishRun() {
         RunSmartHaptics.medium()
+        VoiceCoachService.shared.stopSession()
         let run = recorder.finish()
         if let run {
+            router.dismissPostRunSummaryIfNeeded()
             Task { await services.saveToHealth(run) }
             postActivityOutcome = nil
             isProcessingFinishedRun = true
@@ -134,20 +217,44 @@ struct RunTabView: View {
                 }
             }
         } else {
-            router.open(.postRunSummary(nil))
+            finishedRun = nil
+            postActivityOutcome = nil
+            isProcessingFinishedRun = false
+            router.dismissPostRunSummaryIfNeeded()
         }
+    }
+
+    private func discardRun() {
+        RunSmartHaptics.medium()
+        VoiceCoachService.shared.stopSession()
+        Analytics.trackRunAbandoned(
+            durationSeconds: Int(recorder.movingSeconds),
+            distanceKm: recorder.distanceMeters / 1000
+        )
+        recorder.discard()
+        finishedRun = nil
+        postActivityOutcome = nil
+        isProcessingFinishedRun = false
+        router.dismissPostRunSummaryIfNeeded()
+        router.clearRunContext()
     }
 
     private func saveFinishedRun() {
         finishedRun = nil
         postActivityOutcome = nil
         isProcessingFinishedRun = false
-        Task { metrics = await services.currentRunMetrics() }
+        router.dismissPostRunSummaryIfNeeded()
+        router.clearRunContext()
+        refreshMetrics()
     }
 
     private func deleteFinishedRun() {
         guard let run = finishedRun else {
             finishedRun = nil
+            postActivityOutcome = nil
+            isProcessingFinishedRun = false
+            router.dismissPostRunSummaryIfNeeded()
+            router.clearRunContext()
             return
         }
         Task {
@@ -156,6 +263,8 @@ struct RunTabView: View {
                 finishedRun = nil
                 postActivityOutcome = nil
                 isProcessingFinishedRun = false
+                router.dismissPostRunSummaryIfNeeded()
+                router.clearRunContext()
                 NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
             }
         }

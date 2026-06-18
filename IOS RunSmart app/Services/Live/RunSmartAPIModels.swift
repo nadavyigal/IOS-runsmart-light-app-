@@ -33,6 +33,7 @@ enum RunSmartDTO {
         let targetPaceLabel: String
         let elevationLabel: String
         let coachMessage: String
+        var rationale: String? = nil
     }
 
     struct PlanPayload: Codable {
@@ -65,9 +66,729 @@ enum RunSmartDTO {
         let role: String
     }
 
-    struct SendCoachMessageRequest: Codable {
-        let threadID: String?
-        let text: String
+    struct SendCoachMessageRequest: Encodable {
+        let conversationId: String?
+        let clientMessageId: String
+        let entryPoint: String
+        let message: String
+        let context: TrainingContextSnapshotDTO
+        let clientTimestamp: String
+
+        init(
+            conversationId: String? = nil,
+            clientMessageId: String,
+            entryPoint: CoachEntryPoint,
+            message: String,
+            context: TrainingContextSnapshot,
+            clientTimestamp: Date = Date()
+        ) {
+            self.conversationId = conversationId
+            self.clientMessageId = clientMessageId
+            self.entryPoint = entryPoint.rawValue
+            self.message = message
+            self.context = TrainingContextSnapshotDTO(context)
+            self.clientTimestamp = ISO8601DateFormatter().string(from: clientTimestamp)
+        }
+    }
+
+    struct TrainingContextSnapshotDTO: Encodable {
+        let generatedAt: String
+        let entryPoint: String
+        let runner: Runner
+        let today: Today
+        let plan: Plan
+        let recovery: Recovery
+        let wellness: Wellness
+        let activity: Activity
+        let routes: [Route]
+        let reports: [Report]
+        let limitations: [String]
+
+        init(_ snapshot: TrainingContextSnapshot) {
+            generatedAt = ISO8601DateFormatter().string(from: snapshot.generatedAt)
+            entryPoint = snapshot.entryPoint.rawValue
+            runner = Runner(snapshot.runner)
+            today = Today(snapshot.today)
+            plan = Plan(snapshot.plan)
+            recovery = Recovery(snapshot.recovery)
+            wellness = Wellness(snapshot.wellness)
+            activity = Activity(snapshot.activity)
+            routes = snapshot.routes.map { Route($0) }
+            reports = snapshot.reports.map { Report($0) }
+            limitations = snapshot.limitations
+        }
+
+        struct Runner: Encodable {
+            let goal: String
+            let level: String
+            let streak: String
+            let totalRuns: Int
+            let totalDistanceKm: Int
+            let totalTime: String
+
+            init(_ runner: TrainingContextRunnerSummary) {
+                goal = runner.goal
+                level = runner.level
+                streak = runner.streak
+                totalRuns = runner.totalRuns
+                totalDistanceKm = runner.totalDistanceKm
+                totalTime = runner.totalTime
+            }
+        }
+
+        struct Today: Encodable {
+            let readiness: Int
+            let readinessLabel: String
+            let workoutTitle: String
+            let distance: String
+            let pace: String
+            let coachMessage: String
+            let weeklyProgress: String
+            let recovery: String
+            let hrv: String
+
+            init(_ today: TrainingContextTodaySummary) {
+                readiness = today.readiness
+                readinessLabel = today.readinessLabel
+                workoutTitle = today.workoutTitle
+                distance = today.distance
+                pace = today.pace
+                coachMessage = today.coachMessage
+                weeklyProgress = today.weeklyProgress
+                recovery = today.recovery
+                hrv = today.hrv
+            }
+        }
+
+        struct Plan: Encodable {
+            let activePlanTitle: String?
+            let planType: String?
+            let totalWeeks: Int?
+            let weeklyWorkoutCount: Int
+            let upcomingWorkouts: [Workout]
+
+            init(_ plan: TrainingContextPlanSummary) {
+                activePlanTitle = plan.activePlanTitle
+                planType = plan.planType
+                totalWeeks = plan.totalWeeks
+                weeklyWorkoutCount = plan.weeklyWorkoutCount
+                upcomingWorkouts = plan.upcomingWorkouts.map { Workout($0) }
+            }
+        }
+
+        struct Workout: Encodable {
+            let id: String
+            let scheduledDate: String
+            let title: String
+            let kind: String
+            let distance: String
+            let detail: String
+            let isToday: Bool
+            let isComplete: Bool
+
+            init(_ workout: TrainingContextWorkoutSummary) {
+                id = workout.id.uuidString
+                scheduledDate = ISO8601DateFormatter.shortDate.string(from: workout.scheduledDate)
+                title = workout.title
+                kind = workout.kind.rawValue
+                distance = workout.distance
+                detail = workout.detail
+                isToday = workout.isToday
+                isComplete = workout.isComplete
+            }
+        }
+
+        struct Recovery: Encodable {
+            let readiness: Int
+            let bodyBattery: Int
+            let sleep: String
+            let hrv: String
+            let stress: String
+            let recommendation: String
+
+            init(_ recovery: TrainingContextRecoverySummary) {
+                readiness = recovery.readiness
+                bodyBattery = recovery.bodyBattery
+                sleep = recovery.sleep
+                hrv = recovery.hrv
+                stress = recovery.stress
+                recommendation = recovery.recommendation
+            }
+        }
+
+        struct Wellness: Encodable {
+            let calories: String
+            let hydration: String
+            let soreness: String
+            let mood: String
+            let checkInStatus: String
+
+            init(_ wellness: TrainingContextWellnessSummary) {
+                calories = wellness.calories
+                hydration = wellness.hydration
+                soreness = wellness.soreness
+                mood = wellness.mood
+                checkInStatus = wellness.checkInStatus
+            }
+        }
+
+        struct Activity: Encodable {
+            let recentRunCount: Int
+            let recentRuns: [Run]
+            let sources: [String]
+            let averageWeeklyDistanceKm: Double?
+
+            init(_ activity: TrainingContextActivitySummary) {
+                recentRunCount = activity.recentRunCount
+                recentRuns = activity.recentRuns.map { Run($0) }
+                sources = activity.sources
+                averageWeeklyDistanceKm = activity.averageWeeklyDistanceKm
+            }
+        }
+
+        struct Run: Encodable {
+            let id: String
+            let source: String
+            let startedAt: String
+            let distanceKm: Double
+            let movingTimeSeconds: Int
+            let paceLabel: String
+            let averageHeartRateBPM: Int?
+            let hasRoute: Bool
+            let routePointCount: Int
+
+            init(_ run: TrainingContextRunSummary) {
+                id = run.id.uuidString
+                source = run.source.rawValue
+                startedAt = ISO8601DateFormatter().string(from: run.startedAt)
+                distanceKm = run.distanceKm
+                movingTimeSeconds = Int(run.movingTimeSeconds.rounded())
+                paceLabel = run.paceLabel
+                averageHeartRateBPM = run.averageHeartRateBPM
+                hasRoute = run.hasRoute
+                routePointCount = run.routePointCount
+            }
+        }
+
+        struct Route: Encodable {
+            let id: String
+            let name: String
+            let distanceKm: Double
+            let elevationGainMeters: Int
+            let estimatedDurationMinutes: Int
+            let kind: String
+            let recommendationReason: String?
+            let isFavorite: Bool
+            let hasGeometry: Bool
+
+            init(_ route: TrainingContextRouteSummary) {
+                id = route.id
+                name = route.name
+                distanceKm = route.distanceKm
+                elevationGainMeters = route.elevationGainMeters
+                estimatedDurationMinutes = route.estimatedDurationMinutes
+                kind = route.kind.rawValue
+                recommendationReason = route.recommendationReason
+                isFavorite = route.isFavorite
+                hasGeometry = route.hasGeometry
+            }
+        }
+
+        struct Report: Encodable {
+            let id: String
+            let title: String
+            let dateLabel: String
+            let distance: String
+            let pace: String
+            let score: Int
+            let insight: String
+            let hasGeneratedReport: Bool
+
+            init(_ report: TrainingContextReportSummary) {
+                id = report.id
+                title = report.title
+                dateLabel = report.dateLabel
+                distance = report.distance
+                pace = report.pace
+                score = report.score
+                insight = report.insight
+                hasGeneratedReport = report.hasGeneratedReport
+            }
+        }
+    }
+
+    struct SendCoachMessageResponse: Decodable {
+        let conversationId: String
+        let userMessageId: String
+        let assistantMessage: CoachAssistantMessageDTO
+        let source: String
+        let fallback: Bool
+        let suggestedAction: CoachSuggestedActionDTO?
+        let safetyFlags: [String]?
+        let usage: CoachUsageDTO?
+    }
+
+    struct CoachAssistantMessageDTO: Decodable {
+        let id: String
+        let role: String
+        let content: String
+        let createdAt: String
+    }
+
+    struct CoachSuggestedActionDTO: Decodable {
+        let type: String
+        let title: String
+        let payload: [String: String]?
+    }
+
+    struct CoachUsageDTO: Decodable {
+        let inputTokens: Int?
+        let outputTokens: Int?
+        let totalTokens: Int?
+    }
+
+    struct SafetyFlagDTO: Codable, Equatable {
+        enum Code: String, Codable {
+            case loadSpike = "load_spike"
+            case injurySignal = "injury_signal"
+            case heatRisk = "heat_risk"
+            case missingData = "missing_data"
+            case uncertain
+            case medicalCaution = "medical_caution"
+            case routeSafety = "route_safety"
+        }
+
+        enum Severity: String, Codable {
+            case low
+            case medium
+            case high
+        }
+
+        let code: Code
+        let severity: Severity
+        let message: String
+    }
+
+    enum CoachConfidenceDTO: String, Codable {
+        case low
+        case medium
+        case high
+    }
+
+    enum CoachDecisionDTO: String, Codable {
+        case proceed
+        case modify
+        case skip
+    }
+
+    struct ReadinessCheckRequestDTO: Codable, Equatable {
+        let entryPoint: String
+        let generatedAt: String
+        let profile: RunnerContextDTO
+        let plannedWorkout: WorkoutContextDTO?
+        let recentRuns: [RecentRunContextDTO]
+        let recovery: RecoveryContextDTO
+        let wellness: WellnessContextDTO
+        let limitations: [String]
+    }
+
+    struct ReadinessCheckResponseDTO: Codable, Equatable {
+        let decision: CoachDecisionDTO
+        let recommendation: String
+        let modifications: [String]
+        let confidence: CoachConfidenceDTO
+        let safetyFlags: [SafetyFlagDTO]
+    }
+
+    struct RunnerContextDTO: Codable, Equatable {
+        let goal: String
+        let level: String
+        let streak: String?
+        let totalRuns: Int?
+        let averageWeeklyDistanceKm: Double?
+    }
+
+    struct WorkoutContextDTO: Codable, Equatable {
+        let id: String?
+        let scheduledDate: String?
+        let title: String
+        let kind: String
+        let distance: String?
+        let durationMinutes: Int?
+        let targetPace: String?
+        let detail: String?
+        let isComplete: Bool?
+    }
+
+    struct RecentRunContextDTO: Codable, Equatable {
+        let id: String
+        let source: String
+        let startedAt: String
+        let distanceKm: Double
+        let movingTimeSeconds: Int
+        let paceLabel: String?
+        let averageHeartRateBPM: Int?
+        let rpe: Int?
+        let hasRoute: Bool
+    }
+
+    struct RecoveryContextDTO: Codable, Equatable {
+        let readiness: Int?
+        let bodyBattery: Int?
+        let sleep: String?
+        let hrv: String?
+        let stress: String?
+        let recommendation: String?
+    }
+
+    struct WellnessContextDTO: Codable, Equatable {
+        let soreness: String?
+        let mood: String?
+        let hydration: String?
+        let checkInStatus: String?
+    }
+
+    struct RunDebriefRequestDTO: Encodable {
+        let intent: String = "run_debrief"
+        let runDistanceKm: Double
+        let runDurationSeconds: Int
+        let averagePaceMinPerKm: Double?
+        let averageHeartRateBPM: Int?
+        let workoutType: String
+        let planPhase: String?
+        let recentLoadDays: Int
+        let limitations: [String]
+    }
+
+    struct RunDebriefResponseDTO: Decodable {
+        let headline: String
+        let debrief: String
+        let tomorrow: String
+        let planImpact: String?
+        let source: String
+
+        private enum CodingKeys: String, CodingKey {
+            case headline, debrief, tomorrow, planImpact, source
+        }
+
+        nonisolated init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            headline = try c.decode(String.self, forKey: .headline)
+            debrief = try c.decode(String.self, forKey: .debrief)
+            tomorrow = try c.decode(String.self, forKey: .tomorrow)
+            planImpact = try c.decodeIfPresent(String.self, forKey: .planImpact)
+            source = try c.decode(String.self, forKey: .source)
+        }
+    }
+
+    struct WeeklySummaryRequestDTO: Encodable {
+        let intent: String = "weekly_summary"
+        let weekStartDate: String
+        let runsCompleted: Int
+        let runsPlanned: Int
+        let totalDistanceKm: Double
+        let prevWeekDistanceKm: Double?
+        let planPhase: String?
+        let isRecoveryWeek: Bool
+        let readinessAverage: Double?
+        let limitations: [String]
+    }
+
+    struct WeeklySummaryResponseDTO: Decodable {
+        let headline: String
+        let narrative: String
+        let forwardLook: String
+        let weekLabel: String
+        let source: String
+
+        private enum CodingKeys: String, CodingKey {
+            case headline, narrative, forwardLook, weekLabel, source
+        }
+
+        nonisolated init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            headline = try c.decode(String.self, forKey: .headline)
+            narrative = try c.decode(String.self, forKey: .narrative)
+            forwardLook = try c.decode(String.self, forKey: .forwardLook)
+            weekLabel = try c.decode(String.self, forKey: .weekLabel)
+            source = try c.decode(String.self, forKey: .source)
+        }
+    }
+
+    struct FlexWeekWorkoutDTO: Codable {
+        let workoutID: String
+        let scheduledDate: String
+        let weekday: String
+        let dateLabel: String
+        let kind: String
+        let title: String
+        let distanceLabel: String
+        let detailLabel: String
+        let intensity: String?
+        let trainingPhase: String?
+        let isToday: Bool
+        let isComplete: Bool
+        let originalWorkoutID: String?
+
+        enum CodingKeys: String, CodingKey {
+            case workoutID = "workoutId"
+            case workoutIDLegacy = "workoutID"
+            case workoutIDSnake = "workout_id"
+            case scheduledDate
+            case scheduledDateSnake = "scheduled_date"
+            case weekday
+            case dateLabel
+            case dateLabelSnake = "date_label"
+            case kind
+            case title
+            case distanceLabel
+            case distanceLabelSnake = "distance_label"
+            case detailLabel
+            case detailLabelSnake = "detail_label"
+            case intensity
+            case trainingPhase
+            case trainingPhaseSnake = "training_phase"
+            case isToday
+            case isTodaySnake = "is_today"
+            case isComplete
+            case isCompleteSnake = "is_complete"
+            case originalWorkoutID = "originalWorkoutId"
+            case originalWorkoutIDLegacy = "originalWorkoutID"
+            case originalWorkoutIDSnake = "original_workout_id"
+        }
+
+        init(
+            workoutID: String,
+            scheduledDate: String,
+            weekday: String,
+            dateLabel: String,
+            kind: String,
+            title: String,
+            distanceLabel: String,
+            detailLabel: String,
+            intensity: String?,
+            trainingPhase: String?,
+            isToday: Bool,
+            isComplete: Bool,
+            originalWorkoutID: String?
+        ) {
+            self.workoutID = workoutID
+            self.scheduledDate = scheduledDate
+            self.weekday = weekday
+            self.dateLabel = dateLabel
+            self.kind = kind
+            self.title = title
+            self.distanceLabel = distanceLabel
+            self.detailLabel = detailLabel
+            self.intensity = intensity
+            self.trainingPhase = trainingPhase
+            self.isToday = isToday
+            self.isComplete = isComplete
+            self.originalWorkoutID = originalWorkoutID
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            workoutID = try Self.decodeString(c, .workoutID, .workoutIDLegacy, .workoutIDSnake)
+            scheduledDate = try Self.decodeString(c, .scheduledDate, .scheduledDateSnake)
+            weekday = (try? Self.decodeString(c, .weekday)) ?? ""
+            dateLabel = (try? Self.decodeString(c, .dateLabel, .dateLabelSnake)) ?? ""
+            kind = (try? Self.decodeString(c, .kind)) ?? "Easy Run"
+            title = (try? Self.decodeString(c, .title)) ?? kind
+            distanceLabel = (try? Self.decodeString(c, .distanceLabel, .distanceLabelSnake)) ?? "Rest"
+            detailLabel = (try? Self.decodeString(c, .detailLabel, .detailLabelSnake)) ?? ""
+            intensity = try? Self.decodeOptionalString(c, .intensity)
+            trainingPhase = try? Self.decodeOptionalString(c, .trainingPhase, .trainingPhaseSnake)
+            isToday = (try? Self.decodeBool(c, .isToday, .isTodaySnake)) ?? false
+            isComplete = (try? Self.decodeBool(c, .isComplete, .isCompleteSnake)) ?? false
+            originalWorkoutID = try? Self.decodeOptionalString(c, .originalWorkoutID, .originalWorkoutIDLegacy, .originalWorkoutIDSnake)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(workoutID, forKey: .workoutID)
+            try c.encode(scheduledDate, forKey: .scheduledDate)
+            try c.encode(weekday, forKey: .weekday)
+            try c.encode(dateLabel, forKey: .dateLabel)
+            try c.encode(kind, forKey: .kind)
+            try c.encode(title, forKey: .title)
+            try c.encode(distanceLabel, forKey: .distanceLabel)
+            try c.encode(detailLabel, forKey: .detailLabel)
+            try c.encodeIfPresent(intensity, forKey: .intensity)
+            try c.encodeIfPresent(trainingPhase, forKey: .trainingPhase)
+            try c.encode(isToday, forKey: .isToday)
+            try c.encode(isComplete, forKey: .isComplete)
+            try c.encodeIfPresent(originalWorkoutID, forKey: .originalWorkoutID)
+        }
+
+        private static func decodeString(_ container: KeyedDecodingContainer<CodingKeys>, _ keys: CodingKeys...) throws -> String {
+            for key in keys {
+                if let value = try container.decodeIfPresent(String.self, forKey: key) {
+                    return value
+                }
+            }
+            throw DecodingError.keyNotFound(
+                keys[0],
+                DecodingError.Context(codingPath: container.codingPath, debugDescription: "Missing \(keys[0].stringValue)")
+            )
+        }
+
+        private static func decodeOptionalString(_ container: KeyedDecodingContainer<CodingKeys>, _ keys: CodingKeys...) throws -> String? {
+            for key in keys {
+                if let value = try container.decodeIfPresent(String.self, forKey: key) {
+                    return value
+                }
+            }
+            return nil
+        }
+
+        private static func decodeBool(_ container: KeyedDecodingContainer<CodingKeys>, _ keys: CodingKeys...) throws -> Bool {
+            for key in keys {
+                if let value = try container.decodeIfPresent(Bool.self, forKey: key) {
+                    return value
+                }
+            }
+            throw DecodingError.keyNotFound(
+                keys[0],
+                DecodingError.Context(codingPath: container.codingPath, debugDescription: "Missing \(keys[0].stringValue)")
+            )
+        }
+    }
+
+    struct FlexWeekReadinessContextDTO: Codable {
+        let readiness: Int
+        let readinessLabel: String
+        let bodyBattery: Int
+        let hrv: String
+        let sleep: String
+        let recommendation: String
+    }
+
+    struct FlexWeekRequestDTO: Encodable {
+        let intent: String = "flex_week"
+        let reason: String
+        let currentWeek: [FlexWeekWorkoutDTO]
+        let readinessContext: FlexWeekReadinessContextDTO?
+        let blockedDays: [String]?
+        let missedWorkoutID: String?
+        let sickDaysOut: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case intent
+            case reason
+            case currentWeek
+            case readinessContext
+            case blockedDays
+            case missedWorkoutID = "missedWorkoutId"
+            case sickDaysOut
+        }
+    }
+
+    struct FlexWeekChangeDTO: Codable {
+        let workoutID: String
+        let changeType: String
+        let rationale: String
+        let originalWorkoutID: String?
+
+        enum CodingKeys: String, CodingKey {
+            case workoutID = "workoutId"
+            case workoutIDLegacy = "workoutID"
+            case workoutIDSnake = "workout_id"
+            case changeType
+            case changeTypeSnake = "change_type"
+            case rationale
+            case originalWorkoutID = "originalWorkoutId"
+            case originalWorkoutIDLegacy = "originalWorkoutID"
+            case originalWorkoutIDSnake = "original_workout_id"
+        }
+
+        init(workoutID: String, changeType: String, rationale: String, originalWorkoutID: String?) {
+            self.workoutID = workoutID
+            self.changeType = changeType
+            self.rationale = rationale
+            self.originalWorkoutID = originalWorkoutID
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            workoutID = try Self.decodeString(c, .workoutID, .workoutIDLegacy, .workoutIDSnake)
+            changeType = (try? Self.decodeString(c, .changeType, .changeTypeSnake)) ?? "modify"
+            rationale = (try? Self.decodeString(c, .rationale)) ?? ""
+            originalWorkoutID = try? Self.decodeOptionalString(c, .originalWorkoutID, .originalWorkoutIDLegacy, .originalWorkoutIDSnake)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(workoutID, forKey: .workoutID)
+            try c.encode(changeType, forKey: .changeType)
+            try c.encode(rationale, forKey: .rationale)
+            try c.encodeIfPresent(originalWorkoutID, forKey: .originalWorkoutID)
+        }
+
+        private static func decodeString(_ container: KeyedDecodingContainer<CodingKeys>, _ keys: CodingKeys...) throws -> String {
+            for key in keys {
+                if let value = try container.decodeIfPresent(String.self, forKey: key) {
+                    return value
+                }
+            }
+            throw DecodingError.keyNotFound(
+                keys[0],
+                DecodingError.Context(codingPath: container.codingPath, debugDescription: "Missing \(keys[0].stringValue)")
+            )
+        }
+
+        private static func decodeOptionalString(_ container: KeyedDecodingContainer<CodingKeys>, _ keys: CodingKeys...) throws -> String? {
+            for key in keys {
+                if let value = try container.decodeIfPresent(String.self, forKey: key) {
+                    return value
+                }
+            }
+            return nil
+        }
+    }
+
+    struct FlexWeekResponseDTO: Codable {
+        let restructuredWeek: [FlexWeekWorkoutDTO]
+        let changes: [FlexWeekChangeDTO]
+        let safetyWarnings: [String]?
+        let source: String
+
+        enum CodingKeys: String, CodingKey {
+            case restructuredWeek
+            case restructuredWeekSnake = "restructured_week"
+            case changes
+            case safetyWarnings
+            case safetyWarningsSnake = "safety_warnings"
+            case source
+        }
+
+        init(restructuredWeek: [FlexWeekWorkoutDTO], changes: [FlexWeekChangeDTO], safetyWarnings: [String]?, source: String) {
+            self.restructuredWeek = restructuredWeek
+            self.changes = changes
+            self.safetyWarnings = safetyWarnings
+            self.source = source
+        }
+
+        nonisolated init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            if let camelWeek = try? c.decode([FlexWeekWorkoutDTO].self, forKey: .restructuredWeek) {
+                restructuredWeek = camelWeek
+            } else {
+                restructuredWeek = try c.decode([FlexWeekWorkoutDTO].self, forKey: .restructuredWeekSnake)
+            }
+            changes = (try? c.decode([FlexWeekChangeDTO].self, forKey: .changes)) ?? []
+            safetyWarnings = (try? c.decodeIfPresent([String].self, forKey: .safetyWarnings)) ??
+                (try? c.decodeIfPresent([String].self, forKey: .safetyWarningsSnake))
+            source = (try? c.decode(String.self, forKey: .source)) ?? "fallback"
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(restructuredWeek, forKey: .restructuredWeek)
+            try c.encode(changes, forKey: .changes)
+            try c.encodeIfPresent(safetyWarnings, forKey: .safetyWarnings)
+            try c.encode(source, forKey: .source)
+        }
     }
 
     struct RunLogRequest: Codable {
@@ -321,6 +1042,7 @@ enum RunSmartDTO {
         let userContext: UserContext
         let trainingHistory: TrainingHistory?
         let goals: GoalsContext?
+        let challenge: Challenge?
         let targetDistance: String?
         let totalWeeks: Int?
         let planPreferences: PlanPreferences
@@ -329,10 +1051,12 @@ enum RunSmartDTO {
             let userId: Int?
             let goal: String
             let experience: String
+            let age: Int?
             let daysPerWeek: Int
             let preferredTimes: [String]
             let coachingStyle: String?
             let averageWeeklyKm: Double?
+            let trainingDataSource: String?
         }
 
         struct TrainingHistory: Encodable {
@@ -361,6 +1085,18 @@ enum RunSmartDTO {
                 let deadline: String
                 let progressPercentage: Int
             }
+        }
+
+        struct Challenge: Encodable {
+            let slug: String?
+            let name: String
+            let category: String
+            let difficulty: String?
+            let durationDays: Int
+            let workoutPattern: String?
+            let coachTone: String?
+            let targetAudience: String?
+            let promise: String?
         }
 
         struct PlanPreferences: Encodable {
@@ -526,11 +1262,18 @@ struct URLSessionRunSmartAPIClient: RunSmartAPIClient {
     let baseURL: URL
     let session: URLSession
     var accessToken: String?
+    var additionalHeaders: [String: String]
 
-    init(baseURL: URL = URLSessionRunSmartAPIClient.configuredBaseURL(), session: URLSession = .shared, accessToken: String? = nil) {
+    init(
+        baseURL: URL = URLSessionRunSmartAPIClient.configuredBaseURL(),
+        session: URLSession = .shared,
+        accessToken: String? = nil,
+        additionalHeaders: [String: String] = [:]
+    ) {
         self.baseURL = baseURL
         self.session = session
         self.accessToken = accessToken
+        self.additionalHeaders = additionalHeaders
     }
 
     nonisolated func send<Response: Decodable>(_ endpoint: RunSmartAPI.Endpoint, as: Response.Type) async throws -> Response {
@@ -550,9 +1293,15 @@ struct URLSessionRunSmartAPIClient: RunSmartAPIClient {
         if let accessToken {
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         }
+        for (field, value) in additionalHeaders {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
 
         let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            if let decoded = try? JSONDecoder().decode(Response.self, from: data) {
+                return decoded
+            }
             throw RunSmartAPIError.badStatus(http.statusCode)
         }
         return try JSONDecoder().decode(Response.self, from: data)

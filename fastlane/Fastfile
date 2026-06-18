@@ -41,9 +41,7 @@ platform :ios do
   lane :beta do
     api_key = app_store_connect_api_key_if_configured
 
-    increment_build_number(
-      xcodeproj: PROJECT
-    )
+    UI.message("Using the build number committed in #{PROJECT}; bump CURRENT_PROJECT_VERSION before running this lane.")
 
     build_app(
       project: PROJECT,
@@ -70,9 +68,7 @@ platform :ios do
   lane :release do
     api_key = app_store_connect_api_key_if_configured
 
-    increment_build_number(
-      xcodeproj: PROJECT
-    )
+    UI.message("Using the build number committed in #{PROJECT}; bump CURRENT_PROJECT_VERSION before running this lane.")
 
     build_app(
       project: PROJECT,
@@ -97,14 +93,7 @@ platform :ios do
 
   desc "Take screenshots for App Store"
   lane :screenshots do
-    capture_screenshots(
-      project: PROJECT,
-      scheme: UI_TESTS_SCHEME,
-      devices: [
-        selected_simulator("iphone", "IOS_SCREENSHOT_IPHONE"),
-        selected_simulator("ipad", "IOS_SCREENSHOT_IPAD")
-      ]
-    )
+    sh("bash fastlane/scripts/capture-app-store-screenshots.sh")
   end
 
   desc "Clean build artifacts"

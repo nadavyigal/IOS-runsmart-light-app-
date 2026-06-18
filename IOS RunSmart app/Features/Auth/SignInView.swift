@@ -30,16 +30,16 @@ struct SignInView: View {
                             .font(.system(size: 38, weight: .black, design: .rounded))
                             .foregroundStyle(.white)
 
-                        Text("Your AI-powered running coach.\nPersonalized plans. Real results.")
+                        Text("Personal coaching before and after runs.\nSmart reports. Adaptive plan guidance.")
                             .font(.subheadline)
                             .foregroundStyle(Color.mutedText)
                             .multilineTextAlignment(.center)
                     }
 
                     VStack(spacing: 12) {
-                        FeaturePill(symbol: "waveform", text: "Live AI coaching during runs")
+                        FeaturePill(symbol: "waveform", text: "Run guidance and cue previews")
                         FeaturePill(symbol: "calendar", text: "Personalized training plans")
-                        FeaturePill(symbol: "heart.fill", text: "Garmin + HealthKit integration")
+                        FeaturePill(symbol: "heart.fill", text: "HealthKit reads approved data and can save completed GPS runs")
                     }
                 }
 
@@ -74,11 +74,22 @@ struct SignInView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
 
-                    Text("By continuing you agree to our Terms of Service and Privacy Policy.")
-                        .font(.caption2)
-                        .foregroundStyle(Color.mutedText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
+                    VStack(spacing: 4) {
+                        Text("By continuing you agree to our")
+                            .foregroundStyle(Color.mutedText)
+
+                        HStack(spacing: 4) {
+                            Link("Terms of Service", destination: ExternalURLs.terms)
+                            Text("and")
+                                .foregroundStyle(Color.mutedText)
+                            Link("Privacy Policy", destination: ExternalURLs.privacy)
+                        }
+                        .fontWeight(.semibold)
+                    }
+                    .font(.caption2)
+                    .multilineTextAlignment(.center)
+                    .tint(Color.lime)
+                    .padding(.horizontal, 24)
                 }
                 .padding(.horizontal, 28)
                 .padding(.bottom, 48)
@@ -100,7 +111,13 @@ struct SignInView: View {
                   let idToken = String(data: tokenData, encoding: .utf8) else {
                 throw AppleSignInError.invalidCredential
             }
-            try await session.signInWithApple(idToken: idToken, nonce: currentNonce)
+            try await session.signInWithApple(
+                idToken: idToken,
+                nonce: currentNonce,
+                appleDisplayName: appleDisplayName(from: credential.fullName),
+                appleEmail: credential.email
+            )
+            Analytics.trackSignInCompleted(method: "apple")
         } catch let error as NSError
             where error.domain == ASAuthorizationError.errorDomain
                && error.code == ASAuthorizationError.canceled.rawValue {
@@ -108,6 +125,14 @@ struct SignInView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func appleDisplayName(from fullName: PersonNameComponents?) -> String? {
+        guard let fullName else { return nil }
+        let formatter = PersonNameComponentsFormatter()
+        formatter.style = .medium
+        let name = formatter.string(from: fullName).trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : name
     }
 }
 

@@ -14,6 +14,11 @@ struct ActivePlan {
             ?? workouts.first { $0.scheduledDate == todayDate }
     }
 
+    var uncompletedTodayWorkout: DBWorkout? {
+        let todayDate = ISO8601DateFormatter.shortDate.string(from: Date())
+        return workouts.first { $0.scheduledDate == todayDate && !$0.completed }
+    }
+
     var nextActionableWorkout: DBWorkout? {
         let today = Calendar.current.startOfDay(for: Date())
         return workouts
@@ -59,6 +64,10 @@ struct RunSmartIdentity: Sendable {
     func profileReference(fallback: UUID) -> DBProfileReference {
         if let numericUserID { return .numeric(numericUserID) }
         return .uuid(profileUUID ?? fallback)
+    }
+
+    func planWriteProfileReference(fallback: UUID) -> DBProfileReference {
+        .uuid(profileUUID ?? fallback)
     }
 }
 
@@ -136,6 +145,7 @@ extension ISO8601DateFormatter {
     static let shortDate: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withFullDate]
+        f.timeZone = .current
         return f
     }()
 }
@@ -144,6 +154,13 @@ extension ISO8601DateFormatter {
 
 final class TrainingPlanRepository {
     private let supabase = SupabaseManager.client
+    private var activePlanCache: [UUID: (plan: ActivePlan?, expiry: Date)] = [:]
+    private static let activePlanCacheTTL: TimeInterval = 30
+    private static let profileDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
     func identity(authUserID: UUID) async -> RunSmartIdentity {
         do {
@@ -172,17 +189,29 @@ final class TrainingPlanRepository {
         }
     }
 
+    func invalidateActivePlanCache(authUserID: UUID? = nil) {
+        if let authUserID {
+            activePlanCache.removeValue(forKey: authUserID)
+        } else {
+            activePlanCache.removeAll()
+        }
+    }
+
     func activePlan(authUserID: UUID) async -> ActivePlan? {
+        if let cached = activePlanCache[authUserID], Date() < cached.expiry {
+            return cached.plan
+        }
+
+        let resolved = await resolveActivePlan(authUserID: authUserID)
+        activePlanCache[authUserID] = (resolved, Date().addingTimeInterval(Self.activePlanCacheTTL))
+        return resolved
+    }
+
+    private func resolveActivePlan(authUserID: UUID) async -> ActivePlan? {
         let resolved = await identity(authUserID: authUserID)
 
         if let active = await activePlanByAuthUserID(authUserID) {
             print("[TrainingPlanRepo] ✅ found active plan via auth_user_id=\(authUserID)")
-            return active
-        }
-
-        if let numericID = resolved.numericUserID,
-           let active = await activePlanByNumericProfile(numericProfileID: numericID) {
-            print("[TrainingPlanRepo] ✅ found active plan via numeric profileID=\(numericID)")
             return active
         }
 
@@ -332,6 +361,10 @@ final class TrainingPlanRepository {
                 name: request.displayName,
                 goal: request.supabaseGoal,
                 experience: request.supabaseExperience,
+                age: request.age,
+                averageWeeklyDistanceKm: request.averageWeeklyDistanceKm,
+                trainingDataSource: request.trainingDataSource?.rawValue,
+                trainingDataUpdatedAt: request.averageWeeklyDistanceKm.map { _ in Self.profileDateFormatter.string(from: Date()) },
                 preferredTimes: request.preferredDays,
                 daysPerWeek: request.weeklyRunDays,
                 coachingStyle: request.supabaseCoachingStyle,
@@ -346,18 +379,45 @@ final class TrainingPlanRepository {
             return true
         } catch {
             if !(error is CancellationError) {
-                print("[TrainingPlanRepo] saveTrainingGoal error:", error)
+                print("[TrainingPlanRepo] saveTrainingGoal rich update error:", error)
             }
-            return false
+            do {
+                try await supabase
+                    .from("profiles")
+                    .update(DBProfileGoalUpdateLegacy(
+                        name: request.displayName,
+                        goal: request.supabaseGoal,
+                        experience: request.supabaseExperience,
+                        preferredTimes: request.preferredDays,
+                        daysPerWeek: request.weeklyRunDays,
+                        coachingStyle: request.supabaseCoachingStyle,
+                        onboardingComplete: true
+                    ))
+                    .eq("auth_user_id", value: authUserID.uuidString)
+                    .execute()
+                return true
+            } catch {
+                if !(error is CancellationError) {
+                    print("[TrainingPlanRepo] saveTrainingGoal legacy update error:", error)
+                }
+                return false
+            }
         }
     }
 
     func persistGeneratedPlan(authUserID: UUID, request: TrainingGoalRequest, generated: RunSmartDTO.GeneratedPlan) async -> Bool {
         let resolved = await identity(authUserID: authUserID)
-        let profileID = resolved.profileReference(fallback: authUserID)
+        let profileID = resolved.planWriteProfileReference(fallback: authUserID)
         print("[TrainingPlanRepo] persistGeneratedPlan using profileID=\(profileID.debugValue)")
 
         do {
+            try await supabase
+                .from("plans")
+                .update(DBPlanActiveUpdate(isActive: false))
+                .eq("auth_user_id", value: authUserID.uuidString)
+                .eq("is_active", value: true)
+                .execute()
+
             switch profileID {
             case .numeric(let value):
                 try await supabase
@@ -448,7 +508,17 @@ final class TrainingPlanRepository {
     }
 
     func saveSuggestedWorkout(authUserID: UUID, suggestion: StructuredNextWorkout, report: RunReportDetail) async -> Bool {
-        guard let active = await activePlan(authUserID: authUserID) else {
+        guard !Self.suggestedWorkoutNeedsReview(suggestion) else {
+            print("[TrainingPlanRepo] saveSuggestedWorkout needs review: missing distance")
+            return false
+        }
+
+        var active = await activePlan(authUserID: authUserID)
+        if active == nil {
+            active = await createRecommendationPlan(authUserID: authUserID, suggestion: suggestion, report: report)
+        }
+
+        guard let active else {
             print("[TrainingPlanRepo] saveSuggestedWorkout failed: no active plan")
             return false
         }
@@ -480,7 +550,7 @@ final class TrainingPlanRepository {
             notes: notes.isEmpty ? nil : notes,
             workoutStructure: suggestion.notes,
             intensity: suggestion.target,
-            trainingPhase: "coach-recommendation"
+            trainingPhase: Self.suggestedWorkoutTrainingPhase
         )
 
         do {
@@ -498,6 +568,53 @@ final class TrainingPlanRepository {
         }
     }
 
+    private func createRecommendationPlan(authUserID: UUID, suggestion: StructuredNextWorkout, report: RunReportDetail) async -> ActivePlan? {
+        let resolved = await identity(authUserID: authUserID)
+        let today = Calendar.current.startOfDay(for: Date())
+        let targetDate = Self.suggestedWorkoutDate(suggestion.dateLabel)
+        let endDate = Calendar.current.date(byAdding: .day, value: 28, to: max(today, targetDate)) ?? targetDate
+        let profileReferences = Self.uniqueProfileReferences([
+            resolved.planWriteProfileReference(fallback: authUserID),
+            resolved.profileReference(fallback: authUserID)
+        ])
+
+        for profileID in profileReferences {
+            do {
+                let planRows: [DBPlan] = try await supabase
+                    .from("plans")
+                    .insert(DBPlanInsert(
+                        profileID: profileID,
+                        authUserID: authUserID.uuidString,
+                        title: "RunSmart Recommendations",
+                        description: "Auto-created so coach-recommended workouts from run reports can be saved.",
+                        startDate: ISO8601DateFormatter.shortDate.string(from: today),
+                        endDate: ISO8601DateFormatter.shortDate.string(from: endDate),
+                        totalWeeks: 4,
+                        isActive: true,
+                        planType: Self.recommendationFallbackPlanType,
+                        trainingDaysPerWeek: 3,
+                        targetDistance: Self.distanceKm(from: suggestion.distance) ?? Self.distanceKm(from: suggestion.title),
+                        targetTime: nil,
+                        peakWeeklyVolume: nil
+                    ))
+                    .select()
+                    .execute()
+                    .value
+
+                if let plan = planRows.first {
+                    print("[TrainingPlanRepo] ✅ created recommendation plan=\(plan.id) from report=\(report.id)")
+                    return ActivePlan(plan: plan, workouts: [])
+                }
+            } catch {
+                if !(error is CancellationError) {
+                    print("[TrainingPlanRepo] createRecommendationPlan error profileID=\(profileID.debugValue):", error)
+                }
+            }
+        }
+
+        return nil
+    }
+
     func completeBestMatchingWorkout(authUserID: UUID, for run: RecordedRun) async -> WorkoutSummary? {
         guard let active = await activePlan(authUserID: authUserID) else { return nil }
         let candidates = active.workouts
@@ -508,7 +625,7 @@ final class TrainingPlanRepository {
         do {
             try await supabase
                 .from("workouts")
-                .update(DBWorkoutCompletionUpdate(completed: true))
+                .update(DBWorkoutCompletionUpdate(run: run))
                 .eq("id", value: match.id.uuidString)
                 .execute()
             var completed = match
@@ -594,6 +711,107 @@ final class TrainingPlanRepository {
         }
     }
 
+    func applyFlexWeek(authUserID: UUID, outcome: FlexWeekOutcome) async -> Bool {
+        guard let active = await activePlan(authUserID: authUserID) else {
+            print("[TrainingPlanRepo] applyFlexWeek failed: no active plan")
+            return false
+        }
+
+        let planID = active.plan.id
+        let hash = outcome.applicationHash
+        if FlexWeekAppliedHash.isApplied(hash: hash, planID: planID) {
+            print("[TrainingPlanRepo] applyFlexWeek skipped: already applied hash=\(hash.prefix(8))")
+            return true
+        }
+
+        let originalByID = Dictionary(uniqueKeysWithValues: active.workouts.map { ($0.id, $0) })
+        let changeByWorkoutID = Dictionary(uniqueKeysWithValues: outcome.changes.map { ($0.workoutID, $0) })
+        var pendingUpdates: [(UUID, DBWorkoutFlexUpdate, DBWorkoutFlexUpdate)] = []
+
+        for workout in outcome.restructuredWeek {
+            guard let original = originalByID[workout.id], !original.completed else { continue }
+            let change = changeByWorkoutID[workout.id]
+            let updatedPatch = Self.flexUpdate(for: workout, change: change)
+            let rollbackPatch = DBWorkoutFlexUpdate(dbWorkout: original)
+            guard !Self.flexUpdateMatches(workout: original, patch: updatedPatch) else { continue }
+            pendingUpdates.append((workout.id, updatedPatch, rollbackPatch))
+        }
+
+        if pendingUpdates.isEmpty {
+            FlexWeekAppliedHash.markApplied(hash: hash, planID: planID)
+            return true
+        }
+
+        var applied: [(UUID, DBWorkoutFlexUpdate)] = []
+        for (workoutID, patch, _) in pendingUpdates {
+            do {
+                try await supabase
+                    .from("workouts")
+                    .update(patch)
+                    .eq("id", value: workoutID.uuidString)
+                    .execute()
+                applied.append((workoutID, patch))
+            } catch {
+                if !(error is CancellationError) {
+                    print("[TrainingPlanRepo] applyFlexWeek update error:", error)
+                }
+                for (rollbackID, _) in applied {
+                    guard let rollbackPatch = pendingUpdates.first(where: { $0.0 == rollbackID })?.2 else { continue }
+                    _ = try? await supabase
+                        .from("workouts")
+                        .update(rollbackPatch)
+                        .eq("id", value: rollbackID.uuidString)
+                        .execute()
+                }
+                return false
+            }
+        }
+
+        FlexWeekAppliedHash.markApplied(hash: hash, planID: planID)
+        await MainActor.run {
+            NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
+        }
+        print("[TrainingPlanRepo] ✅ applyFlexWeek applied \(applied.count) workout updates")
+        return true
+    }
+
+    private static func flexUpdate(for workout: PlannedWorkout, change: FlexWeekChange?) -> DBWorkoutFlexUpdate {
+        let distanceKm = PlanPresentationModels.distanceKm(from: workout.distance)
+        let isRest = !PlanPresentationModels.isWorkout(workout) || workout.distance.localizedCaseInsensitiveContains("rest")
+        return DBWorkoutFlexUpdate(
+            scheduledDate: ISO8601DateFormatter.shortDate.string(from: workout.scheduledDate),
+            day: Self.dayLabel(for: workout.scheduledDate),
+            type: isRest ? "rest" : workout.kind.supabaseType,
+            distance: isRest ? 0 : distanceKm,
+            duration: workout.durationMinutes,
+            pace: workout.targetPaceSecondsPerKm,
+            intensity: Self.databaseIntensity(for: workout, isRest: isRest)
+        )
+    }
+
+    private static func databaseIntensity(for workout: PlannedWorkout, isRest: Bool) -> String? {
+        guard !isRest else { return nil }
+        let value = (workout.intensity ?? workout.kind.supabaseType)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if value.contains("easy") || value.contains("recovery") { return "easy" }
+        if value.contains("tempo") || value.contains("moderate") { return "moderate" }
+        if value.contains("hard") || value.contains("interval") || value.contains("hill") || value.contains("race") || value.contains("long") {
+            return "hard"
+        }
+        return "easy"
+    }
+
+    private static func flexUpdateMatches(workout: DBWorkout, patch: DBWorkoutFlexUpdate) -> Bool {
+        workout.scheduledDate == patch.scheduledDate &&
+        workout.day.caseInsensitiveCompare(patch.day ?? "") == .orderedSame &&
+        workout.type == patch.type &&
+        abs(workout.distance - (patch.distance ?? workout.distance)) < 0.01 &&
+        workout.duration == patch.duration &&
+        workout.pace == patch.pace &&
+        workout.intensity == patch.intensity
+    }
+
     private func scheduledDate(startDate: Date, week: Int, day: String) -> String {
         let dayMap = ["Sun": 1, "Mon": 2, "Tue": 3, "Wed": 4, "Thu": 5, "Fri": 6, "Sat": 7]
         var date = Calendar.current.date(byAdding: .day, value: max(0, week - 1) * 7, to: startDate) ?? startDate
@@ -606,9 +824,24 @@ final class TrainingPlanRepository {
 
     static func suggestedWorkoutDate(_ label: String?) -> Date {
         let calendar = Calendar.current
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) ?? Date()
+        let today = calendar.startOfDay(for: Date())
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today
         guard let label = label?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty else {
             return tomorrow
+        }
+        let normalized = label.lowercased()
+
+        if normalized == "today" {
+            return today
+        }
+
+        if normalized == "tomorrow" {
+            return tomorrow
+        }
+
+        if normalized.hasPrefix("next "),
+           let weekday = weekdayIndex(from: String(normalized.dropFirst(5))) {
+            return nextDate(matchingWeekday: weekday, after: today, calendar: calendar)
         }
 
         if let isoDate = ISO8601DateFormatter.shortDate.date(from: label) {
@@ -641,6 +874,27 @@ final class TrainingPlanRepository {
         return tomorrow
     }
 
+    private static func weekdayIndex(from value: String) -> Int? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let names = [
+            "sunday": 1, "sun": 1,
+            "monday": 2, "mon": 2,
+            "tuesday": 3, "tue": 3, "tues": 3,
+            "wednesday": 4, "wed": 4,
+            "thursday": 5, "thu": 5, "thur": 5, "thurs": 5,
+            "friday": 6, "fri": 6,
+            "saturday": 7, "sat": 7
+        ]
+        return names[trimmed]
+    }
+
+    private static func nextDate(matchingWeekday weekday: Int, after date: Date, calendar: Calendar) -> Date {
+        let current = calendar.component(.weekday, from: date)
+        let rawDelta = (weekday - current + 7) % 7
+        let delta = rawDelta == 0 ? 7 : rawDelta
+        return calendar.date(byAdding: .day, value: delta, to: date) ?? date
+    }
+
     static func suggestedWorkoutType(title: String) -> String {
         let value = title.lowercased()
         if value.contains("interval") { return "intervals" }
@@ -664,6 +918,13 @@ final class TrainingPlanRepository {
 
     static func durationMinutes(from suggestion: StructuredNextWorkout) -> Int? {
         let source = [suggestion.notes, suggestion.target, suggestion.title].compactMap { $0 }.joined(separator: " ")
+        if let rangeMatch = source.range(of: #"(\d+)\s*-\s*(\d+)\s*(min|minute)"#, options: [.regularExpression, .caseInsensitive]) {
+            let text = String(source[rangeMatch])
+            guard let numberRange = text.range(of: #"\d+"#, options: .regularExpression) else {
+                return nil
+            }
+            return Int(text[numberRange])
+        }
         guard let match = source.range(of: #"(\d+)\s*(min|minute)"#, options: [.regularExpression, .caseInsensitive]) else {
             return nil
         }
@@ -674,6 +935,14 @@ final class TrainingPlanRepository {
         return Int(text[numberRange])
     }
 
+    static let suggestedWorkoutTrainingPhase = "base"
+    static let recommendationFallbackPlanType = "basic"
+
+    static func suggestedWorkoutNeedsReview(_ suggestion: StructuredNextWorkout) -> Bool {
+        let hasDistance = distanceKm(from: suggestion.distance) != nil || distanceKm(from: suggestion.title) != nil
+        return !hasDistance
+    }
+
     static func paceSecondsPerKm(from value: String?) -> Int? {
         guard let value,
               let match = value.range(of: #"(\d{1,2}):(\d{2})"#, options: .regularExpression) else {
@@ -682,6 +951,11 @@ final class TrainingPlanRepository {
         let parts = value[match].split(separator: ":").compactMap { Int($0) }
         guard parts.count == 2 else { return nil }
         return parts[0] * 60 + parts[1]
+    }
+
+    static func uniqueProfileReferences(_ references: [DBProfileReference]) -> [DBProfileReference] {
+        var seen = Set<DBProfileReference>()
+        return references.filter { seen.insert($0).inserted }
     }
 
     static func bestWorkoutMatch(for run: RecordedRun, in workouts: [WorkoutSummary], calendar: Calendar = .current) -> WorkoutSummary? {
@@ -747,7 +1021,40 @@ final class TrainingPlanRepository {
     }
 }
 
+private extension ISO8601DateFormatter {
+    static let internet: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+}
+
 private struct DBProfileGoalUpdate: Encodable {
+    let name: String
+    let goal: String
+    let experience: String
+    let age: Int?
+    let averageWeeklyDistanceKm: Double?
+    let trainingDataSource: String?
+    let trainingDataUpdatedAt: String?
+    let preferredTimes: [String]
+    let daysPerWeek: Int
+    let coachingStyle: String
+    let onboardingComplete: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case name, goal, experience, age
+        case averageWeeklyDistanceKm = "average_weekly_distance_km"
+        case trainingDataSource = "training_data_source"
+        case trainingDataUpdatedAt = "training_data_updated_at"
+        case preferredTimes = "preferred_times"
+        case daysPerWeek = "days_per_week"
+        case coachingStyle = "coaching_style"
+        case onboardingComplete = "onboarding_complete"
+    }
+}
+
+private struct DBProfileGoalUpdateLegacy: Encodable {
     let name: String
     let goal: String
     let experience: String
@@ -832,6 +1139,54 @@ private struct DBWorkoutInsert: Encodable {
     }
 }
 
+private struct DBWorkoutFlexUpdate: Encodable {
+    let scheduledDate: String
+    let day: String?
+    let type: String
+    let distance: Double?
+    let duration: Int?
+    let pace: Int?
+    let intensity: String?
+
+    init(
+        scheduledDate: String,
+        day: String?,
+        type: String,
+        distance: Double?,
+        duration: Int?,
+        pace: Int?,
+        intensity: String?
+    ) {
+        self.scheduledDate = scheduledDate
+        self.day = day
+        self.type = type
+        self.distance = distance
+        self.duration = duration
+        self.pace = pace
+        self.intensity = intensity
+    }
+
+    init(dbWorkout: DBWorkout) {
+        scheduledDate = dbWorkout.scheduledDate
+        day = dbWorkout.day
+        type = dbWorkout.type
+        distance = dbWorkout.distance
+        duration = dbWorkout.duration
+        pace = dbWorkout.pace
+        intensity = dbWorkout.intensity
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case scheduledDate = "scheduled_date"
+        case day
+        case type
+        case distance
+        case duration
+        case pace
+        case intensity
+    }
+}
+
 private struct DBWorkoutUpdate: Encodable {
     let scheduledDate: String?
     let day: String?
@@ -877,8 +1232,36 @@ private struct DBWorkoutUpdate: Encodable {
     }
 }
 
-private struct DBWorkoutCompletionUpdate: Encodable {
+struct DBWorkoutCompletionUpdate: Encodable {
     let completed: Bool
+    let completedAt: String
+    let actualDistanceKm: Double
+    let actualDurationMinutes: Int
+    let actualPace: Double?
+
+    private static let completedAtFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    init(run: RecordedRun) {
+        completed = true
+        completedAt = Self.completedAtFormatter.string(from: run.endedAt)
+        actualDistanceKm = Double(((run.distanceMeters / 1_000) * 100).rounded()) / 100
+        actualDurationMinutes = max(1, Int((run.movingTimeSeconds / 60).rounded()))
+        actualPace = run.averagePaceSecondsPerKm.isFinite && run.averagePaceSecondsPerKm > 0
+            ? Double((run.averagePaceSecondsPerKm * 10).rounded()) / 10
+            : nil
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case completed
+        case completedAt = "completed_at"
+        case actualDistanceKm = "actual_distance_km"
+        case actualDurationMinutes = "actual_duration_minutes"
+        case actualPace = "actual_pace"
+    }
 }
 
 // MARK: - DBWorkout → WorkoutSummary
@@ -908,9 +1291,24 @@ extension DBWorkout {
             targetPaceSecondsPerKm: pace,
             intensity: intensity,
             trainingPhase: trainingPhase,
-            workoutStructure: workoutStructure
+            workoutStructure: workoutStructure,
+            adjustedAt: adjustedAt.flatMap { Self.parseAdjustedDate($0) },
+            adjustedReason: adjustedReason
         )
     }
+
+    private static func parseAdjustedDate(_ value: String) -> Date? {
+        if let date = profileDateFormatter.date(from: value) { return date }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+
+    private static let profileDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
     var workoutKind: WorkoutKind {
         switch type {
