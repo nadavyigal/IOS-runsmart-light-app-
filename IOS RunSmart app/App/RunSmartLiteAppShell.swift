@@ -100,41 +100,55 @@ final class AppRouter: ObservableObject {
     }
 }
 
-enum RunSmartScreenshotMode {
-    static var isEnabled: Bool {
 #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("-RUNSMART_SCREENSHOT_MODE")
-        || ProcessInfo.processInfo.environment["RUNSMART_SCREENSHOT_MODE"] == "1"
-#else
-        false
-#endif
+enum RunSmartRecordingMode {
+    static var isOnboardingReplayEnabled: Bool {
+        let args = ProcessInfo.processInfo.arguments
+        let env = ProcessInfo.processInfo.environment
+        return args.contains("-RUNSMART_RECORD_ONBOARDING")
+            || env["RUNSMART_RECORD_ONBOARDING"] == "1"
     }
 
-    static var services: any RunSmartServiceProviding {
-#if DEBUG
-        isEnabled ? MockRunSmartServices() : SupabaseRunSmartServices.shared
-#else
-        SupabaseRunSmartServices.shared
-#endif
+    static var onboardingProfile: OnboardingProfile {
+        OnboardingProfile(
+            displayName: "Alex Morgan",
+            goal: "First 5K",
+            experience: "Getting started",
+            age: 29,
+            averageWeeklyDistanceKm: 0,
+            trainingDataSource: nil,
+            trainingDataUpdatedAt: nil,
+            weeklyRunDays: 3,
+            preferredDays: ["Mon", "Wed", "Sat"],
+            units: "Metric",
+            coachingTone: "Motivating",
+            notificationsEnabled: true,
+            planAdjustmentConfirmationsEnabled: true
+        )
     }
 }
+#endif
 
 struct RunSmartLiteAppShell: View {
     @StateObject private var router = AppRouter()
     @StateObject private var session = SupabaseSession()
     @StateObject private var recorder = RunRecorder()
     @State private var didPresentMorningCheckin = false
-    @State private var isShowingLaunch = !RunSmartScreenshotMode.isEnabled
+    @State private var isShowingLaunch = !RunSmartDemoMode.isEnabled
     @State private var planNotice: RunSmartPlanNotice?
     @State private var planNoticeDismissTask: Task<Void, Never>?
     @State private var pendingOnboardingCompletion: OnboardingProfile?
-    private let services: any RunSmartServiceProviding = RunSmartScreenshotMode.services
+    @State private var recordingOnboardingFinished = false
+    private let services: any RunSmartServiceProviding = RunSmartDemoMode.services
 
     var body: some View {
         ZStack {
             RunSmartBackground(context: RunSmartBackgroundContext(tab: router.selectedTab))
 
-            if RunSmartScreenshotMode.isEnabled {
+            #if DEBUG
+            if RunSmartRecordingMode.isOnboardingReplayEnabled {
+                recordingOnboardingContent
+            } else if RunSmartDemoMode.isEnabled {
                 tabContent
                     .safeAreaInset(edge: .bottom, spacing: 0) {
                         CustomTabBar(selectedTab: $router.selectedTab)
@@ -145,40 +159,33 @@ struct RunSmartLiteAppShell: View {
                 SignInView()
                     .environmentObject(session)
             } else if !session.hasCompletedOnboarding {
-                if let pendingProfile = pendingOnboardingCompletion {
-                    OnboardingAhaMomentsContainer(profile: pendingProfile) {
-                        let profile = pendingProfile
-                        pendingOnboardingCompletion = nil
-                        Task {
-                            await session.completeOnboarding(profile)
-                            let request = TrainingGoalRequest(
-                                displayName: profile.displayName,
-                                goal: profile.goal.isEmpty ? "build a running habit" : profile.goal,
-                                experience: profile.experience.isEmpty ? "beginner" : profile.experience,
-                                age: profile.age,
-                                averageWeeklyDistanceKm: profile.averageWeeklyDistanceKm,
-                                trainingDataSource: profile.trainingDataSource,
-                                weeklyRunDays: profile.weeklyRunDays > 0 ? profile.weeklyRunDays : 3,
-                                preferredDays: profile.preferredDays.isEmpty ? ["Mon", "Wed", "Sat"] : profile.preferredDays,
-                                coachingTone: profile.coachingTone.isEmpty ? "Motivating" : profile.coachingTone,
-                                targetDate: Date().addingTimeInterval(21 * 24 * 3600)
-                            )
-                            _ = await services.saveTrainingGoal(request)
-                        }
+                onboardingContent
+            } else {
+                tabContent
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        CustomTabBar(selectedTab: $router.selectedTab)
                     }
-                    .environmentObject(session)
-                } else {
-                    OnboardingView(initialProfile: session.onboardingProfile) { profile in
-                        pendingOnboardingCompletion = profile
+            }
+            #else
+            if RunSmartDemoMode.isEnabled {
+                tabContent
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        CustomTabBar(selectedTab: $router.selectedTab)
                     }
+            } else if session.isLoading {
+                RunSmartLaunchView()
+            } else if !session.isAuthenticated {
+                SignInView()
                     .environmentObject(session)
-                }
+            } else if !session.hasCompletedOnboarding {
+                onboardingContent
             } else {
                 tabContent
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     CustomTabBar(selectedTab: $router.selectedTab)
                 }
             }
+            #endif
 
             if isShowingLaunch {
                 RunSmartLaunchView()
@@ -208,7 +215,7 @@ struct RunSmartLiteAppShell: View {
             showPlanGenerationNotice(status)
         }
         .task {
-            guard !RunSmartScreenshotMode.isEnabled else { return }
+            guard !RunSmartDemoMode.isEnabled else { return }
             setupAnalyticsIfNeeded()
             PushService.shared.configureNavigation { destination in
                 router.openNotificationDestination(destination)
@@ -219,9 +226,11 @@ struct RunSmartLiteAppShell: View {
             }
         }
         .onChange(of: router.selectedTab) { _, newTab in
+            guard !RunSmartDemoMode.isEnabled else { return }
             Analytics.trackTabViewed(tabName: newTab.rawValue)
         }
         .onChange(of: session.isAuthenticated) { _, isAuth in
+            guard !RunSmartDemoMode.isEnabled else { return }
             if isAuth, let userId = session.currentUserID {
                 Analytics.identifyUser(userId: userId.uuidString)
             } else if !isAuth {
@@ -229,20 +238,20 @@ struct RunSmartLiteAppShell: View {
             }
         }
         .task(id: session.hasCompletedOnboarding) {
-            guard !RunSmartScreenshotMode.isEnabled else { return }
+            guard !RunSmartDemoMode.isEnabled else { return }
             guard session.isAuthenticated, session.hasCompletedOnboarding else { return }
             await refreshReturnLoopReminders()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanDidChange)) { _ in
-            guard !RunSmartScreenshotMode.isEnabled else { return }
+            guard !RunSmartDemoMode.isEnabled else { return }
             Task { await refreshReturnLoopReminders() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
-            guard !RunSmartScreenshotMode.isEnabled else { return }
+            guard !RunSmartDemoMode.isEnabled else { return }
             Task { await refreshReturnLoopReminders() }
         }
         .task(id: session.hasCompletedOnboarding) {
-            guard !RunSmartScreenshotMode.isEnabled else { return }
+            guard !RunSmartDemoMode.isEnabled else { return }
             guard session.isAuthenticated, session.hasCompletedOnboarding, !didPresentMorningCheckin else { return }
             didPresentMorningCheckin = true
             try? await Task.sleep(nanoseconds: 650_000_000)
@@ -283,6 +292,62 @@ struct RunSmartLiteAppShell: View {
             .environment(\.runRecorder, recorder)
         }
     }
+
+    @ViewBuilder
+    private var onboardingContent: some View {
+        if let pendingProfile = pendingOnboardingCompletion {
+            OnboardingAhaMomentsContainer(profile: pendingProfile) {
+                let profile = pendingProfile
+                pendingOnboardingCompletion = nil
+                Task {
+                    await session.completeOnboarding(profile)
+                    let request = TrainingGoalRequest(
+                        displayName: profile.displayName,
+                        goal: profile.goal.isEmpty ? "build a running habit" : profile.goal,
+                        experience: profile.experience.isEmpty ? "beginner" : profile.experience,
+                        age: profile.age,
+                        averageWeeklyDistanceKm: profile.averageWeeklyDistanceKm,
+                        trainingDataSource: profile.trainingDataSource,
+                        weeklyRunDays: profile.weeklyRunDays > 0 ? profile.weeklyRunDays : 3,
+                        preferredDays: profile.preferredDays.isEmpty ? ["Mon", "Wed", "Sat"] : profile.preferredDays,
+                        coachingTone: profile.coachingTone.isEmpty ? "Motivating" : profile.coachingTone,
+                        targetDate: Date().addingTimeInterval(21 * 24 * 3600)
+                    )
+                    _ = await services.saveTrainingGoal(request)
+                }
+            }
+            .environmentObject(session)
+        } else {
+            OnboardingView(initialProfile: session.onboardingProfile) { profile in
+                pendingOnboardingCompletion = profile
+            }
+            .environmentObject(session)
+        }
+    }
+
+    #if DEBUG
+    @ViewBuilder
+    private var recordingOnboardingContent: some View {
+        if recordingOnboardingFinished {
+            tabContent
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    CustomTabBar(selectedTab: $router.selectedTab)
+                }
+        } else if let pendingProfile = pendingOnboardingCompletion {
+            OnboardingAhaMomentsContainer(profile: pendingProfile) {
+                pendingOnboardingCompletion = nil
+                recordingOnboardingFinished = true
+                router.selectedTab = .plan
+            }
+            .environmentObject(session)
+        } else {
+            OnboardingView(initialProfile: RunSmartRecordingMode.onboardingProfile) { profile in
+                pendingOnboardingCompletion = profile
+            }
+            .environmentObject(session)
+        }
+    }
+    #endif
 
     @ViewBuilder
     private var tabContent: some View {
@@ -328,6 +393,7 @@ struct RunSmartLiteAppShell: View {
     }
 
     private func setupAnalyticsIfNeeded() {
+        guard !RunSmartDemoMode.isEnabled else { return }
         guard let token = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_API_KEY") as? String,
               !token.isEmpty,
               let host = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_HOST") as? String

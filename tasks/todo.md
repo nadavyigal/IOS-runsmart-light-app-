@@ -2,6 +2,59 @@
 
 ## Current Task
 
+**Objective:** RunSmart iOS Analytics Coverage QA: root-cause and fix dead run funnel instrumentation, document launch canonicalization, and verify identity wiring.
+**Status:** Source fix implemented; local focused XCTest and Release build validation passed. Live physical-device PostHog confirmation remains blocked outside this session.
+**Branch:** `main`
+
+### Checklist
+- [x] Read canonical task memory/lessons and inspect analytics/run instrumentation surfaces.
+- [x] Inventory code-emitted analytics events against the supplied live PostHog evidence.
+- [x] Move run completion instrumentation to the shared completed-activity boundary without changing run product logic.
+- [x] Add focused analytics coverage for completed-run event dedupe and first-run behavior.
+- [x] Document custom `app_launched` as the canonical launch event for dashboards.
+- [x] Run focused build/test validation and report any blocked live-device/PostHog checks.
+
+### Validation - 2026-06-17
+- `git diff --check` passed.
+- Focused XCTest passed:
+  `xcodebuild test -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,name=iPhone 17" -only-testing:"IOS RunSmart appTests/RunSmartReadinessTests/testCompletedRunAnalyticsFiresOnceAndMarksFirstRunOnce" -derivedDataPath /tmp/runsmart-analytics-qa-dd CODE_SIGNING_ALLOWED=NO`
+- Release generic iOS build passed with signing disabled:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -derivedDataPath /tmp/runsmart-analytics-release-dd CODE_SIGNING_ALLOWED=NO build`
+- Known warning remains: `HealthKitSyncService.swift` uses deprecated `HKWorkout` initializer.
+- Live on-device signup -> onboarding -> plan -> start run -> complete run and PostHog project 171597 event confirmation were not run from this session.
+
+---
+
+## Previous Current Task
+
+**Objective:** Add a DEBUG-only Demo Mode for simulator demo videos that skips Apple Account/SIWA/Supabase/Garmin auth while showing realistic local RunSmart pages.
+**Status:** Implemented and Debug simulator smoke passed. Release simulator compile was attempted but interrupted after prolonged whole-module Swift compilation; no demo-code error was emitted before interruption.
+**Branch:** `main`
+
+### Checklist
+- [x] Read canonical task memory/lessons and inspect current auth/app-shell/service/mock-data architecture.
+- [x] Record approved Demo Mode spec and QA checklist.
+- [x] Add DEBUG-only Demo Mode flag via launch arg/env var.
+- [x] Add local demo session/user that bypasses real auth and onboarding.
+- [x] Expand no-network demo services and mock data for Today, Plan, Report, Garmin/device state, Profile, runs, and recovery insights.
+- [x] Prevent real network writes, purchases, destructive actions, and production analytics events in Demo Mode.
+- [x] Run focused build/simulator verification.
+
+### Validation
+- `git diff --check` passed.
+- XcodeBuildMCP Debug simulator build passed for scheme `IOS RunSmart app` on the booted iPhone 17 simulator.
+- Installed the built Debug app and launched `com.runsmart.lite` with `DEMO_MODE=true` and `RUNSMART_INITIAL_TAB=Today`; launch succeeded.
+- UI snapshot confirmed Demo Mode opened directly to Today as `Alex Morgan` with populated week/workout content and no Sign in with Apple gate.
+- UI snapshot confirmed Profile showed demo stats plus Garmin and HealthKit connected states.
+- UI snapshot confirmed Account showed the Demo Mode warning, demo email/member date, and disabled sign-out/delete controls.
+- Signing-disabled Release simulator compile was attempted:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS Simulator" CODE_SIGNING_ALLOWED=NO build`
+  It was interrupted after prolonged whole-module Swift compilation; no demo-code error appeared before interruption. The existing HealthKit `HKWorkout` deprecation warning appeared again.
+
+---
+
+## Previous Current Task
+
 **Objective:** Fix App Store rejection for RunSmart iOS v1.0.2 and prepare fresh build 15 for resubmission: make Delete Account flow clear in-app and declare full privacy manifest data/API usage.
 **Status:** Source fixes are pushed; build 15 archive/export/upload succeeded and is processing in App Store Connect. Manual App Store Connect privacy label, screen recording, build selection, and final resubmission remain.
 **Branch:** `main`

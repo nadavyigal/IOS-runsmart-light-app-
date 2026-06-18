@@ -6,6 +6,7 @@ Review this file at the start of future tasks.
 - Keep `AGENTS.md`, `CLAUDE.md`, and `CODEX.md` as routers, not manuals.
 - Load only the files needed for the current workflow.
 - Use app-repo `tasks/todo.md`, `tasks/lessons.md`, and `tasks/session-log.md` as the single source of truth; outer wrapper status files should only point here.
+- For Xcode validation, prefer quiet/filtered logs because build settings can echo xcconfig-backed service keys; never paste raw build setting output into task memory or final reports.
 - Do not assume the project is already a clean RunSmart app; verify whether files still use resume-builder names.
 - Do not change app feature code when the task is to install or update the operating layer only.
 - Before TestFlight claims, verify signing, bundle id, archive status, permissions, privacy strings, and smoke tests.
@@ -39,8 +40,23 @@ Review this file at the start of future tasks.
 - Onboarding aha moments must not auto-skip from stale `user_aha_moments` rows when the same Apple auth uid returns after account deletion; always show the onboarding container and reset onboarding moments on delete.
 - Garmin OAuth on iOS must use the registered `runsmart://` callback scheme with `ASWebAuthenticationSession`, then poll `garmin_connections` until connected before returning success.
 - Before applying RLS or index migrations, inspect the live relation type in `pg_class`; views need `security_invoker` and protection on underlying tables, not table RLS or direct indexes.
+- With XcodeBuildMCP build tools, set DerivedData through session defaults or omit it; do not pass `-derivedDataPath` in `extraArgs` unless the tool is not already supplying one.
 
 ## Lesson Log
+
+### 2026-06-17 - Filter Xcode Build Logs Around Secrets
+Trigger: A Release `xcodebuild` validation emitted expanded build settings, including service configuration values, in raw terminal output.
+
+Lesson: Xcode build logs can expose xcconfig-backed values even when source files are clean.
+
+Future rule: For Xcode validation, prefer quiet/filtered logs because build settings can echo xcconfig-backed service keys; never paste raw build setting output into task memory or final reports.
+
+### 2026-06-16 - Avoid Duplicate DerivedData Arguments In XcodeBuildMCP
+Trigger: A simulator compile for the Sign in with Apple demo failed immediately because `-derivedDataPath` was passed through `build_sim.extraArgs` while XcodeBuildMCP already supplied its own DerivedData argument.
+
+Lesson: XcodeBuildMCP may manage DerivedData internally, so adding another `-derivedDataPath` through `extraArgs` can create a false build failure unrelated to app source.
+
+Future rule: With XcodeBuildMCP build tools, set DerivedData through session defaults or omit it; do not pass `-derivedDataPath` in `extraArgs` unless the tool is not already supplying one.
 
 ### 2026-06-14 - SIWA Smoke Needs Apple-Auth-Capable Simulator Or Device
 Trigger: Final build 14 smoke reached the fresh Sign in with Apple screen, but tapping SIWA on the local simulator returned `ASAuthorizationError 1000`, blocking the delete-account and register-again path.

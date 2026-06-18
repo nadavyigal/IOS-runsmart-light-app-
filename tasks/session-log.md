@@ -1,5 +1,42 @@
 # Session Log
 
+## 2026-06-17 - Analytics Coverage QA run-funnel fix
+
+### Task Summary
+Root-caused the missing `run_started` / `run_completed` / `first_run_completed`
+coverage from supplied live PostHog evidence for project 171597. The app had
+typed run events, but `run_completed` only fired from the Run tab GPS UI
+finish button. Garmin and HealthKit completed activities already flowed through
+`processCompletedActivity(_:)`, so imports and service-side completion work
+could update training history without emitting the activation event.
+
+### Changes
+- Added `Analytics.trackCompletedRunIfNeeded` with per-run dedupe and one-time
+  `first_run_completed` behavior.
+- Moved completion analytics to `processCompletedActivity(_:)` in both
+  Supabase-backed and local production services.
+- Removed the earlier UI-only `run_completed` call from `RunTabView.finishRun()`
+  to avoid double-counting GPS runs.
+- Documented custom `app_launched` as the canonical launch event; PostHog iOS
+  lifecycle events remain diagnostic only.
+- Added focused XCTest coverage for completed-run analytics dedupe and
+  first-run emission.
+
+### Validation
+- `git diff --check` passed.
+- Focused XCTest passed for
+  `RunSmartReadinessTests/testCompletedRunAnalyticsFiresOnceAndMarksFirstRunOnce`.
+- Release generic iOS build passed with signing disabled.
+- Existing warning remains: `HealthKitSyncService.swift` uses a deprecated
+  `HKWorkout` initializer.
+- Live physical-device PostHog confirmation was not run in this session.
+
+### Follow-up
+Run a real-device QA pass against PostHog project 171597: sign up, complete
+onboarding, generate a plan, start and complete a run, then verify
+`app_launched`, `sign_in_completed`, identify, `run_started`, `run_completed`,
+and one-time `first_run_completed` in live events.
+
 ## 2026-06-14 - Build 14 simulator smoke and App Store handoff check
 
 ### Task Summary
@@ -2012,3 +2049,32 @@ Investigated the physical-device Xcode install failure reported on 2026-06-15. T
 
 ### Remaining Risk
 The authenticated SIWA -> Garmin connect -> delete account -> SIWA re-register smoke was not completed by automation in this session because simulator Sign in with Apple still fails locally with `ASAuthorizationError 1000`. Run that live flow on the physical device or TestFlight build before uploading/resubmitting.
+
+## 2026-06-16
+
+### Task Summary
+Added DEBUG-only Demo Mode for simulator recording after Apple Account verification failed inside Simulator. Demo Mode opens RunSmart directly into local demo content and avoids Apple Account, Sign in with Apple, Supabase auth, Garmin auth, HealthKit prompts, production analytics, and destructive backend actions.
+
+### Files Changed
+- `IOS RunSmart app/App/RunSmartDemoMode.swift`
+- `IOS RunSmart app/App/RunSmartLiteAppShell.swift`
+- `IOS RunSmart app/Core/RunSmartServiceProviding.swift`
+- `IOS RunSmart app/Features/Secondary/SecondaryFlowView.swift`
+- `IOS RunSmart app/PreviewSupport/RunSmartPreviewData.swift`
+- `IOS RunSmart app/Services/Analytics/AnalyticsService.swift`
+- `IOS RunSmart app/Services/RunSmartAnalytics.swift`
+- `IOS RunSmart app/Services/RunSmartServices.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseSession.swift`
+- `docs/specs/demo-mode-simulator-recording.md`
+- `docs/qa/demo-mode-simulator-recording-checklist.md`
+- `tasks/todo.md`
+
+### Validation
+- `git diff --check` passed.
+- Debug simulator build passed through XcodeBuildMCP.
+- Installed and launched the Debug app with `DEMO_MODE=true` and `RUNSMART_INITIAL_TAB=Today`; launch succeeded.
+- UI snapshots confirmed Today bypassed auth and showed demo content for Alex Morgan, Profile showed Garmin/HealthKit connected states, and Account showed Demo Mode warning plus disabled sign-out/delete controls.
+- Release simulator compile was attempted with signing disabled but interrupted after prolonged whole-module Swift compilation; no demo-code error appeared before interruption. The pre-existing HealthKit `HKWorkout` deprecation warning appeared.
+
+### Remaining Risk
+Demo Mode is recording-only evidence. It must not be used as App Review account-cycle proof; live SIWA/delete-account smoke still requires an Apple-auth-capable physical device or TestFlight build.

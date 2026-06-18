@@ -813,6 +813,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
         let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: store.visibleRuns(store.loadRuns())))
         store.refreshBenchmarkStats()
+        Analytics.trackCompletedRunIfNeeded(canonical)
         await MainActor.run {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
         }

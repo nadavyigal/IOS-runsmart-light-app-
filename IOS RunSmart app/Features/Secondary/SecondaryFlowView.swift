@@ -2731,8 +2731,24 @@ private struct AccountScaffold: View {
         return fmt.string(from: createdAt)
     }
 
+    private var isDemoMode: Bool {
+        RunSmartDemoMode.isEnabled
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            if isDemoMode {
+                GlassCard(glow: Color.accentAmber) {
+                    Label(
+                        "Demo Mode is local only. No Apple, Supabase, Garmin, HealthKit, analytics, or account deletion calls are made.",
+                        systemImage: "video.badge.checkmark"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Signed In")
@@ -2788,9 +2804,9 @@ private struct AccountScaffold: View {
                 }
             }
             .buttonStyle(NeonButtonStyle(isDestructive: true))
-            .disabled(isSigningOut)
+            .disabled(isSigningOut || isDemoMode)
 
-            Text("Signing out returns you to the sign-in screen, where you can register a new account or switch users.")
+            Text(isDemoMode ? "Sign out is disabled while recording Demo Mode." : "Signing out returns you to the sign-in screen, where you can register a new account or switch users.")
                 .font(.caption)
                 .foregroundStyle(Color.mutedText)
                 .padding(.horizontal, 4)
@@ -2813,7 +2829,7 @@ private struct AccountScaffold: View {
                         }
                     }
                     .buttonStyle(NeonButtonStyle(isDestructive: true))
-                    .disabled(isDeletingAccount || isSigningOut)
+                    .disabled(isDeletingAccount || isSigningOut || isDemoMode)
                 }
             }
         }

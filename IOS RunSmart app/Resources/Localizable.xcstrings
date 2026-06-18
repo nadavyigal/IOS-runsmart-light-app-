@@ -318,7 +318,7 @@
     "Delete this activity?" : {
 
     },
-    "Delete your account?" : {
+    "Delete your RunSmart account?" : {
 
     },
     "Deleting Route" : {
@@ -1043,7 +1043,7 @@
     "This is a real activity, but no generated coach report has been saved yet." : {
 
     },
-    "This permanently deletes your account and all data stored in RunSmart, including your training plans and run history. This action cannot be undone." : {
+    "This permanently deletes your account, training plans, and run history. This cannot be undone." : {
 
     },
     "This removes RunSmart's saved route and benchmark tracking. It does not delete the original Garmin activity." : {

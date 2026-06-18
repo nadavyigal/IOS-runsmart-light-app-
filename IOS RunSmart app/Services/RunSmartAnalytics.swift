@@ -20,6 +20,9 @@ enum FlexWeekInterventionAction: String {
 enum RunSmartAnalytics {
     /// Call once at app startup. Reads keys from Info.plist.
     static func setup() {
+#if DEBUG
+        guard !RunSmartDemoMode.isEnabled else { return }
+#endif
         guard
             let projectToken = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_API_KEY") as? String,
             !projectToken.isEmpty
@@ -33,6 +36,9 @@ enum RunSmartAnalytics {
     // MARK: Flex Week events
 
     static func flexWeekTriggered(reason: FlexWeekReasonKind, entryPoint: FlexWeekEntryPoint) {
+#if DEBUG
+        guard !RunSmartDemoMode.isEnabled else { return }
+#endif
         PostHogSDK.shared.capture(
             "flex_week_triggered",
             properties: [
@@ -48,6 +54,9 @@ enum RunSmartAnalytics {
         changesCount: Int,
         timeToConfirmSeconds: Double
     ) {
+#if DEBUG
+        guard !RunSmartDemoMode.isEnabled else { return }
+#endif
         PostHogSDK.shared.capture(
             "flex_week_confirmed",
             properties: [
@@ -60,16 +69,25 @@ enum RunSmartAnalytics {
     }
 
     static func flexWeekCancelled(step: FlexWeekCancelStep, reason: FlexWeekReasonKind?) {
+#if DEBUG
+        guard !RunSmartDemoMode.isEnabled else { return }
+#endif
         var props: [String: Any] = ["step": step.rawValue]
         if let reason { props["reason"] = reason.rawValue }
         PostHogSDK.shared.capture("flex_week_cancelled", properties: props)
     }
 
     static func flexWeekInterventionShown() {
+#if DEBUG
+        guard !RunSmartDemoMode.isEnabled else { return }
+#endif
         PostHogSDK.shared.capture("flex_week_intervention_shown")
     }
 
     static func flexWeekInterventionAction(_ action: FlexWeekInterventionAction) {
+#if DEBUG
+        guard !RunSmartDemoMode.isEnabled else { return }
+#endif
         PostHogSDK.shared.capture(
             "flex_week_intervention_action",
             properties: ["action": action.rawValue]

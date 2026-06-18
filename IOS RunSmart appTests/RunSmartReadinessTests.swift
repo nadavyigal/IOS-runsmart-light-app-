@@ -2921,6 +2921,67 @@ final class RunSmartReadinessTests: XCTestCase {
             "Analytics.shared must accept and expose NullAnalyticsService assignments")
     }
 
+    private final class CapturingAnalyticsService: AnalyticsTracking {
+        private(set) var events: [(name: String, properties: [String: Any])] = []
+
+        func track(_ event: String, properties: [String: Any]) {
+            events.append((event, properties))
+        }
+
+        func identify(userId: String, traits: [String: Any]) {}
+        func reset() {}
+    }
+
+    func testCompletedRunAnalyticsFiresOnceAndMarksFirstRunOnce() {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        let suiteName = "runsmart.analytics.completed-run.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer {
+            Analytics.shared = saved
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        Analytics.shared = tracker
+        let firstRun = RecordedRun(
+            id: UUID(uuidString: "00000000-0000-0000-0000-00000000A001")!,
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: Date(timeIntervalSince1970: 1_000),
+            endedAt: Date(timeIntervalSince1970: 2_800),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_800,
+            averagePaceSecondsPerKm: 360,
+            averageHeartRateBPM: nil,
+            routePoints: [],
+            syncedAt: nil
+        )
+        let secondRun = RecordedRun(
+            id: UUID(uuidString: "00000000-0000-0000-0000-00000000A002")!,
+            providerActivityID: "garmin-activity-2",
+            source: .garmin,
+            startedAt: Date(timeIntervalSince1970: 10_000),
+            endedAt: Date(timeIntervalSince1970: 12_100),
+            distanceMeters: 6_000,
+            movingTimeSeconds: 2_100,
+            averagePaceSecondsPerKm: 350,
+            averageHeartRateBPM: 148,
+            routePoints: [],
+            syncedAt: nil
+        )
+
+        Analytics.trackCompletedRunIfNeeded(firstRun, runType: "free", defaults: defaults)
+        Analytics.trackCompletedRunIfNeeded(firstRun, runType: "free", defaults: defaults)
+        Analytics.trackCompletedRunIfNeeded(secondRun, defaults: defaults)
+
+        XCTAssertEqual(tracker.events.map(\.name), ["run_completed", "first_run_completed", "run_completed"])
+        XCTAssertEqual(tracker.events[0].properties["run_type"] as? String, "free")
+        XCTAssertEqual(tracker.events[0].properties["is_first_run"] as? Bool, true)
+        XCTAssertEqual(tracker.events[2].properties["run_type"] as? String, "Garmin")
+        XCTAssertEqual(tracker.events[2].properties["is_first_run"] as? Bool, false)
+    }
+
     // MARK: - E1: TodayRecommendation rationale field (Story 1)
 
     func testTodayRecommendationRationaleDefaultsToNil() {

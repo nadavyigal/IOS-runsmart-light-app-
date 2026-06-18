@@ -1473,6 +1473,11 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         async let debriefTask = fetchRunDebrief(for: canonical)          // E6
         let (report, completed, debrief) = await (reportTask, completedTask, debriefTask)
 
+        Analytics.trackCompletedRunIfNeeded(
+            canonical,
+            runType: completed?.kind.rawValue ?? canonical.source.rawValue
+        )
+
         await MainActor.run {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
             NotificationCenter.default.post(name: .runSmartReportsDidChange, object: nil)
