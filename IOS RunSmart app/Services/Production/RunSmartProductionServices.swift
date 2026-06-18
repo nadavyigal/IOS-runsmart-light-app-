@@ -241,6 +241,18 @@ final class RunSmartLocalStore {
         return try? decoder.decode(type, from: data)
     }
 
+    func clearUserData() {
+        let keys = [
+            "runsmart.runs",
+            "runsmart.runReports",
+            "runsmart.hiddenRuns",
+            "runsmart.device.statuses",
+            "runsmart.firstSync.reviews",
+            "runsmart.healthkit.dailySnapshot",
+        ]
+        for key in keys { defaults.removeObject(forKey: key) }
+    }
+
     private func hideRun(_ run: RecordedRun) {
         var keys = Set(loadHiddenRunKeys())
         keys.insert(runVisibilityKey(for: run))
@@ -801,6 +813,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
         let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: store.visibleRuns(store.loadRuns())))
         store.refreshBenchmarkStats()
+        Analytics.trackCompletedRunIfNeeded(canonical)
         await MainActor.run {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
         }

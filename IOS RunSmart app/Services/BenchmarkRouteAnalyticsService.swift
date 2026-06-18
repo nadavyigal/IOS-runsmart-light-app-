@@ -18,7 +18,7 @@ enum BenchmarkRouteAnalyticsService {
 
         let performances = matchedRuns(for: routeID, in: runs + [run])
             .uniqueByRunID()
-            .map(performance)
+            .map { performance(from: $0) }
             .sorted { $0.startedAt < $1.startedAt }
         guard let current = performances.first(where: { $0.runID == run.id }),
               let best = performances.min(by: { $0.durationSeconds < $1.durationSeconds }),

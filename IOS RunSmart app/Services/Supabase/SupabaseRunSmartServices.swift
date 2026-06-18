@@ -722,8 +722,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     guard let run = activity.toRecordedRun() else { return false }
                     return !store.isRunHidden(run)
                 }
-            let buckets = GarminDistanceBucket.standardKmBuckets
-            var pickedByBucket = GarminDistanceBucket.representativeActivities(from: activities)
+            let pickedByBucket = GarminDistanceBucket.representativeActivities(from: activities)
             for (bucket, activity) in pickedByBucket.sorted(by: { $0.key < $1.key }) {
                 guard let m = activity.distanceM else { continue }
                 let km = m / 1000
@@ -1079,7 +1078,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         let reports = await withTaskGroup(of: RunReportDetail.self) { group in
             for run in runs {
                 group.addTask {
-                    await self.runReport(for: run) ?? Self.reportSkeleton(for: run)
+                    if let r = await self.runReport(for: run) { return r }
+                    return await MainActor.run { Self.reportSkeleton(for: run) }
                 }
             }
             var collected: [RunReportDetail] = []
@@ -1472,6 +1472,11 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         async let completedTask = completeMatchingWorkout(for: canonical)
         async let debriefTask = fetchRunDebrief(for: canonical)          // E6
         let (report, completed, debrief) = await (reportTask, completedTask, debriefTask)
+
+        Analytics.trackCompletedRunIfNeeded(
+            canonical,
+            runType: completed?.kind.rawValue ?? canonical.source.rawValue
+        )
 
         await MainActor.run {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)

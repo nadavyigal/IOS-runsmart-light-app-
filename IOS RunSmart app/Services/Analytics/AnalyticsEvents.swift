@@ -1,6 +1,8 @@
 import Foundation
 
 extension Analytics {
+    private static let completedRunFlagKey = "analytics.hasCompletedRun"
+    private static let completedRunKeyPrefix = "analytics.completedRun."
 
     // MARK: - Activation Funnel
 
@@ -65,6 +67,26 @@ extension Analytics {
                 "run_type": runType
             ])
         }
+    }
+
+    static func trackCompletedRunIfNeeded(
+        _ run: RecordedRun,
+        runType: String? = nil,
+        defaults: UserDefaults = .standard
+    ) {
+        let key = completedRunKey(for: run)
+        guard !defaults.bool(forKey: key) else { return }
+
+        let isFirst = !defaults.bool(forKey: completedRunFlagKey)
+        defaults.set(true, forKey: key)
+        defaults.set(true, forKey: completedRunFlagKey)
+        trackRunCompleted(
+            distanceKm: run.distanceMeters / 1000,
+            durationSeconds: Int(run.movingTimeSeconds),
+            paceMinKm: run.averagePaceSecondsPerKm / 60,
+            runType: runType ?? run.source.rawValue,
+            isFirstRun: isFirst
+        )
     }
 
     static func trackRunAbandoned(durationSeconds: Int, distanceKm: Double) {
@@ -193,5 +215,15 @@ extension Analytics {
             "moment_id": momentId,
             "variant": "C"
         ])
+    }
+
+    private static func completedRunKey(for run: RecordedRun) -> String {
+        if let consolidatedID = run.consolidatedActivityID, !consolidatedID.isEmpty {
+            return "\(completedRunKeyPrefix)\(run.source.rawValue).consolidated.\(consolidatedID)"
+        }
+        if let providerID = run.providerActivityID, !providerID.isEmpty {
+            return "\(completedRunKeyPrefix)\(run.source.rawValue).provider.\(providerID)"
+        }
+        return "\(completedRunKeyPrefix)\(run.source.rawValue).local.\(run.id.uuidString)"
     }
 }

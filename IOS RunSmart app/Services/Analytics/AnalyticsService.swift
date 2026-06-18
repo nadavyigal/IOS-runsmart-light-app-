@@ -29,6 +29,12 @@ enum Analytics {
     static var shared: AnalyticsTracking = NullAnalyticsService()
 
     static func setup(projectToken: String, host: String) {
+#if DEBUG
+        guard !RunSmartDemoMode.isEnabled else {
+            shared = NullAnalyticsService()
+            return
+        }
+#endif
         let config = PostHogConfig(projectToken: projectToken, host: host)
         config.flushAt = 20
         config.flushIntervalSeconds = 30

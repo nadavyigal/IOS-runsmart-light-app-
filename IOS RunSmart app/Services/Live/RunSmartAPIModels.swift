@@ -113,8 +113,8 @@ enum RunSmartDTO {
             recovery = Recovery(snapshot.recovery)
             wellness = Wellness(snapshot.wellness)
             activity = Activity(snapshot.activity)
-            routes = snapshot.routes.map(Route.init)
-            reports = snapshot.reports.map(Report.init)
+            routes = snapshot.routes.map { Route($0) }
+            reports = snapshot.reports.map { Report($0) }
             limitations = snapshot.limitations
         }
 
@@ -172,7 +172,7 @@ enum RunSmartDTO {
                 planType = plan.planType
                 totalWeeks = plan.totalWeeks
                 weeklyWorkoutCount = plan.weeklyWorkoutCount
-                upcomingWorkouts = plan.upcomingWorkouts.map(Workout.init)
+                upcomingWorkouts = plan.upcomingWorkouts.map { Workout($0) }
             }
         }
 
@@ -240,7 +240,7 @@ enum RunSmartDTO {
 
             init(_ activity: TrainingContextActivitySummary) {
                 recentRunCount = activity.recentRunCount
-                recentRuns = activity.recentRuns.map(Run.init)
+                recentRuns = activity.recentRuns.map { Run($0) }
                 sources = activity.sources
                 averageWeeklyDistanceKm = activity.averageWeeklyDistanceKm
             }
@@ -466,6 +466,19 @@ enum RunSmartDTO {
         let tomorrow: String
         let planImpact: String?
         let source: String
+
+        private enum CodingKeys: String, CodingKey {
+            case headline, debrief, tomorrow, planImpact, source
+        }
+
+        nonisolated init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            headline = try c.decode(String.self, forKey: .headline)
+            debrief = try c.decode(String.self, forKey: .debrief)
+            tomorrow = try c.decode(String.self, forKey: .tomorrow)
+            planImpact = try c.decodeIfPresent(String.self, forKey: .planImpact)
+            source = try c.decode(String.self, forKey: .source)
+        }
     }
 
     struct WeeklySummaryRequestDTO: Encodable {
@@ -487,6 +500,19 @@ enum RunSmartDTO {
         let forwardLook: String
         let weekLabel: String
         let source: String
+
+        private enum CodingKeys: String, CodingKey {
+            case headline, narrative, forwardLook, weekLabel, source
+        }
+
+        nonisolated init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            headline = try c.decode(String.self, forKey: .headline)
+            narrative = try c.decode(String.self, forKey: .narrative)
+            forwardLook = try c.decode(String.self, forKey: .forwardLook)
+            weekLabel = try c.decode(String.self, forKey: .weekLabel)
+            source = try c.decode(String.self, forKey: .source)
+        }
     }
 
     struct FlexWeekWorkoutDTO: Codable {
@@ -743,7 +769,7 @@ enum RunSmartDTO {
             self.source = source
         }
 
-        init(from decoder: Decoder) throws {
+        nonisolated init(from decoder: any Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             if let camelWeek = try? c.decode([FlexWeekWorkoutDTO].self, forKey: .restructuredWeek) {
                 restructuredWeek = camelWeek

@@ -24,17 +24,46 @@ final class SupabaseSession: ObservableObject {
     private var appleEmailSeed: String?
 
     init() {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled {
+            configureDemoSession()
+            return
+        }
+#endif
         Task { await initialize() }
     }
 
-    var currentUserID: UUID? { supabase.auth.currentUser?.id }
-    var currentEmail: String? { supabase.auth.currentUser?.email }
-    var currentMemberSince: Date? { supabase.auth.currentUser?.createdAt }
+    var currentUserID: UUID? {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled { return RunSmartDemoMode.userID }
+#endif
+        return supabase.auth.currentUser?.id
+    }
+
+    var currentEmail: String? {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled { return RunSmartDemoMode.email }
+#endif
+        return supabase.auth.currentUser?.email
+    }
+
+    var currentMemberSince: Date? {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled { return RunSmartDemoMode.memberSince }
+#endif
+        return supabase.auth.currentUser?.createdAt
+    }
 
     // plans/conversations use auth.uid() as profile_id (uuid), not profiles.id (bigint)
     var profileID: UUID? { currentUserID }
 
     func initialize() async {
+#if DEBUG
+        guard !RunSmartDemoMode.isEnabled else {
+            configureDemoSession()
+            return
+        }
+#endif
         // Resolve the initial session before entering the infinite auth-change stream
         if let session = try? await supabase.auth.session, !session.isExpired {
             isAuthenticated = true
@@ -107,6 +136,14 @@ final class SupabaseSession: ObservableObject {
     }
 
     func completeOnboarding(_ onboarding: OnboardingProfile) async {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled {
+            onboardingProfile = onboarding
+            displayName = onboarding.displayName.isEmpty ? RunSmartDemoData.runner.name : onboarding.displayName
+            hasCompletedOnboarding = true
+            return
+        }
+#endif
         guard let userID = currentUserID else {
             print("[SupabaseSession] completeOnboarding: no currentUserID")
             return
@@ -182,6 +219,12 @@ final class SupabaseSession: ObservableObject {
     }
 
     func signOut() async {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled {
+            configureDemoSession()
+            return
+        }
+#endif
         try? await supabase.auth.signOut()
     }
 
@@ -193,6 +236,11 @@ final class SupabaseSession: ObservableObject {
     /// Permanently deletes the user's account and all server-side data via the
     /// `delete_account` edge function (App Store Guideline 5.1.1(v)).
     func deleteAccount() async throws {
+#if DEBUG
+        if RunSmartDemoMode.isEnabled {
+            throw AccountDeletionError(message: "Account deletion is disabled in Demo Mode. No real account or backend data exists in this simulator session.")
+        }
+#endif
         guard let accessToken = try? await supabase.auth.session.accessToken else {
             throw AccountDeletionError(message: "You need to be signed in to delete your account.")
         }
@@ -223,7 +271,7 @@ final class SupabaseSession: ObservableObject {
                 if profile == nil {
                     await AhaMomentStore.shared.resetOnboardingMoments()
                     try? await supabase.auth.signOut(scope: .local)
-                    clearSessionState()
+                    clearSessionState(clearLocalData: true)
                     print("[SupabaseSession] deleteAccount: network error but profile gone — signed out")
                     return
                 }
@@ -238,7 +286,7 @@ final class SupabaseSession: ObservableObject {
                 if profile == nil {
                     await AhaMomentStore.shared.resetOnboardingMoments()
                     try? await supabase.auth.signOut(scope: .local)
-                    clearSessionState()
+                    clearSessionState(clearLocalData: true)
                     print("[SupabaseSession] deleteAccount: error response but profile gone — signed out")
                     return
                 }
@@ -250,7 +298,7 @@ final class SupabaseSession: ObservableObject {
 
         // The auth user no longer exists server-side; drop the local session.
         try? await supabase.auth.signOut(scope: .local)
-        clearSessionState()
+        clearSessionState(clearLocalData: true)
         print("[SupabaseSession] deleteAccount completed — local session cleared")
     }
 
@@ -277,7 +325,7 @@ final class SupabaseSession: ObservableObject {
         }
     }
 
-    private func clearSessionState() {
+    private func clearSessionState(clearLocalData: Bool = false) {
         isAuthenticated = false
         hasCompletedOnboarding = false
         profile = nil
@@ -286,6 +334,10 @@ final class SupabaseSession: ObservableObject {
         appleDisplayNameSeed = nil
         appleEmailSeed = nil
         lastAuthError = nil
+        if clearLocalData {
+            RunSmartLocalStore.shared.clearUserData()
+            GarminBridge.shared.invalidateActivityCache()
+        }
     }
 
     private static let profileDateFormatter: ISO8601DateFormatter = {
@@ -306,4 +358,18 @@ final class SupabaseSession: ObservableObject {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
+
+#if DEBUG
+    private func configureDemoSession() {
+        isAuthenticated = true
+        hasCompletedOnboarding = true
+        profile = nil
+        displayName = RunSmartDemoData.runner.name
+        isLoading = false
+        lastAuthError = nil
+        onboardingProfile = RunSmartDemoData.onboardingProfile
+        appleDisplayNameSeed = RunSmartDemoData.runner.name
+        appleEmailSeed = RunSmartDemoMode.email
+    }
+#endif
 }

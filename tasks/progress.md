@@ -1,9 +1,9 @@
-Status: 1.0.2 build 14 in development on branch feat/wp6-aha-moments-ios. The June 08 build 11 rejection fixes (Sign in with Apple, HealthKit UI disclosure) are in this line of work; per Agentic OS WP-4 the App Store resubmission ships as 1.0.2 build 14, superseding the build 12 cycle. Build 12 upload/resubmission was never performed.
-Current Phase: 1.0.2 (build 14) development and App Store resubmission prep
-Active Story: WP-6 aha moments native SwiftUI port plus account deletion hardening on feat/wp6-aha-moments-ios (2 commits unpushed as of 2026-06-11)
-Last Completed Story: Ported aha moments to native SwiftUI for 1.0.2 build 14 (commit 1ded0e0, 2026-06-10); fixed delete-account edge function schema-drift 500 and false iOS error (commit d2e2b40, 2026-06-11)
-Next Recommended Story: Push feat/wp6-aha-moments-ios, merge to main, then archive and upload 1.0.2 build 14 to App Store Connect and resubmit with the reviewer response
-Estimated Completion: Pending branch merge plus App Store Connect upload, processing, and resubmission
-Blockers: App Store Connect upload/processing/resubmission require founder portal action
-Last Validation: Derived from git evidence on 2026-06-11: branch feat/wp6-aha-moments-ios at d2e2b40, 2 commits ahead of origin, one dirty path (Resources/Localizable.xcstrings). No build or test run was recorded for this status update. The build 12 archive/export validation record from 2026-06-09 is preserved in git history of this file.
-Last Updated: 2026-06-11
+Status: Live on the App Store as of 2026-06-17; PostHog project 171597 live verification shows 6 users in the last 2 days, latest activity 2026-06-17 12:16.
+Current Phase: Live on App Store; monitor launch analytics and complete the real-device/TestFlight authenticated smoke follow-up.
+Active Story: Perform live smoke on a physical device or TestFlight: SIWA sign-in, Garmin connect, delete account, SIWA re-register.
+Last Completed Story: 2026-06-15 App Review privacy/account-deletion fix from `main` commit `9f47ad2`: Delete Account confirmation dialog updated, privacy manifest expanded, Release generic iOS build passed, and the built app bundle contains the updated privacy manifest.
+Next Recommended Story: Wait for build 15 processing, update App Store Connect App Privacy and App Review notes with the delete-account screen recording, run the live smoke on an Apple-auth-capable physical device/TestFlight build, then select build 15 and resubmit.
+Estimated Completion: Ready to archive/export now; live smoke should take roughly 20-40 minutes on a device with Apple auth and Garmin credentials.
+Blockers: Local simulator SIWA still returns `ASAuthorizationError 1000`, so this machine cannot complete authenticated Garmin/delete/re-register flow. Vercel runtime logs remain permission-limited here.
+Last Validation: 2026-06-15 build 15 Release generic iOS build passed; archive/export passed; exported IPA inspection confirmed version `1.0.2`, build `15`, bundle id `com.runsmart.lite`, `ITSAppUsesNonExemptEncryption=false`, `get-task-allow=false`, HealthKit, Sign in with Apple, associated domains, and expanded `PrivacyInfo.xcprivacy`; upload to App Store Connect succeeded and package began processing.
+Last Updated: 2026-06-15

@@ -215,12 +215,6 @@ final class TrainingPlanRepository {
             return active
         }
 
-        if let numericID = resolved.numericUserID,
-           let active = await activePlanByNumericProfile(numericProfileID: numericID) {
-            print("[TrainingPlanRepo] ✅ found active plan via numeric profileID=\(numericID)")
-            return active
-        }
-
         if resolved.planOwnerCandidates.isEmpty {
             print("[TrainingPlanRepo] ❌ identity unresolved for auth=\(authUserID)")
             return nil
@@ -763,7 +757,7 @@ final class TrainingPlanRepository {
                 }
                 for (rollbackID, _) in applied {
                     guard let rollbackPatch = pendingUpdates.first(where: { $0.0 == rollbackID })?.2 else { continue }
-                    try? await supabase
+                    _ = try? await supabase
                         .from("workouts")
                         .update(rollbackPatch)
                         .eq("id", value: rollbackID.uuidString)

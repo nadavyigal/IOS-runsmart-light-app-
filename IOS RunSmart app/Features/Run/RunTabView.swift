@@ -209,15 +209,6 @@ struct RunTabView: View {
             isProcessingFinishedRun = true
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
             finishedRun = run
-            let isFirst = !UserDefaults.standard.bool(forKey: "analytics.hasCompletedRun")
-            UserDefaults.standard.set(true, forKey: "analytics.hasCompletedRun")
-            Analytics.trackRunCompleted(
-                distanceKm: run.distanceMeters / 1000,
-                durationSeconds: Int(run.movingTimeSeconds),
-                paceMinKm: run.averagePaceSecondsPerKm / 60,
-                runType: router.plannedWorkout?.kind.rawValue ?? "free",
-                isFirstRun: isFirst
-            )
             Task {
                 let outcome = await services.processCompletedActivity(run)
                 await MainActor.run {

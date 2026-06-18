@@ -29,7 +29,7 @@ final class GarminBridge: NSObject {
     }
 
     func connect() async throws {
-        guard let session = try? await supabase.auth.session, !session.isExpired else {
+        guard let authSession = try? await supabase.auth.session, !authSession.isExpired else {
             throw GarminError.notAuthenticated
         }
 
@@ -37,17 +37,17 @@ final class GarminBridge: NSObject {
             throw GarminError.gatewayFailed("Garmin gateway URL is not configured.")
         }
 
-        let authUserID = session.user.id
+        let authUserID = authSession.user.id
         let numericUserID = try await garminUserID(authUserID: authUserID)
 
         let startURL = try await garminAuthorizationURL(
             authUserID: authUserID,
             numericUserID: numericUserID,
-            accessToken: session.accessToken
+            accessToken: authSession.accessToken
         )
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let session = ASWebAuthenticationSession(
+            let webSession = ASWebAuthenticationSession(
                 url: startURL,
                 callbackURLScheme: Self.callbackURLScheme
             ) { callbackURL, error in
@@ -63,12 +63,19 @@ final class GarminBridge: NSObject {
                     continuation.resume(throwing: GarminError.gatewayFailed("Garmin authorization returned an unexpected callback."))
                     return
                 }
-                continuation.resume()
+                Task {
+                    do {
+                        try await self.completeAuthorizationCallback(url, accessToken: authSession.accessToken)
+                        continuation.resume()
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
             }
-            session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = true
-            self.webAuthSession = session
-            session.start()
+            webSession.presentationContextProvider = self
+            webSession.prefersEphemeralWebBrowserSession = true
+            self.webAuthSession = webSession
+            webSession.start()
         }
 
         try await waitForConnectedAccount(authUserID: authUserID)
@@ -95,6 +102,46 @@ final class GarminBridge: NSObject {
             }
         }
         throw GarminError.notConnected
+    }
+
+    private func completeAuthorizationCallback(_ url: URL, accessToken: String) async throws {
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let queryItems = components?.queryItems ?? []
+
+        if let oauthError = queryItems.first(where: { $0.name == "error" })?.value, !oauthError.isEmpty {
+            throw GarminError.gatewayFailed("Garmin authorization failed: \(oauthError)")
+        }
+
+        guard
+            let code = queryItems.first(where: { $0.name == "code" })?.value,
+            let state = queryItems.first(where: { $0.name == "state" || $0.name == "oauth_state" })?.value
+        else {
+            throw GarminError.gatewayFailed("Garmin authorization did not return the expected code and state.")
+        }
+
+        guard let callbackURL = garminGatewayURL?.garminCallbackEndpoint else {
+            throw GarminError.gatewayFailed("Garmin gateway URL is not configured.")
+        }
+
+        var request = URLRequest(url: callbackURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONEncoder().encode(GarminCallbackRequest(code: code, state: state))
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw GarminError.gatewayFailed("Garmin callback gateway did not return a valid response.")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let message = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw GarminError.gatewayFailed(message?.isEmpty == false ? message! : "Garmin callback gateway returned \(http.statusCode).")
+        }
+
+        let payload = try JSONDecoder().decode(GarminCallbackResponse.self, from: data)
+        guard payload.success else {
+            throw GarminError.gatewayFailed(payload.error ?? "Garmin callback gateway did not confirm the connection.")
+        }
     }
 
     private func garminUserID(authUserID: UUID) async throws -> Int? {
@@ -387,6 +434,35 @@ private struct GarminConnectResponse: Decodable {
         case success
         case authURL = "authUrl"
         case error
+    }
+}
+
+private struct GarminCallbackRequest: Encodable {
+    let code: String
+    let state: String
+}
+
+private struct GarminCallbackResponse: Decodable {
+    let success: Bool
+    let error: String?
+}
+
+private extension URL {
+    var garminCallbackEndpoint: URL {
+        guard var components = URLComponents(url: self, resolvingAgainstBaseURL: false) else {
+            return self
+        }
+        if components.path.hasSuffix("/connect") {
+            components.path = String(components.path.dropLast("/connect".count)) + "/callback"
+        } else if !components.path.hasSuffix("/callback") {
+            components.path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/callback"
+            if !components.path.hasPrefix("/") {
+                components.path = "/" + components.path
+            }
+        }
+        components.query = nil
+        components.fragment = nil
+        return components.url ?? self
     }
 }
 

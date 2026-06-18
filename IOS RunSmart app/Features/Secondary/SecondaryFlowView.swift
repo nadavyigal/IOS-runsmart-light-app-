@@ -2716,7 +2716,7 @@ private struct PermissionRow: View {
 private struct AccountScaffold: View {
     @EnvironmentObject private var session: SupabaseSession
     @State private var isSigningOut = false
-    @State private var showDeleteConfirmation = false
+    @State private var showDeleteAccountConfirmation = false
     @State private var isDeletingAccount = false
     @State private var deleteAccountError: String?
 
@@ -2731,8 +2731,24 @@ private struct AccountScaffold: View {
         return fmt.string(from: createdAt)
     }
 
+    private var isDemoMode: Bool {
+        RunSmartDemoMode.isEnabled
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            if isDemoMode {
+                GlassCard(glow: Color.accentAmber) {
+                    Label(
+                        "Demo Mode is local only. No Apple, Supabase, Garmin, HealthKit, analytics, or account deletion calls are made.",
+                        systemImage: "video.badge.checkmark"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Signed In")
@@ -2788,9 +2804,9 @@ private struct AccountScaffold: View {
                 }
             }
             .buttonStyle(NeonButtonStyle(isDestructive: true))
-            .disabled(isSigningOut)
+            .disabled(isSigningOut || isDemoMode)
 
-            Text("Signing out returns you to the sign-in screen, where you can register a new account or switch users.")
+            Text(isDemoMode ? "Sign out is disabled while recording Demo Mode." : "Signing out returns you to the sign-in screen, where you can register a new account or switch users.")
                 .font(.caption)
                 .foregroundStyle(Color.mutedText)
                 .padding(.horizontal, 4)
@@ -2802,27 +2818,32 @@ private struct AccountScaffold: View {
                         .font(.caption)
                         .foregroundStyle(Color.mutedText)
 
+                    // Delete Account
                     Button(role: .destructive) {
-                        showDeleteConfirmation = true
+                        showDeleteAccountConfirmation = true
                     } label: {
                         if isDeletingAccount {
                             ProgressView().tint(.white)
                         } else {
-                            Label("Delete Account", systemImage: "trash")
+                            Label("Delete Account", systemImage: "person.crop.circle.badge.minus")
                         }
                     }
                     .buttonStyle(NeonButtonStyle(isDestructive: true))
-                    .disabled(isDeletingAccount || isSigningOut)
+                    .disabled(isDeletingAccount || isSigningOut || isDemoMode)
                 }
             }
         }
-        .alert("Delete your account?", isPresented: $showDeleteConfirmation) {
+        .confirmationDialog(
+            "Delete your RunSmart account?",
+            isPresented: $showDeleteAccountConfirmation,
+            titleVisibility: .visible
+        ) {
             Button("Delete Account", role: .destructive) {
-                deleteAccount()
+                Task { await deleteAccount() }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This permanently deletes your account and all data stored in RunSmart, including your training plans and run history. This action cannot be undone.")
+            Text("This permanently deletes your account, training plans, and run history. This cannot be undone.")
         }
         .alert("Could not delete account", isPresented: Binding(
             get: { deleteAccountError != nil },
@@ -2834,16 +2855,14 @@ private struct AccountScaffold: View {
         }
     }
 
-    private func deleteAccount() {
+    private func deleteAccount() async {
         isDeletingAccount = true
-        Task {
-            do {
-                try await session.deleteAccount()
-                // Success: session is cleared and the app returns to sign-in.
-            } catch {
-                deleteAccountError = error.localizedDescription
-            }
-            isDeletingAccount = false
+        do {
+            try await session.deleteAccount()
+            // Success: session is cleared and the app returns to sign-in.
+        } catch {
+            deleteAccountError = error.localizedDescription
         }
+        isDeletingAccount = false
     }
 }

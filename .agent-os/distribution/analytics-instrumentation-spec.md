@@ -1,5 +1,11 @@
 # Analytics Instrumentation Spec — RunSmart iOS
 
+## 2026-06-17 QA Decision: Canonical Events
+
+- Launch dashboards should use custom `app_launched` as the canonical launch event.
+- PostHog iOS lifecycle autocapture events such as `Application Opened`, `Application Installed`, and `Application Backgrounded` may remain enabled for diagnostics, but funnels should not combine them with `app_launched`.
+- Completed-run activation dashboards should use `run_completed`, with `first_run_completed` as the one-time first-run marker. The earlier draft `run_logged` name below is superseded by `run_completed`.
+
 > ⚠️ DO NOT add this code in a distribution session.
 > This spec is for a separate product-code session. Read-only work produced this file.
 > Instrument these three events before submitting to App Store to ensure activation funnel baseline exists.
