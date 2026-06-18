@@ -100,30 +100,10 @@ struct TodayTabView: View {
                     .runSmartStaggeredAppear(index: 5)
                 }
 
-                if !runReports.isEmpty {
-                    Button { router.selectedTab = .report } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(runReports[0].title)
-                                    .font(.bodyMD.weight(.semibold))
-                                    .foregroundStyle(Color.textPrimary)
-                                    .lineLimit(1)
-                                Text("\(runReports[0].dateLabel) · \(runReports[0].distance) · \(runReports[0].pace)")
-                                    .font(.labelSM)
-                                    .foregroundStyle(Color.textSecondary)
-                                    .lineLimit(1)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(Color.textTertiary)
-                        }
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 54)
-                        .background(Color.surfaceCard.opacity(0.78), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.border, lineWidth: 1))
+                if let latestReport = runReports.first {
+                    LatestRunPreviewRow(report: latestReport) {
+                        router.selectedTab = .report
                     }
-                    .buttonStyle(.plain)
                     .runSmartStaggeredAppear(index: 6)
                 }
 
@@ -980,6 +960,42 @@ private struct TodayWellnessTrendCard: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title), \(value), \(summary)")
+    }
+}
+
+private struct LatestRunPreviewRow: View {
+    var report: RunReportSummary
+    var onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            ContentCard {
+                HStack(spacing: 12) {
+                    RunSmartIconMark(size: 34, tint: .accentPrimary)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        SectionLabel(title: "Latest Run")
+                        Text(report.title)
+                            .font(.bodyLG.weight(.semibold))
+                            .foregroundStyle(Color.textPrimary)
+                            .lineLimit(1)
+                        Text("\(report.dateLabel) - \(report.distance) - \(report.pace)")
+                            .font(.labelSM)
+                            .foregroundStyle(Color.textSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.textTertiary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Latest run, \(report.title), \(report.dateLabel), \(report.distance), \(report.pace)")
     }
 }
 
