@@ -53,6 +53,34 @@ struct RunTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
             refreshMetrics()
         }
+        .onChange(of: recorder.phase) { oldPhase, newPhase in
+            switch newPhase {
+            case .recording where oldPhase == .paused:
+                VoiceCoachService.shared.resumeSession()
+            case .recording:
+                VoiceCoachService.shared.startSession()
+            case .paused:
+                VoiceCoachService.shared.pauseSession()
+            case .idle, .ready, .denied, .failed:
+                VoiceCoachService.shared.stopSession()
+            default:
+                break
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .voiceCoachCueTimerFired)) { _ in
+            guard recorder.phase == .recording else { return }
+            let context = VoiceCueContext(
+                elapsedMinutes: recorder.movingSeconds / 60.0,
+                distanceKm: recorder.distanceMeters / 1000.0,
+                currentPaceMinPerKm: recorder.distanceMeters > 0
+                    ? (recorder.movingSeconds / (recorder.distanceMeters / 1000.0)) / 60.0
+                    : 0.0,
+                targetPaceMinPerKm: nil,
+                workoutGoal: router.plannedWorkout?.title,
+                heartRateBPM: nil
+            )
+            VoiceCoachService.shared.deliverCue(context: context)
+        }
         .confirmationDialog(
             "Discard this workout?",
             isPresented: $isConfirmingDiscard,
@@ -149,6 +177,8 @@ struct RunTabView: View {
 
     private func startRun() {
         RunSmartHaptics.medium()
+        let source = router.plannedWorkout != nil ? "planned" : "free"
+        Analytics.trackRunStarted(source: source)
         recorder.start()
     }
 
@@ -170,6 +200,7 @@ struct RunTabView: View {
 
     private func finishRun() {
         RunSmartHaptics.medium()
+        VoiceCoachService.shared.stopSession()
         let run = recorder.finish()
         if let run {
             router.dismissPostRunSummaryIfNeeded()
@@ -195,6 +226,11 @@ struct RunTabView: View {
 
     private func discardRun() {
         RunSmartHaptics.medium()
+        VoiceCoachService.shared.stopSession()
+        Analytics.trackRunAbandoned(
+            durationSeconds: Int(recorder.movingSeconds),
+            distanceKm: recorder.distanceMeters / 1000
+        )
         recorder.discard()
         finishedRun = nil
         postActivityOutcome = nil

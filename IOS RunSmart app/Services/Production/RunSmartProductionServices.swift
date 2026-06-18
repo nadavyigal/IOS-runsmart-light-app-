@@ -241,6 +241,18 @@ final class RunSmartLocalStore {
         return try? decoder.decode(type, from: data)
     }
 
+    func clearUserData() {
+        let keys = [
+            "runsmart.runs",
+            "runsmart.runReports",
+            "runsmart.hiddenRuns",
+            "runsmart.device.statuses",
+            "runsmart.firstSync.reviews",
+            "runsmart.healthkit.dailySnapshot",
+        ]
+        for key in keys { defaults.removeObject(forKey: key) }
+    }
+
     private func hideRun(_ run: RecordedRun) {
         var keys = Set(loadHiddenRunKeys())
         keys.insert(runVisibilityKey(for: run))
@@ -719,8 +731,11 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func runnerProfile() async -> RunnerProfile {
         let profile = store.loadOnboardingProfile() ?? .empty
         let runs = ActivityConsolidationService.userVisibleRecentRuns(store.visibleRuns(store.loadRuns()))
-        let totalDistance = Int((runs.reduce(0) { $0 + $1.distanceMeters } / 1_000).rounded())
-        let totalSeconds = runs.reduce(0) { $0 + $1.movingTimeSeconds }
+        let totalDistanceMeters: Double = runs.reduce(0) { $0 + $1.distanceMeters }
+        let totalDistance: Int = Int((totalDistanceMeters / 1_000).rounded())
+        let totalSeconds: Double = runs.reduce(0) { $0 + $1.movingTimeSeconds }
+        let totalHours: Int = Int(totalSeconds / 3_600)
+        let totalMinutes: Int = Int(totalSeconds.truncatingRemainder(dividingBy: 3_600)) / 60
         return RunnerProfile(
             name: profile.displayName.isEmpty ? "RunSmart Runner" : profile.displayName,
             goal: profile.goal,
@@ -728,7 +743,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
             level: profile.experience,
             totalRuns: runs.count,
             totalDistance: totalDistance,
-            totalTime: "\(Int(totalSeconds / 3600))h \(Int(totalSeconds.truncatingRemainder(dividingBy: 3600)) / 60)m"
+            totalTime: "\(totalHours)h \(totalMinutes)m"
         )
     }
 
@@ -798,6 +813,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
         let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: store.visibleRuns(store.loadRuns())))
         store.refreshBenchmarkStats()
+        Analytics.trackCompletedRunIfNeeded(canonical)
         await MainActor.run {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
         }
@@ -805,7 +821,8 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
             canonicalRun: canonical,
             report: nil,
             completedWorkout: nil,
-            didCompletePlannedWorkout: false
+            didCompletePlannedWorkout: false,
+            debrief: nil
         )
     }
 
@@ -1077,12 +1094,12 @@ enum BenchmarkStatRefresh {
     /// Recomputes cached aggregate stats for each BenchmarkRoute from the current run history.
     /// Only high-confidence matched runs contribute to a route's stats.
     static func refresh(_ benchmarks: [BenchmarkRoute], from runs: [RecordedRun]) -> [BenchmarkRoute] {
-        benchmarks.map { benchmark in
-            let matched = runs.filter {
+        benchmarks.map { benchmark -> BenchmarkRoute in
+            let matched: [RecordedRun] = runs.filter {
                 $0.routeMatchResult?.routeID == benchmark.savedRouteID &&
                 $0.routeMatchResult?.confidence == .matched
             }
-            var updated = benchmark
+            var updated: BenchmarkRoute = benchmark
             updated.historicalRunCount = matched.count
             if matched.isEmpty {
                 updated.personalBestSeconds = nil
@@ -1090,11 +1107,11 @@ enum BenchmarkStatRefresh {
                 updated.averagePaceSecondsPerKm = nil
                 updated.averageDurationSeconds = nil
             } else {
-                if let best = matched.min(by: { $0.movingTimeSeconds < $1.movingTimeSeconds }) {
+                if let best: RecordedRun = matched.min(by: { $0.movingTimeSeconds < $1.movingTimeSeconds }) {
                     updated.personalBestSeconds = best.movingTimeSeconds
                     updated.personalBestDate = best.startedAt
                 }
-                let count = Double(matched.count)
+                let count: Double = Double(matched.count)
                 updated.averagePaceSecondsPerKm = matched.reduce(0.0) { $0 + $1.averagePaceSecondsPerKm } / count
                 updated.averageDurationSeconds = matched.reduce(0.0) { $0 + $1.movingTimeSeconds } / count
             }

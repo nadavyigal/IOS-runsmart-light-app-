@@ -7,6 +7,7 @@ enum PostRunSuggestedWorkoutSaveCopy {
 
 struct PostRunSummaryView: View {
     @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var router: AppRouter
     var run: RecordedRun?
     var outcome: PostActivityOutcome? = nil
     var isProcessing: Bool = false
@@ -16,8 +17,12 @@ struct PostRunSummaryView: View {
     @State private var rpe = 6
     @State private var showDeleteConfirmation = false
     @State private var showSaveRouteSheet = false
+    @State private var achievementContext: AchievementContext?
+    @State private var showAchievementMoment = false
+    @State private var noticeContext: NoticeContextKind?
 
     var body: some View {
+        ZStack {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) {
                 HeroCard(accent: .accentSuccess) {
@@ -46,7 +51,24 @@ struct PostRunSummaryView: View {
 
                 RPESelector(value: $rpe)
 
+                if let noticeContext {
+                    NoticedMomentCard(context: noticeContext)
+                }
+
                 CoachAnalysisCard(run: run, rpe: rpe)
+                Button {
+                    onSave()
+                    router.selectedTab = .report
+                } label: {
+                    Label("View Report", systemImage: "chart.xyaxis.line")
+                        .font(.buttonLabel)
+                        .foregroundStyle(Color.accentPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(Color.accentPrimary.opacity(0.10), in: Capsule())
+                        .overlay(Capsule().stroke(Color.accentPrimary.opacity(0.55), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
                 if let report = outcome?.report {
                     ProgressShareCard(payload: .runReport(report))
                     ProgressShareButton(payload: .runReport(report))
@@ -58,7 +80,8 @@ struct PostRunSummaryView: View {
                     run: run,
                     outcome: outcome,
                     report: outcome?.report,
-                    isProcessing: isProcessing
+                    isProcessing: isProcessing,
+                    debrief: outcome?.debrief        // E6: AI debrief from processCompletedActivity
                 )
                 PostActivityPlanCard(outcome: outcome, isProcessing: isProcessing)
                 BenchmarkComparisonLoaderView(run: outcome?.canonicalRun ?? run)
@@ -107,6 +130,21 @@ struct PostRunSummaryView: View {
             .padding(.bottom, 24)
         }
         .background(Color.black.opacity(0.52).ignoresSafeArea())
+
+            if showAchievementMoment, let achievementContext {
+                AchievementMomentView(
+                    context: achievementContext,
+                    recordContext: achievementRecordContext(for: achievementContext)
+                ) {
+                    showAchievementMoment = false
+                }
+                .transition(.opacity)
+                .zIndex(2)
+            }
+        }
+        .task(id: run?.id) {
+            await loadAhaMoments()
+        }
         .confirmationDialog("Delete this activity?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
             Button("Delete Activity", role: .destructive, action: onDelete)
             Button("Keep Activity", role: .cancel) {}
@@ -151,6 +189,49 @@ struct PostRunSummaryView: View {
         }
     }
 
+    private func loadAhaMoments() async {
+        guard let run else { return }
+        let recentRuns = await services.recentRuns()
+        let priorRuns = recentRuns.filter { $0.id != run.id }
+
+        if let achievement = AchievementDetector.detect(currentRun: run, priorRuns: priorRuns) {
+            let contextKey = achievementRecordContext(for: achievement)
+            let alreadyFired = await AhaMomentStore.shared.hasFired(momentId: "achievement", context: contextKey)
+            if !alreadyFired {
+                achievementContext = achievement
+                showAchievementMoment = true
+            }
+        }
+
+        let onCooldown = await AhaMomentStore.shared.isNoticedOnCooldown()
+        if let candidate = ContextDetector.detect(
+            currentRun: run,
+            allRuns: recentRuns.contains(where: { $0.id == run.id }) ? recentRuns : priorRuns + [run],
+            noticedOnCooldown: onCooldown
+        ) {
+            let fired = await AhaMomentStore.shared.hasFired(momentId: "noticed", context: candidate.contextKey)
+            if !fired {
+                noticeContext = candidate
+                await AhaMomentStore.shared.record(
+                    momentId: "noticed",
+                    context: candidate.contextKey,
+                    variant: "C"
+                )
+            }
+        }
+    }
+
+    private func achievementRecordContext(for context: AchievementContext) -> String {
+        switch context {
+        case .firstRun:
+            return "first_run"
+        case .showedUp:
+            return "showed_up"
+        case .personalBest(let distanceKm, _):
+            return String(format: "pb_%.2f", locale: Locale(identifier: "en_US_POSIX"), distanceKm)
+        }
+    }
+
     private func fallbackSharePayload(for run: RecordedRun) -> ProgressSharePayload {
         ProgressSharePayload(
             kind: .runReport,
@@ -162,7 +243,7 @@ struct PostRunSummaryView: View {
                 ProgressShareMetric(title: "Avg Pace", value: paceLabel)
             ],
             insight: "RunSmart saved this activity for private progress tracking.",
-            privacyNote: "Private share: no map, raw coordinates, or exact route are included."
+            privacyNote: "Private share: no map, GPS points, or exact route are included."
         )
     }
 }

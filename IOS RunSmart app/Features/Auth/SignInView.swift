@@ -39,7 +39,7 @@ struct SignInView: View {
                     VStack(spacing: 12) {
                         FeaturePill(symbol: "waveform", text: "Run guidance and cue previews")
                         FeaturePill(symbol: "calendar", text: "Personalized training plans")
-                        FeaturePill(symbol: "heart.fill", text: "Garmin + HealthKit signals when connected")
+                        FeaturePill(symbol: "heart.fill", text: "HealthKit reads approved data and can save completed GPS runs")
                     }
                 }
 
@@ -111,7 +111,13 @@ struct SignInView: View {
                   let idToken = String(data: tokenData, encoding: .utf8) else {
                 throw AppleSignInError.invalidCredential
             }
-            try await session.signInWithApple(idToken: idToken, nonce: currentNonce)
+            try await session.signInWithApple(
+                idToken: idToken,
+                nonce: currentNonce,
+                appleDisplayName: appleDisplayName(from: credential.fullName),
+                appleEmail: credential.email
+            )
+            Analytics.trackSignInCompleted(method: "apple")
         } catch let error as NSError
             where error.domain == ASAuthorizationError.errorDomain
                && error.code == ASAuthorizationError.canceled.rawValue {
@@ -119,6 +125,14 @@ struct SignInView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func appleDisplayName(from fullName: PersonNameComponents?) -> String? {
+        guard let fullName else { return nil }
+        let formatter = PersonNameComponentsFormatter()
+        formatter.style = .medium
+        let name = formatter.string(from: fullName).trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : name
     }
 }
 

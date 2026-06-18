@@ -17,6 +17,7 @@ protocol PlanProviding {
     func pushWorkoutTomorrow(workoutID: UUID) async -> Bool
     func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool
     func removeWorkout(workoutID: UUID) async -> Bool
+    func applyFlexWeek(_ outcome: FlexWeekOutcome) async -> Bool
     func saveSuggestedWorkout(_ suggestion: StructuredNextWorkout, from report: RunReportDetail) async -> Bool
 }
 
@@ -33,6 +34,7 @@ extension PlanProviding {
     func pushWorkoutTomorrow(workoutID: UUID) async -> Bool { false }
     func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool { false }
     func removeWorkout(workoutID: UUID) async -> Bool { false }
+    func applyFlexWeek(_ outcome: FlexWeekOutcome) async -> Bool { false }
     func saveSuggestedWorkout(_ suggestion: StructuredNextWorkout, from report: RunReportDetail) async -> Bool { false }
 }
 
@@ -70,6 +72,7 @@ protocol WebParityProviding {
     func activeChallenge() async -> ChallengeSummary
     func recoverySnapshot() async -> RecoverySnapshot
     func wellnessSnapshot() async -> WellnessSnapshot
+    func wellnessTrendSeries(days: Int) async -> WellnessTrendSeries
     func shoes() async -> [ShoeSummary]
     func reminders() async -> [ReminderPreference]
     func latestRunReports(limit: Int) async -> [RunReportSummary]
@@ -84,6 +87,9 @@ protocol WebParityProviding {
     func shouldPresentManualMorningCheckin() async -> Bool
     func approveGarminMorningCheckin() async -> Bool
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool
+    func generateWeeklySummary() async -> WeeklyProgressSummary?
+    func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome
+    func adjustmentHistoryWithin(_ window: TimeInterval) async -> [FlexWeekRecord]
 }
 
 extension WebParityProviding {
@@ -91,6 +97,7 @@ extension WebParityProviding {
     func activeChallenge() async -> ChallengeSummary { .loading }
     func recoverySnapshot() async -> RecoverySnapshot { .loading }
     func wellnessSnapshot() async -> WellnessSnapshot { .empty }
+    func wellnessTrendSeries(days: Int = 7) async -> WellnessTrendSeries { .empty }
     func shoes() async -> [ShoeSummary] { [] }
     func reminders() async -> [ReminderPreference] { [] }
     func latestRunReports(limit: Int) async -> [RunReportSummary] { [] }
@@ -98,7 +105,7 @@ extension WebParityProviding {
     func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? { nil }
     func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail? { nil }
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
-        PostActivityOutcome(canonicalRun: run, report: nil, completedWorkout: nil, didCompletePlannedWorkout: false)
+        PostActivityOutcome(canonicalRun: run, report: nil, completedWorkout: nil, didCompletePlannedWorkout: false, debrief: nil)
     }
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult? { nil }
     func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? { nil }
@@ -107,7 +114,15 @@ extension WebParityProviding {
     func shouldPresentManualMorningCheckin() async -> Bool { true }
     func approveGarminMorningCheckin() async -> Bool { false }
     func saveMorningCheckin(energy: Int, soreness: Int, mood: String, stress: Int?, fatigue: Int?, notes: String?) async -> Bool { false }
-    func removeRun(_ run: RecordedRun) async -> Bool { false }
+    func generateWeeklySummary() async -> WeeklyProgressSummary? { nil }
+
+    func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome {
+        FlexWeekServiceSupport.deterministicOutcome(for: request)
+    }
+
+    func adjustmentHistoryWithin(_ window: TimeInterval) async -> [FlexWeekRecord] {
+        FlexWeekAdjustmentHistory.historyWithin(window)
+    }
 
     func latestRunReports() async -> [RunReportSummary] {
         await latestRunReports(limit: 3)
@@ -379,7 +394,7 @@ enum TrainingContextCoachResponder {
 }
 
 #if DEBUG
-struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, ProfileProviding, RunLogging {
+struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, ProfileProviding, RunLogging {
     func todayRecommendation() async -> TodayRecommendation {
         RunSmartPreviewData.today
     }
@@ -388,7 +403,7 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
         RunSmartPreviewData.workouts
     }
 
-    func activeTrainingPlan() async -> TrainingPlanSnapshot? { nil }
+    func activeTrainingPlan() async -> TrainingPlanSnapshot? { RunSmartDemoData.activePlan }
 
     func planWorkouts(from startDate: Date, to endDate: Date) async -> [WorkoutSummary] {
         RunSmartPreviewData.workouts.filter {
@@ -406,6 +421,7 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func pushWorkoutTomorrow(workoutID: UUID) async -> Bool { true }
     func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool { true }
     func removeWorkout(workoutID: UUID) async -> Bool { true }
+    func applyFlexWeek(_ outcome: FlexWeekOutcome) async -> Bool { true }
     func saveSuggestedWorkout(_ suggestion: StructuredNextWorkout, from report: RunReportDetail) async -> Bool { true }
 
     func recentMessages() async -> [CoachMessage] {
@@ -455,7 +471,7 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
         )
     }
 
-    func removeRun(_ run: RecordedRun) async -> Bool { true }
+    func removeRun(_ run: RecordedRun) async -> Bool { false }
 
     func finishRun() async {}
 
@@ -463,12 +479,21 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func activeChallenge() async -> ChallengeSummary { RunSmartPreviewData.activeChallenge }
     func recoverySnapshot() async -> RecoverySnapshot { RunSmartPreviewData.recovery }
     func wellnessSnapshot() async -> WellnessSnapshot { RunSmartPreviewData.wellness }
+    func wellnessTrendSeries(days: Int = 7) async -> WellnessTrendSeries { RunSmartPreviewData.wellnessTrends }
     func shoes() async -> [ShoeSummary] { RunSmartPreviewData.shoes }
     func reminders() async -> [ReminderPreference] { RunSmartPreviewData.reminders }
-    func latestRunReports(limit: Int) async -> [RunReportSummary] { Array(RunSmartPreviewData.runReports.prefix(limit)) }
-    func runReport(for run: RecordedRun) async -> RunReportDetail? { nil }
-    func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? { nil }
-    func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail? { nil }
+    func latestRunReports(limit: Int) async -> [RunReportSummary] { Array(RunSmartDemoData.runReports.prefix(limit)) }
+    func runReport(for run: RecordedRun) async -> RunReportDetail? {
+        let keys = [run.providerActivityID, run.id.uuidString].compactMap { $0 }
+        return RunSmartDemoData.runReportDetails.first { detail in
+            keys.contains(detail.runID) || keys.contains(detail.id)
+        } ?? RunSmartDemoData.runReportDetails.first
+    }
+    func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? { await runReport(for: run) }
+    func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail? {
+        RunSmartDemoData.runReportDetails.first { $0.runID == runID || $0.id == runID }
+            ?? RunSmartDemoData.runReportDetails.first
+    }
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult? { nil }
     func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? { nil }
     func trainingLoadSnapshot() async -> TrainingLoadSnapshot { RunSmartPreviewData.trainingLoad }
@@ -476,20 +501,30 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func approveGarminMorningCheckin() async -> Bool { true }
 
     func routeSuggestions() async -> [RouteSuggestion] {
-        []
+        RunSmartDemoData.routeSuggestions
+    }
+
+    func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion] {
+        let routes = RunSmartDemoData.routeSuggestions
+        guard let targetDistanceKm else { return routes }
+        return routes.sorted { lhs, rhs in
+            abs(lhs.distanceKm - targetDistanceKm) < abs(rhs.distanceKm - targetDistanceKm)
+        }
     }
 
     func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion] {
-        []
+        RunSmartDemoData.routeSuggestions.filter { route in
+            distancesKm.isEmpty || distancesKm.contains { abs($0 - route.distanceKm) <= 1.0 }
+        }
     }
 
     func savedRoutes() async -> [SavedRoute] {
         RunSmartPreviewData.savedRoutes
     }
 
-    func saveRoute(_ route: SavedRoute) async -> Bool { true }
-    func deleteRoute(_ routeID: UUID) async -> Bool { true }
-    func updateRoute(_ route: SavedRoute) async -> Bool { true }
+    func saveRoute(_ route: SavedRoute) async -> Bool { false }
+    func deleteRoute(_ routeID: UUID) async -> Bool { false }
+    func updateRoute(_ route: SavedRoute) async -> Bool { false }
 
     func benchmarkRoutes() async -> [BenchmarkRoute] {
         RunSmartPreviewData.benchmarkRoutes
@@ -499,29 +534,26 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func disableBenchmark(for routeID: UUID) async -> Bool { true }
 
     func deviceStatuses() async -> [ConnectedDeviceStatus] {
-        [
-            ConnectedDeviceStatus(provider: "Garmin Connect", state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: "Preview only"),
-            ConnectedDeviceStatus(provider: "HealthKit", state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: "Preview only")
-        ]
+        RunSmartDemoData.deviceStatuses
     }
 
     func connect(provider: String) async -> ConnectedDeviceStatus {
-        ConnectedDeviceStatus(provider: provider, state: .connected, lastSuccessfulSync: Date(), permissions: ["Preview"], message: "Preview connected")
+        ConnectedDeviceStatus(provider: provider, state: .connected, lastSuccessfulSync: Date(), permissions: ["Demo"], message: "Demo connected locally. No provider auth was started.")
     }
 
     func syncNow(provider: String) async -> ConnectedDeviceStatus {
-        ConnectedDeviceStatus(provider: provider, state: .connected, lastSuccessfulSync: Date(), permissions: ["Preview"], message: "Preview synced")
+        ConnectedDeviceStatus(provider: provider, state: .connected, lastSuccessfulSync: Date(), permissions: ["Demo"], message: "Demo sync completed locally. No network call was made.")
     }
 
     func disconnect(provider: String) async -> ConnectedDeviceStatus {
-        ConnectedDeviceStatus(provider: provider, state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: "Preview disconnected")
+        ConnectedDeviceStatus(provider: provider, state: .connected, lastSuccessfulSync: Date(), permissions: ["Demo"], message: "Disconnect is disabled in Demo Mode.")
     }
 
     func firstSyncReview(provider: String) async -> FirstSyncReview? {
         guard let provider = FirstSyncReviewProvider(serviceName: provider) else { return nil }
         return FirstSyncReview.make(
             provider: provider,
-            importedRuns: [],
+            importedRuns: Array(RunSmartDemoData.recordedRuns.prefix(3)),
             skippedDuplicateCount: 0,
             seen: true
         )
@@ -530,13 +562,27 @@ struct MockRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func markFirstSyncReviewSeen(provider: String) async {}
 
     func requestHealthAccess() async -> ConnectedDeviceStatus {
-        ConnectedDeviceStatus(provider: "HealthKit", state: .connected, lastSuccessfulSync: nil, permissions: ["Preview"], message: "Preview HealthKit")
+        ConnectedDeviceStatus(provider: "HealthKit", state: .connected, lastSuccessfulSync: Date(), permissions: ["Demo"], message: "Demo HealthKit access. No permission prompt was shown.")
     }
 
     func syncHealthData() async -> ConnectedDeviceStatus {
-        ConnectedDeviceStatus(provider: "HealthKit", state: .connected, lastSuccessfulSync: Date(), permissions: ["Preview"], message: "Preview HealthKit sync")
+        ConnectedDeviceStatus(provider: "HealthKit", state: .connected, lastSuccessfulSync: Date(), permissions: ["Demo"], message: "Demo HealthKit sync. No HealthKit data was read.")
     }
 
     func saveToHealth(_ run: RecordedRun) async {}
+
+    func generateWeeklySummary() async -> WeeklyProgressSummary? {
+        WeeklyProgressSummary(
+            headline: "3 runs · 22.4 km",
+            narrative: "Strong consistency this week — you held easy effort across all three sessions as total distance stepped up 12%. Your aerobic base is absorbing the load well.",
+            forwardLook: "Next week's long run is where this base starts to pay off. Keep the easy pace and let fitness compound.",
+            weekLabel: "Week 4 of your plan",
+            generatedDate: Date(),
+            isoWeekKey: WeeklyProgressSummary.currentISOWeekKey(),
+            source: .ai
+        )
+    }
 }
+
+typealias MockRunSmartServices = DemoRunSmartServices
 #endif

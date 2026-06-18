@@ -12,7 +12,8 @@ struct LiveTodayService: TodayProviding {
             plannedDistanceLabel: "8.0 km",
             targetPaceLabel: "5'20\" /km",
             elevationLabel: "120 m",
-            coachMessage: "Live endpoint not wired yet. This payload shape is the planned contract."
+            coachMessage: "Live endpoint not wired yet. This payload shape is the planned contract.",
+            rationale: "Three solid runs this week and resting HR is stable. A tempo effort today builds on that base."
         )
         return RunSmartDTOMapper.todayRecommendation(from: dto)
     }

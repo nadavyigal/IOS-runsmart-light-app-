@@ -8,7 +8,6 @@ struct ProfileTabView: View {
     @State private var runner = RunnerProfile(name: "RunSmart Runner", goal: "Loading", streak: "--", level: "--", totalRuns: 0, totalDistance: 0, totalTime: "0h 0m")
     @State private var achievements: [Achievement] = []
     @State private var deviceStatuses: [ConnectedDeviceStatus] = []
-    @State private var runReports: [RunReportSummary] = []
     @State private var recentRuns: [RecordedRun] = []
     @State private var challenge: ChallengeSummary = .loading
     @State private var navPath: [SecondaryDestination] = []
@@ -23,19 +22,12 @@ struct ProfileTabView: View {
 
                     identityHeader
                     statsBar
+                    connectedSection
                     trainingDataCard
-                    coachSparkCard
                     coachSettingsGrid
+                    coachSparkCard
                     optimizationCards
                     achievementsGallery
-                    connectedSection
-                    if !runReports.isEmpty {
-                        RecentRunReportsCard(reports: runReports) { report in
-                            if let detail = report.toDetail() {
-                                open(.runReportDetail(detail))
-                            }
-                        }
-                    }
                 }
                 .foregroundStyle(Color.textPrimary)
                 .padding(.horizontal, 18)
@@ -65,14 +57,12 @@ struct ProfileTabView: View {
         async let runnerTask = services.runnerProfile()
         async let achievementsTask = services.achievements()
         async let statusesTask = services.deviceStatuses()
-        async let reportsTask = services.latestRunReports(limit: 3)
         async let runsTask = services.recentRuns()
         async let challengeTask = services.activeChallenge()
-        (runner, achievements, deviceStatuses, runReports, recentRuns, challenge) = await (
+        (runner, achievements, deviceStatuses, recentRuns, challenge) = await (
             runnerTask,
             achievementsTask,
             statusesTask,
-            reportsTask,
             runsTask,
             challengeTask
         )
@@ -317,7 +307,7 @@ struct ProfileTabView: View {
                     ConnectedServiceTile(title: "Garmin", detail: "Garmin Connect", status: statusLabel("Garmin Connect"), symbol: "link.circle.fill", tint: .accentPrimary) {
                         open(.connectedService("Garmin Connect"))
                     }
-                    ConnectedServiceTile(title: "Health", detail: "HealthKit", status: statusLabel("HealthKit"), symbol: "heart.fill", tint: .accentHeart) {
+                    ConnectedServiceTile(title: "HealthKit", detail: "HealthKit read/write", status: statusLabel("HealthKit"), symbol: "heart.fill", tint: .accentHeart) {
                         open(.connectedService("HealthKit"))
                     }
                     ConnectedServiceTile(title: "Prefs", detail: "Reminders", status: session.onboardingProfile.notificationsEnabled ? "On" : "Manage", symbol: "bell.fill", tint: .accentRecovery) {
@@ -328,30 +318,6 @@ struct ProfileTabView: View {
                     }
                 }
             }
-        }
-    }
-
-    private var settingsSections: some View {
-        VStack(spacing: 12) {
-            ProfileSettingsSection(title: "Coach Settings", rows: [
-                .init(title: "Tone", value: session.onboardingProfile.coachingTone, symbol: "sparkles", destination: .coachingTone),
-                .init(title: "Run Reminders", value: session.onboardingProfile.notificationsEnabled ? "On" : "Off", symbol: "bell.badge.fill", destination: .reminders),
-                .init(title: "Goal & Plan", value: session.onboardingProfile.goal.isEmpty ? "Not set" : session.onboardingProfile.goal, symbol: "target", destination: .goalWizard),
-                .init(title: "Challenges", value: challenge.isActive ? challenge.dayLabel : "Adopt", symbol: "trophy.fill", destination: .challenges),
-                .init(title: "Weekly Recap", value: "Ready", symbol: "calendar.badge.checkmark", destination: .weeklyRecap)
-            ], onSelect: open)
-
-            ProfileSettingsSection(title: "Connected Devices", rows: [
-                .init(title: "Garmin", value: statusLabel("Garmin Connect"), symbol: "link.circle.fill", destination: .connectedService("Garmin Connect")),
-                .init(title: "HealthKit", value: statusLabel("HealthKit"), symbol: "heart.fill", destination: .connectedService("HealthKit")),
-                .init(title: "Wellness Panels", value: "View", symbol: "waveform.path.ecg", destination: .garminWellness)
-            ], onSelect: open)
-
-            ProfileSettingsSection(title: "Preferences", rows: [
-                .init(title: "Units", value: session.onboardingProfile.units, symbol: "ruler", destination: .reminders),
-                .init(title: "Notifications", value: session.onboardingProfile.notificationsEnabled ? "On" : "Off", symbol: "bell.fill", destination: .reminders),
-                .init(title: "Privacy", value: "Manage", symbol: "lock.shield.fill", destination: .account)
-            ], onSelect: open)
         }
     }
 
@@ -561,50 +527,6 @@ private struct ConnectedServiceTile: View {
         }
         .buttonStyle(.plain)
     }
-}
-
-private struct ProfileSettingsSection: View {
-    var title: String
-    var rows: [ProfileSettingsRowModel]
-    var onSelect: (SecondaryDestination) -> Void
-
-    var body: some View {
-        ContentCard {
-            VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(title: title)
-                ForEach(rows) { row in
-                    Button { onSelect(row.destination) } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: row.symbol)
-                                .foregroundStyle(Color.accentPrimary)
-                                .frame(width: 34, height: 34)
-                                .background(Color.accentPrimary.opacity(0.10), in: Circle())
-                            Text(row.title)
-                                .font(.bodyMD.weight(.semibold))
-                            Spacer()
-                            Text(row.value)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.textSecondary)
-                                .lineLimit(1)
-                            Image(systemName: "chevron.right")
-                                .font(.caption.bold())
-                                .foregroundStyle(Color.textTertiary)
-                        }
-                        .padding(.vertical, 6)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-}
-
-private struct ProfileSettingsRowModel: Identifiable {
-    let id = UUID()
-    var title: String
-    var value: String
-    var symbol: String
-    var destination: SecondaryDestination
 }
 
 struct AchievementBadge: View {

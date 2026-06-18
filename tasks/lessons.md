@@ -6,6 +6,7 @@ Review this file at the start of future tasks.
 - Keep `AGENTS.md`, `CLAUDE.md`, and `CODEX.md` as routers, not manuals.
 - Load only the files needed for the current workflow.
 - Use app-repo `tasks/todo.md`, `tasks/lessons.md`, and `tasks/session-log.md` as the single source of truth; outer wrapper status files should only point here.
+- For Xcode validation, prefer quiet/filtered logs because build settings can echo xcconfig-backed service keys; never paste raw build setting output into task memory or final reports.
 - Do not assume the project is already a clean RunSmart app; verify whether files still use resume-builder names.
 - Do not change app feature code when the task is to install or update the operating layer only.
 - Before TestFlight claims, verify signing, bundle id, archive status, permissions, privacy strings, and smoke tests.
@@ -33,8 +34,106 @@ Review this file at the start of future tasks.
 - When adding optional behavior to a shared service protocol, provide default extension fallbacks or update every test double in the same pass before validation.
 - Before App Store readiness claims, inspect the built archive bundle for display name, encryption declaration, bundled diagnostics, dSYMs, entitlements, and distribution-only signing; source checks alone are not enough.
 - In this Xcode folder-synchronized project, untracked Swift files inside `IOS RunSmart app/` can still compile; before release, inspect and clean untracked source under the synced app root, not only tracked project references.
+- For plan/workout date-only strings, format and compare with the user's local calendar/timezone; do not normalize date-only schedule values through UTC during Today matching.
+- Treat low stress as healthy or neutral in recovery classifiers; only high or elevated stress should contribute to low-recovery decisions.
+- After Sign in with Apple, do not ask users to type name or email; use AuthenticationServices-provided values when available and an internal fallback when they are not.
+- Onboarding aha moments must not auto-skip from stale `user_aha_moments` rows when the same Apple auth uid returns after account deletion; always show the onboarding container and reset onboarding moments on delete.
+- Garmin OAuth on iOS must use the registered `runsmart://` callback scheme with `ASWebAuthenticationSession`, then poll `garmin_connections` until connected before returning success.
+- Before applying RLS or index migrations, inspect the live relation type in `pg_class`; views need `security_invoker` and protection on underlying tables, not table RLS or direct indexes.
+- With XcodeBuildMCP build tools, set DerivedData through session defaults or omit it; do not pass `-derivedDataPath` in `extraArgs` unless the tool is not already supplying one.
 
 ## Lesson Log
+
+### 2026-06-17 - Filter Xcode Build Logs Around Secrets
+Trigger: A Release `xcodebuild` validation emitted expanded build settings, including service configuration values, in raw terminal output.
+
+Lesson: Xcode build logs can expose xcconfig-backed values even when source files are clean.
+
+Future rule: For Xcode validation, prefer quiet/filtered logs because build settings can echo xcconfig-backed service keys; never paste raw build setting output into task memory or final reports.
+
+### 2026-06-16 - Avoid Duplicate DerivedData Arguments In XcodeBuildMCP
+Trigger: A simulator compile for the Sign in with Apple demo failed immediately because `-derivedDataPath` was passed through `build_sim.extraArgs` while XcodeBuildMCP already supplied its own DerivedData argument.
+
+Lesson: XcodeBuildMCP may manage DerivedData internally, so adding another `-derivedDataPath` through `extraArgs` can create a false build failure unrelated to app source.
+
+Future rule: With XcodeBuildMCP build tools, set DerivedData through session defaults or omit it; do not pass `-derivedDataPath` in `extraArgs` unless the tool is not already supplying one.
+
+### 2026-06-14 - SIWA Smoke Needs Apple-Auth-Capable Simulator Or Device
+Trigger: Final build 14 smoke reached the fresh Sign in with Apple screen, but tapping SIWA on the local simulator returned `ASAuthorizationError 1000`, blocking the delete-account and register-again path.
+
+Lesson: Source/build/archive checks cannot substitute for the Apple review account-cycle smoke when the rejection risk is auth/onboarding behavior.
+
+Future rule: Before promising App Store resubmission readiness for SIWA/delete-account fixes, run the account-cycle smoke on a simulator signed into Apple ID or an Apple-auth-capable physical device. If SIWA returns authorization error 1000, report the live smoke as blocked and do not green-light archive/upload solely from static checks.
+
+### 2026-06-12 - xcconfig URLs Must Escape Double Slashes
+Trigger: Build 14 smoke test crashed at `SupabaseClient.init` because the built app had `SUPABASE_URL = https:` instead of the full Supabase host.
+
+Lesson: In `.xcconfig`, `//` starts a comment, so `SUPABASE_URL = https://...` silently truncates to `https:` and the app fatals on launch.
+
+Future rule: Never put raw `https://` values in xcconfig. Use `https:/$()/host/path` or keep full URLs in `Info.plist` literals. After changing xcconfig secrets, verify the built app `Info.plist` contains the full `SUPABASE_URL` before archiving.
+
+### 2026-06-12 - Inspect Supabase Relation Types Before RLS
+Trigger: The Garmin RLS migration assumed `garmin_activity_points` was a table, but production has it as a view over `garmin_activities.telemetry_json`, so `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` failed.
+
+Lesson: Live Supabase schemas can drift from migration assumptions. For views, RLS belongs on the underlying tables and the view should run with invoker security when exposed to authenticated clients.
+
+Future rule: Before applying RLS or index migrations, inspect `pg_class.relkind` and existing view definitions. Use `ALTER VIEW ... SET (security_invoker = true)` for exposed owner-scoped views, and index the underlying base tables instead of the view.
+
+### 2026-06-12 - Keep WellnessTrendMapper When Extracting Garmin Helpers
+Trigger: Phase 4.2 added `GarminDistanceBucket` but closed the enum before `WellnessTrendMapper`, leaving orphaned static methods and a compile failure.
+
+Lesson: When adding a new type mid-file, verify the following enum/struct still has its opening brace; run `xcodebuild` before marking cleanup done.
+
+Future rule: After editing `GarminMappers.swift`, confirm both `GarminDistanceBucket` and `WellnessTrendMapper` compile; parallel route loads in `GarminImportProcessor` need `@escaping RoutePointLoader`.
+
+### 2026-06-12 - Hybrid auth_user_id Identity For iOS + Web Profiles
+Trigger: Code review found hashed challenge `user_id`, unscoped Garmin GPS reads, and UUID profile run-sync failures.
+
+Lesson: Treat `auth_user_id` as canonical for enrollments, RLS, and new writes; keep legacy numeric `profiles.id` only where gateway or bigint FKs still require it.
+
+Future rule: Resolve identity via `RunSmartIdentity` / `TrainingPlanRepository.identity(authUserID:)`; never synthesize enrollment IDs from UUID hashes; scope Garmin route queries by `(auth_user_id, activity_id)`; coordinate Garmin gateway `authUserId` support before claiming UUID-only connect works.
+
+### 2026-06-11 - Re-onboarding Must Replay Aha Moments And Garmin Needs App Callback
+Trigger: Smoke test after delete account + Sign in with Apple showed no onboarding aha moments, and Garmin OAuth finished in Safari without updating iOS connection state.
+
+Lesson: `OnboardingAhaMomentsContainer` skipped both moments when `user_aha_moments` still had rows for the unchanged auth uid. Garmin used `callbackURLScheme: nil` with an https redirect, so the auth session never returned to the app.
+
+Future rule: Do not gate onboarding aha moments on prior `hasFired` state; reset onboarding moments during account deletion. Use `runsmart://garmin/callback`, set `callbackURLScheme: "runsmart"`, and poll Supabase for `garmin_connections.status == connected`.
+
+### 2026-06-08 - Sign In With Apple Must Not Be Followed By Name Or Email Collection
+Trigger: Apple rejected RunSmart 1.0.1 build 11 under Guideline 4 because the app requested name/email after Sign in with Apple.
+
+Lesson: Requesting `.fullName` and `.email` through AuthenticationServices is fine, but showing a post-auth onboarding name or email field can be treated as requiring information Apple already provides.
+
+Future rule: For Sign in with Apple flows, capture `ASAuthorizationAppleIDCredential.fullName` and `email` when Apple returns them, seed the profile internally, and use an internal display-name fallback instead of asking the user for name or email during onboarding.
+
+### 2026-06-07 - App Review Needs API Names In Visible UI
+Trigger: Apple rejected RunSmart 1.0.1 build 9 under Guideline 2.5.1 because HealthKit/CareKit functionality was not clearly identified in the app UI.
+
+Lesson: Permission strings, App Store copy, and friendly Apple Health wording are not enough when the binary includes HealthKit. The app UI itself needs explicit HealthKit functionality disclosure near the connection flow.
+
+Future rule: Before resubmitting any HealthKit build, verify visible UI names HealthKit and states what is read and written; if CareKit is not used, confirm no CareKit imports, entitlements, or claims remain.
+
+### 2026-06-04 - Distribution Keychain Access Blocks Export
+Trigger: App Store export for RunSmart 1.0.1 build 9 reached the Apple Distribution identity but `codesign` blocked in Security/keychain signing and no IPA was produced.
+
+Lesson: A valid Apple Distribution identity is not enough for unattended release export if the private key still requires a macOS keychain approval prompt.
+
+Future rule: Before a release-day upload, run a tiny distribution-signing/export check or pre-authorize the Apple Distribution key for Apple tool access, then archive/export.
+
+### 2026-05-20 - Date-Only Plan Matching Must Use User-Local Days
+Trigger: Sprint 10 readiness tests exposed that date-only plan formatting in UTC could make a same-day planned workout look like the wrong day for users outside UTC.
+
+Lesson: Scheduled workout `yyyy-MM-dd` values are user-calendar values, not instants to normalize through UTC during matching or query construction.
+
+Future rule: For plan/workout date-only strings, format and compare with the user's local calendar/timezone, and keep tests on the same calendar semantics as the app path.
+
+### 2026-05-20 - Low Stress Is Not Low Recovery
+Trigger: Sprint 10 readiness tests showed that the word "Low" in Garmin stress text was being treated as low recovery.
+
+Lesson: Recovery classifiers must interpret metric direction by field, not by scanning all labels for alarming words.
+
+Future rule: Treat low stress as healthy/neutral; only high or elevated stress should contribute to low-recovery decisions.
 
 ### 2026-05-12 - Thin OS Install
 Trigger: User explicitly asked for a lightweight Agent OS, not a third-party framework or huge prompt file.
@@ -231,3 +330,53 @@ Trigger: Garmin recent activity UI could show raw short fragments even though im
 Lesson: A raw provider row is not necessarily a user-visible workout; UI lists, report lists, and persistence need the same validity, hidden-run, dedupe, and fragment rules.
 
 Future rule: Never render connected-service activity rows directly from provider tables. Normalize to canonical `RecordedRun` candidates first, then map back to display rows only for surviving provider IDs.
+
+### 2026-05-26 - Mock Services Must Override generateWeeklySummary For Screenshots
+Trigger: Phase 3 design review found WeeklyProgressCard invisible in App Store screenshots because MockRunSmartServices inherited the protocol-default `generateWeeklySummary()` returning `nil`. TodayTabView only renders the card when the value is non-nil.
+
+Lesson: Protocol default implementations that return nil/empty are silent; any new conditional-render feature backed by a service call needs its mock override checked before screenshot capture or preview demos.
+
+Future rule: After adding any `func foo() async -> T?` to a service protocol with a nil default, immediately add a non-nil mock override to MockRunSmartServices. Write a check in PRE-SCREENSHOT checklist: grep for `nil` returns in MockRunSmartServices against cards that render conditionally.
+
+### 2026-05-20 - Return Xcode To Main After Merge
+Trigger: After merging a PR, Xcode reopened on a temporary Codex branch while local `main` had diverged, leaving the branch picker noisy and builds showing stale errors.
+
+Lesson: A successful PR validation branch is not the right local state for user handoff after merge; Xcode can also retain stale DerivedData from the previous branch.
+
+Future rule: After merge handoff, align local `main` to `origin/main`, remove temporary local branches/worktrees, clear the app's DerivedData, and reopen Xcode on `main`.
+
+### 2026-05-27 - Verify Throwing Decoder Fallbacks In Xcodebuild
+Trigger: A Flex Week response compatibility decoder parsed with `swiftc -parse` but failed the Xcode build because a throwing nil-coalescing fallback was not explicitly handled.
+
+Lesson: Parser-only validation is useful but not enough for Codable compatibility edits that use throwing expressions.
+
+Future rule: After changing custom `Decodable` fallbacks, run an Xcode build before handoff and prefer explicit `if let` decode branches over throwing `??` expressions.
+
+### 2026-06-01 - xcconfig-Based Secret Injection For API Keys
+Trigger: PostHog API key was hardcoded in `RunSmartInfo.plist`, visible in git history.
+
+Lesson: iOS API keys that must not appear in git should be injected through a committed wrapper xcconfig that optionally includes a gitignored secrets file. Pointing Xcode directly at the gitignored file breaks clean clones and CI before secrets are generated.
+
+Setup for this project:
+1. `RunSmartConfig.xcconfig` (committed) — defines safe defaults and `#include? "RunSmartSecrets.xcconfig"`
+2. `RunSmartSecrets.xcconfig` (gitignored) — defines `POSTHOG_API_KEY = phc_...`
+3. `RunSmartSecrets.xcconfig.example` (committed) — template with placeholder value
+4. `RunSmartInfo.plist` uses `$(POSTHOG_API_KEY)` instead of the raw key
+5. App target Debug and Release configs in `project.pbxproj` reference the committed wrapper config
+6. On CI: `echo "POSTHOG_API_KEY = $POSTHOG_API_KEY" > RunSmartSecrets.xcconfig` before xcodebuild
+
+Future rule: Never hardcode third-party API keys in plist files. Always use xcconfig injection so keys stay out of git.
+
+### 2026-06-14 - Account Delete Must Not Delete From Views
+Trigger: Live account-deletion smoke failed because the deployed `delete_account` Edge Function attempted to delete directly from the production `garmin_activity_points` view.
+
+Lesson: Account deletion code must delete owned base tables or call safe RPCs; direct deletes against views can fail in production even when the table-like name looks deleteable in source.
+
+Future rule: Before adding a relation to account-deletion cleanup, verify whether it is a base table or view in the live schema. If it is a view, delete the underlying owner-scoped base rows instead.
+
+### 2026-06-14 - Native OAuth Must Complete The Server Exchange
+Trigger: Garmin connect returned to the iOS app through `ASWebAuthenticationSession`, but the app only observed the callback and then polled Supabase; the gateway never received the returned `code` and `state` to persist tokens.
+
+Lesson: Native OAuth callbacks are not complete until the app hands the authorization result back to the backend that owns the client secret/token exchange.
+
+Future rule: For native OAuth flows routed through a web gateway, validate the full loop: request native redirect, receive custom-scheme callback, POST `code`/`state` to the gateway callback, persist connection/tokens, then poll or refresh UI.

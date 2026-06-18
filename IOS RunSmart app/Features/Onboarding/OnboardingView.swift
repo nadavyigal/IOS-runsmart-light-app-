@@ -32,6 +32,11 @@ struct OnboardingView: View {
             }
         }
         .foregroundStyle(Color.textPrimary)
+        .onAppear {
+            if step == 0 {
+                Analytics.trackOnboardingStarted()
+            }
+        }
     }
 
     private var progress: some View {
@@ -48,8 +53,6 @@ struct OnboardingView: View {
 
     private var goalStep: some View {
         OnboardingStepShell(title: "Goal", subtitle: "Pick the result your RunSmart coach should build around.", symbol: "target") {
-            TextField("Your name", text: $profile.displayName)
-                .textFieldStyle(OnboardingFieldStyle())
             OnboardingChoiceGrid(options: goals, selection: $profile.goal)
             OnboardingPrimaryButton(title: "Continue", symbol: "arrow.right", action: advance)
         }
@@ -101,28 +104,37 @@ struct OnboardingView: View {
                 .font(.caption)
                 .foregroundStyle(Color.textSecondary)
             DevicePreviewRow(title: "Garmin Connect", detail: "Import supported runs and wellness signals after you connect Garmin.", symbol: "link.circle.fill")
-            DevicePreviewRow(title: "HealthKit", detail: "Read workout and health signals you approve; write completed GPS runs when allowed.", symbol: "heart.fill")
+            DevicePreviewRow(title: "HealthKit", detail: "Uses HealthKit to read approved workouts, routes, heart rate, HRV, sleep, steps, and active energy. When you allow it, RunSmart can also write completed GPS runs to Health.", symbol: "heart.fill")
             RookieChallengeCallout()
             OnboardingPrimaryButton(title: "Confirm Privacy", symbol: "arrow.right", action: advance)
         }
     }
 
     private var completionStep: some View {
-        OnboardingStepShell(title: "Ready", subtitle: "Your 21-Day Rookie Challenge and first plan decision are waiting in Today.", symbol: "checkmark.seal.fill") {
+        OnboardingStepShell(title: "Ready", subtitle: "Your personalized training plan is being created. Open Today to see your first workout.", symbol: "checkmark.seal.fill") {
             OnboardingPrimaryButton(title: "Start RunSmart", symbol: "figure.run") {
                 var completed = profile
                 if completed.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     completed.displayName = "RunSmart Runner"
                 }
+                Analytics.trackOnboardingCompleted(
+                    goal: completed.goal,
+                    experience: completed.experience,
+                    daysPerWeek: completed.weeklyRunDays
+                )
                 onComplete(completed)
             }
         }
     }
 
     private func advance() {
+        let stepNames = ["goal", "experience", "schedule", "privacy", "coaching"]
+        let completedStep = step
         withAnimation(RunSmartMotion.tabSpring) {
             step = min(stepCount - 1, step + 1)
         }
+        let name = completedStep < stepNames.count ? stepNames[completedStep] : "unknown"
+        Analytics.trackOnboardingStepCompleted(stepNumber: completedStep + 1, stepName: name)
     }
 
     private func toggleDay(_ day: String) {
@@ -141,33 +153,35 @@ private struct OnboardingStepShell<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Spacer(minLength: 20)
-            HStack(spacing: 14) {
-                RunSmartLogoMark(size: 76, filled: false, glow: true)
-                Image(systemName: symbol)
-                    .font(.system(size: 24, weight: .black))
-                    .foregroundStyle(Color.black)
-                    .frame(width: 52, height: 52)
-                    .background(Color.accentPrimary, in: Circle())
-                    .shadow(color: Color.accentPrimary.opacity(0.36), radius: 18)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title)
-                    .font(.displayMD)
-                    .displayTightTracking(-0.8)
-                Text(subtitle)
-                    .font(.bodyLG)
-                    .foregroundStyle(Color.textSecondary)
-            }
-            ContentCard {
-                VStack(alignment: .leading, spacing: 14) {
-                    content
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(spacing: 14) {
+                    RunSmartLogoMark(size: 76, filled: false, glow: true)
+                    Image(systemName: symbol)
+                        .font(.system(size: 24, weight: .black))
+                        .foregroundStyle(Color.black)
+                        .frame(width: 52, height: 52)
+                        .background(Color.accentPrimary, in: Circle())
+                        .shadow(color: Color.accentPrimary.opacity(0.36), radius: 18)
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(title)
+                        .font(.displayMD)
+                        .displayTightTracking(-0.8)
+                    Text(subtitle)
+                        .font(.bodyLG)
+                        .foregroundStyle(Color.textSecondary)
+                }
+                ContentCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        content
+                    }
                 }
             }
-            Spacer(minLength: 20)
+            .padding(24)
+            .padding(.top, 20)
+            .padding(.bottom, 20)
         }
-        .padding(24)
     }
 }
 
@@ -243,15 +257,5 @@ private struct DevicePreviewRow: View {
                     .foregroundStyle(Color.textSecondary)
             }
         }
-    }
-}
-
-private struct OnboardingFieldStyle: TextFieldStyle {
-    func _body(configuration: TextField<Self._Label>) -> some View {
-        configuration
-            .foregroundStyle(Color.textPrimary)
-            .padding(12)
-            .background(Color.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

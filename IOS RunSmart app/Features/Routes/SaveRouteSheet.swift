@@ -269,6 +269,7 @@ struct SaveRouteSheet: View {
 
         saveResult = saved ? .saved : .failed
         if saved {
+            Analytics.trackRouteSaved(pointCount: run.routePoints.count)
             RunSmartHaptics.success()
             try? await Task.sleep(for: .milliseconds(600))
             dismiss()

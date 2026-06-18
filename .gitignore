@@ -11,3 +11,4 @@ xcuserdata/
 *.xcuserstate
 *.xcscmblueprint
 supabase/.temp/
+RunSmartSecrets.xcconfig

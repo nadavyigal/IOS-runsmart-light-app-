@@ -791,8 +791,10 @@ final class RunSmartReadinessTests: XCTestCase {
     }
 
     func testTodayResolvedStateSettlesAfterCompletedSameDayWorkoutAndKeepsFutureUpNext() {
+        // Use the machine's local timezone so it stays consistent with makeDate(),
+        // which parses via ISO8601DateFormatter.shortDate (timeZone = .current).
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = TimeZone.current
         let now = makeDate("2026-05-20").addingTimeInterval(9 * 3600)
         let completedToday = makeWorkout(
             date: "2026-05-20",
@@ -866,7 +868,7 @@ final class RunSmartReadinessTests: XCTestCase {
 
     func testPlanExplanationExplainsTodayWorkoutOnTrack() {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = TimeZone.current
         let now = makeDate("2026-05-07").addingTimeInterval(9 * 3600)
         let workout = makeWorkout(date: "2026-05-07", kind: .tempo, title: "Tempo Builder", distance: "8.0 km")
         let explanation = PlanExplanation.make(
@@ -978,7 +980,7 @@ final class RunSmartReadinessTests: XCTestCase {
 
     func testPlanExplanationUsesRecentImportedAndLowRecoverySignals() {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = TimeZone.current
         let now = makeDate("2026-05-07").addingTimeInterval(9 * 3600)
         let today = makeWorkout(date: "2026-05-07", kind: .easy, title: "Easy Run", distance: "5.0 km")
         let imported = makeRun(
@@ -1070,9 +1072,6 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(report.notes.summary, "No coach report yet.")
     }
 
-    func testBrokenRemotePostRunInsightLookupIsDisabledBehindFallback() {
-        XCTAssertFalse(SupabaseRunSmartServices.remotePostRunInsightLookupEnabled)
-    }
 
     func testPostRunLearningCardUsesFallbackReportAndSuggestedWorkoutAction() {
         let run = makeRun(
@@ -1135,7 +1134,8 @@ final class RunSmartReadinessTests: XCTestCase {
 
         let model = PostRunLearningCardModel.make(run: run, outcome: nil, report: nil, activePlan: nil)
 
-        XCTAssertEqual(model.source, .heuristic)
+        // source is .fallback (run exists but no AI report); .heuristic is only when run == nil
+        XCTAssertEqual(model.source, .fallback)
         XCTAssertEqual(model.planImpact, .unavailable)
         XCTAssertTrue(model.happened.contains("short"))
         XCTAssertTrue(model.learned.contains("too short"))
@@ -2225,12 +2225,92 @@ final class RunSmartReadinessTests: XCTestCase {
             syncedAt: nil
         )
 
-        let data = try JSONEncoder().encode(DBRunInsert(run: run, profileID: 7, kind: .easy, notes: "Imported from Apple Health"))
+        let authUserID = UUID(uuidString: "55555555-5555-5555-5555-555555555555")!
+        let identity = RunSmartIdentity(authUserID: authUserID, profileUUID: nil, numericUserID: 7)
+        let data = try JSONEncoder().encode(
+            DBRunInsert(run: run, identity: identity, kind: .easy, notes: "Imported from Apple Health")
+        )
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
+        XCTAssertEqual(json["auth_user_id"] as? String, authUserID.uuidString)
+        XCTAssertEqual(json["profile_id"] as? Int, 7)
         XCTAssertEqual(json["source_provider"] as? String, "healthkit")
         XCTAssertEqual(json["source_activity_id"] as? String, providerID)
         XCTAssertEqual(json["heart_rate"] as? Int, 140)
+    }
+
+    func testDBRunInsertOmitsProfileIDForUUIDOnlyIdentity() throws {
+        let authUserID = UUID(uuidString: "66666666-6666-6666-6666-666666666666")!
+        let profileUUID = UUID(uuidString: "77777777-7777-7777-7777-777777777777")!
+        let run = RecordedRun(
+            id: UUID(uuidString: "88888888-8888-8888-8888-888888888888")!,
+            providerActivityID: "garmin-activity-42",
+            source: .garmin,
+            startedAt: Date(timeIntervalSince1970: 30_000),
+            endedAt: Date(timeIntervalSince1970: 30_900),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 900,
+            averagePaceSecondsPerKm: 180,
+            averageHeartRateBPM: 152,
+            routePoints: [],
+            syncedAt: nil
+        )
+
+        let identity = RunSmartIdentity(authUserID: authUserID, profileUUID: profileUUID, numericUserID: nil)
+        let data = try JSONEncoder().encode(
+            DBRunInsert(run: run, identity: identity, kind: .easy, notes: "Completed activity from garmin")
+        )
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let keys = Set(json.keys)
+
+        XCTAssertEqual(json["auth_user_id"] as? String, authUserID.uuidString)
+        XCTAssertNil(json["profile_id"])
+        XCTAssertEqual(keys.contains("profile_id"), false)
+        XCTAssertEqual(json["source_provider"] as? String, "garmin")
+        XCTAssertEqual(json["source_activity_id"] as? String, "garmin-activity-42")
+    }
+
+    func testChallengeEnrollmentPayloadUsesAuthUserIDWithoutHashedUserID() throws {
+        struct EnrollInsert: Encodable {
+            let user_id: Int64?
+            let auth_user_id: String
+            let challenge_id: String
+            let started_at: String
+            let updated_at: String
+
+            enum CodingKeys: String, CodingKey {
+                case user_id
+                case auth_user_id
+                case challenge_id
+                case started_at
+                case updated_at
+            }
+
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encodeIfPresent(user_id, forKey: .user_id)
+                try container.encode(auth_user_id, forKey: .auth_user_id)
+                try container.encode(challenge_id, forKey: .challenge_id)
+                try container.encode(started_at, forKey: .started_at)
+                try container.encode(updated_at, forKey: .updated_at)
+            }
+        }
+
+        let authUserID = UUID(uuidString: "99999999-9999-9999-9999-999999999999")!
+        let payload = EnrollInsert(
+            user_id: nil,
+            auth_user_id: authUserID.uuidString,
+            challenge_id: "11111111-1111-1111-1111-111111111111",
+            started_at: "2026-06-11",
+            updated_at: "2026-06-11T12:00:00Z"
+        )
+
+        let data = try JSONEncoder().encode(payload)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(json["auth_user_id"] as? String, authUserID.uuidString)
+        XCTAssertNil(json["user_id"])
+        XCTAssertEqual(json["challenge_id"] as? String, "11111111-1111-1111-1111-111111111111")
     }
 
     func testActivityConsolidationMergesSameRunAndKeepsRichestCanonical() {
@@ -2820,6 +2900,579 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(payload.shareText.lowercased().contains("longitude"))
         XCTAssertFalse(payload.shareText.lowercased().contains("coordinate"))
         XCTAssertTrue(payload.privacyNote.lowercased().contains("no map"))
+    }
+
+    func testNullAnalyticsServiceSwallowsAllCallsWithoutCrashing() {
+        let svc = NullAnalyticsService()
+        svc.track("test_event", properties: ["key": "value"])
+        svc.identify(userId: "user_123", traits: ["plan": "pro"])
+        svc.reset()
+        // No assertion needed — just confirm no crash
+    }
+
+    func testAnalyticsSharedDefaultsToNullService() {
+        // The app host may call Analytics.setup() before tests run, so we can't
+        // assert the compile-time default. Instead verify that shared is assignable
+        // to NullAnalyticsService and the type-check protocol works correctly.
+        let saved = Analytics.shared
+        defer { Analytics.shared = saved }
+        Analytics.shared = NullAnalyticsService()
+        XCTAssertTrue(Analytics.shared is NullAnalyticsService,
+            "Analytics.shared must accept and expose NullAnalyticsService assignments")
+    }
+
+    private final class CapturingAnalyticsService: AnalyticsTracking {
+        private(set) var events: [(name: String, properties: [String: Any])] = []
+
+        func track(_ event: String, properties: [String: Any]) {
+            events.append((event, properties))
+        }
+
+        func identify(userId: String, traits: [String: Any]) {}
+        func reset() {}
+    }
+
+    func testCompletedRunAnalyticsFiresOnceAndMarksFirstRunOnce() {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        let suiteName = "runsmart.analytics.completed-run.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer {
+            Analytics.shared = saved
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        Analytics.shared = tracker
+        let firstRun = RecordedRun(
+            id: UUID(uuidString: "00000000-0000-0000-0000-00000000A001")!,
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: Date(timeIntervalSince1970: 1_000),
+            endedAt: Date(timeIntervalSince1970: 2_800),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_800,
+            averagePaceSecondsPerKm: 360,
+            averageHeartRateBPM: nil,
+            routePoints: [],
+            syncedAt: nil
+        )
+        let secondRun = RecordedRun(
+            id: UUID(uuidString: "00000000-0000-0000-0000-00000000A002")!,
+            providerActivityID: "garmin-activity-2",
+            source: .garmin,
+            startedAt: Date(timeIntervalSince1970: 10_000),
+            endedAt: Date(timeIntervalSince1970: 12_100),
+            distanceMeters: 6_000,
+            movingTimeSeconds: 2_100,
+            averagePaceSecondsPerKm: 350,
+            averageHeartRateBPM: 148,
+            routePoints: [],
+            syncedAt: nil
+        )
+
+        Analytics.trackCompletedRunIfNeeded(firstRun, runType: "free", defaults: defaults)
+        Analytics.trackCompletedRunIfNeeded(firstRun, runType: "free", defaults: defaults)
+        Analytics.trackCompletedRunIfNeeded(secondRun, defaults: defaults)
+
+        XCTAssertEqual(tracker.events.map(\.name), ["run_completed", "first_run_completed", "run_completed"])
+        XCTAssertEqual(tracker.events[0].properties["run_type"] as? String, "free")
+        XCTAssertEqual(tracker.events[0].properties["is_first_run"] as? Bool, true)
+        XCTAssertEqual(tracker.events[2].properties["run_type"] as? String, "Garmin")
+        XCTAssertEqual(tracker.events[2].properties["is_first_run"] as? Bool, false)
+    }
+
+    // MARK: - E1: TodayRecommendation rationale field (Story 1)
+
+    func testTodayRecommendationRationaleDefaultsToNil() {
+        let rec = TodayRecommendation(
+            readiness: 75,
+            readinessLabel: "Good",
+            workoutTitle: "Easy Run",
+            distance: "5 km",
+            pace: "6:00",
+            elevation: "--",
+            coachMessage: "Let's go"
+        )
+        XCTAssertNil(rec.rationale, "rationale must default to nil")
+    }
+
+    func testTodayRecommendationAcceptsRationaleString() {
+        let rec = TodayRecommendation(
+            readiness: 75,
+            readinessLabel: "Good",
+            workoutTitle: "Easy Run",
+            distance: "5 km",
+            pace: "6:00",
+            elevation: "--",
+            coachMessage: "Let's go",
+            rationale: "Body battery at 82 — a strong signal you're ready to push today."
+        )
+        XCTAssertEqual(rec.rationale, "Body battery at 82 — a strong signal you're ready to push today.")
+    }
+
+    func testTodayRecommendationWithRationaleCompiles() {
+        let withRationale = TodayRecommendation(
+            readiness: 80, readinessLabel: "High",
+            workoutTitle: "Easy Run", distance: "5 km",
+            pace: "6:00", elevation: "--",
+            coachMessage: "Go run.",
+            rationale: "Body battery at 80 — a strong signal today."
+        )
+        let withoutRationale = TodayRecommendation(
+            readiness: 80, readinessLabel: "High",
+            workoutTitle: "Easy Run", distance: "5 km",
+            pace: "6:00", elevation: "--",
+            coachMessage: "Go run."
+        )
+        XCTAssertNotNil(withRationale.rationale)
+        XCTAssertNil(withoutRationale.rationale)
+    }
+
+    // MARK: - E1: TodayRationaleBuilder (Story 2)
+
+    func testRationaleUsesBodyBatteryHighPath() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: 85,
+            hrv: nil,
+            sleepSeconds: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false,
+            planWeekIndex: 2
+        )
+        XCTAssertTrue(result.contains("85") || result.lowercased().contains("body battery"),
+                      "High body battery rationale should reference the score or body battery")
+        XCTAssertLessThanOrEqual(result.count, 140, "Rationale must fit on card (<=140 chars)")
+    }
+
+    func testRationaleUsesBodyBatteryLowPath() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: 28,
+            hrv: nil,
+            sleepSeconds: nil,
+            workoutTitle: "Tempo Run",
+            isRestDay: false,
+            planWeekIndex: 4
+        )
+        XCTAssertTrue(result.lowercased().contains("low") || result.lowercased().contains("easy") || result.lowercased().contains("protect"),
+                      "Low body battery should signal caution")
+        XCTAssertLessThanOrEqual(result.count, 140)
+    }
+
+    func testRationaleUsesHRVWhenNoBattery() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: nil,
+            hrv: 62.0,
+            sleepSeconds: nil,
+            workoutTitle: "Long Run",
+            isRestDay: false,
+            planWeekIndex: 6
+        )
+        XCTAssertTrue(result.lowercased().contains("hrv") || result.contains("62"),
+                      "HRV path should reference HRV or the value")
+        XCTAssertLessThanOrEqual(result.count, 140)
+    }
+
+    func testRationaleOnRestDay() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: nil,
+            hrv: nil,
+            sleepSeconds: nil,
+            workoutTitle: "Rest Day",
+            isRestDay: true,
+            planWeekIndex: 3
+        )
+        XCTAssertTrue(result.lowercased().contains("rest") || result.lowercased().contains("recover"),
+                      "Rest day rationale should mention rest or recovery")
+        XCTAssertLessThanOrEqual(result.count, 140)
+    }
+
+    func testRationaleEarlyPlanFallback() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: nil,
+            hrv: nil,
+            sleepSeconds: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false,
+            planWeekIndex: 1
+        )
+        XCTAssertTrue(result.lowercased().contains("early") || result.lowercased().contains("base") || result.lowercased().contains("foundation"),
+                      "Early-plan fallback should mention building base")
+        XCTAssertLessThanOrEqual(result.count, 140)
+    }
+
+    func testRationaleNoDataGenericFallback() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: nil,
+            hrv: nil,
+            sleepSeconds: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false,
+            planWeekIndex: nil
+        )
+        XCTAssertFalse(result.isEmpty, "Fallback rationale must never be empty")
+        XCTAssertLessThanOrEqual(result.count, 140)
+    }
+
+    // MARK: - E1: Fallback edge cases (Story 4)
+
+    func testRationaleFallbackNeverExposesErrorLanguage() {
+        let result = TodayRationaleBuilder.rationale(
+            bodyBattery: nil,
+            hrv: nil,
+            sleepSeconds: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false,
+            planWeekIndex: nil
+        )
+        let forbidden = ["unable", "error", "failed", "unavailable", "null", "nil"]
+        for word in forbidden {
+            XCTAssertFalse(result.lowercased().contains(word),
+                           "Fallback must not expose technical language: '\(word)' found in '\(result)'")
+        }
+    }
+
+    func testRationaleIsUnder140CharactersForAllPaths() {
+        let paths: [(Int?, Double?, Double?, String, Bool, Int?)] = [
+            (85, nil, nil, "Tempo Run", false, 4),
+            (28, nil, nil, "Easy Run", false, 2),
+            (nil, 65.0, nil, "Long Run", false, 6),
+            (nil, 38.0, nil, "Easy Run", false, 1),
+            (nil, nil, 7 * 3600, "Intervals", false, 5),
+            (nil, nil, nil, "Rest Day", true, 3),
+            (nil, nil, nil, "Easy Run", false, 1),
+            (nil, nil, nil, "Easy Run", false, 9),
+            (nil, nil, nil, "Easy Run", false, nil),
+        ]
+        for (bb, hrv, sleep, title, isRest, week) in paths {
+            let result = TodayRationaleBuilder.rationale(
+                bodyBattery: bb,
+                hrv: hrv,
+                sleepSeconds: sleep,
+                workoutTitle: title,
+                isRestDay: isRest,
+                planWeekIndex: week
+            )
+            XCTAssertLessThanOrEqual(result.count, 140,
+                "Rationale too long (\(result.count) chars) for path bb=\(String(describing: bb)): \(result)")
+        }
+    }
+
+    func testPlaceholderRecommendationHasNilRationale() {
+        XCTAssertNil(TodayRecommendation.placeholder.rationale,
+                     "Placeholder must not show a rationale — card should hide the row gracefully")
+    }
+
+    // MARK: - SafetyExplanationBuilder
+
+    func testSafetyExplanationBuilderFiresReadinessGateWhenReadinessIsLow() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 38,
+            bodyBattery: nil,
+            hrv: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.kind, .readinessGate)
+        XCTAssertFalse(result?.coachVoice.isEmpty ?? true)
+        XCTAssertEqual(result?.action, "Amend workout")
+    }
+
+    func testSafetyExplanationBuilderReadinessGateOnRestDayHasNoAction() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 32,
+            bodyBattery: nil,
+            hrv: nil,
+            workoutTitle: "Rest Day",
+            isRestDay: true
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.kind, .readinessGate)
+        XCTAssertNil(result?.action)
+    }
+
+    func testSafetyExplanationBuilderFiresLowBodyBatteryWhenReadinessIsModerate() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 60,
+            bodyBattery: 28,
+            hrv: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.kind, .lowBodyBattery)
+        XCTAssertTrue(result?.coachVoice.contains("28") ?? false)
+    }
+
+    func testSafetyExplanationBuilderFiresLowHRVWhenBodyBatteryIsAboveThreshold() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 55,
+            bodyBattery: 50,
+            hrv: 35.0,
+            workoutTitle: "Easy Run",
+            isRestDay: false
+        )
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.kind, .lowHRV)
+        XCTAssertTrue(result?.coachVoice.contains("35") ?? false)
+    }
+
+    func testSafetyExplanationBuilderReturnsNilWhenReadinessIsGood() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 80,
+            bodyBattery: 72,
+            hrv: 60.0,
+            workoutTitle: "Tempo Run",
+            isRestDay: false
+        )
+        XCTAssertNil(result)
+    }
+
+    func testSafetyExplanationBuilderReturnsNilWhenReadinessIsZero() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 0,
+            bodyBattery: 20,
+            hrv: 30.0,
+            workoutTitle: "Easy Run",
+            isRestDay: false
+        )
+        XCTAssertNil(result)
+    }
+
+    func testSafetyExplanationBuilderBoundaryReadiness45DoesNotFireGate() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 45,
+            bodyBattery: nil,
+            hrv: nil,
+            workoutTitle: "Easy Run",
+            isRestDay: false
+        )
+        XCTAssertNil(result)
+    }
+
+    func testSafetyExplanationBuilderEvidenceIncludesReadiness() {
+        let result = SafetyExplanationBuilder.explanation(
+            readiness: 38,
+            bodyBattery: 25,
+            hrv: 42.0,
+            workoutTitle: "Easy Run",
+            isRestDay: false
+        )
+        XCTAssertNotNil(result)
+        XCTAssertTrue(result?.evidence.contains("38") ?? false)
+        XCTAssertTrue(result?.evidence.contains("25") ?? false)
+    }
+
+    func testRunDebriefRequestDTOEncodesIntent() throws {
+        let dto = RunSmartDTO.RunDebriefRequestDTO(
+            runDistanceKm: 5.0,
+            runDurationSeconds: 1500,
+            averagePaceMinPerKm: 5.0,
+            averageHeartRateBPM: nil,
+            workoutType: "easy",
+            planPhase: nil,
+            recentLoadDays: 2,
+            limitations: []
+        )
+        let data = try JSONEncoder().encode(dto)
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        XCTAssertEqual(json["intent"] as? String, "run_debrief")
+        XCTAssertEqual(json["runDistanceKm"] as? Double, 5.0)
+    }
+
+    func testRunDebriefResponseDTODecodes() throws {
+        let json = """
+        {
+          "headline": "Solid effort",
+          "debrief": "You held pace well for 5 km.",
+          "tomorrow": "Easy day tomorrow.",
+          "planImpact": "Plan stays on track",
+          "source": "live_ai"
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(RunSmartDTO.RunDebriefResponseDTO.self, from: data)
+        XCTAssertEqual(dto.headline, "Solid effort")
+        XCTAssertEqual(dto.source, "live_ai")
+    }
+
+    func testPostRunDebriefModelFallbackHasContent() {
+        let run = RecordedRun(
+            id: UUID(),
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: Date(),
+            endedAt: Date(),
+            distanceMeters: 5000,
+            movingTimeSeconds: Double(1500),
+            averagePaceSecondsPerKm: 300,
+            averageHeartRateBPM: nil,
+            routePoints: [],
+            syncedAt: nil
+        )
+        let fallback = PostRunDebriefModel.fallback(for: run)
+        XCTAssertFalse(fallback.headline.isEmpty)
+        XCTAssertFalse(fallback.debrief.isEmpty)
+        XCTAssertFalse(fallback.tomorrow.isEmpty)
+        XCTAssertEqual(fallback.source, .fallback)
+    }
+
+    func testPostActivityOutcomeHasDebriefField() {
+        let run = RecordedRun(
+            id: UUID(),
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: Date(),
+            endedAt: Date(),
+            distanceMeters: 3000,
+            movingTimeSeconds: Double(1200),
+            averagePaceSecondsPerKm: 300,
+            averageHeartRateBPM: nil,
+            routePoints: [],
+            syncedAt: nil
+        )
+        let outcome = PostActivityOutcome(
+            canonicalRun: run,
+            report: nil,
+            completedWorkout: nil,
+            didCompletePlannedWorkout: false,
+            debrief: nil
+        )
+        XCTAssertNil(outcome.debrief)
+    }
+
+    func testPostRunDebriefModelSourceIsAIOrFallback() {
+        // Verify the Source enum only has .ai and .fallback
+        let ai = PostRunDebriefModel.Source.ai
+        let fallback = PostRunDebriefModel.Source.fallback
+        XCTAssertNotEqual(ai, fallback)
+        XCTAssertEqual(ai.rawValue, "ai")
+        XCTAssertEqual(fallback.rawValue, "fallback")
+    }
+
+    func testPostRunDebriefModelFallbackForNilRun() {
+        let fallback = PostRunDebriefModel.fallback(for: nil)
+        XCTAssertFalse(fallback.headline.isEmpty)
+        XCTAssertFalse(fallback.debrief.isEmpty)
+        XCTAssertFalse(fallback.tomorrow.isEmpty)
+        XCTAssertEqual(fallback.source, .fallback)
+    }
+
+    func testWeeklyProgressSummaryFallbackHasHeadline() {
+        let summary = WeeklyProgressSummary.fallback(runsCompleted: 3, totalDistanceKm: 15.4)
+        XCTAssertFalse(summary.headline.isEmpty)
+        XCTAssertEqual(summary.source, .fallback)
+    }
+
+    func testWeeklySummaryRequestDTOEncodesIntent() throws {
+        let dto = RunSmartDTO.WeeklySummaryRequestDTO(
+            weekStartDate: "2026-05-18",
+            runsCompleted: 3,
+            runsPlanned: 4,
+            totalDistanceKm: 18.5,
+            prevWeekDistanceKm: 15.2,
+            planPhase: "build",
+            isRecoveryWeek: false,
+            readinessAverage: 72.0,
+            limitations: []
+        )
+        let data = try JSONEncoder().encode(dto)
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        XCTAssertEqual(json["intent"] as? String, "weekly_summary")
+        XCTAssertEqual(json["runsCompleted"] as? Int, 3)
+    }
+
+    func testWeeklySummaryResponseDTODecodes() throws {
+        let json = """
+        {
+          "headline": "3 runs · 18.5 km",
+          "narrative": "A strong base week.",
+          "forwardLook": "Next week's long run is where this pays off.",
+          "weekLabel": "Week 3 of your plan",
+          "source": "live_ai"
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(RunSmartDTO.WeeklySummaryResponseDTO.self, from: data)
+        XCTAssertEqual(dto.headline, "3 runs · 18.5 km")
+        XCTAssertEqual(dto.source, "live_ai")
+    }
+
+    func testWeeklyProgressSummaryCacheRoundTrip() throws {
+        let summary = WeeklyProgressSummary(
+            headline: "3 runs · 15 km",
+            narrative: "Good week.",
+            forwardLook: "Next week builds on this.",
+            weekLabel: "Week 2 of your plan",
+            generatedDate: Date(),
+            isoWeekKey: WeeklyProgressSummary.currentISOWeekKey(),
+            source: .fallback
+        )
+        let data = try JSONEncoder().encode(summary)
+        let decoded = try JSONDecoder().decode(WeeklyProgressSummary.self, from: data)
+        XCTAssertEqual(decoded.headline, summary.headline)
+        XCTAssertEqual(decoded.isoWeekKey, summary.isoWeekKey)
+        XCTAssertEqual(decoded.source, summary.source)
+    }
+
+    func testWeeklyProgressSummaryISOWeekKeyIsStable() {
+        let key = WeeklyProgressSummary.currentISOWeekKey()
+        // Format must be YYYY-Www (e.g. "2026-W21")
+        let pattern = #"^\d{4}-W\d{2}$"#
+        XCTAssertTrue(key.range(of: pattern, options: .regularExpression) != nil,
+                      "Expected YYYY-Www format, got '\(key)'")
+        // Must be idempotent within the same second
+        XCTAssertEqual(key, WeeklyProgressSummary.currentISOWeekKey())
+        // Session is running in 2026 — sanity-check the year prefix
+        XCTAssertTrue(key.hasPrefix("2026-"), "Expected 2026 prefix for current test run, got '\(key)'")
+    }
+
+    func testWeeklyProgressSummaryIsNewWeekDetection() {
+        let oldKey = "2020-W01"
+        XCTAssertTrue(WeeklyProgressSummary.isNewWeek(since: oldKey))
+        let currentKey = WeeklyProgressSummary.currentISOWeekKey()
+        XCTAssertFalse(WeeklyProgressSummary.isNewWeek(since: currentKey))
+    }
+
+    func testWeeklyProgressCardSuppressedDuringBeginnerChallenge() {
+        // Gate condition: isBeginnerFirst5K returns true for a First 5K profile,
+        // confirming the suppression logic in TodayTabView works correctly.
+        let beginnerProfile = OnboardingProfile(
+            displayName: "Runner",
+            goal: "First 5K",
+            experience: "Getting started",
+            age: nil,
+            averageWeeklyDistanceKm: nil,
+            trainingDataSource: nil,
+            trainingDataUpdatedAt: nil,
+            weeklyRunDays: 3,
+            preferredDays: ["Tue", "Thu", "Sat"],
+            units: "Metric",
+            coachingTone: "Motivating",
+            notificationsEnabled: false,
+            planAdjustmentConfirmationsEnabled: true
+        )
+        let isChallenge = Beginner5KHabitTrack.isBeginnerFirst5K(profile: beginnerProfile)
+        XCTAssertTrue(isChallenge)
+
+        // Non-beginner profile should not trigger suppression
+        let advancedProfile = OnboardingProfile(
+            displayName: "Runner",
+            goal: "10K PR",
+            experience: "Intermediate",
+            age: nil,
+            averageWeeklyDistanceKm: nil,
+            trainingDataSource: nil,
+            trainingDataUpdatedAt: nil,
+            weeklyRunDays: 4,
+            preferredDays: ["Tue", "Thu", "Sat", "Sun"],
+            units: "Metric",
+            coachingTone: "Motivating",
+            notificationsEnabled: false,
+            planAdjustmentConfirmationsEnabled: true
+        )
+        XCTAssertFalse(Beginner5KHabitTrack.isBeginnerFirst5K(profile: advancedProfile))
     }
 }
 

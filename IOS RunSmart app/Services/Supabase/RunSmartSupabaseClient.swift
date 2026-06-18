@@ -4,8 +4,25 @@ import Supabase
 // MARK: - Client singleton
 
 enum SupabaseManager {
-    static let supabaseURL = URL(string: "https://dxqglotcyirxzyqaxqln.supabase.co")!
-    static let supabasePublishableKey = "sb_publishable_PpDpqkqVaKFnOyoLR7mdyA_UNTeeoqN"
+    private static func requiredInfoPlistString(_ key: String) -> String {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String else {
+            fatalError("Missing \(key) in Info.plist / xcconfig")
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.hasPrefix("$(") else {
+            fatalError("Unsubstituted \(key) in Info.plist / xcconfig")
+        }
+        return trimmed
+    }
+
+    static let supabaseURL: URL = {
+        guard let url = URL(string: requiredInfoPlistString("SUPABASE_URL")) else {
+            fatalError("Invalid SUPABASE_URL in Info.plist / xcconfig")
+        }
+        return url
+    }()
+
+    static let supabasePublishableKey = requiredInfoPlistString("SUPABASE_PUBLISHABLE_KEY")
     static let functionsBaseURL = supabaseURL.appendingPathComponent("functions/v1")
 
     static let client: SupabaseClient = {
@@ -177,6 +194,8 @@ struct DBWorkout: Codable, Sendable {
     let workoutStructure: String?
     let intensity: String?
     let trainingPhase: String?
+    let adjustedAt: String?
+    let adjustedReason: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -193,6 +212,8 @@ struct DBWorkout: Codable, Sendable {
         case workoutStructure = "workout_structure"
         case intensity
         case trainingPhase = "training_phase"
+        case adjustedAt = "adjusted_at"
+        case adjustedReason = "adjusted_reason"
     }
 
     init(from decoder: Decoder) throws {
@@ -211,6 +232,8 @@ struct DBWorkout: Codable, Sendable {
         workoutStructure = try? c.decodeIfPresent(String.self, forKey: .workoutStructure)
         intensity = try? c.decodeIfPresent(String.self, forKey: .intensity)
         trainingPhase = try? c.decodeIfPresent(String.self, forKey: .trainingPhase)
+        adjustedAt = try? c.decodeIfPresent(String.self, forKey: .adjustedAt)
+        adjustedReason = try? c.decodeIfPresent(String.self, forKey: .adjustedReason)
     }
 }
 
@@ -513,17 +536,3 @@ extension WorkoutKind {
     }
 }
 
-// MARK: - Helpers
-
-func userIdInt64(from uuid: UUID) -> Int64 {
-    let (a, b, c, d, e, f, g, h, _, _, _, _, _, _, _, _) = uuid.uuid
-    var val = Int64(a) << 56
-    val |= Int64(b) << 48
-    val |= Int64(c) << 40
-    val |= Int64(d) << 32
-    val |= Int64(e) << 24
-    val |= Int64(f) << 16
-    val |= Int64(g) << 8
-    val |= Int64(h)
-    return val < 0 ? -val : val
-}

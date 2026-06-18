@@ -22,7 +22,8 @@ enum RunSmartDTOMapper {
             distance: dto.plannedDistanceLabel,
             pace: dto.targetPaceLabel,
             elevation: dto.elevationLabel,
-            coachMessage: dto.coachMessage
+            coachMessage: dto.coachMessage,
+            rationale: dto.rationale
         )
     }
 

@@ -80,6 +80,8 @@ struct WorkoutSummary: Identifiable, Hashable {
     var intensity: String?
     var trainingPhase: String?
     var workoutStructure: String?
+    var adjustedAt: Date?
+    var adjustedReason: String?
 }
 
 struct TrainingGoalRequest: Hashable {
@@ -157,6 +159,23 @@ struct TodayRecommendation {
     var streak: String = "--"
     var recovery: String = "--"
     var hrv: String = "--"
+    var rationale: String? = nil
+    var safetyExplanation: SafetyExplanation? = nil
+}
+
+enum SafetyExplanationKind: String, Hashable {
+    case readinessGate
+    case lowBodyBattery
+    case lowHRV
+    case restAdvised
+}
+
+struct SafetyExplanation: Hashable {
+    var kind: SafetyExplanationKind
+    var headline: String
+    var coachVoice: String
+    var evidence: String
+    var action: String?
 }
 
 enum TodayResolvedStateKind: Hashable {
@@ -515,12 +534,15 @@ struct PlanExplanation: Hashable {
     }
 
     private static func isLowRecovery(_ recovery: RecoverySnapshot, recommendation: TodayRecommendation) -> Bool {
-        let recoveryText = [recovery.hrv, recovery.sleep, recovery.stress, recovery.recommendation, recommendation.readinessLabel, recommendation.recovery, recommendation.hrv]
+        let recoveryText = [recovery.hrv, recovery.sleep, recovery.recommendation, recommendation.readinessLabel, recommendation.recovery, recommendation.hrv]
             .joined(separator: " ")
             .lowercased()
+        let stressText = recovery.stress.lowercased()
         return (recovery.readiness > 0 && recovery.readiness < 45) ||
             (recovery.bodyBattery > 0 && recovery.bodyBattery < 35) ||
             recommendation.readiness < 45 ||
+            stressText.contains("high") ||
+            stressText.contains("elevated") ||
             recoveryText.contains("low") ||
             recoveryText.contains("lower") ||
             recoveryText.contains("tired")
@@ -1035,6 +1057,7 @@ struct OnboardingProfile: Codable, Equatable {
     var units: String
     var coachingTone: String
     var notificationsEnabled: Bool
+    var planAdjustmentConfirmationsEnabled: Bool
 
     static let empty = OnboardingProfile(
         displayName: "",
@@ -1048,7 +1071,8 @@ struct OnboardingProfile: Codable, Equatable {
         preferredDays: ["Tue", "Thu", "Sat", "Sun"],
         units: "Metric",
         coachingTone: "Motivating",
-        notificationsEnabled: false
+        notificationsEnabled: false,
+        planAdjustmentConfirmationsEnabled: true
     )
 }
 
@@ -1316,6 +1340,33 @@ struct WellnessSnapshot: Hashable {
     var checkInStatus: String
 }
 
+struct DailyWellnessPoint: Hashable {
+    var date: Date
+    var hrvMilliseconds: Double?
+    var trainingReadiness: Int?
+    var bodyBattery: Int?
+}
+
+struct WellnessTrendSeries: Hashable {
+    var days: [DailyWellnessPoint]
+    var hrvBars: [CGFloat]
+    var readinessBars: [CGFloat]
+    var hrvTrendSummary: String
+    var readinessTrendSummary: String
+    var latestHRVDisplay: String
+    var latestReadinessDisplay: String
+
+    static let empty = WellnessTrendSeries(
+        days: [],
+        hrvBars: [],
+        readinessBars: [],
+        hrvTrendSummary: "Need more synced days",
+        readinessTrendSummary: "Need more synced days",
+        latestHRVDisplay: "--",
+        latestReadinessDisplay: "--"
+    )
+}
+
 struct ShoeSummary: Identifiable, Hashable {
     var id: String
     var name: String
@@ -1406,11 +1457,82 @@ struct RunReportDetail: Identifiable, Codable, Hashable {
     }
 }
 
+struct PostRunDebriefModel: Hashable {
+    enum Source: String, Hashable {
+        case ai
+        case fallback
+    }
+
+    var headline: String
+    var debrief: String
+    var tomorrow: String
+    var planImpact: String?
+    var source: Source
+
+    static func fallback(for run: RecordedRun?) -> PostRunDebriefModel {
+        let distanceKm = (run?.distanceMeters ?? 0) / 1_000
+        let durationMin = Int((run?.movingTimeSeconds ?? 0) / 60)
+        let distanceStr = distanceKm > 0 ? String(format: "%.1f km", distanceKm) : "this effort"
+        let durationStr = durationMin > 0 ? " in \(durationMin) min" : ""
+        return PostRunDebriefModel(
+            headline: "Run logged",
+            debrief: "You covered \(distanceStr)\(durationStr). RunSmart has recorded this effort.",
+            tomorrow: "Check Today tomorrow for your next recommended session.",
+            planImpact: nil,
+            source: .fallback
+        )
+    }
+}
+
+struct WeeklyProgressSummary: Hashable, Codable {
+    enum Source: String, Hashable, Codable {
+        case ai
+        case fallback
+    }
+
+    var headline: String
+    var narrative: String
+    var forwardLook: String
+    var weekLabel: String
+    var generatedDate: Date
+    var isoWeekKey: String         // e.g. "2026-W21" -- cache key
+    var source: Source
+
+    static func fallback(runsCompleted: Int, totalDistanceKm: Double) -> WeeklyProgressSummary {
+        let distanceStr = String(format: "%.1f km", totalDistanceKm)
+        let runWord = runsCompleted == 1 ? "run" : "runs"
+        return WeeklyProgressSummary(
+            headline: "\(runsCompleted) \(runWord) · \(distanceStr)",
+            narrative: "A solid week of training. RunSmart has logged your effort.",
+            forwardLook: "Check Today for your next recommended session.",
+            weekLabel: "This week",
+            generatedDate: Date(),
+            isoWeekKey: WeeklyProgressSummary.currentISOWeekKey(),
+            source: .fallback
+        )
+    }
+
+    static func currentISOWeekKey() -> String {
+        // ISO 8601 calendar guarantees deterministic week boundaries regardless of device locale.
+        // Using .component(_:from:) returns Int directly — no optional unwrapping needed.
+        var iso = Calendar(identifier: .iso8601)
+        iso.locale = Locale(identifier: "en_US_POSIX")
+        let year = iso.component(.yearForWeekOfYear, from: Date())
+        let week = iso.component(.weekOfYear, from: Date())
+        return String(format: "%04d-W%02d", year, week)
+    }
+
+    static func isNewWeek(since lastKey: String) -> Bool {
+        currentISOWeekKey() != lastKey
+    }
+}
+
 struct PostActivityOutcome: Hashable {
     var canonicalRun: RecordedRun
     var report: RunReportDetail?
     var completedWorkout: WorkoutSummary?
     var didCompletePlannedWorkout: Bool
+    var debrief: PostRunDebriefModel?          // E6: AI post-run debrief
 }
 
 struct TrainingLoadSnapshot: Hashable {
