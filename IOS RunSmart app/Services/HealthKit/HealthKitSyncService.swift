@@ -107,6 +107,16 @@ struct HealthKitSyncService {
         let store = HKHealthStore()
         do {
             try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
+            let authorization = store.authorizationStatus(for: workoutType)
+            guard authorization != .notDetermined else {
+                return ConnectedDeviceStatus(
+                    provider: Self.providerName,
+                    state: .disconnected,
+                    lastSuccessfulSync: nil,
+                    permissions: [],
+                    message: "Health access was not granted."
+                )
+            }
             return ConnectedDeviceStatus(
                 provider: Self.providerName,
                 state: .connected,

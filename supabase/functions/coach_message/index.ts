@@ -3,6 +3,7 @@ import {
   generateFlexWeek,
   sanitizeFlexWeekRequest,
 } from "./flex_week.ts";
+import { corsHeaders, isOriginAllowed } from "../_shared/cors.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -20,11 +21,7 @@ type MessageRow = {
   created_at: string;
 };
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const MAX_CHAT_MESSAGE_LENGTH = 2000;
 
 const SYSTEM_PROMPT = `You are RunSmart Coach, a calm AI running coach for beginner and intermediate runners.
 
@@ -258,11 +255,17 @@ function fallbackWeeklySummary(context: JsonRecord): {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    if (!isOriginAllowed(req)) {
+      return new Response("Forbidden", { status: 403, headers: corsHeaders(req) });
+    }
+    return new Response("ok", { headers: corsHeaders(req) });
   }
 
   if (req.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
+    return jsonResponse(req, { error: "Method not allowed" }, 405);
+  }
+  if (!isOriginAllowed(req)) {
+    return jsonResponse(req, { error: "Origin not allowed" }, 403);
   }
 
   const supabaseUrl = requireEnv("SUPABASE_URL");
@@ -272,7 +275,7 @@ Deno.serve(async (req) => {
   const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
 
   if (!jwt) {
-    return jsonResponse({ error: "Missing bearer token" }, 401);
+    return jsonResponse(req,{ error: "Missing bearer token" }, 401);
   }
 
   const userClient = createClient(supabaseUrl, anonKey, {
@@ -284,14 +287,14 @@ Deno.serve(async (req) => {
 
   const { data: authData, error: authError } = await userClient.auth.getUser(jwt);
   if (authError || !authData.user) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
+    return jsonResponse(req,{ error: "Unauthorized" }, 401);
   }
 
   let body: JsonRecord;
   try {
     body = await req.json();
   } catch {
-    return jsonResponse({ error: "Invalid JSON body" }, 400);
+    return jsonResponse(req,{ error: "Invalid JSON body" }, 400);
   }
 
   const message = stringValue(body.message).trim();
@@ -306,7 +309,7 @@ Deno.serve(async (req) => {
   if (intent === "run_debrief") {
     // iOS RunDebriefRequestDTO sends run fields at top level (not nested under body.context)
     if (containsForbiddenKeys(body)) {
-      return jsonResponse({ error: "Context contains forbidden keys" }, 400);
+      return jsonResponse(req,{ error: "Context contains forbidden keys" }, 400);
     }
     const safeContext: JsonRecord = {
       runDistanceKm: typeof body.runDistanceKm === "number" ? body.runDistanceKm : null,
@@ -321,15 +324,15 @@ Deno.serve(async (req) => {
       limitations: Array.isArray(body.limitations) ? (body.limitations as unknown[]).slice(0, 5).map(l => limitString(l, 160)) : [],
     };
     const debrief = await generateRunDebrief(safeContext);
-    return jsonResponse(debrief);
+    return jsonResponse(req,debrief);
   }
 
   if (intent === "weekly_summary") {
     if (!context) {
-      return jsonResponse({ error: "Context is required for weekly_summary" }, 400);
+      return jsonResponse(req,{ error: "Context is required for weekly_summary" }, 400);
     }
     if (containsForbiddenKeys(context)) {
-      return jsonResponse({ error: "Context contains forbidden keys" }, 400);
+      return jsonResponse(req,{ error: "Context contains forbidden keys" }, 400);
     }
     const safeContext: JsonRecord = {
       weekStartDate: limitString(context.weekStartDate, 20),
@@ -342,19 +345,19 @@ Deno.serve(async (req) => {
       readinessAverage: typeof context.readinessAverage === "number" ? context.readinessAverage : null,
     };
     const summary = await generateWeeklySummary(safeContext);
-    return jsonResponse(summary);
+    return jsonResponse(req,summary);
   }
 
   if (intent === "flex_week") {
     if (containsForbiddenKeys(body)) {
-      return jsonResponse({ error: "Context contains forbidden keys" }, 400);
+      return jsonResponse(req,{ error: "Context contains forbidden keys" }, 400);
     }
     const request = sanitizeFlexWeekRequest(body);
     if (!request) {
-      return jsonResponse({ error: "Invalid flex_week payload" }, 400);
+      return jsonResponse(req,{ error: "Invalid flex_week payload" }, 400);
     }
     const outcome = await generateFlexWeek(request);
-    return jsonResponse({
+    return jsonResponse(req,{
       restructuredWeek: outcome.restructured_week,
       changes: outcome.changes.map((change) => ({
         workoutId: change.workout_id,
@@ -368,16 +371,19 @@ Deno.serve(async (req) => {
   }
 
   if (!message) {
-    return jsonResponse({ error: "Message is required" }, 400);
+    return jsonResponse(req, { error: "Message is required" }, 400);
+  }
+  if (message.length > MAX_CHAT_MESSAGE_LENGTH) {
+    return jsonResponse(req, { error: `Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer` }, 400);
   }
   if (!clientMessageId) {
-    return jsonResponse({ error: "clientMessageId is required" }, 400);
+    return jsonResponse(req,{ error: "clientMessageId is required" }, 400);
   }
   if (body.conversationId != null && !conversationId) {
-    return jsonResponse({ error: "conversationId must be a UUID" }, 400);
+    return jsonResponse(req,{ error: "conversationId must be a UUID" }, 400);
   }
   if (!context || containsForbiddenKeys(context)) {
-    return jsonResponse({ error: "Training context contains raw route coordinates" }, 400);
+    return jsonResponse(req,{ error: "Training context contains raw route coordinates" }, 400);
   }
 
   const sanitizedContext = sanitizeTrainingContext(context);
@@ -413,7 +419,7 @@ Deno.serve(async (req) => {
       },
     });
 
-    return jsonResponse({
+    return jsonResponse(req,{
       conversationId: conversation.id,
       userMessageId: userMessage.id,
       assistantMessage: {
@@ -430,7 +436,7 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error("coach_message failed", error);
-    return jsonResponse({ error: "Coach message failed" }, 500);
+    return jsonResponse(req,{ error: "Coach message failed" }, 500);
   }
 });
 
@@ -442,11 +448,11 @@ function requireEnv(name: string): string {
   return value;
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
+function jsonResponse(req: Request, body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...corsHeaders(req),
       "Content-Type": "application/json",
     },
   });

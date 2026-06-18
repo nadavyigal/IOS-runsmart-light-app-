@@ -154,6 +154,8 @@ extension ISO8601DateFormatter {
 
 final class TrainingPlanRepository {
     private let supabase = SupabaseManager.client
+    private var activePlanCache: [UUID: (plan: ActivePlan?, expiry: Date)] = [:]
+    private static let activePlanCacheTTL: TimeInterval = 30
     private static let profileDateFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -187,17 +189,29 @@ final class TrainingPlanRepository {
         }
     }
 
+    func invalidateActivePlanCache(authUserID: UUID? = nil) {
+        if let authUserID {
+            activePlanCache.removeValue(forKey: authUserID)
+        } else {
+            activePlanCache.removeAll()
+        }
+    }
+
     func activePlan(authUserID: UUID) async -> ActivePlan? {
+        if let cached = activePlanCache[authUserID], Date() < cached.expiry {
+            return cached.plan
+        }
+
+        let resolved = await resolveActivePlan(authUserID: authUserID)
+        activePlanCache[authUserID] = (resolved, Date().addingTimeInterval(Self.activePlanCacheTTL))
+        return resolved
+    }
+
+    private func resolveActivePlan(authUserID: UUID) async -> ActivePlan? {
         let resolved = await identity(authUserID: authUserID)
 
         if let active = await activePlanByAuthUserID(authUserID) {
             print("[TrainingPlanRepo] ✅ found active plan via auth_user_id=\(authUserID)")
-            return active
-        }
-
-        if let numericID = resolved.numericUserID,
-           let active = await activePlanByNumericProfile(numericProfileID: numericID) {
-            print("[TrainingPlanRepo] ✅ found active plan via numeric profileID=\(numericID)")
             return active
         }
 
@@ -743,7 +757,7 @@ final class TrainingPlanRepository {
                 }
                 for (rollbackID, _) in applied {
                     guard let rollbackPatch = pendingUpdates.first(where: { $0.0 == rollbackID })?.2 else { continue }
-                    try? await supabase
+                    _ = try? await supabase
                         .from("workouts")
                         .update(rollbackPatch)
                         .eq("id", value: rollbackID.uuidString)

@@ -71,7 +71,7 @@ struct TodayTabView: View {
                     .runSmartStaggeredAppear(index: 2)
                 }
 
-                if shouldShowPlanExplanation(explanation) {
+                if explanation.trigger != .normal || !explanation.isOnTrack {
                     PlanExplanationCard(
                         title: "Why this workout?",
                         explanation: explanation,
@@ -97,46 +97,44 @@ struct TodayTabView: View {
                     FlexWeekTodayLink {
                         router.openFlexWeek(entryPoint: .todayLink)
                     }
-                    .runSmartStaggeredAppear(index: 6)
+                    .runSmartStaggeredAppear(index: 5)
                 }
 
                 if let latestReport = runReports.first {
                     LatestRunPreviewRow(report: latestReport) {
                         router.selectedTab = .report
                     }
-                    .runSmartStaggeredAppear(index: 7)
+                    .runSmartStaggeredAppear(index: 6)
                 }
 
                 if !nextWorkouts.isEmpty {
                     UpcomingRunsCard(workouts: nextWorkouts) { workout in
                         openWorkoutDetail(workout)
                     }
-                    .runSmartStaggeredAppear(index: 8)
+                    .runSmartStaggeredAppear(index: 7)
                 }
 
-                // E2: weekly progress card — suppressed during 21-Day Rookie Challenge
                 let isBeginnerChallenge = Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile)
                 if (!challengeLoaded || !activeChallenge.isActive), isBeginnerChallenge {
                     Beginner5KHabitCard(track: habitTrack)
-                        .runSmartStaggeredAppear(index: 9)
+                        .runSmartStaggeredAppear(index: 8)
                 } else if let summary = weeklySummary {
                     WeeklyProgressCard(
                         summary: summary,
                         onTapCoach: openTodayCoach
                     )
-                    .runSmartStaggeredAppear(index: 9)
+                    .runSmartStaggeredAppear(index: 8)
                 }
 
                 WeatherConditionsCard()
-                    .runSmartStaggeredAppear(index: 10)
+                    .runSmartStaggeredAppear(index: 9)
 
                 if activeChallenge.isActive {
                     ChallengeProgressCard(challenge: activeChallenge, onTap: openChallenges)
-                        .runSmartStaggeredAppear(index: 11)
-                } else if challengeLoaded,
-                          Beginner5KHabitTrack.isBeginnerFirst5K(profile: session.onboardingProfile) {
+                        .runSmartStaggeredAppear(index: 10)
+                } else if challengeLoaded, isBeginnerChallenge {
                     ChallengeInviteCard(onEnrolled: scheduleLoad)
-                        .runSmartStaggeredAppear(index: 11)
+                        .runSmartStaggeredAppear(index: 10)
                 }
 
                 if isStriver {
@@ -144,7 +142,7 @@ struct TodayTabView: View {
                         trends: wellnessTrends,
                         onTapRecovery: { router.open(.recoveryDashboard) }
                     )
-                    .runSmartStaggeredAppear(index: 12)
+                    .runSmartStaggeredAppear(index: 11)
                 }
             }
             .foregroundStyle(Color.textPrimary)
@@ -230,35 +228,28 @@ struct TodayTabView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("\(greeting), \(displayName)")
                     .font(.displayMD)
                     .foregroundStyle(Color.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-                Text("🔥 \(recommendation.streak)")
-                    .font(.bodyLG)
-                    .foregroundStyle(Color.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                if recommendation.streak != "--" {
+                    Text("🔥 \(recommendation.streak) day streak")
+                        .font(.bodyLG)
+                        .foregroundStyle(Color.textSecondary)
+                }
             }
-
-            Spacer(minLength: 8)
-
-            Button(action: openTodayCoach) {
+            Spacer(minLength: 12)
+            Button { router.openCoach(context: .today) } label: {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(Color.accentPrimary)
                     .frame(width: 34, height: 34)
-                    .background(
-                        Color.accentPrimary.opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    )
-                    .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(Color.accentPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Open Coach")
         }
     }
 
@@ -285,10 +276,6 @@ struct TodayTabView: View {
             recovery: recovery,
             recommendation: recommendation
         )
-    }
-
-    private func shouldShowPlanExplanation(_ explanation: PlanExplanation) -> Bool {
-        !(explanation.trigger == .normal && explanation.isOnTrack)
     }
 
     private var habitTrack: Beginner5KHabitTrack {
@@ -331,10 +318,6 @@ struct TodayTabView: View {
 
     private func openPlanAdjustment() {
         router.openFlexWeek(entryPoint: .todayLink)
-    }
-
-    private func openAddActivity() {
-        router.open(.addActivity)
     }
 
     private func openRouteSelector() {
@@ -655,88 +638,6 @@ private struct TodayRouteRecommendationCard: View {
     }
 }
 
-private struct TodayQuickActions: View {
-    var onRecord: () -> Void
-    var onAddActivity: () -> Void
-    var onCoach: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            QuickActionButton(title: "Record Run", symbol: "figure.run", tint: .accentPrimary, action: onRecord)
-            QuickActionButton(title: "Add Activity", symbol: "plus.circle.fill", tint: .accentRecovery, action: onAddActivity)
-            QuickActionButton(title: "Ask Coach", symbol: "sparkles", tint: .accentPrimary, action: onCoach)
-        }
-    }
-}
-
-private struct QuickActionButton: View {
-    var title: String
-    var symbol: String
-    var tint: Color
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(tint)
-                    .frame(width: 42, height: 42)
-                    .background(tint.opacity(0.12), in: Circle())
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.68)
-            }
-            .frame(maxWidth: .infinity, minHeight: 92)
-            .background(Color.surfaceDeepCard.opacity(0.86), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(tint.opacity(0.22), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct TodayCoachHeroCard: View {
-    var message: String
-    var onCoach: () -> Void
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            CoachAvatar(size: 92, showBolt: false)
-                .padding(.leading, 2)
-
-            RunSmartPanel(cornerRadius: 20, padding: 14, accent: .accentPrimary) {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Your AI Coach")
-                    Text(message)
-                        .font(.bodyLG.weight(.medium))
-                        .foregroundStyle(Color.textPrimary)
-                        .lineLimit(4)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Button(action: onCoach) {
-                        HStack {
-                            Text("Talk to Coach")
-                                .font(.buttonLabel)
-                            Spacer()
-                            Image(systemName: "waveform")
-                                .font(.title3.weight(.bold))
-                        }
-                        .foregroundStyle(Color.black)
-                        .padding(.horizontal, 18)
-                        .frame(height: 52)
-                        .background(Color.accentPrimary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(color: Color.accentPrimary.opacity(0.35), radius: 14)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
 private struct TodayWeekStripSection: View {
     var workouts: [WorkoutSummary]
     var weekRange: String
@@ -764,7 +665,8 @@ private struct TodayWeekStripSection: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 1)
+                .padding(.leading, 1)
+                .padding(.trailing, 18)
                 .padding(.vertical, 8)
             }
         }
@@ -1004,70 +906,6 @@ private struct TodayWorkoutStepRow: View {
     }
 }
 
-private struct TodayConversationPreview: View {
-    var messages: [CoachMessage]
-    var onTap: () -> Void
-
-    private var visibleMessages: [CoachMessage] {
-        Array(messages.prefix(2))
-    }
-
-    var body: some View {
-        Button(action: onTap) {
-            RunSmartPanel(cornerRadius: 20, padding: 16) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        SectionLabel(title: "Coach Conversation")
-                        Text("See all")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.accentPrimary)
-                    }
-                    ForEach(visibleMessages) { message in
-                        CoachBubble(message: message)
-                    }
-                }
-            }
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct TodayMiniStatCard: View {
-    var title: String
-    var value: String
-    var unit: String
-    var symbol: String
-    var tint: Color
-    var values: [CGFloat]
-
-    var body: some View {
-        RunSmartPanel(cornerRadius: 16, padding: 12, accent: nil) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title.uppercased())
-                    .font(.labelSM)
-                    .tracking(0.8)
-                    .foregroundStyle(Color.textSecondary)
-                    .lineLimit(2)
-                    .frame(height: 28, alignment: .topLeading)
-                Image(systemName: symbol)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(tint)
-                Text(value)
-                    .font(.metricSM)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text(unit)
-                    .font(.caption2)
-                    .foregroundStyle(Color.textSecondary)
-                MetricBars(values: values, tint: tint)
-            }
-            .frame(width: 104, height: 138, alignment: .topLeading)
-        }
-    }
-}
-
 private struct TodayWellnessTrendCard: View {
     var trends: WellnessTrendSeries
     var onTapRecovery: () -> Void
@@ -1287,58 +1125,6 @@ struct CoachBubble: View {
                     .foregroundStyle(Color.textTertiary)
             }
             if message.isUser { CoachAvatar(size: 30) } else { Spacer(minLength: 44) }
-        }
-    }
-}
-
-struct SmallStatCard: View {
-    var title: String
-    var value: String
-    var unit: String
-    var symbol: String
-    var tint: Color
-
-    var body: some View {
-        CompactCard {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(title.uppercased())
-                        .font(.labelSM)
-                        .tracking(1.1)
-                        .foregroundStyle(Color.textSecondary)
-                        .lineLimit(1)
-                    Spacer()
-                    Image(systemName: symbol)
-                        .foregroundStyle(tint)
-                }
-                Text(value)
-                    .font(.metricSM)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text(unit.isEmpty ? " " : unit)
-                    .font(.caption2)
-                    .foregroundStyle(Color.textTertiary)
-            }
-            .frame(width: 104, alignment: .leading)
-        }
-    }
-}
-
-struct MiniRouteView: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.black.opacity(0.22))
-            Path { path in
-                path.move(to: CGPoint(x: 12, y: 58))
-                path.addCurve(to: CGPoint(x: 72, y: 40), control1: CGPoint(x: 28, y: 48), control2: CGPoint(x: 44, y: 42))
-                path.addCurve(to: CGPoint(x: 132, y: 20), control1: CGPoint(x: 98, y: 40), control2: CGPoint(x: 112, y: 30))
-                path.addLine(to: CGPoint(x: 148, y: 8))
-            }
-            .stroke(Color.accentPrimary, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-            Circle().fill(Color.accentPrimary).frame(width: 10, height: 10).offset(x: 58, y: -22)
         }
     }
 }

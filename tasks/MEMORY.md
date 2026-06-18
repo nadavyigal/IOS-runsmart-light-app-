@@ -12,6 +12,39 @@ Project-specific decisions. Read at the start of every session.
 
 ---
 
+## 2026-06-01 — Sprint 11 — UX Redesign + Voice Coach (1.0.1 / build 7)
+
+Worked on: All 10 Sprint 11 stories on `feature/ux-redesign-1.0.1` (14 commits).
+
+Completed:
+- A1: Today v2 — new header (greeting + streak + sparkles icon), week strip above decision card, removed coach/insight/conversation/quick-actions/stat-strip cards, latest-run preview row taps to Report tab, padding 140
+- A2: Report v2 — 3-segment Runs/Reports/Progress; reports list with "Explain this run" link; progress tab with zone analysis + RecoveryInsightPlanCard + RunTrendChartCard; concurrent async let fetch
+- A3: PlanExplanationCard guard folded into A1 body rewrite
+- A4: Plan v2 — week first, "Explain this week" compact button, removed PlanBriefingCard and InsightCard, renamed "Add Activity"
+- A5: Profile v2 — connected section above fold, removed RecentRunReportsCard
+- A6: Post-run bridge — "View Report" calls onSave (clears finishedRun) then sets selectedTab = .report
+- B1: /api/coach/voice-cue in RunSmart Web — generateText gpt-4o-mini + fetch OpenAI TTS (tts-1, nova, aac, 0.95); 503 when VOICE_COACH_ENABLED off
+- B2: VoiceCoachService.swift — AVAudioSession duckOthers+spokenAudio+allowBluetooth, 300s timer, 8s timeout, silent failure
+- B3: RunTabView wiring — phase onChange, cue timer onReceive; explicit stopSession in finishRun/discardRun
+- B4: LiveRunView mute toggle — waveform/waveform.slash LiveControlButton
+- Version bumped: 1.0.1 / build 7 — build passes
+
+Key decisions:
+- RecoveryPlanCard renamed RecoveryInsightPlanCard to avoid clash with PostRunSummaryView's private struct of same name
+- stopSession() called explicitly in finishRun/discardRun because phase never transitions to .idle/.ready after recorder.finish()
+- B1 uses fetch (not raw openai npm package — not installed in web repo)
+- View Report calls onSave() first to nil finishedRun, preventing stale summary on Run tab revisit
+
+NOT done (human actions required):
+- Physical device QA checklist
+- VOICE_COACH_ENABLED=true flip in Vercel
+- TestFlight upload for build 7
+- PR: feature/ux-redesign-1.0.1 -> main
+
+Next session:
+- Human uploads build 7 to TestFlight, runs physical device QA, flips VOICE_COACH_ENABLED when ready
+- After QA passes: create PR feature/ux-redesign-1.0.1 -> main
+
 ## 2026-05-27 — First weekly distribution cycle completed
 
 Worked on: Weekly distribution cycle run #1 — ASO finalization

@@ -1,6 +1,8 @@
 import Foundation
 
 extension Analytics {
+    private static let completedRunFlagKey = "analytics.hasCompletedRun"
+    private static let completedRunKeyPrefix = "analytics.completedRun."
 
     // MARK: - Activation Funnel
 
@@ -65,6 +67,26 @@ extension Analytics {
                 "run_type": runType
             ])
         }
+    }
+
+    static func trackCompletedRunIfNeeded(
+        _ run: RecordedRun,
+        runType: String? = nil,
+        defaults: UserDefaults = .standard
+    ) {
+        let key = completedRunKey(for: run)
+        guard !defaults.bool(forKey: key) else { return }
+
+        let isFirst = !defaults.bool(forKey: completedRunFlagKey)
+        defaults.set(true, forKey: key)
+        defaults.set(true, forKey: completedRunFlagKey)
+        trackRunCompleted(
+            distanceKm: run.distanceMeters / 1000,
+            durationSeconds: Int(run.movingTimeSeconds),
+            paceMinKm: run.averagePaceSecondsPerKm / 60,
+            runType: runType ?? run.source.rawValue,
+            isFirstRun: isFirst
+        )
     }
 
     static func trackRunAbandoned(durationSeconds: Int, distanceKm: Double) {
@@ -148,6 +170,16 @@ extension Analytics {
         ])
     }
 
+    static func trackHealthKitDisclosureViewed(state: String) {
+        shared.track("healthkit_disclosure_viewed", properties: [
+            "connection_state": state
+        ])
+    }
+
+    static func trackHealthKitConnectTapped() {
+        shared.track("healthkit_connect_tapped", properties: [:])
+    }
+
     // MARK: - User Identity
 
     static func identifyUser(userId: String) {
@@ -156,5 +188,42 @@ extension Analytics {
 
     static func resetUser() {
         shared.reset()
+    }
+
+    // MARK: - Aha Moments
+
+    static func trackAhaMomentFired(momentId: String, context: String? = nil) {
+        var props: [String: Any] = [
+            "moment_id": momentId,
+            "variant": "C"
+        ]
+        if let context, !context.isEmpty {
+            props["context"] = context
+        }
+        shared.track("aha_moment_fired", properties: props)
+    }
+
+    static func trackAhaMomentCTAClicked(momentId: String) {
+        shared.track("aha_moment_cta_clicked", properties: [
+            "moment_id": momentId,
+            "variant": "C"
+        ])
+    }
+
+    static func trackAhaMomentDismissed(momentId: String) {
+        shared.track("aha_moment_dismissed", properties: [
+            "moment_id": momentId,
+            "variant": "C"
+        ])
+    }
+
+    private static func completedRunKey(for run: RecordedRun) -> String {
+        if let consolidatedID = run.consolidatedActivityID, !consolidatedID.isEmpty {
+            return "\(completedRunKeyPrefix)\(run.source.rawValue).consolidated.\(consolidatedID)"
+        }
+        if let providerID = run.providerActivityID, !providerID.isEmpty {
+            return "\(completedRunKeyPrefix)\(run.source.rawValue).provider.\(providerID)"
+        }
+        return "\(completedRunKeyPrefix)\(run.source.rawValue).local.\(run.id.uuidString)"
     }
 }

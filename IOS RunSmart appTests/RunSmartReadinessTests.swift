@@ -1072,9 +1072,6 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(report.notes.summary, "No coach report yet.")
     }
 
-    func testBrokenRemotePostRunInsightLookupIsDisabledBehindFallback() {
-        XCTAssertFalse(SupabaseRunSmartServices.remotePostRunInsightLookupEnabled)
-    }
 
     func testPostRunLearningCardUsesFallbackReportAndSuggestedWorkoutAction() {
         let run = makeRun(
@@ -2228,12 +2225,92 @@ final class RunSmartReadinessTests: XCTestCase {
             syncedAt: nil
         )
 
-        let data = try JSONEncoder().encode(DBRunInsert(run: run, profileID: 7, kind: .easy, notes: "Imported from Apple Health"))
+        let authUserID = UUID(uuidString: "55555555-5555-5555-5555-555555555555")!
+        let identity = RunSmartIdentity(authUserID: authUserID, profileUUID: nil, numericUserID: 7)
+        let data = try JSONEncoder().encode(
+            DBRunInsert(run: run, identity: identity, kind: .easy, notes: "Imported from Apple Health")
+        )
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
+        XCTAssertEqual(json["auth_user_id"] as? String, authUserID.uuidString)
+        XCTAssertEqual(json["profile_id"] as? Int, 7)
         XCTAssertEqual(json["source_provider"] as? String, "healthkit")
         XCTAssertEqual(json["source_activity_id"] as? String, providerID)
         XCTAssertEqual(json["heart_rate"] as? Int, 140)
+    }
+
+    func testDBRunInsertOmitsProfileIDForUUIDOnlyIdentity() throws {
+        let authUserID = UUID(uuidString: "66666666-6666-6666-6666-666666666666")!
+        let profileUUID = UUID(uuidString: "77777777-7777-7777-7777-777777777777")!
+        let run = RecordedRun(
+            id: UUID(uuidString: "88888888-8888-8888-8888-888888888888")!,
+            providerActivityID: "garmin-activity-42",
+            source: .garmin,
+            startedAt: Date(timeIntervalSince1970: 30_000),
+            endedAt: Date(timeIntervalSince1970: 30_900),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 900,
+            averagePaceSecondsPerKm: 180,
+            averageHeartRateBPM: 152,
+            routePoints: [],
+            syncedAt: nil
+        )
+
+        let identity = RunSmartIdentity(authUserID: authUserID, profileUUID: profileUUID, numericUserID: nil)
+        let data = try JSONEncoder().encode(
+            DBRunInsert(run: run, identity: identity, kind: .easy, notes: "Completed activity from garmin")
+        )
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let keys = Set(json.keys)
+
+        XCTAssertEqual(json["auth_user_id"] as? String, authUserID.uuidString)
+        XCTAssertNil(json["profile_id"])
+        XCTAssertEqual(keys.contains("profile_id"), false)
+        XCTAssertEqual(json["source_provider"] as? String, "garmin")
+        XCTAssertEqual(json["source_activity_id"] as? String, "garmin-activity-42")
+    }
+
+    func testChallengeEnrollmentPayloadUsesAuthUserIDWithoutHashedUserID() throws {
+        struct EnrollInsert: Encodable {
+            let user_id: Int64?
+            let auth_user_id: String
+            let challenge_id: String
+            let started_at: String
+            let updated_at: String
+
+            enum CodingKeys: String, CodingKey {
+                case user_id
+                case auth_user_id
+                case challenge_id
+                case started_at
+                case updated_at
+            }
+
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encodeIfPresent(user_id, forKey: .user_id)
+                try container.encode(auth_user_id, forKey: .auth_user_id)
+                try container.encode(challenge_id, forKey: .challenge_id)
+                try container.encode(started_at, forKey: .started_at)
+                try container.encode(updated_at, forKey: .updated_at)
+            }
+        }
+
+        let authUserID = UUID(uuidString: "99999999-9999-9999-9999-999999999999")!
+        let payload = EnrollInsert(
+            user_id: nil,
+            auth_user_id: authUserID.uuidString,
+            challenge_id: "11111111-1111-1111-1111-111111111111",
+            started_at: "2026-06-11",
+            updated_at: "2026-06-11T12:00:00Z"
+        )
+
+        let data = try JSONEncoder().encode(payload)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(json["auth_user_id"] as? String, authUserID.uuidString)
+        XCTAssertNil(json["user_id"])
+        XCTAssertEqual(json["challenge_id"] as? String, "11111111-1111-1111-1111-111111111111")
     }
 
     func testActivityConsolidationMergesSameRunAndKeepsRichestCanonical() {
@@ -2842,6 +2919,67 @@ final class RunSmartReadinessTests: XCTestCase {
         Analytics.shared = NullAnalyticsService()
         XCTAssertTrue(Analytics.shared is NullAnalyticsService,
             "Analytics.shared must accept and expose NullAnalyticsService assignments")
+    }
+
+    private final class CapturingAnalyticsService: AnalyticsTracking {
+        private(set) var events: [(name: String, properties: [String: Any])] = []
+
+        func track(_ event: String, properties: [String: Any]) {
+            events.append((event, properties))
+        }
+
+        func identify(userId: String, traits: [String: Any]) {}
+        func reset() {}
+    }
+
+    func testCompletedRunAnalyticsFiresOnceAndMarksFirstRunOnce() {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        let suiteName = "runsmart.analytics.completed-run.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer {
+            Analytics.shared = saved
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        Analytics.shared = tracker
+        let firstRun = RecordedRun(
+            id: UUID(uuidString: "00000000-0000-0000-0000-00000000A001")!,
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: Date(timeIntervalSince1970: 1_000),
+            endedAt: Date(timeIntervalSince1970: 2_800),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_800,
+            averagePaceSecondsPerKm: 360,
+            averageHeartRateBPM: nil,
+            routePoints: [],
+            syncedAt: nil
+        )
+        let secondRun = RecordedRun(
+            id: UUID(uuidString: "00000000-0000-0000-0000-00000000A002")!,
+            providerActivityID: "garmin-activity-2",
+            source: .garmin,
+            startedAt: Date(timeIntervalSince1970: 10_000),
+            endedAt: Date(timeIntervalSince1970: 12_100),
+            distanceMeters: 6_000,
+            movingTimeSeconds: 2_100,
+            averagePaceSecondsPerKm: 350,
+            averageHeartRateBPM: 148,
+            routePoints: [],
+            syncedAt: nil
+        )
+
+        Analytics.trackCompletedRunIfNeeded(firstRun, runType: "free", defaults: defaults)
+        Analytics.trackCompletedRunIfNeeded(firstRun, runType: "free", defaults: defaults)
+        Analytics.trackCompletedRunIfNeeded(secondRun, defaults: defaults)
+
+        XCTAssertEqual(tracker.events.map(\.name), ["run_completed", "first_run_completed", "run_completed"])
+        XCTAssertEqual(tracker.events[0].properties["run_type"] as? String, "free")
+        XCTAssertEqual(tracker.events[0].properties["is_first_run"] as? Bool, true)
+        XCTAssertEqual(tracker.events[2].properties["run_type"] as? String, "Garmin")
+        XCTAssertEqual(tracker.events[2].properties["is_first_run"] as? Bool, false)
     }
 
     // MARK: - E1: TodayRecommendation rationale field (Story 1)

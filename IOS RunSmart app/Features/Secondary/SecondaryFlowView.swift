@@ -985,6 +985,7 @@ private struct RouteSelectorScaffold: View {
 
 private struct RunReportScaffold: View {
     @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var session: SupabaseSession
     var activity: DBGarminActivity
     @State private var routePoints: [RunRoutePoint] = []
     @State private var report: RunReportDetail?
@@ -1117,8 +1118,8 @@ private struct RunReportScaffold: View {
     private func loadActivityReport() async {
         isLoadingRoutePoints = true
         routePoints = activity.toRecordedRun()?.routePoints ?? []
-        if routePoints.isEmpty {
-            routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activity.activityId)
+        if routePoints.isEmpty, let authUserID = session.currentUserID {
+            routePoints = await GarminBridge.shared.activityRoutePoints(activityID: activity.activityId, authUserID: authUserID)
         }
         isLoadingRoutePoints = false
         if var run = activity.toRecordedRun() {
@@ -2030,6 +2031,11 @@ private struct ConnectedServiceDetailScaffold: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Permissions")
+                    if serviceName == "HealthKit" {
+                        Text("RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health.")
+                            .font(.callout)
+                            .foregroundStyle(Color.mutedText)
+                    }
                     PermissionRow(title: "Activities", enabled: permissions.contains("Activities") || permissions.contains("Workouts"))
                     PermissionRow(title: "Sleep", enabled: permissions.contains("Sleep"))
                     PermissionRow(title: "Heart rate", enabled: permissions.contains("Heart Rate") || permissions.contains("Resting HR"))
@@ -2044,10 +2050,11 @@ private struct ConnectedServiceDetailScaffold: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Controls")
-                    ActionRow(title: "Connect", detail: "Start the real permission or gateway flow.", symbol: "link") {
+                    ActionRow(title: "Connect", detail: connectActionDetail, symbol: "link") {
+                        trackConnectionIntent()
                         run { await services.connect(provider: serviceName) }
                     }
-                    ActionRow(title: "Sync Now", detail: "Pull the latest real activity data.", symbol: "arrow.triangle.2.circlepath") {
+                    ActionRow(title: "Sync Now", detail: syncActionDetail, symbol: "arrow.triangle.2.circlepath") {
                         run { await services.syncNow(provider: serviceName) }
                     }
                     Button("Disconnect \(serviceName)") {
@@ -2113,6 +2120,7 @@ private struct ConnectedServiceDetailScaffold: View {
         }
         .task {
             await load()
+            trackDisclosureViewedIfNeeded()
         }
     }
 
@@ -2150,6 +2158,30 @@ private struct ConnectedServiceDetailScaffold: View {
         case .disconnected: Color.mutedText
         case .error: .orange
         }
+    }
+
+    private var connectActionDetail: String {
+        if serviceName == "HealthKit" {
+            return "Open the HealthKit permission sheet for approved read/write access."
+        }
+        return "Start the real permission or gateway flow."
+    }
+
+    private var syncActionDetail: String {
+        if serviceName == "HealthKit" {
+            return "Import the latest approved HealthKit workout and wellness data."
+        }
+        return "Pull the latest real activity data."
+    }
+
+    private func trackDisclosureViewedIfNeeded() {
+        guard serviceName == "HealthKit" else { return }
+        Analytics.trackHealthKitDisclosureViewed(state: status?.state.rawValue ?? "unknown")
+    }
+
+    private func trackConnectionIntent() {
+        guard serviceName == "HealthKit" else { return }
+        Analytics.trackHealthKitConnectTapped()
     }
 
     private func run(_ action: @escaping () async -> ConnectedDeviceStatus) {
@@ -2684,6 +2716,9 @@ private struct PermissionRow: View {
 private struct AccountScaffold: View {
     @EnvironmentObject private var session: SupabaseSession
     @State private var isSigningOut = false
+    @State private var showDeleteAccountConfirmation = false
+    @State private var isDeletingAccount = false
+    @State private var deleteAccountError: String?
 
     private var email: String {
         session.currentEmail ?? "--"
@@ -2696,8 +2731,24 @@ private struct AccountScaffold: View {
         return fmt.string(from: createdAt)
     }
 
+    private var isDemoMode: Bool {
+        RunSmartDemoMode.isEnabled
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            if isDemoMode {
+                GlassCard(glow: Color.accentAmber) {
+                    Label(
+                        "Demo Mode is local only. No Apple, Supabase, Garmin, HealthKit, analytics, or account deletion calls are made.",
+                        systemImage: "video.badge.checkmark"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Signed In")
@@ -2753,12 +2804,65 @@ private struct AccountScaffold: View {
                 }
             }
             .buttonStyle(NeonButtonStyle(isDestructive: true))
-            .disabled(isSigningOut)
+            .disabled(isSigningOut || isDemoMode)
 
-            Text("Signing out returns you to the sign-in screen, where you can register a new account or switch users.")
+            Text(isDemoMode ? "Sign out is disabled while recording Demo Mode." : "Signing out returns you to the sign-in screen, where you can register a new account or switch users.")
                 .font(.caption)
                 .foregroundStyle(Color.mutedText)
                 .padding(.horizontal, 4)
+
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionLabel(title: "Delete Account")
+                    Text("Permanently delete your account, training plans, run history, and all personal data from RunSmart. This cannot be undone.")
+                        .font(.caption)
+                        .foregroundStyle(Color.mutedText)
+
+                    // Delete Account
+                    Button(role: .destructive) {
+                        showDeleteAccountConfirmation = true
+                    } label: {
+                        if isDeletingAccount {
+                            ProgressView().tint(.white)
+                        } else {
+                            Label("Delete Account", systemImage: "person.crop.circle.badge.minus")
+                        }
+                    }
+                    .buttonStyle(NeonButtonStyle(isDestructive: true))
+                    .disabled(isDeletingAccount || isSigningOut || isDemoMode)
+                }
+            }
         }
+        .confirmationDialog(
+            "Delete your RunSmart account?",
+            isPresented: $showDeleteAccountConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Account", role: .destructive) {
+                Task { await deleteAccount() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently deletes your account, training plans, and run history. This cannot be undone.")
+        }
+        .alert("Could not delete account", isPresented: Binding(
+            get: { deleteAccountError != nil },
+            set: { if !$0 { deleteAccountError = nil } }
+        )) {
+            Button("OK", role: .cancel) { deleteAccountError = nil }
+        } message: {
+            Text(deleteAccountError ?? "Please try again.")
+        }
+    }
+
+    private func deleteAccount() async {
+        isDeletingAccount = true
+        do {
+            try await session.deleteAccount()
+            // Success: session is cleared and the app returns to sign-in.
+        } catch {
+            deleteAccountError = error.localizedDescription
+        }
+        isDeletingAccount = false
     }
 }

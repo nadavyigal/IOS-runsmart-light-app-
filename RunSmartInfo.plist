@@ -48,7 +48,11 @@
 	<key>RunSmartAPIBaseURL</key>
 	<string>https://runsmart-ai.com</string>
 	<key>POSTHOG_API_KEY</key>
-	<string>phc_2RcjPhReYKSisINOVVehHusghrUtyyiR6sN87SzJLZ6</string>
+	<string>$(POSTHOG_API_KEY)</string>
+	<key>SUPABASE_URL</key>
+	<string>$(SUPABASE_URL)</string>
+	<key>SUPABASE_PUBLISHABLE_KEY</key>
+	<string>$(SUPABASE_PUBLISHABLE_KEY)</string>
 	<key>POSTHOG_HOST</key>
 	<string>https://us.i.posthog.com</string>
 	<key>UIApplicationSceneManifest</key>

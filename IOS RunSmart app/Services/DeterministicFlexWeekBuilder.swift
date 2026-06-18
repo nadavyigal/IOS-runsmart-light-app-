@@ -377,7 +377,7 @@ enum DeterministicFlexWeekBuilder {
             guard week.indices.contains(idx) else { return nil }
             return week[idx]
         }
-        return neighbors.contains(where: isHardWorkout)
+        return neighbors.contains(where: { isHardWorkout($0) })
     }
 
     private static func weekdayLabel(for date: Date, calendar: Calendar) -> String {

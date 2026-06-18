@@ -58,7 +58,7 @@ extension DBGarminActivity {
         let pace = durationS / (distanceM / 1000)
 
         return RecordedRun(
-            id: UUID(),
+            id: HealthKitRecordedRunMapper.stableUUID(for: trimmedActivityID),
             providerActivityID: trimmedActivityID,
             source: .garmin,
             startedAt: startDate,
@@ -129,20 +129,40 @@ struct GarminReadiness {
     }
 }
 
+enum GarminDistanceBucket {
+    static let standardKmBuckets = [3, 5, 8, 10, 15]
+
+    static func bucket(forKm km: Double) -> Int {
+        standardKmBuckets.min(by: { abs(Double($0) - km) < abs(Double($1) - km) }) ?? Int(km.rounded())
+    }
+
+    static func representativeActivities(from activities: [DBGarminActivity]) -> [Int: DBGarminActivity] {
+        var pickedByBucket: [Int: DBGarminActivity] = [:]
+        for activity in activities {
+            guard let meters = activity.distanceM, meters > 0 else { continue }
+            let bucket = bucket(forKm: meters / 1_000)
+            if pickedByBucket[bucket] == nil {
+                pickedByBucket[bucket] = activity
+            }
+        }
+        return pickedByBucket
+    }
+}
+
 enum WellnessTrendMapper {
     static func series(from metrics: [DBGarminDailyMetrics], maxDays: Int = 7) -> WellnessTrendSeries {
         guard !metrics.isEmpty else { return .empty }
         let points = metrics
             .sorted(by: { $0.date < $1.date })
             .suffix(maxDays)
-            .compactMap(point(from:))
+            .compactMap { point(from: $0) }
         guard !points.isEmpty else { return .empty }
 
         let hrvValues = points.compactMap(\.hrvMilliseconds)
-        let readinessValues = points.compactMap(readinessValue(from:))
+        let readinessValues = points.compactMap { readinessValue(from: $0) }
         let latest = points.last
         let latestHRV = latest?.hrvMilliseconds
-        let latestReadiness = latest.flatMap(readinessValue(from:))
+        let latestReadiness = latest.flatMap { readinessValue(from: $0) }
 
         return WellnessTrendSeries(
             days: points,

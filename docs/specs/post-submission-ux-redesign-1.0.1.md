@@ -188,7 +188,7 @@ One visible Coach entry point per root screen. All open `CoachFlowView` as a she
 
 **Unchanged.** Out of scope. The Run tab is a focused single-purpose recording screen with no first-viewport noise problem.
 
-**Post-run bridge (small wire-up):** After a run completes, the post-run summary "View Report" CTA should route to `router.selectedTab = .report` (not just open a sheet) so the user lands in the canonical Report home. Verify existing `PostRunLearningCard` behaviour.
+**Post-run bridge (small wire-up):** Implement: after a run completes, wire the "View Report" CTA in `PostRunSummaryView` (or wherever it is surfaced) to set `router.selectedTab = .report` instead of opening a sheet, so the user lands in the canonical Report home. Current behaviour: CTA opens a sheet. `PostRunLearningCard` (workout-save card shown after the summary) is unrelated to this routing — no changes needed there.
 
 ---
 
@@ -229,7 +229,7 @@ One visible Coach entry point per root screen. All open `CoachFlowView` as a she
 - Verify no duplicate Coach cards visible on any root screen
 
 ### Report segments
-- Runs segment: activity list shows, filter pills work
+- Runs segment: activity list shows, all recorded runs visible with no sub-filtering (filter pills removed)
 - Reports segment: generated reports appear, "Generate" chip appears for runs without reports
 - Progress segment: zone analysis, load card, trend chart all render
 
