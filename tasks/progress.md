@@ -1,5 +1,5 @@
-Status: Privacy/account-deletion source fixes are pushed on current `main`; build 15 archive/export passed and uploaded to App Store Connect, where the package is processing. Final resubmission confidence still depends on a real-device/TestFlight authenticated smoke because the local simulator still rejects Sign in with Apple.
-Current Phase: 1.0.2 build 15 - App Store Connect processing and resubmission prep
+Status: Live on the App Store as of 2026-06-17; PostHog project 171597 live verification shows 6 users in the last 2 days, latest activity 2026-06-17 12:16.
+Current Phase: Live on App Store; monitor launch analytics and complete the real-device/TestFlight authenticated smoke follow-up.
 Active Story: Perform live smoke on a physical device or TestFlight: SIWA sign-in, Garmin connect, delete account, SIWA re-register.
 Last Completed Story: 2026-06-15 App Review privacy/account-deletion fix from `main` commit `9f47ad2`: Delete Account confirmation dialog updated, privacy manifest expanded, Release generic iOS build passed, and the built app bundle contains the updated privacy manifest.
 Next Recommended Story: Wait for build 15 processing, update App Store Connect App Privacy and App Review notes with the delete-account screen recording, run the live smoke on an Apple-auth-capable physical device/TestFlight build, then select build 15 and resubmit.
