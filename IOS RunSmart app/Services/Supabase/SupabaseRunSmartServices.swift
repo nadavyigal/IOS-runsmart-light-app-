@@ -205,7 +205,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     daysPerWeek: request.weeklyRunDays,
                     preferredTimes: request.preferredDays.isEmpty ? ["morning"] : request.preferredDays,
                     coachingStyle: request.supabaseCoachingStyle,
-                    averageWeeklyKm: planAverageWeeklyKm,
+                    averageWeeklyKm: weeklyVolumeKm,
                     trainingDataSource: request.trainingDataSource?.rawValue
                 ),
                 trainingHistory: .init(
