@@ -109,7 +109,7 @@ These three together = earned trust. Earned trust = retention. Retention = word-
 | E1 | **Personalization Accuracy Signal** — coach rationale on every Today recommendation | Accuracy = trust | P1 |
 | E2 | **Progress Narrative** — weekly coach summary of what changed and what's next | Visible progress = commitment | P1 |
 | E3 | **Safety Explanation Layer** — plain-language "why" when RunSmart holds you back | Safety confidence = loyalty | P1 |
-| E4 | **21-Day Running Foundation** — structured first experience with daily micro-goals and coach check-ins | Onboarding to habit | P1 |
+| E4 | **21-Day Rookie Challenge** — structured first experience with daily micro-goals and coach check-ins | Onboarding to habit | P1 |
 | E5 | **Adaptive Plan / Flex Week** — one-tap "I'm tired / traveling" triggers AI week restructure | Accuracy + safety | P2 |
 | E6 | **Post-Run Debrief Loop** — AI reaction to run quality with "what it means for tomorrow" | Visible progress | P2 |
 | E7 | **Garmin / Wearable Depth** — HRV trend and training readiness trend (7-day) for Striver persona | Striver accuracy | P3 |
@@ -124,7 +124,7 @@ These three together = earned trust. Earned trust = retention. Retention = word-
 - App Store submission: signing, privacy strings, screenshots, archive inspection
 
 ### V1.1 — First 30 days post-launch
-- E4: 21-Day Running Foundation — structured onboarding trial that converts new users into habits
+- E4: 21-Day Rookie Challenge — structured onboarding trial that converts new users into habits
 - E2: Weekly progress narrative (push notification or in-app coach summary card)
 - Monitoring: PostHog D7 + D14 retention, identify where trust breaks
 
