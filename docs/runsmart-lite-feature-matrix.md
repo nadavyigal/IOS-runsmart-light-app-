@@ -3,7 +3,7 @@
 | Capability | Classification | Native V1 Direction |
 | --- | --- | --- |
 | Today recommendation | Primary | First viewport card with readiness, workout, and Start Workout CTA. |
-| Four-tab shell | Primary | Today, Plan, Run, Profile only. |
+| Tab shell | Primary | Today, Plan, Run, Report (Activity), Profile — five tabs. |
 | AI Coach access | Primary | Sheet/full-screen cover from Today, Plan, Run, and Profile. |
 | Weekly plan | Primary | Week strip and compact workout cards. |
 | Run tracking | Primary | Pre-run, live metrics, controls, and post-run summary scaffold. |
@@ -13,7 +13,7 @@
 | Add activity | Secondary/detail | Manual activity entry scaffold. |
 | Route selection | Secondary/detail | Route prompt and future map integration boundary. |
 | Reminders/preferences | Advanced/settings | Profile-driven settings cards. |
-| Connected services | Advanced/settings | Garmin, Strava, HealthKit hooks with mock status. |
+| Connected services | Advanced/settings | Garmin and HealthKit are live integrations (not mock); Strava is not implemented. |
 | Recovery details | Advanced/settings | Summary in primary surfaces, detail later. |
 | Social/community | Later/defer | Out of RunSmart Lite V1 scope. |
 | Leaderboards | Later/defer | Out of RunSmart Lite V1 scope. |

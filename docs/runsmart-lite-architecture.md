@@ -2,14 +2,14 @@
 
 ## Structure
 
-Source is grouped under `IOS RunSmart app/IOS RunSmart app/`:
+Source is grouped under `IOS RunSmart app/`:
 
 - `App`: root shell and tab orchestration.
 - `Core`: shared app state and environment helpers.
 - `DesignSystem`: tokens and reusable SwiftUI components.
 - `Features`: Today, Plan, Run, Profile, Coach, and secondary flows.
 - `Models`: lightweight domain models used by services and views.
-- `Services`: protocols and mock implementations.
+- `Services`: protocols, mock implementations for previews, and `SupabaseRunSmartServices` as the live production implementation.
 - `PreviewSupport`: sample data for previews and local scaffolding.
 
 ## UI Pattern
@@ -24,7 +24,7 @@ Source is grouped under `IOS RunSmart app/IOS RunSmart app/`:
 - Keep app-level tab selection and modal routing in the app shell.
 - Use service protocols for domain access.
 - Mock services return deterministic sample data for previews.
-- Future live clients should conform to the same protocols.
+- `SupabaseRunSmartServices` is the live client and conforms to the same protocols.
 
 ## Service Boundaries
 
@@ -40,5 +40,5 @@ Source is grouped under `IOS RunSmart app/IOS RunSmart app/`:
 ## Testing Direction
 
 - Unit test service mappers once live clients are added.
-- Snapshot or visual checks should cover the four primary tabs.
+- Snapshot or visual checks should cover the five primary tabs (Today, Plan, Run, Report, Profile).
 - Manual QA must include Dynamic Type, reduced motion, dark mode, and run interruption scenarios.
