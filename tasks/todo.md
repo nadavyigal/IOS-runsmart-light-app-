@@ -2,6 +2,34 @@
 
 ## Current Task
 
+**Objective:** Production gate follow-up: verify PostHog project integrity first, fix Supabase Garmin worker RPC grant exposure, and defer lower-priority error-sweep items.
+**Status:** Partially complete. Local PostHog token matches RunSmart project 171597 ("Running coach"), PostHog MCP context was switched from ResumeBuilder project 270848 to RunSmart, and RunSmart funnel events are visible in the correct project. Build 16 TestFlight smoke is still blocked because this session cannot operate the physical TestFlight UI/sign-in/onboarding/run flow hands-on. Supabase Garmin worker/job RPC grants were fixed live and documented in a migration.
+**Branch:** `main`
+
+### Checklist
+- [x] Confirm `RunSmartSecrets.xcconfig` has a real non-placeholder PostHog key without exposing the key.
+- [x] Verify the expected RunSmart PostHog project is `171597 / Running coach`.
+- [x] Detect and switch away from the default PostHog MCP context `270848 / ResumeBuilder AI`.
+- [x] Query RunSmart project 171597 for the activation/run events.
+- [ ] Complete TestFlight build 16 smoke on a physical device: sign in, finish onboarding, generate a plan, start a run, and confirm build 16 events land.
+- [x] Pull exact Supabase function grant state for security-definer RPC findings.
+- [x] Revoke `PUBLIC`, `anon`, and `authenticated` execute on Garmin worker/job RPCs; keep `service_role` and `postgres`.
+- [x] Verify direct ACLs and refreshed Supabase security advisor output.
+- [x] Defer fatalError, coach/delete-account single-sample noise, and broad failure telemetry work until after the D7 gate.
+
+### Validation - 2026-06-19
+- Local `RunSmartSecrets.xcconfig` token is present and matches PostHog project `171597 / Running coach`, not `270848 / ResumeBuilder AI`; token values were not written to task memory.
+- Correct RunSmart PostHog project last-7-day counts after project switch: `tab_viewed` 105 / 7 users, `app_launched` 39 / 15, `onboarding_step_completed` 31 / 8, `plan_viewed` 21 / 5, `onboarding_started` 20 / 8, `sign_in_completed` 11 / 8, `plan_generated` 8 / 7, `onboarding_completed` 8 / 8, `run_completed` 3 / 2, `run_started` 2 / 2.
+- Build-specific PostHog query found no `1.0.3` build `16` events yet; latest full smoke-like sequence was TestFlight `1.0.2` build `15`.
+- Xcode project currently declares `MARKETING_VERSION = 1.0.3` and `CURRENT_PROJECT_VERSION = 16`.
+- Supabase direct ACL verification for `claim_garmin_import_jobs`, `fail_garmin_import_job`, `requeue_garmin_import_job`, and `invoke_garmin_worker`: `anon_can_execute=false`, `authenticated_can_execute=false`, `service_role_can_execute=true`, `postgres_can_execute=true`.
+- Refreshed Supabase security advisors no longer list the Garmin worker/job RPCs under public/authenticated SECURITY DEFINER executable findings. Remaining warnings are unrelated/app-facing or separate hardening items and were intentionally not changed during the D7 gate.
+- Added repo migration `supabase/migrations/20260619083000_restrict_garmin_worker_rpc_grants.sql` to document the live grant fix.
+
+---
+
+## Previous Current Task
+
 **Objective:** Open, review, and merge all remaining remote app branches into `main`.
 **Status:** Complete. Four active branch PRs were refreshed, reviewed with PR comments, merged into `main`, and their remote branches were deleted. The already-merged empty branch was cleaned up.
 **Branch:** `main`

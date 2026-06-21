@@ -324,6 +324,9 @@
     "Deleting Route" : {
 
     },
+    "Demo Mode is local only. No Apple, Supabase, Garmin, HealthKit, analytics, or account deletion calls are made." : {
+
+    },
     "design_apply_cta" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -552,6 +555,16 @@
     },
     "KM SPLITS" : {
 
+    },
+    "Latest run, %@, %@, %@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Latest run, %1$@, %2$@, %3$@, %4$@"
+          }
+        }
+      }
     },
     "Learning from this run now..." : {
 
@@ -896,6 +909,9 @@
 
     },
     "Sign Out" : {
+
+    },
+    "Sign out is disabled while recording Demo Mode." : {
 
     },
     "Signing out returns you to the sign-in screen, where you can register a new account or switch users." : {
