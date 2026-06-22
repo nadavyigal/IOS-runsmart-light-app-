@@ -4,6 +4,9 @@ struct RecoveryDashboardView: View {
     @Environment(\.runSmartServices) private var services
     @State private var recovery: RecoverySnapshot = .loading
     @State private var trends: WellnessTrendSeries = .empty
+    // Drives Garmin attribution: only shown when Garmin Connect is actually a data source,
+    // so we never mischaracterize HealthKit-only data as Garmin-sourced.
+    @State private var garminConnected = false
 
     private var readinessValue: Double {
         min(1.0, max(0.0, Double(recovery.readiness) / 100.0))
@@ -22,6 +25,14 @@ struct RecoveryDashboardView: View {
             HeroCard(accent: .accentSuccess) {
                 VStack(alignment: .leading, spacing: 14) {
                     SectionLabel(title: "Recovery dashboard", trailing: "Today")
+                    // Garmin API Brand Guidelines (Health): device-sourced data on primary
+                    // displays must carry a "Garmin [device model]" attribution adjacent to the
+                    // heading, above the fold. Device model is not surfaced, so we list "Garmin".
+                    if garminConnected {
+                        Text("Garmin")
+                            .font(.labelSM)
+                            .foregroundStyle(Color.textTertiary)
+                    }
                     HStack(alignment: .center) {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("\(recovery.readiness)")
@@ -68,11 +79,23 @@ struct RecoveryDashboardView: View {
                     RecoveryReadRow(title: "Recover", detail: "Protect sleep quality and easy-day effort when trend dips.", tint: .accentRecovery)
                 }
             }
+
+            // Garmin API Brand Guidelines (Health): approved attribution line for AI/derived
+            // insights built in part from Garmin device-sourced data.
+            if garminConnected {
+                Text("Insights derived in part from Garmin device-sourced data.")
+                    .font(.caption)
+                    .italic()
+                    .foregroundStyle(Color.textTertiary)
+            }
         }
         .task {
             async let recoveryTask = services.recoverySnapshot()
             async let trendTask = services.wellnessTrendSeries(days: 7)
+            async let statusTask = services.deviceStatuses()
+            let statuses = await statusTask
             (recovery, trends) = await (recoveryTask, trendTask)
+            garminConnected = statuses.contains { $0.provider == "Garmin Connect" && $0.state == .connected }
         }
     }
 }

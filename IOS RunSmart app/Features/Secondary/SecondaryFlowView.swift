@@ -297,8 +297,7 @@ private struct FlowHeader: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            RunSmartLogoMark(size: 58)
-                .shadow(color: Color.accentPrimary.opacity(0.38), radius: 16)
+            headerMark
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(destination.title)
@@ -310,6 +309,24 @@ private struct FlowHeader: View {
             }
         }
         .padding(.top, 8)
+    }
+
+    /// Header mark. For third-party connected services (e.g. Garmin Connect) we must NOT pair the
+    /// RunSmart logo with the service name — Garmin's API Brand Guidelines treat that as implying
+    /// ownership of Garmin Connect. Show a neutral service glyph instead. Replace with the official
+    /// Garmin Connect tile (Image("GarminConnectTile")) once it is added to the asset catalog.
+    @ViewBuilder
+    private var headerMark: some View {
+        if case .connectedService = destination {
+            Image(systemName: destination.symbol)
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(Color.textSecondary)
+                .frame(width: 58, height: 58)
+                .background(Color.textTertiary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            RunSmartLogoMark(size: 58)
+                .shadow(color: Color.accentPrimary.opacity(0.38), radius: 16)
+        }
     }
 }
 
