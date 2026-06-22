@@ -47,6 +47,29 @@ Current gaps:
 - No source-neutral zone summary model.
 - No WorkoutKit, App Intents, ActivityKit, widgets, watch target, or Garmin Training API mapper in source.
 
+## Workout Step Migration Strategy
+
+The current system has two workout-step representations:
+
+1. `WorkoutSummary.workoutStructure` — a legacy String JSON field persisted in Supabase.
+2. `StructuredWorkoutFactory.WorkoutStep` — a display-only struct (strings, colors, labels) built at render time.
+
+The proposed `PlannedWorkout.steps: [WorkoutStep]` introduces a third, canonical representation. To avoid parallel sync obligations:
+
+| Phase | Source of truth | Legacy handling |
+|---|---|---|
+| **Rollout (Epic 1–2)** | `PlannedWorkout.steps` for all new publish/export paths | `workoutStructure` remains the Supabase write path; a one-way mapper (`DBWorkout` → `PlannedWorkout`) runs at read time. `StructuredWorkoutFactory` continues to derive display steps from `WorkoutSummary` until the UI migrates. |
+| **Cutover (Epic 4+)** | `PlannedWorkout.steps` for persistence, display, and export | `workoutStructure` is written only as a denormalized cache for backward-compatible API consumers; new code must not parse it as authoritative. |
+| **Deprecation (post-Garmin/Apple publish GA)** | `PlannedWorkout.steps` only | Remove `workoutStructure` column and `StructuredWorkoutFactory.WorkoutStep`; views consume canonical steps directly. |
+
+**Conversion boundaries:**
+
+- `DBWorkout` / `WorkoutSummary` → `PlannedWorkout`: `TrainingPlanRepository` mapper (Ticket 1.2). Runs once per plan load.
+- `PlannedWorkout` → display: new thin view-model layer replaces `StructuredWorkoutFactory` (no Colors in the canonical model).
+- `PlannedWorkout` → Garmin/Apple export: provider mappers only; they never read `workoutStructure` or display structs.
+
+No bidirectional sync between representations. If a mapper cannot produce a canonical step, it logs a gap and falls back to a single "unstructured" step rather than writing back to the legacy field.
+
 ## Proposed Canonical Models
 
 ### RunSmartPlan

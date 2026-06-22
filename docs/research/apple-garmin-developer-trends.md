@@ -275,6 +275,22 @@ RunSmart relevance:
 | Watch-native custom experience | watchOS app target | Connect IQ app/data field | Deep control, high polish | High | New targets, review, device QA | Not Now |
 | AI explanation/coaching | Existing cloud AI, later Foundation Models | Existing cloud AI, Garmin data as context | Differentiation | Medium | AI safety, privacy, availability | Phase 1 cloud, Phase 4 on-device |
 
+## Critical Dependencies and Approval Gates
+
+**Garmin API approval is a critical-path blocker for Phase 3.** Several capabilities in the matrix below depend on Garmin Connect Partner Services granting production access to specific API scopes. Until approval lands, Phase 3 deliverables (import heart-rate series, import sleep/recovery depth, publish structured workout, schedule workout, push workout changes, publish route/course) cannot ship.
+
+Capabilities blocked on Garmin approval:
+
+- Import completed run (Phase 3 Garmin path)
+- Import heart-rate series
+- Import sleep/recovery data (Garmin Health API)
+- Publish structured workout (Training API)
+- Schedule workout (Training API calendar)
+- Push workout changes
+- Publish route/course (Courses API)
+
+**Epic 6 (Garmin Training API Publishing) is the highest-risk gate.** Ticket 6.1 must confirm current approval state, OAuth scopes, and throttled production testing before any Training API engineering begins. If approval is delayed, Phase 2 (Apple WorkoutKit) and Phase 1 (provider-neutral foundation + no-wearable execution) proceed independently.
+
 ## Recommendation
 
 Prioritize the provider-neutral Sync & Adapt foundation before adding any new watch-specific app surface.
