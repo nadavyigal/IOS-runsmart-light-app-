@@ -4,10 +4,12 @@ artifact: story-execution
 feature: Garmin readiness
 story: 1
 story-title: Physical TestFlight Garmin Readiness Smoke
-status: blocked
+status: awaiting-founder-smoke
 founder-review-needed: yes
 date: 2026-06-20
+updated: 2026-06-21
 source-user-stories: tasks/user-stories-garmin-readiness-2026-06-20.md
+founder-run-sheet: tasks/story-1-garmin-readiness-smoke-FOUNDER-RUN.md
 ---
 
 # Story 1 Execution: Physical TestFlight Garmin Readiness Smoke
@@ -54,7 +56,9 @@ Run one physical-device TestFlight smoke for build 16 or later so Garmin readine
 
 ## Result
 
-Blocked. This session cannot operate the physical TestFlight UI, complete Apple sign-in on the device, perform the live run flow, or inspect the resulting device-driven PostHog events as acceptance evidence.
+**Awaiting founder physical-device smoke.** Local repo checks complete (see below). Founder run sheet: `tasks/story-1-garmin-readiness-smoke-FOUNDER-RUN.md`.
+
+Agent cannot operate TestFlight UI, Apple sign-in on device, or live run flow. Share the "Share back" block from the run sheet after testing — agent will mark Story 1 complete and route to Story 2/5/6.
 
 ## Evidence Needed To Complete
 

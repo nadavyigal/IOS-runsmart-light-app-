@@ -2078,3 +2078,36 @@ Added DEBUG-only Demo Mode for simulator recording after Apple Account verificat
 
 ### Remaining Risk
 Demo Mode is recording-only evidence. It must not be used as App Review account-cycle proof; live SIWA/delete-account smoke still requires an Apple-auth-capable physical device or TestFlight build.
+
+## 2026-06-22
+
+### Task Summary
+Implemented PR #55 HRV dual-source attribution plan for Garmin readiness. RunSmart now preserves HRV source through HealthKit snapshot persistence, Garmin mapping, recovery snapshots, wellness trends, and Today/Recovery UI attribution.
+
+### Files Changed
+- `IOS RunSmart app/Models/RunSmartModels.swift`
+- `IOS RunSmart app/Services/HealthKit/HealthKitSyncService.swift`
+- `IOS RunSmart app/Services/Garmin/GarminMappers.swift`
+- `IOS RunSmart app/Services/Supabase/SupabaseRunSmartServices.swift`
+- `IOS RunSmart app/Features/Recovery/RecoveryDashboardView.swift`
+- `IOS RunSmart app/Features/Today/TodayTabView.swift`
+- `IOS RunSmart app/PreviewSupport/RunSmartPreviewData.swift`
+- `IOS RunSmart appTests/HRVSourceTests.swift`
+- `tasks/progress.md`
+- `tasks/session-log.md`
+
+### Findings
+- HealthKit HRV was previously stored as an averaged scalar, with no source metadata preserved.
+- Garmin direct wellness HRV now takes precedence over local HealthKit HRV when both are available.
+- HealthKit HRV samples are classified from `HKQuantitySample.sourceRevision.source.bundleIdentifier` as Garmin, Apple Health, or unknown.
+- Old persisted HealthKit snapshots still decode because missing `hrvSource` defaults to unknown.
+- Recovery and Today HRV trend rows can now show source attribution without changing unrelated Body Battery branding.
+
+### Validation
+- `xcodebuild build-for-testing -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-hrv-source-dd CODE_SIGNING_ALLOWED=NO -quiet` passed.
+- `xcodebuild test-without-building -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,id=66F09A08-D5EE-467D-936D-E1406E5FEE0E" -only-testing:"IOS RunSmart appTests/HRVSourceTests" -derivedDataPath /tmp/runsmart-hrv-source-dd CODE_SIGNING_ALLOWED=NO -quiet` passed.
+- `xcodebuild build -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-hrv-source-dd CODE_SIGNING_ALLOWED=NO -quiet` passed.
+- `git diff --check` passed.
+
+### Remaining Risk
+Real Garmin Connect HealthKit metadata still needs a physical-device or TestFlight proof pass before App Store resubmission. This session did not archive, upload, push, or open the PR.

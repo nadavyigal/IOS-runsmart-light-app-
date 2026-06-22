@@ -59,6 +59,7 @@ struct RecoveryDashboardView: View {
             RecoveryTrendTile(
                 title: "HRV",
                 value: trends.latestHRVDisplay,
+                attribution: trends.latestHRVSource.attributionLabel ?? recovery.hrvSource.attributionLabel,
                 detail: trends.hrvTrendSummary,
                 bars: trends.hrvBars,
                 tint: .accentHeart
@@ -103,6 +104,7 @@ struct RecoveryDashboardView: View {
 private struct RecoveryTrendTile: View {
     var title: String
     var value: String
+    var attribution: String? = nil
     var detail: String
     var bars: [CGFloat]
     var tint: Color
@@ -114,6 +116,11 @@ private struct RecoveryTrendTile: View {
                     .font(.labelSM)
                     .tracking(1.1)
                     .foregroundStyle(Color.textSecondary)
+                if let attribution {
+                    Text(attribution)
+                        .font(.caption)
+                        .foregroundStyle(Color.textTertiary)
+                }
                 Text(value)
                     .font(.metricSM)
                     .monospacedDigit()
@@ -131,7 +138,10 @@ private struct RecoveryTrendTile: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(title), \(value), \(detail)")
+            .accessibilityLabel(
+                attribution.map { "\(title), \($0), \(value), \(detail)" }
+                    ?? "\(title), \(value), \(detail)"
+            )
         }
     }
 }

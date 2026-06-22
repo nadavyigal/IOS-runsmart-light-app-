@@ -9,8 +9,44 @@ struct HealthKitDailySnapshot: Codable, Hashable {
     var steps: Int?
     var restingHeartRateBPM: Int?
     var hrvMilliseconds: Double?
+    var hrvSource: HRVSource
     var sleepSeconds: TimeInterval?
     var activeEnergyKilocalories: Double?
+
+    init(
+        date: Date,
+        steps: Int?,
+        restingHeartRateBPM: Int?,
+        hrvMilliseconds: Double?,
+        hrvSource: HRVSource = .unknown,
+        sleepSeconds: TimeInterval?,
+        activeEnergyKilocalories: Double?
+    ) {
+        self.date = date
+        self.steps = steps
+        self.restingHeartRateBPM = restingHeartRateBPM
+        self.hrvMilliseconds = hrvMilliseconds
+        self.hrvSource = hrvSource
+        self.sleepSeconds = sleepSeconds
+        self.activeEnergyKilocalories = activeEnergyKilocalories
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        date = try container.decode(Date.self, forKey: .date)
+        steps = try container.decodeIfPresent(Int.self, forKey: .steps)
+        restingHeartRateBPM = try container.decodeIfPresent(Int.self, forKey: .restingHeartRateBPM)
+        hrvMilliseconds = try container.decodeIfPresent(Double.self, forKey: .hrvMilliseconds)
+        hrvSource = try container.decodeIfPresent(HRVSource.self, forKey: .hrvSource) ?? .unknown
+        sleepSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .sleepSeconds)
+        activeEnergyKilocalories = try container.decodeIfPresent(Double.self, forKey: .activeEnergyKilocalories)
+    }
+}
+
+struct HRVSourceSample: Hashable {
+    var value: Double
+    var source: HRVSource
+    var endDate: Date
 }
 
 struct HealthKitImportResult {
@@ -97,6 +133,26 @@ enum HealthKitRecordedRunMapper {
 
 struct HealthKitSyncService {
     static let providerName = "HealthKit"
+
+    static func classifyHRVSource(bundleIdentifier: String?) -> HRVSource {
+        guard let bundleIdentifier = bundleIdentifier?.lowercased(), !bundleIdentifier.isEmpty else {
+            return .unknown
+        }
+        if bundleIdentifier == "com.garmin.connect" || bundleIdentifier.hasPrefix("com.garmin.connect.") {
+            return .garmin
+        }
+        if bundleIdentifier == "com.apple" || bundleIdentifier.hasPrefix("com.apple.") {
+            return .appleHealth
+        }
+        return .unknown
+    }
+
+    static func dominantHRVSource(from samples: [HRVSourceSample]) -> HRVSource {
+        samples
+            .sorted(by: { $0.endDate > $1.endDate })
+            .first?
+            .source ?? .unknown
+    }
 
     func requestAccess() async -> ConnectedDeviceStatus {
 #if canImport(HealthKit)
@@ -340,14 +396,19 @@ private extension HealthKitSyncService {
         async let steps = quantitySum(.stepCount, unit: .count(), start: start, end: end, store: store)
         async let activeEnergy = quantitySum(.activeEnergyBurned, unit: .kilocalorie(), start: start, end: end, store: store)
         async let restingHR = quantityAverage(.restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: start, end: end, store: store)
-        async let hrv = quantityAverage(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: start, end: end, store: store)
+        async let hrvSamples = hrvSourceSamples(start: start, end: end, store: store)
         async let sleep = sleepDuration(start: calendar.date(byAdding: .day, value: -1, to: start) ?? start, end: end, store: store)
+
+        let hrvReadings = await hrvSamples
+        let hrvValues = hrvReadings.map(\.value)
+        let hrvAverage = hrvValues.isEmpty ? nil : hrvValues.reduce(0, +) / Double(hrvValues.count)
 
         let snapshot = await HealthKitDailySnapshot(
             date: end,
             steps: steps.map { Int($0.rounded()) },
             restingHeartRateBPM: restingHR.map { Int($0.rounded()) },
-            hrvMilliseconds: hrv,
+            hrvMilliseconds: hrvAverage,
+            hrvSource: Self.dominantHRVSource(from: hrvReadings),
             sleepSeconds: sleep,
             activeEnergyKilocalories: activeEnergy
         )
@@ -368,6 +429,29 @@ private extension HealthKitSyncService {
         return await withCheckedContinuation { continuation in
             let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, stats, _ in
                 continuation.resume(returning: stats?.sumQuantity()?.doubleValue(for: unit))
+            }
+            store.execute(query)
+        }
+    }
+
+    func hrvSourceSamples(start: Date, end: Date, store: HKHealthStore) async -> [HRVSourceSample] {
+        guard let type = optionalQuantity(.heartRateVariabilitySDNN) else { return [] }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: type,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)]
+            ) { _, samples, _ in
+                let readings = (samples as? [HKQuantitySample])?.map { sample in
+                    HRVSourceSample(
+                        value: sample.quantity.doubleValue(for: .secondUnit(with: .milli)),
+                        source: Self.classifyHRVSource(bundleIdentifier: sample.sourceRevision.source.bundleIdentifier),
+                        endDate: sample.endDate
+                    )
+                } ?? []
+                continuation.resume(returning: readings)
             }
             store.execute(query)
         }
