@@ -66,8 +66,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             let totalSeconds = Int($0)
             return String(format: "%dh %02dm", Int32(totalSeconds / 3600), Int32((totalSeconds % 3600) / 60))
         } ?? healthSnapshot?.sleepSeconds.map(formatDuration) ?? "--"
+        let resolvedHRV = HRVResolver.resolve(
+            garminDirect: metrics?.hrv.map { HRVReading(value: $0, source: .garmin) },
+            healthKit: healthSnapshot?.hrvMilliseconds.map { HRVReading(value: $0, source: healthSnapshot?.hrvSource ?? .unknown) }
+        )
         let hrvLabel: String
-        if let hrv = metrics?.hrv ?? healthSnapshot?.hrvMilliseconds {
+        if let hrv = resolvedHRV?.value {
             hrvLabel = hrv > 50 ? "Stable" : "Lower"
         } else {
             hrvLabel = "--"
@@ -91,7 +95,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         let safetyExplanation = SafetyExplanationBuilder.explanation(
             readiness: readiness,
             bodyBattery: metrics?.bodyBattery,
-            hrv: metrics?.hrv ?? healthSnapshot?.hrvMilliseconds,
+            hrv: resolvedHRV?.value,
             workoutTitle: todayWorkout?.workoutTitle ?? "Rest Day",
             isRestDay: todayWorkout == nil
         )
@@ -1537,25 +1541,36 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func recoverySnapshot() async -> RecoverySnapshot {
         guard let userID = currentUserID else { return .loading }
+        let health = store.loadHealthKitDailySnapshot()
         guard let metrics = await latestGarminMetrics(userID: userID) else {
-            guard let health = store.loadHealthKitDailySnapshot() else { return .loading }
+            guard let health else { return .loading }
             let sleep = health.sleepSeconds.map(formatDuration) ?? "—"
-            let hrv = health.hrvMilliseconds.map { String(format: "%.0f ms", $0) } ?? "—"
+            let resolvedHRV = HRVResolver.resolve(
+                garminDirect: nil,
+                healthKit: health.hrvMilliseconds.map { HRVReading(value: $0, source: health.hrvSource) }
+            )
+            let hrv = resolvedHRV.map { String(format: "%.0f ms", $0.value) } ?? "—"
             let readiness = healthReadiness(from: health)
             return RecoverySnapshot(
                 readiness: readiness,
                 bodyBattery: readiness,
                 sleep: sleep,
                 hrv: hrv,
+                hrvSource: resolvedHRV?.source ?? .unknown,
                 stress: health.restingHeartRateBPM.map { "\($0) bpm resting" } ?? "—",
                 recommendation: "Recovery data synced from Apple Health."
             )
         }
+        let resolvedHRV = HRVResolver.resolve(
+            garminDirect: metrics.hrv.map { HRVReading(value: $0, source: .garmin) },
+            healthKit: health?.hrvMilliseconds.map { HRVReading(value: $0, source: health?.hrvSource ?? .unknown) }
+        )
         return RecoverySnapshot(
             readiness: metrics.bodyBattery ?? 0,
             bodyBattery: metrics.bodyBattery ?? 0,
             sleep: metrics.sleepDurationS.map { String(format: "%dh %02dm", Int32($0 / 3600), Int32(($0 % 3600) / 60)) } ?? "—",
-            hrv: metrics.hrv.map { String(format: "%.0f ms", $0) } ?? "—",
+            hrv: resolvedHRV.map { String(format: "%.0f ms", $0.value) } ?? "—",
+            hrvSource: resolvedHRV?.source ?? .unknown,
             stress: "—",
             recommendation: (metrics.bodyBattery ?? 0) >= 50 ? "Recovery data synced from Garmin." : "Keep this one easy until recovery improves."
         )
@@ -1605,7 +1620,30 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     func wellnessTrendSeries(days: Int = 7) async -> WellnessTrendSeries {
         guard let userID = currentUserID else { return .empty }
         let metrics = await GarminBridge.shared.dailyMetrics(authUserID: userID, lastDays: max(1, days))
-        return WellnessTrendMapper.series(from: metrics, maxDays: max(1, days))
+        let garminSeries = WellnessTrendMapper.series(from: metrics, maxDays: max(1, days))
+        if !garminSeries.days.isEmpty {
+            return garminSeries
+        }
+        guard let health = store.loadHealthKitDailySnapshot(), let hrv = health.hrvMilliseconds else {
+            return .empty
+        }
+        let point = DailyWellnessPoint(
+            date: health.date,
+            hrvMilliseconds: hrv,
+            hrvSource: health.hrvSource,
+            trainingReadiness: nil,
+            bodyBattery: nil
+        )
+        return WellnessTrendSeries(
+            days: [point],
+            hrvBars: [1.0],
+            readinessBars: [],
+            hrvTrendSummary: "Need more synced days",
+            readinessTrendSummary: "Need more synced days",
+            latestHRVDisplay: String(format: "%.0f ms", hrv),
+            latestHRVSource: health.hrvSource,
+            latestReadinessDisplay: "--"
+        )
     }
     func shoes() async -> [ShoeSummary] { [] }
     func reminders() async -> [ReminderPreference] { [] }

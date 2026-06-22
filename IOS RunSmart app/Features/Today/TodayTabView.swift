@@ -918,6 +918,7 @@ private struct TodayWellnessTrendCard: View {
                     trendRow(
                         title: "HRV",
                         value: trends.latestHRVDisplay,
+                        attribution: trends.latestHRVSource.attributionLabel,
                         summary: trends.hrvTrendSummary,
                         bars: trends.hrvBars,
                         tint: .accentHeart
@@ -936,11 +937,18 @@ private struct TodayWellnessTrendCard: View {
     }
 
     @ViewBuilder
-    private func trendRow(title: String, value: String, summary: String, bars: [CGFloat], tint: Color) -> some View {
+    private func trendRow(title: String, value: String, attribution: String? = nil, summary: String, bars: [CGFloat], tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(title)
-                    .font(.headingMD)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.headingMD)
+                    if let attribution {
+                        Text(attribution)
+                            .font(.caption)
+                            .foregroundStyle(Color.textTertiary)
+                    }
+                }
                 Spacer()
                 Text(value)
                     .font(.metricXS)

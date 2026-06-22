@@ -171,6 +171,7 @@ enum WellnessTrendMapper {
             hrvTrendSummary: summary(for: hrvValues, metricName: "HRV"),
             readinessTrendSummary: summary(for: readinessValues.map(Double.init), metricName: "Readiness"),
             latestHRVDisplay: latestHRV.map { String(format: "%.0f ms", $0) } ?? "--",
+            latestHRVSource: latestHRV == nil ? .unknown : .garmin,
             latestReadinessDisplay: latestReadiness.map { "\($0)" } ?? "--"
         )
     }
@@ -190,6 +191,7 @@ enum WellnessTrendMapper {
         return DailyWellnessPoint(
             date: date,
             hrvMilliseconds: metrics.hrv,
+            hrvSource: metrics.hrv == nil ? .unknown : .garmin,
             trainingReadiness: metrics.trainingReadiness,
             bodyBattery: metrics.bodyBattery
         )

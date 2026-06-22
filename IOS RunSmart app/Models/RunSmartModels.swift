@@ -1323,11 +1323,49 @@ struct ChallengeSummary: Identifiable, Hashable {
     var isActive: Bool
 }
 
+enum HRVSource: String, Codable, Hashable {
+    case garmin
+    case appleHealth
+    case unknown
+
+    var attributionLabel: String? {
+        switch self {
+        case .garmin:
+            return "Garmin"
+        case .appleHealth:
+            return "Apple Health"
+        case .unknown:
+            return nil
+        }
+    }
+}
+
+struct HRVReading: Hashable {
+    var value: Double
+    var source: HRVSource
+}
+
+enum HRVResolver {
+    static func resolve(garminDirect: HRVReading?, healthKit: HRVReading?) -> HRVReading? {
+        if let garminDirect {
+            return HRVReading(value: garminDirect.value, source: .garmin)
+        }
+        guard let healthKit else { return nil }
+        switch healthKit.source {
+        case .garmin, .appleHealth:
+            return healthKit
+        case .unknown:
+            return healthKit
+        }
+    }
+}
+
 struct RecoverySnapshot: Hashable {
     var readiness: Int
     var bodyBattery: Int
     var sleep: String
     var hrv: String
+    var hrvSource: HRVSource = .unknown
     var stress: String
     var recommendation: String
 }
@@ -1343,6 +1381,7 @@ struct WellnessSnapshot: Hashable {
 struct DailyWellnessPoint: Hashable {
     var date: Date
     var hrvMilliseconds: Double?
+    var hrvSource: HRVSource = .unknown
     var trainingReadiness: Int?
     var bodyBattery: Int?
 }
@@ -1354,6 +1393,7 @@ struct WellnessTrendSeries: Hashable {
     var hrvTrendSummary: String
     var readinessTrendSummary: String
     var latestHRVDisplay: String
+    var latestHRVSource: HRVSource = .unknown
     var latestReadinessDisplay: String
 
     static let empty = WellnessTrendSeries(
@@ -1363,6 +1403,7 @@ struct WellnessTrendSeries: Hashable {
         hrvTrendSummary: "Need more synced days",
         readinessTrendSummary: "Need more synced days",
         latestHRVDisplay: "--",
+        latestHRVSource: .unknown,
         latestReadinessDisplay: "--"
     )
 }

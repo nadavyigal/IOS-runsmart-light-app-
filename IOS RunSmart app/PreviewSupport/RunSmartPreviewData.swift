@@ -133,6 +133,7 @@ enum RunSmartDemoData {
         bodyBattery: 76,
         sleep: "7h 48m",
         hrv: "Stable",
+        hrvSource: .garmin,
         stress: "Low",
         recommendation: "Your recovery is strong enough for a controlled tempo session."
     )
@@ -147,19 +148,20 @@ enum RunSmartDemoData {
 
     static let wellnessTrends = WellnessTrendSeries(
         days: [
-            DailyWellnessPoint(date: Date().addingTimeInterval(-6 * 86_400), hrvMilliseconds: 54, trainingReadiness: 68, bodyBattery: 64),
-            DailyWellnessPoint(date: Date().addingTimeInterval(-5 * 86_400), hrvMilliseconds: 52, trainingReadiness: 66, bodyBattery: 62),
-            DailyWellnessPoint(date: Date().addingTimeInterval(-4 * 86_400), hrvMilliseconds: 55, trainingReadiness: 69, bodyBattery: 67),
-            DailyWellnessPoint(date: Date().addingTimeInterval(-3 * 86_400), hrvMilliseconds: 57, trainingReadiness: 71, bodyBattery: 69),
-            DailyWellnessPoint(date: Date().addingTimeInterval(-2 * 86_400), hrvMilliseconds: 58, trainingReadiness: 73, bodyBattery: 70),
-            DailyWellnessPoint(date: Date().addingTimeInterval(-1 * 86_400), hrvMilliseconds: 60, trainingReadiness: 75, bodyBattery: 72),
-            DailyWellnessPoint(date: Date(), hrvMilliseconds: 61, trainingReadiness: 77, bodyBattery: 74)
+            DailyWellnessPoint(date: Date().addingTimeInterval(-6 * 86_400), hrvMilliseconds: 54, hrvSource: .garmin, trainingReadiness: 68, bodyBattery: 64),
+            DailyWellnessPoint(date: Date().addingTimeInterval(-5 * 86_400), hrvMilliseconds: 52, hrvSource: .garmin, trainingReadiness: 66, bodyBattery: 62),
+            DailyWellnessPoint(date: Date().addingTimeInterval(-4 * 86_400), hrvMilliseconds: 55, hrvSource: .garmin, trainingReadiness: 69, bodyBattery: 67),
+            DailyWellnessPoint(date: Date().addingTimeInterval(-3 * 86_400), hrvMilliseconds: 57, hrvSource: .garmin, trainingReadiness: 71, bodyBattery: 69),
+            DailyWellnessPoint(date: Date().addingTimeInterval(-2 * 86_400), hrvMilliseconds: 58, hrvSource: .garmin, trainingReadiness: 73, bodyBattery: 70),
+            DailyWellnessPoint(date: Date().addingTimeInterval(-1 * 86_400), hrvMilliseconds: 60, hrvSource: .garmin, trainingReadiness: 75, bodyBattery: 72),
+            DailyWellnessPoint(date: Date(), hrvMilliseconds: 61, hrvSource: .garmin, trainingReadiness: 77, bodyBattery: 74)
         ],
         hrvBars: [0.89, 0.85, 0.90, 0.93, 0.95, 0.98, 1.0],
         readinessBars: [0.88, 0.85, 0.90, 0.92, 0.95, 0.97, 1.0],
         hrvTrendSummary: "HRV is trending up",
         readinessTrendSummary: "Readiness is trending up",
         latestHRVDisplay: "61 ms",
+        latestHRVSource: .garmin,
         latestReadinessDisplay: "77"
     )
 
