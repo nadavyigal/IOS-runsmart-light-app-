@@ -50,34 +50,14 @@ final class HRVSourceTests: XCTestCase {
         XCTAssertEqual(decoded.hrvSource, .garmin)
     }
 
-    func testClassifyHRVSourceFromBundleIdentifier() {
-        XCTAssertEqual(HealthKitSyncService.classifyHRVSource(bundleIdentifier: "com.garmin.connect.mobile"), .garmin)
-        XCTAssertEqual(HealthKitSyncService.classifyHRVSource(bundleIdentifier: "com.garmin.connect.mobile.watch"), .garmin)
-        XCTAssertEqual(HealthKitSyncService.classifyHRVSource(bundleIdentifier: "com.apple.Health"), .appleHealth)
-        XCTAssertEqual(HealthKitSyncService.classifyHRVSource(bundleIdentifier: "com.apple.health"), .appleHealth)
-        XCTAssertEqual(HealthKitSyncService.classifyHRVSource(bundleIdentifier: "com.thirdparty.runner"), .unknown)
-        XCTAssertEqual(HealthKitSyncService.classifyHRVSource(bundleIdentifier: nil), .unknown)
-    }
-
-    func testDominantHRVSourceUsesMostRecentSample() {
-        let samples = [
-            HRVSourceSample(value: 55, source: .appleHealth, endDate: Date(timeIntervalSince1970: 100)),
-            HRVSourceSample(value: 61, source: .garmin, endDate: Date(timeIntervalSince1970: 200))
-        ]
-
-        XCTAssertEqual(HealthKitSyncService.dominantHRVSource(from: samples), .garmin)
-    }
-
     func testResolveHRVPrecedence() {
+        // Garmin attribution is reserved for the Garmin Connect API path; HealthKit-read HRV is
+        // always Apple Health. The resolver prefers Garmin-direct over the HealthKit fallback.
         let garminDirect = HRVReading(value: 64, source: .garmin)
-        let garminViaHealth = HRVReading(value: 61, source: .garmin)
         let appleHealth = HRVReading(value: 58, source: .appleHealth)
-        let unknown = HRVReading(value: 52, source: .unknown)
 
         XCTAssertEqual(HRVResolver.resolve(garminDirect: garminDirect, healthKit: appleHealth), garminDirect)
-        XCTAssertEqual(HRVResolver.resolve(garminDirect: nil, healthKit: garminViaHealth), garminViaHealth)
         XCTAssertEqual(HRVResolver.resolve(garminDirect: nil, healthKit: appleHealth), appleHealth)
-        XCTAssertEqual(HRVResolver.resolve(garminDirect: nil, healthKit: unknown), unknown)
         XCTAssertNil(HRVResolver.resolve(garminDirect: nil, healthKit: nil))
     }
 }
