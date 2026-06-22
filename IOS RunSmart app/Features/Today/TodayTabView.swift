@@ -967,7 +967,10 @@ private struct TodayWellnessTrendCard: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title), \(value), \(summary)")
+        .accessibilityLabel(
+            attribution.map { "\(title), \($0), \(value), \(summary)" }
+                ?? "\(title), \(value), \(summary)"
+        )
     }
 }
 

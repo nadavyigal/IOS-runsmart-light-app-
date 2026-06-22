@@ -138,7 +138,10 @@ private struct RecoveryTrendTile: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(title), \(value), \(detail)")
+            .accessibilityLabel(
+                attribution.map { "\(title), \($0), \(value), \(detail)" }
+                    ?? "\(title), \(value), \(detail)"
+            )
         }
     }
 }
