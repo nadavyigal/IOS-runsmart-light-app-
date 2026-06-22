@@ -153,6 +153,9 @@ struct RunSmartLiteAppShell: View {
                     .safeAreaInset(edge: .bottom, spacing: 0) {
                         CustomTabBar(selectedTab: $router.selectedTab)
                     }
+                    .onAppear {
+                        openGate4ScreenshotDestinationIfNeeded()
+                    }
             } else if session.isLoading {
                 RunSmartLaunchView()
             } else if !session.isAuthenticated {
@@ -391,6 +394,15 @@ struct RunSmartLiteAppShell: View {
             recovery: recovery
         )
     }
+
+#if DEBUG
+    private func openGate4ScreenshotDestinationIfNeeded() {
+        guard RunSmartDemoMode.isEnabled, let destination = RunSmartGate4ScreenshotMode.initialSecondaryDestination else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            router.open(destination)
+        }
+    }
+#endif
 
     private func setupAnalyticsIfNeeded() {
         guard !RunSmartDemoMode.isEnabled else { return }

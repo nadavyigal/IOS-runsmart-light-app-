@@ -534,7 +534,28 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func disableBenchmark(for routeID: UUID) async -> Bool { true }
 
     func deviceStatuses() async -> [ConnectedDeviceStatus] {
-        RunSmartDemoData.deviceStatuses
+#if DEBUG
+        if RunSmartGate4ScreenshotMode.garminDisconnected {
+            return [
+                ConnectedDeviceStatus(
+                    provider: "Garmin Connect",
+                    state: .disconnected,
+                    lastSuccessfulSync: nil,
+                    permissions: [],
+                    message: "Connect Garmin to import activities and recovery data."
+                ),
+                RunSmartDemoData.deviceStatuses.first(where: { $0.provider == "HealthKit" })
+                    ?? ConnectedDeviceStatus(
+                        provider: "HealthKit",
+                        state: .disconnected,
+                        lastSuccessfulSync: nil,
+                        permissions: [],
+                        message: "Tap Connect to grant HealthKit access."
+                    )
+            ]
+        }
+#endif
+        return RunSmartDemoData.deviceStatuses
     }
 
     func connect(provider: String) async -> ConnectedDeviceStatus {
