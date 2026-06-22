@@ -38,24 +38,29 @@ struct ActivityRow: View {
                 Text("Run")
                     .font(.bodyMD.weight(.semibold))
                     .foregroundStyle(Color.textPrimary)
-                Text(run.startedAt.formatted(date: .abbreviated, time: .shortened))
+                // Garmin API Brand Guidelines: device-sourced data must carry a plain,
+                // unstylized "Garmin [device model]" attribution adjacent to the title, above
+                // the fold. Device model is not yet surfaced on RecordedRun, so we fall back to
+                // "Garmin" (permitted by the guidelines). No accent color / no letter-spacing.
+                Text(metadataLine)
                     .font(.caption)
                     .foregroundStyle(Color.textTertiary)
             }
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(String(format: "%.1f km", run.distanceMeters / 1_000))
-                    .font(.metricSM)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.textPrimary)
-                Text(run.source.rawValue)
-                    .font(.labelSM)
-                    .tracking(1.0)
-                    .foregroundStyle(Color.accentRecovery)
-            }
+            Text(String(format: "%.1f km", run.distanceMeters / 1_000))
+                .font(.metricSM)
+                .monospacedDigit()
+                .foregroundStyle(Color.textPrimary)
         }
         .padding(.vertical, 5)
+    }
+
+    /// Metadata line shown under the run title, e.g. "Jun 22, 2026 at 5:41 PM · Garmin".
+    /// For Garmin-sourced runs this doubles as the required Garmin attribution.
+    private var metadataLine: String {
+        let date = run.startedAt.formatted(date: .abbreviated, time: .shortened)
+        return "\(date) · \(run.source.rawValue)"
     }
 }
