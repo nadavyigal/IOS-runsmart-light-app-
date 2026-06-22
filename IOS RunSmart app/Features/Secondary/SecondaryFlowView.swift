@@ -315,9 +315,20 @@ private struct FlowHeader: View {
     /// RunSmart logo with the service name — Garmin's API Brand Guidelines treat that as implying
     /// ownership of Garmin Connect. Show a neutral service glyph instead. Replace with the official
     /// Garmin Connect tile (Image("GarminConnectTile")) once it is added to the asset catalog.
+    /// True for third-party-service destinations whose title is a vendor trademark
+    /// (e.g. "Garmin Connect", "Garmin Wellness", "HealthKit"). Pairing the RunSmart logo
+    /// with these would imply ownership of the vendor's brand — Garmin's API Brand Guidelines
+    /// prohibit this for Garmin. We show a neutral service mark instead.
+    private var usesNeutralServiceMark: Bool {
+        switch destination {
+        case .connectedService, .garminWellness: true
+        default: false
+        }
+    }
+
     @ViewBuilder
     private var headerMark: some View {
-        if case .connectedService = destination {
+        if usesNeutralServiceMark {
             Image(systemName: destination.symbol)
                 .font(.system(size: 26, weight: .semibold))
                 .foregroundStyle(Color.textSecondary)

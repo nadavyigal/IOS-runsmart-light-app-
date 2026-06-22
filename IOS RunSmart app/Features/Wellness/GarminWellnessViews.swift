@@ -11,6 +11,13 @@ struct GarminWellnessViews: View {
             HeroCard(accent: .accentRecovery) {
                 VStack(alignment: .leading, spacing: 10) {
                     SectionLabel(title: "Garmin wellness")
+                    // Garmin API Brand Guidelines (Health): device-sourced data must carry a
+                    // "Garmin [device model]" attribution adjacent to the heading, above the fold.
+                    // This whole view is Garmin wellness data (Body Battery is Garmin-exclusive),
+                    // so attribution is unconditional. Device model not surfaced → list "Garmin".
+                    Text("Garmin")
+                        .font(.labelSM)
+                        .foregroundStyle(Color.textTertiary)
                     Text(sourceTitle)
                         .font(.headingLG)
                     Text(wellness.checkInStatus)
@@ -38,6 +45,12 @@ struct GarminWellnessViews: View {
                 bars: trends.readinessBars,
                 tint: .accentPrimary
             )
+
+            // Garmin API Brand Guidelines (Health): approved attribution line for derived insights.
+            Text("Insights derived in part from Garmin device-sourced data.")
+                .font(.caption)
+                .italic()
+                .foregroundStyle(Color.textTertiary)
         }
         .task {
             async let recoveryTask = services.recoverySnapshot()
