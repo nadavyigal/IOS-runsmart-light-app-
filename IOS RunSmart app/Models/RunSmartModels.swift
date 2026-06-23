@@ -1378,6 +1378,31 @@ struct WellnessSnapshot: Hashable {
     var checkInStatus: String
 }
 
+/// Today's activity metrics read from Apple HealthKit (steps, active calories, sleep).
+/// These are HealthKit-sourced, so the UI attributes them to "Apple Health" (see HRV policy).
+struct HealthDailySummary: Hashable {
+    var steps: Int?
+    var activeCalories: Int?
+    var sleepSeconds: TimeInterval?
+
+    static let empty = HealthDailySummary(steps: nil, activeCalories: nil, sleepSeconds: nil)
+
+    var hasAnyData: Bool { steps != nil || activeCalories != nil || sleepSeconds != nil }
+
+    var stepsDisplay: String {
+        guard let steps else { return "--" }
+        return steps >= 1000 ? String(format: "%.1fk", Double(steps) / 1000) : "\(steps)"
+    }
+
+    var caloriesDisplay: String { activeCalories.map { "\($0)" } ?? "--" }
+
+    var sleepDisplay: String {
+        guard let sleepSeconds, sleepSeconds > 0 else { return "--" }
+        let totalMinutes = Int(sleepSeconds / 60)
+        return "\(totalMinutes / 60)h \(totalMinutes % 60)m"
+    }
+}
+
 struct DailyWellnessPoint: Hashable {
     var date: Date
     var hrvMilliseconds: Double?

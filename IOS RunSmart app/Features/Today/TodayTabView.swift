@@ -17,6 +17,7 @@ struct TodayTabView: View {
     @State private var activeChallenge: ChallengeSummary = .loading
     @State private var challengeLoaded = false
     @State private var wellnessTrends: WellnessTrendSeries = .empty
+    @State private var healthSummary: HealthDailySummary = .empty
     @State private var isStriver = false
     @State private var weeklySummary: WeeklyProgressSummary? = nil
     @State private var weeklySummaryFetchedKey: String = ""    // ISO week key of last fetch attempt
@@ -105,6 +106,11 @@ struct TodayTabView: View {
                         router.selectedTab = .report
                     }
                     .runSmartStaggeredAppear(index: 6)
+                }
+
+                if healthSummary.hasAnyData {
+                    TodayHealthSummaryCard(summary: healthSummary)
+                        .runSmartStaggeredAppear(index: 6)
                 }
 
                 if !nextWorkouts.isEmpty {
@@ -201,8 +207,10 @@ struct TodayTabView: View {
         let resolvedState = TodayResolvedState.make(recommendation: rec, weekWorkouts: week, nextWorkouts: nw, recentRuns: runs)
         let workout = resolvedState.primaryWorkout
         let rts = await services.rankedRouteSuggestions(targetDistanceKm: nil)
+        let health = await services.todayHealthSummary()
         recommendation = rec
         routes = rts
+        healthSummary = health
         routeRecommendation = RouteSuggestionRanker.recommendation(from: rts, workout: workout, fallbackDistanceLabel: rec.distance)
         weekWorkouts = week
         nextWorkouts = nw
@@ -1211,5 +1219,48 @@ struct UpcomingRunRow: View {
                 .font(.caption)
                 .foregroundStyle(Color.textTertiary)
         }
+    }
+}
+
+private struct TodayHealthSummaryCard: View {
+    var summary: HealthDailySummary
+
+    var body: some View {
+        ContentCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(title: "Today's activity")
+                // HealthKit-sourced metrics → attributed to Apple Health (conservative source policy).
+                Text("Apple Health")
+                    .font(.labelSM)
+                    .foregroundStyle(Color.textTertiary)
+
+                HStack(spacing: 12) {
+                    metric(value: summary.stepsDisplay, label: "STEPS", symbol: "figure.walk", tint: .accentPrimary)
+                    metric(value: summary.caloriesDisplay, label: "ACTIVE KCAL", symbol: "flame.fill", tint: .accentEnergy)
+                    metric(value: summary.sleepDisplay, label: "SLEEP", symbol: "bed.double.fill", tint: .accentRecovery)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Today's activity from Apple Health. Steps \(summary.stepsDisplay), active calories \(summary.caloriesDisplay), sleep \(summary.sleepDisplay).")
+    }
+
+    private func metric(value: String, label: String, symbol: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: symbol)
+                .font(.headline)
+                .foregroundStyle(tint)
+            Text(value)
+                .font(.metricSM)
+                .monospacedDigit()
+                .foregroundStyle(Color.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(label)
+                .font(.labelSM)
+                .tracking(0.8)
+                .foregroundStyle(Color.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

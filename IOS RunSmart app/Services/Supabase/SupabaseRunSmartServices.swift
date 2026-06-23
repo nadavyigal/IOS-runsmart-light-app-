@@ -1539,6 +1539,16 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return await challengeRepo.activeChallenge(authUserID: userID)
     }
 
+    func todayHealthSummary() async -> HealthDailySummary {
+        // Steps / active calories / sleep read from Apple HealthKit (attributed "Apple Health" in UI).
+        guard let health = store.loadHealthKitDailySnapshot() else { return .empty }
+        return HealthDailySummary(
+            steps: health.steps,
+            activeCalories: health.activeEnergyKilocalories.map { Int($0.rounded()) },
+            sleepSeconds: health.sleepSeconds
+        )
+    }
+
     func recoverySnapshot() async -> RecoverySnapshot {
         guard let userID = currentUserID else { return .loading }
         let health = store.loadHealthKitDailySnapshot()

@@ -146,6 +146,12 @@ enum RunSmartDemoData {
         checkInStatus: "Morning check-in complete"
     )
 
+    static let healthDailySummary = HealthDailySummary(
+        steps: 8420,
+        activeCalories: 540,
+        sleepSeconds: 7 * 3600 + 48 * 60
+    )
+
     static let wellnessTrends = WellnessTrendSeries(
         days: [
             DailyWellnessPoint(date: Date().addingTimeInterval(-6 * 86_400), hrvMilliseconds: 54, hrvSource: .garmin, trainingReadiness: 68, bodyBattery: 64),
