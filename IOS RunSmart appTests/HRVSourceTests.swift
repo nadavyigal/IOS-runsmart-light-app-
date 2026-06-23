@@ -60,4 +60,18 @@ final class HRVSourceTests: XCTestCase {
         XCTAssertEqual(HRVResolver.resolve(garminDirect: nil, healthKit: appleHealth), appleHealth)
         XCTAssertNil(HRVResolver.resolve(garminDirect: nil, healthKit: nil))
     }
+    func testHealthDailySummaryFormatting() {
+        let s = HealthDailySummary(steps: 8420, activeCalories: 540, sleepSeconds: 7 * 3600 + 48 * 60)
+        XCTAssertEqual(s.stepsDisplay, "8.4k")
+        XCTAssertEqual(s.caloriesDisplay, "540")
+        XCTAssertEqual(s.sleepDisplay, "7h 48m")
+        XCTAssertTrue(s.hasAnyData)
+    }
+
+    func testHealthDailySummaryHandlesMissingData() {
+        XCTAssertFalse(HealthDailySummary.empty.hasAnyData)
+        XCTAssertEqual(HealthDailySummary.empty.stepsDisplay, "--")
+        XCTAssertEqual(HealthDailySummary.empty.sleepDisplay, "--")
+        XCTAssertEqual(HealthDailySummary(steps: 850, activeCalories: nil, sleepSeconds: nil).stepsDisplay, "850")
+    }
 }
