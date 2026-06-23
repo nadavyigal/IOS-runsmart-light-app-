@@ -1866,10 +1866,31 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 .select()
                 .eq("auth_user_id", value: userID.uuidString)
                 .order("date", ascending: false)
-                .limit(1)
+                .limit(7)
                 .execute()
                 .value
-            return rows.first
+            guard let latest = rows.first else { return nil }
+            // Garmin can post a day's row before every metric finishes syncing (HRV in
+            // particular is computed overnight and sometimes lands a day late). Backfill any
+            // null field on the latest row with the most recent prior non-null value so the UI
+            // doesn't go blank for a field that's simply stale, not actually missing.
+            func mostRecentNonNil<T>(_ keyPath: KeyPath<DBGarminDailyMetrics, T?>) -> T? {
+                rows.first { $0[keyPath: keyPath] != nil }?[keyPath: keyPath]
+            }
+            return DBGarminDailyMetrics(
+                id: latest.id,
+                authUserId: latest.authUserId,
+                date: latest.date,
+                steps: mostRecentNonNil(\.steps),
+                sleepScore: mostRecentNonNil(\.sleepScore),
+                sleepDurationS: mostRecentNonNil(\.sleepDurationS),
+                hrv: mostRecentNonNil(\.hrv),
+                bodyBattery: mostRecentNonNil(\.bodyBattery),
+                bodyBatteryBalance: mostRecentNonNil(\.bodyBatteryBalance),
+                stress: mostRecentNonNil(\.stress),
+                trainingReadiness: mostRecentNonNil(\.trainingReadiness),
+                restingHR: mostRecentNonNil(\.restingHR)
+            )
         } catch { return nil }
     }
 
