@@ -1034,6 +1034,11 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 await postRunsChanged()
             }
         }
+        // Today's activity card (steps/calories/sleep) only refreshes on this notification — the
+        // run-import notifications above don't fire when only the daily wellness snapshot changed.
+        await MainActor.run {
+            NotificationCenter.default.post(name: .runSmartHealthDidChange, object: nil)
+        }
         store.saveDeviceStatus(status)
         saveFirstSyncReviewIfNeeded(
             provider: .healthKit,
@@ -2298,6 +2303,7 @@ extension Notification.Name {
     static let runSmartPlanGenerationStatusDidChange = Notification.Name("RunSmartPlanGenerationStatusDidChange")
     static let runSmartRunsDidChange = Notification.Name("RunSmartRunsDidChange")
     static let runSmartReportsDidChange = Notification.Name("RunSmartReportsDidChange")
+    static let runSmartHealthDidChange = Notification.Name("RunSmartHealthDidChange")
     static let runSmartRoutesDidChange = Notification.Name("RunSmartRoutesDidChange")
 }
 

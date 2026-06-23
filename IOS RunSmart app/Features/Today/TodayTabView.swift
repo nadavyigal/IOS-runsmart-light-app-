@@ -168,6 +168,9 @@ struct TodayTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
             scheduleLoad()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartHealthDidChange)) { _ in
+            scheduleLoad()
+        }
     }
 
     private func scheduleLoad() {
