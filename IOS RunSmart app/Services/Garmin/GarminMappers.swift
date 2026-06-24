@@ -160,9 +160,11 @@ enum WellnessTrendMapper {
 
         let hrvValues = points.compactMap(\.hrvMilliseconds)
         let readinessValues = points.compactMap { readinessValue(from: $0) }
-        let latest = points.last
-        let latestHRV = latest?.hrvMilliseconds
-        let latestReadiness = latest.flatMap { readinessValue(from: $0) }
+        // "Latest" means the most recent day that actually has a value, not strictly today's
+        // row — a field can lag a day behind the rest of the sync (HRV in particular is
+        // computed overnight and sometimes posts late).
+        let latestHRV = points.last(where: { $0.hrvMilliseconds != nil })?.hrvMilliseconds
+        let latestReadiness = points.last(where: { readinessValue(from: $0) != nil }).flatMap { readinessValue(from: $0) }
 
         return WellnessTrendSeries(
             days: points,
