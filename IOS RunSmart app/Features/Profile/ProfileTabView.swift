@@ -307,6 +307,9 @@ struct ProfileTabView: View {
                     ConnectedServiceTile(title: "Garmin", detail: "Garmin Connect", status: statusLabel("Garmin Connect"), symbol: "link.circle.fill", tint: .accentPrimary) {
                         open(.connectedService("Garmin Connect"))
                     }
+                    ConnectedServiceTile(title: "Garmin Wellness", detail: "Body Battery & insights", status: statusLabel("Garmin Connect") == "Connected" ? "View" : "Connect Garmin first", symbol: "waveform.path.ecg", tint: .accentRecovery) {
+                        open(.garminWellness)
+                    }
                     ConnectedServiceTile(title: "HealthKit", detail: "HealthKit read/write", status: statusLabel("HealthKit"), symbol: "heart.fill", tint: .accentHeart) {
                         open(.connectedService("HealthKit"))
                     }
