@@ -11,8 +11,8 @@
 - [x] Status label: "View" when Garmin Connect connected, "Connect Garmin first" otherwise.
 - [x] Debug generic simulator `xcodebuild build CODE_SIGNING_ALLOWED=NO` passed.
 - [x] Update `docs/garmin-application/GARMIN-STATUS.md` and `13-GATE-4-v1.0.4-build17-VERIFICATION-FINDINGS.md`.
+- [x] Open PR and merge per normal review flow → https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/61
 - [ ] Founder/device: Profile → Connected → Garmin Wellness opens wellness screen on TestFlight 1.0.4 (17)+.
-- [ ] Open PR and merge per normal review flow.
 
 ### Validation - 2026-06-24
 - `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/runsmart-wp15-dd build CODE_SIGNING_ALLOWED=NO` — **passed** (pre-existing HealthKit deprecation warning only).
