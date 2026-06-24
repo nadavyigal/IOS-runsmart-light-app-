@@ -130,6 +130,20 @@ extension Analytics {
         shared.track("plan_workout_tapped", properties: props)
     }
 
+    static func trackPlanRunCTATapped(
+        source: String,
+        workoutType: String,
+        scheduledToday: Bool,
+        hasPriorRuns: Bool
+    ) {
+        shared.track("plan_run_cta_tapped", properties: [
+            "source": source,
+            "workout_type": workoutType,
+            "scheduled_today": scheduledToday,
+            "has_prior_runs": hasPriorRuns
+        ])
+    }
+
     // MARK: - Routes
 
     static func trackRouteSelected(routeKind: String) {

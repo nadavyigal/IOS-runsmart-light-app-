@@ -60,6 +60,16 @@
         }
       }
     },
+    "%@, %@, %@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, %3$@, %4$@"
+          }
+        }
+      }
+    },
     "%@: %@" : {
       "localizations" : {
         "en" : {
@@ -157,6 +167,9 @@
       }
     },
     "Apple" : {
+
+    },
+    "Apple Health" : {
 
     },
     "Approve Garmin Check-In" : {
@@ -416,6 +429,9 @@
     "From the saved plan structure." : {
 
     },
+    "Garmin" : {
+
+    },
     "Garmin metrics are not fresh enough to approve. Use the manual check-in below." : {
 
     },
@@ -525,6 +541,9 @@
           }
         }
       }
+    },
+    "Insights derived in part from Garmin device-sourced data." : {
+
     },
     "Intermediate and advanced plans need a weekly distance baseline." : {
 
@@ -1079,6 +1098,16 @@
     },
     "Today, Plan, and weekly progress will reflect the new schedule." : {
 
+    },
+    "Today's activity from Apple Health. Steps %@, active calories %@, sleep %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Today's activity from Apple Health. Steps %1$@, active calories %2$@, sleep %3$@."
+          }
+        }
+      }
     },
     "TOMORROW" : {
 

@@ -3,20 +3,22 @@
 ## Current Task
 
 **Objective:** WP-15 — Wire up real Profile entry point for Garmin Wellness (`15-WP-WIRE-UP-GARMIN-WELLNESS-ENTRY-POINT.md`).
-**Status:** Complete locally. Added Profile → Connected → Garmin Wellness tile; docs updated in RunSmart `docs/garmin-application/`; Debug simulator build passed.
-**Branch:** `main` (uncommitted)
+**Status:** **Complete and merged** — PR #61 on `main` (`30d9914`). Simulator smoke passed; founder TestFlight device check remains.
+**Branch:** `main`
 
 ### Checklist
 - [x] Add `ConnectedServiceTile` for Garmin Wellness after Garmin Connect tile in `ProfileTabView.swift`.
-- [x] Status label: "View" when Garmin Connect connected, "Connect Garmin first" otherwise.
+- [x] Status label: `isGarminConnected` → "View" / "Connect Garmin first".
 - [x] Debug generic simulator `xcodebuild build CODE_SIGNING_ALLOWED=NO` passed.
 - [x] Update `docs/garmin-application/GARMIN-STATUS.md` and `13-GATE-4-v1.0.4-build17-VERIFICATION-FINDINGS.md`.
-- [ ] Founder/device: Profile → Connected → Garmin Wellness opens wellness screen on TestFlight 1.0.4 (17)+.
-- [ ] Open PR and merge per normal review flow.
+- [x] Simulator smoke: Profile tile visible + tap opens Garmin Wellness sheet (demo mode, iPhone 17 Pro).
+- [x] PR #61 opened, reviewed, merged: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/61
+- [ ] Founder/device: Profile → Garmin Wellness on TestFlight 1.0.4 (17)+ with real Garmin account.
 
 ### Validation - 2026-06-24
-- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/runsmart-wp15-dd build CODE_SIGNING_ALLOWED=NO` — **passed** (pre-existing HealthKit deprecation warning only).
-- Demo-mode simulator launch to Profile tab succeeded (`com.runsmart.lite` PID 41018); manual tap-through not automated this session.
+- `xcodebuild` Debug simulator build passed (`/tmp/runsmart-wp15-dd`, signing disabled).
+- Demo mode (`-RUNSMART_DEMO_MODE -INITIAL_TAB Profile`): Connected section shows **Garmin Wellness** with status **View**; tap opens wellness sheet (Readiness/Body Battery + Garmin attribution).
+- Direct `-OPEN_SECONDARY garminWellness` opens the same destination.
 
 ---
 

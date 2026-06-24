@@ -193,7 +193,7 @@ struct TodayResolvedState: Hashable {
     var upNextWorkout: WorkoutSummary?
 
     var showsStartAction: Bool {
-        kind == .plannedToday
+        kind == .plannedToday || kind == .upNext
     }
 
     var showsTodayRoute: Bool {
@@ -221,6 +221,8 @@ struct TodayResolvedState: Hashable {
             return "Review Report"
         case .plannedToday:
             return "Start Workout"
+        case .upNext:
+            return "Start Next Run"
         default:
             return "Ask Coach"
         }

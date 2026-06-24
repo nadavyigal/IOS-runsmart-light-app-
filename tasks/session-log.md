@@ -1,5 +1,76 @@
 # Session Log
 
+## 2026-06-24 - WP-15 RunSmart plan-to-run activation diagnostic
+
+### Task Summary
+Diagnosed the reported activation cliff where PostHog showed roughly 30% `plan_generated` but 0/10 D7 `run_completed`. The app had the right core analytics events, but the first post-plan Today surface could show an upcoming generated workout as `upNext` with an Ask Coach primary action instead of a run-start action.
+
+### Event Map
+- `app_launched`: emitted during app shell analytics setup.
+- `onboarding_started`, `onboarding_step_completed`, `onboarding_completed`: emitted from onboarding flow.
+- `plan_generated`: emitted after training plan persistence completes.
+- `plan_viewed`, `plan_workout_tapped`: emitted from Plan tab viewing/detail entry, not a direct run start signal.
+- `plan_run_cta_tapped`: added as the bridge event when Today starts a planned or upcoming generated workout.
+- `run_started`: emitted when the Run screen start action is tapped, before GPS recording fully proves a completed run.
+- `run_completed`, `first_run_completed`: emitted from shared completed-activity processing with dedupe.
+- `run_abandoned`: emitted when an in-progress run is discarded.
+
+### Changes
+- Today `upNext` generated workouts now show a Start Next Run CTA and route into the Run flow.
+- Added `plan_run_cta_tapped` with source, workout type, scheduled-today, and prior-run properties.
+- Added focused readiness tests for the upcoming-plan CTA behavior and the new bridge analytics event.
+
+### Validation
+- `git diff --check` passed.
+- Focused `xcodebuild test` compiled the app and test bundle, then stalled in CoreSimulator test worker materialization before XCTest methods executed.
+- Focused `xcodebuild test-without-building` hit the same runner stall on an explicit iPhone 17 Pro simulator.
+- Compile-only simulator build passed with signing disabled.
+
+### Follow-up
+Watch the next usable cohort for `plan_generated -> plan_run_cta_tapped -> run_started -> run_completed`. Success threshold: at least 20% plan-to-run conversion among users whose generated plan is available and whose first workout is visible in Today.
+
+---
+
+## 2026-06-24 - WP-14 RunSmart status + Garmin reply reconciliation
+
+### Task Summary
+Reconciled RunSmart live-vs-blocked status contradiction (EXD-014). App is LIVE on App Store as v1.0.3 (build 16) since 2026-06-19; v1.0.4 (build 17) submitted 2026-06-24 awaiting Apple approval.
+
+### Evidence Used
+- `tasks/progress.md` Status line (founder submission 2026-06-24)
+- `docs/research/apple-garmin-developer-trends.md` (live since 2026-06-19, v1.0.3 build 16)
+- `tasks/error-sweep-2026-06-19.md` (live App Store build v1.0.3 build 16)
+- Agentic OS `dashboard/status.json` groundTruth: App Store state LIVE, PostHog 12 users/7d
+
+### Changes
+- Updated `tasks/progress.md` Current Phase to LIVE + precise Gate-4 gate language (removed "resubmission"/prelaunch tokens that triggered false contradiction).
+
+### Garmin Reply Decision
+**Still blocked.** Exact blocker: v1.0.4 (build 17) not yet approved/live; Gate-4 evidence package requires that build. Do not send until Apple approves and live build matches submitted screenshots.
+
+### Validation
+- `./agentic-os morning` completed 2026-06-24: `contradictionCount` 0, `portfolioTrust` trustworthy; DASHBOARD.md and PROJECT-STATUS.md show no RunSmart live-vs-blocked contradiction.
+
+---
+
+## 2026-06-24 - WP-15 Garmin Wellness entry point (PR #61)
+
+### Task Summary
+Executed `15-WP-WIRE-UP-GARMIN-WELLNESS-ENTRY-POINT.md`. Garmin Wellness was implemented but only reachable via DEBUG screenshot-mode launch args; added a real Profile → Connected tile.
+
+### Changes
+- `ProfileTabView.swift`: Garmin Wellness `ConnectedServiceTile` after Garmin Connect; `isGarminConnected` status gating.
+- RunSmart docs: `GARMIN-STATUS.md`, `13-GATE-4-v1.0.4-build17-VERIFICATION-FINDINGS.md`.
+
+### Validation
+- PR #61 merged to `main` (`30d9914`); CodeRabbit + GitGuardian passed.
+- Debug simulator build passed; demo-mode smoke: Profile tile visible, tap opens Garmin Wellness sheet.
+
+### Remaining
+- Founder TestFlight/device tap-through with real Garmin account.
+
+---
+
 ## 2026-06-17 - Analytics Coverage QA run-funnel fix
 
 ### Task Summary

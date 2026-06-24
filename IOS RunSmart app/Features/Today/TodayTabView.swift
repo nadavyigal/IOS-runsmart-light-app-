@@ -344,6 +344,12 @@ struct TodayTabView: View {
     }
 
     private func startRun(with workout: WorkoutSummary) {
+        Analytics.trackPlanRunCTATapped(
+            source: todayState.kind == .upNext ? "today_up_next" : "today_planned",
+            workoutType: workout.kind.rawValue,
+            scheduledToday: Calendar.current.isDateInToday(workout.scheduledDate),
+            hasPriorRuns: !recentRuns.isEmpty
+        )
         router.startRun(with: workout)
     }
 
@@ -849,7 +855,7 @@ private struct TodayWorkoutRecommendationCard: View {
         switch state.kind {
         case .completedToday:
             return "chart.xyaxis.line"
-        case .plannedToday:
+        case .plannedToday, .upNext:
             return "play.fill"
         default:
             return "sparkles"
@@ -860,7 +866,7 @@ private struct TodayWorkoutRecommendationCard: View {
         switch state.kind {
         case .completedToday:
             onReviewReport()
-        case .plannedToday:
+        case .plannedToday, .upNext:
             onStart()
         default:
             onCoach()
