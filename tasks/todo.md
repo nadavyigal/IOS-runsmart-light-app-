@@ -2,6 +2,26 @@
 
 ## Current Task
 
+**Objective:** WP-15 — Wire up real Profile entry point for Garmin Wellness (`15-WP-WIRE-UP-GARMIN-WELLNESS-ENTRY-POINT.md`).
+**Status:** Complete locally. Added Profile → Connected → Garmin Wellness tile; docs updated in RunSmart `docs/garmin-application/`; Debug simulator build passed.
+**Branch:** `main` (uncommitted)
+
+### Checklist
+- [x] Add `ConnectedServiceTile` for Garmin Wellness after Garmin Connect tile in `ProfileTabView.swift`.
+- [x] Status label: "View" when Garmin Connect connected, "Connect Garmin first" otherwise.
+- [x] Debug generic simulator `xcodebuild build CODE_SIGNING_ALLOWED=NO` passed.
+- [x] Update `docs/garmin-application/GARMIN-STATUS.md` and `13-GATE-4-v1.0.4-build17-VERIFICATION-FINDINGS.md`.
+- [ ] Founder/device: Profile → Connected → Garmin Wellness opens wellness screen on TestFlight 1.0.4 (17)+.
+- [ ] Open PR and merge per normal review flow.
+
+### Validation - 2026-06-24
+- `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/runsmart-wp15-dd build CODE_SIGNING_ALLOWED=NO` — **passed** (pre-existing HealthKit deprecation warning only).
+- Demo-mode simulator launch to Profile tab succeeded (`com.runsmart.lite` PID 41018); manual tap-through not automated this session.
+
+---
+
+## Previous Current Task
+
 **Objective:** Production gate follow-up: verify PostHog project integrity first, fix Supabase Garmin worker RPC grant exposure, and defer lower-priority error-sweep items.
 **Status:** Partially complete. Local PostHog token matches RunSmart project 171597 ("Running coach"), PostHog MCP context was switched from ResumeBuilder project 270848 to RunSmart, and RunSmart funnel events are visible in the correct project. Build 16 TestFlight smoke is still blocked because this session cannot operate the physical TestFlight UI/sign-in/onboarding/run flow hands-on. Supabase Garmin worker/job RPC grants were fixed live and documented in a migration.
 **Branch:** `main`

@@ -307,6 +307,9 @@ struct ProfileTabView: View {
                     ConnectedServiceTile(title: "Garmin", detail: "Garmin Connect", status: statusLabel("Garmin Connect"), symbol: "link.circle.fill", tint: .accentPrimary) {
                         open(.connectedService("Garmin Connect"))
                     }
+                    ConnectedServiceTile(title: "Garmin Wellness", detail: "Body Battery & insights", status: isGarminConnected ? "View" : "Connect Garmin first", symbol: "waveform.path.ecg", tint: .accentRecovery) {
+                        open(.garminWellness)
+                    }
                     ConnectedServiceTile(title: "HealthKit", detail: "HealthKit read/write", status: statusLabel("HealthKit"), symbol: "heart.fill", tint: .accentHeart) {
                         open(.connectedService("HealthKit"))
                     }
@@ -323,6 +326,10 @@ struct ProfileTabView: View {
 
     private func statusLabel(_ provider: String) -> String {
         deviceStatuses.first(where: { $0.provider == provider })?.state.rawValue.capitalized ?? "Disconnected"
+    }
+
+    private var isGarminConnected: Bool {
+        deviceStatuses.first(where: { $0.provider == "Garmin Connect" })?.state == .connected
     }
 
     private var estimatedTrainingDataSourceLabel: String {
