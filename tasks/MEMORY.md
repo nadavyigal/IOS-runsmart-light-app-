@@ -12,6 +12,23 @@ Project-specific decisions. Read at the start of every session.
 
 ---
 
+## 2026-06-24 - WP-15 RunSmart plan-to-run activation diagnostic
+
+Worked on: Diagnosed why a cohort could reach `plan_generated` but not reach D7 `run_completed`.
+
+Completed:
+- Mapped onboarding, plan-generation, Today/Plan CTA, run-start, and run-completion analytics.
+- Found the likely product break: if the generated plan's first workout is upcoming rather than today, Today showed it as `upNext` but the primary action sent users to Coach instead of Run.
+- Changed Today `upNext` planned workouts to show Start Next Run and route directly to the Run flow.
+- Added `plan_run_cta_tapped` as the bridge metric before `run_started`.
+- Added focused readiness coverage for the CTA behavior and analytics event.
+
+In progress: Focused XCTest methods compiled but did not execute because CoreSimulator stalled while materializing test workers.
+
+Decisions: Treat `plan_generated -> plan_run_cta_tapped -> run_started -> run_completed` as the actionable activation funnel for this fix. Success threshold is at least 20% plan-to-run conversion in the next usable cohort.
+
+Next session: Review and merge the WP-15 activation patch, then monitor PostHog for the bridge event and run-start lift.
+
 ## 2026-06-01 — Sprint 11 — UX Redesign + Voice Coach (1.0.1 / build 7)
 
 Worked on: All 10 Sprint 11 stories on `feature/ux-redesign-1.0.1` (14 commits).

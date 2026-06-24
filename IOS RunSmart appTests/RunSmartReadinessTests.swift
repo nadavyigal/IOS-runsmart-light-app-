@@ -866,6 +866,33 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(state.showsTodayRoute)
     }
 
+    func testTodayResolvedStateLetsUpcomingPlanWorkoutStartFromToday() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone.current
+        let now = makeDate("2026-05-20").addingTimeInterval(9 * 3600)
+        let future = makeWorkout(
+            date: "2026-05-21",
+            kind: .easy,
+            title: "Easy Reset",
+            distance: "5.0 km"
+        )
+
+        let state = TodayResolvedState.make(
+            recommendation: TodayRecommendation(readiness: 75, readinessLabel: "Ready", workoutTitle: "Easy Reset", distance: "5.0 km", pace: "6:00 /km", elevation: "--", coachMessage: "Start when ready."),
+            weekWorkouts: [],
+            nextWorkouts: [future],
+            recentRuns: [],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(state.kind, .upNext)
+        XCTAssertEqual(state.primaryWorkout.id, future.id)
+        XCTAssertTrue(state.showsStartAction)
+        XCTAssertEqual(state.primaryActionTitle, "Start Next Run")
+        XCTAssertFalse(state.showsTodayRoute)
+    }
+
     func testPlanExplanationExplainsTodayWorkoutOnTrack() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone.current
@@ -2980,6 +3007,26 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(tracker.events[0].properties["is_first_run"] as? Bool, true)
         XCTAssertEqual(tracker.events[2].properties["run_type"] as? String, "Garmin")
         XCTAssertEqual(tracker.events[2].properties["is_first_run"] as? Bool, false)
+    }
+
+    func testPlanRunCTAAnalyticsCapturesBridgeToRunStart() {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        defer { Analytics.shared = saved }
+
+        Analytics.shared = tracker
+        Analytics.trackPlanRunCTATapped(
+            source: "today_up_next",
+            workoutType: "easy",
+            scheduledToday: false,
+            hasPriorRuns: false
+        )
+
+        XCTAssertEqual(tracker.events.map(\.name), ["plan_run_cta_tapped"])
+        XCTAssertEqual(tracker.events[0].properties["source"] as? String, "today_up_next")
+        XCTAssertEqual(tracker.events[0].properties["workout_type"] as? String, "easy")
+        XCTAssertEqual(tracker.events[0].properties["scheduled_today"] as? Bool, false)
+        XCTAssertEqual(tracker.events[0].properties["has_prior_runs"] as? Bool, false)
     }
 
     // MARK: - E1: TodayRecommendation rationale field (Story 1)
