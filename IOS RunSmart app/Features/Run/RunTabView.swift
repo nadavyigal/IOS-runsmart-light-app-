@@ -10,6 +10,7 @@ struct RunTabView: View {
     @State private var postActivityOutcome: PostActivityOutcome?
     @State private var isProcessingFinishedRun = false
     @State private var isConfirmingDiscard = false
+    @State private var isConfirmingFinish = false
 
     var body: some View {
         Group {
@@ -30,7 +31,7 @@ struct RunTabView: View {
                     gpsDetail: gpsDetail,
                     elapsedSeconds: recorder.movingSeconds,
                     onPauseResume: primaryRunAction,
-                    onFinish: finishRun,
+                    onFinish: requestFinishRun,
                     onDiscard: { isConfirmingDiscard = true }
                 )
             } else {
@@ -50,10 +51,18 @@ struct RunTabView: View {
         .task {
             await reloadMetrics()
         }
+        .onAppear(perform: updateTabBarVisibility)
+        .onDisappear {
+            router.isTabBarHidden = false
+        }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
             refreshMetrics()
         }
+        .onChange(of: finishedRun?.id) { _, _ in
+            updateTabBarVisibility()
+        }
         .onChange(of: recorder.phase) { oldPhase, newPhase in
+            updateTabBarVisibility()
             switch newPhase {
             case .recording where oldPhase == .paused:
                 VoiceCoachService.shared.resumeSession()
@@ -92,6 +101,18 @@ struct RunTabView: View {
             Button("Keep Workout", role: .cancel) {}
         } message: {
             Text("This removes the current timer, distance, and route.")
+        }
+        .confirmationDialog(
+            finishConfirmationTitle,
+            isPresented: $isConfirmingFinish,
+            titleVisibility: .visible
+        ) {
+            Button("Finish and Save") {
+                finishRun()
+            }
+            Button("Keep Recording", role: .cancel) {}
+        } message: {
+            Text(finishConfirmationMessage)
         }
     }
 
@@ -162,6 +183,25 @@ struct RunTabView: View {
         }
     }
 
+    private var shouldHideTabBar: Bool {
+        finishedRun != nil || recorder.phase == .recording || recorder.phase == .paused
+    }
+
+    private var finishConfirmationTitle: String {
+        isVeryShortRun ? "Finish this short run?" : "Finish this run?"
+    }
+
+    private var finishConfirmationMessage: String {
+        if isVeryShortRun {
+            return "This activity is very short, so RunSmart may save it as a review-only activity instead of counting it as meaningful training."
+        }
+        return "RunSmart will stop GPS recording and save this activity for your report."
+    }
+
+    private var isVeryShortRun: Bool {
+        recorder.distanceMeters < 100 || recorder.movingSeconds < 60
+    }
+
     private func primaryRunAction() {
         switch recorder.phase {
         case .recording:
@@ -190,6 +230,15 @@ struct RunTabView: View {
         router.open(.audioCues)
     }
 
+    private func updateTabBarVisibility() {
+        router.isTabBarHidden = shouldHideTabBar
+    }
+
+    private func requestFinishRun() {
+        RunSmartHaptics.light()
+        isConfirmingFinish = true
+    }
+
     private func reloadMetrics() async {
         metrics = await services.currentRunMetrics()
     }
@@ -200,6 +249,7 @@ struct RunTabView: View {
 
     private func finishRun() {
         RunSmartHaptics.medium()
+        isConfirmingFinish = false
         VoiceCoachService.shared.stopSession()
         let run = recorder.finish()
         if let run {
@@ -214,6 +264,7 @@ struct RunTabView: View {
                 await MainActor.run {
                     postActivityOutcome = outcome
                     isProcessingFinishedRun = false
+                    updateTabBarVisibility()
                 }
             }
         } else {
@@ -222,6 +273,7 @@ struct RunTabView: View {
             isProcessingFinishedRun = false
             router.dismissPostRunSummaryIfNeeded()
         }
+        updateTabBarVisibility()
     }
 
     private func discardRun() {
@@ -237,6 +289,7 @@ struct RunTabView: View {
         isProcessingFinishedRun = false
         router.dismissPostRunSummaryIfNeeded()
         router.clearRunContext()
+        updateTabBarVisibility()
     }
 
     private func saveFinishedRun() {
@@ -246,6 +299,7 @@ struct RunTabView: View {
         router.dismissPostRunSummaryIfNeeded()
         router.clearRunContext()
         refreshMetrics()
+        updateTabBarVisibility()
     }
 
     private func deleteFinishedRun() {
@@ -255,6 +309,7 @@ struct RunTabView: View {
             isProcessingFinishedRun = false
             router.dismissPostRunSummaryIfNeeded()
             router.clearRunContext()
+            updateTabBarVisibility()
             return
         }
         Task {
@@ -266,6 +321,7 @@ struct RunTabView: View {
                 router.dismissPostRunSummaryIfNeeded()
                 router.clearRunContext()
                 NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+                updateTabBarVisibility()
             }
         }
     }

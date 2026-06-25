@@ -20,6 +20,7 @@ final class AppRouter: ObservableObject {
     @Published var flexWeekLaunch: FlexWeekLaunchContext?
     @Published var plannedWorkout: WorkoutSummary?
     @Published var plannedRoute: RouteSuggestion?
+    @Published var isTabBarHidden = false
 
     private static func initialTab() -> RunSmartTab {
 #if DEBUG
@@ -149,10 +150,7 @@ struct RunSmartLiteAppShell: View {
             if RunSmartRecordingMode.isOnboardingReplayEnabled {
                 recordingOnboardingContent
             } else if RunSmartDemoMode.isEnabled {
-                tabContent
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        CustomTabBar(selectedTab: $router.selectedTab)
-                    }
+                tabbedContent
                     .onAppear {
                         openGate4ScreenshotDestinationIfNeeded()
                     }
@@ -164,17 +162,11 @@ struct RunSmartLiteAppShell: View {
             } else if !session.hasCompletedOnboarding {
                 onboardingContent
             } else {
-                tabContent
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        CustomTabBar(selectedTab: $router.selectedTab)
-                    }
+                tabbedContent
             }
             #else
             if RunSmartDemoMode.isEnabled {
-                tabContent
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        CustomTabBar(selectedTab: $router.selectedTab)
-                    }
+                tabbedContent
             } else if session.isLoading {
                 RunSmartLaunchView()
             } else if !session.isAuthenticated {
@@ -183,10 +175,7 @@ struct RunSmartLiteAppShell: View {
             } else if !session.hasCompletedOnboarding {
                 onboardingContent
             } else {
-                tabContent
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    CustomTabBar(selectedTab: $router.selectedTab)
-                }
+                tabbedContent
             }
             #endif
 
@@ -332,10 +321,7 @@ struct RunSmartLiteAppShell: View {
     @ViewBuilder
     private var recordingOnboardingContent: some View {
         if recordingOnboardingFinished {
-            tabContent
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    CustomTabBar(selectedTab: $router.selectedTab)
-                }
+            tabbedContent
         } else if let pendingProfile = pendingOnboardingCompletion {
             OnboardingAhaMomentsContainer(profile: pendingProfile) {
                 pendingOnboardingCompletion = nil
@@ -351,6 +337,18 @@ struct RunSmartLiteAppShell: View {
         }
     }
     #endif
+
+    private var tabbedContent: some View {
+        tabContent
+            .safeAreaPadding(.bottom, router.isTabBarHidden ? 0 : CustomTabBar.contentAvoidancePadding)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !router.isTabBarHidden {
+                    CustomTabBar(selectedTab: $router.selectedTab)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.34, dampingFraction: 0.86), value: router.isTabBarHidden)
+    }
 
     @ViewBuilder
     private var tabContent: some View {

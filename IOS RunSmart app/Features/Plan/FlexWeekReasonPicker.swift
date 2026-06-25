@@ -292,10 +292,20 @@ struct FlexWeekReasonPicker: View {
     private var bottomBar: some View {
         VStack(spacing: 10) {
             Button(action: submit) {
-                Text("Continue")
+                Label("Continue", systemImage: canContinue ? "arrow.right" : "hand.tap")
             }
             .buttonStyle(NeonButtonStyle())
             .disabled(!canContinue)
+            .accessibilityHint(canContinue ? "Continue to the revised week preview." : continueDisabledMessage)
+
+            if !canContinue {
+                Text(continueDisabledMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
+            }
 
             Button(action: onCancel) {
                 Text("Keep Original Plan")
@@ -320,6 +330,21 @@ struct FlexWeekReasonPicker: View {
     private var canContinue: Bool {
         guard let reason = resolvedReason else { return false }
         return FlexWeekPresentation.isValid(reason, week: currentWeek)
+    }
+
+    private var continueDisabledMessage: String {
+        switch selectedKind {
+        case nil:
+            return "Choose what changed first."
+        case .traveling where blockedDays.isEmpty:
+            return "Pick at least one blocked travel day."
+        case .missedWorkout where missedWorkoutID == nil:
+            return "Choose a missed workout to reschedule."
+        case .sick where sickDaysOut == nil:
+            return "Choose a recovery estimate."
+        default:
+            return "Choose a valid Flex Week option."
+        }
     }
 
     private var resolvedReason: FlexWeekReason? {
@@ -411,7 +436,7 @@ struct FlexWeekReasonPicker: View {
     }
 
     private func submit() {
-        guard let reason = resolvedReason else { return }
+        guard canContinue, let reason = resolvedReason else { return }
         RunSmartHaptics.light()
         onContinue(
             FlexWeekRequest(

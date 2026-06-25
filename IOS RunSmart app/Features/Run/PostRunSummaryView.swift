@@ -28,9 +28,9 @@ struct PostRunSummaryView: View {
                 HeroCard(accent: .accentSuccess) {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
-                            SectionLabel(title: "Run Saved")
+                            SectionLabel(title: isShortActivity ? "Activity Saved" : "Run Saved")
                             Spacer()
-                            StatusChip(text: run == nil ? "Draft" : "GPS", tint: .accentPrimary)
+                            StatusChip(text: heroStatusText, tint: heroStatusTint)
                         }
 
                         Text(distanceLabel)
@@ -51,11 +51,15 @@ struct PostRunSummaryView: View {
 
                 RPESelector(value: $rpe)
 
+                if isShortActivity {
+                    ShortActivityNotice()
+                }
+
                 if let noticeContext {
                     NoticedMomentCard(context: noticeContext)
                 }
 
-                CoachAnalysisCard(run: run, rpe: rpe)
+                CoachAnalysisCard(run: run, rpe: rpe, isShortActivity: isShortActivity)
                 Button {
                     onSave()
                     router.selectedTab = .report
@@ -83,7 +87,7 @@ struct PostRunSummaryView: View {
                     isProcessing: isProcessing,
                     debrief: outcome?.debrief        // E6: AI debrief from processCompletedActivity
                 )
-                PostActivityPlanCard(outcome: outcome, isProcessing: isProcessing)
+                PostActivityPlanCard(outcome: outcome, isProcessing: isProcessing, isShortActivity: isShortActivity)
                 BenchmarkComparisonLoaderView(run: outcome?.canonicalRun ?? run)
                 SplitPreviewCard(splits: splitRows)
                 RecoveryPlanCard()
@@ -179,6 +183,20 @@ struct PostRunSummaryView: View {
         return run.routePoints.isEmpty ? "No map" : "\(run.routePoints.count) pts"
     }
 
+    private var isShortActivity: Bool {
+        guard let run else { return false }
+        return run.distanceMeters < 100 || run.movingTimeSeconds < 60
+    }
+
+    private var heroStatusText: String {
+        if run == nil { return "Draft" }
+        return isShortActivity ? "Review" : "GPS"
+    }
+
+    private var heroStatusTint: Color {
+        isShortActivity ? .accentEnergy : .accentPrimary
+    }
+
     private var splitRows: [SplitRow] {
         guard let run, run.distanceMeters >= 500 else { return [] }
         let fullKm = max(1, Int(run.distanceMeters / 1_000))
@@ -191,6 +209,12 @@ struct PostRunSummaryView: View {
 
     private func loadAhaMoments() async {
         guard let run else { return }
+        guard !isShortActivity else {
+            achievementContext = nil
+            showAchievementMoment = false
+            noticeContext = nil
+            return
+        }
         let recentRuns = await services.recentRuns()
         let priorRuns = recentRuns.filter { $0.id != run.id }
 
@@ -248,10 +272,33 @@ struct PostRunSummaryView: View {
     }
 }
 
+private struct ShortActivityNotice: View {
+    var body: some View {
+        RunSmartPanel(cornerRadius: 18, padding: 14, accent: .accentEnergy) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.bodyMD.weight(.bold))
+                    .foregroundStyle(Color.accentEnergy)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Short activity saved")
+                        .font(.bodyMD.weight(.bold))
+                        .foregroundStyle(Color.textPrimary)
+                    Text("This looks too short for meaningful training analysis. Keep it for your history, or delete it if it was a test or accidental stop.")
+                        .font(.bodyMD)
+                        .foregroundStyle(Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 private struct PostActivityPlanCard: View {
     @Environment(\.runSmartServices) private var services
     var outcome: PostActivityOutcome?
     var isProcessing: Bool
+    var isShortActivity = false
 
     @State private var isSavingSuggestedWorkout = false
     @State private var saveState: SaveState = .idle
@@ -333,16 +380,21 @@ private struct PostActivityPlanCard: View {
 
     private var statusText: String {
         if isProcessing { return "Updating" }
+        if isShortActivity { return "Review" }
         if outcome?.didCompletePlannedWorkout == true { return "Plan Complete" }
         if outcome?.report != nil { return "Reported" }
         return "Saved"
     }
 
     private var statusTint: Color {
-        outcome?.didCompletePlannedWorkout == true ? .accentSuccess : .accentPrimary
+        if isShortActivity { return .accentEnergy }
+        return outcome?.didCompletePlannedWorkout == true ? Color.accentSuccess : Color.accentPrimary
     }
 
     private var planFitText: String {
+        if isShortActivity {
+            return "This short activity is saved for history, but RunSmart will avoid using it as a meaningful training signal unless you keep it intentionally."
+        }
         guard let outcome else {
             return "RunSmart will use this activity to update recent load, report context, and the next recommendation."
         }
@@ -433,6 +485,7 @@ private struct PostRunStatPill: View {
 private struct CoachAnalysisCard: View {
     var run: RecordedRun?
     var rpe: Int
+    var isShortActivity = false
 
     var body: some View {
         RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
@@ -452,7 +505,7 @@ private struct CoachAnalysisCard: View {
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     CoachInsightTile(title: "Training Benefit", text: benefitText, symbol: "sparkles", tint: .accentPrimary)
-                    CoachInsightTile(title: "Plan Fit", text: "This GPS run updates your recent load and helps the next plan decision.", symbol: "target", tint: .accentRecovery)
+                    CoachInsightTile(title: "Plan Fit", text: planFitText, symbol: "target", tint: .accentRecovery)
                     CoachInsightTile(title: "Recovery", text: recoveryText, symbol: "heart", tint: .accentRecovery)
                     CoachInsightTile(title: "Pacing", text: paceText, symbol: "waveform.path.ecg", tint: .accentEnergy)
                 }
@@ -476,6 +529,7 @@ private struct CoachAnalysisCard: View {
     }
 
     private var effortLabel: String {
+        if isShortActivity { return "Review" }
         switch rpe {
         case 1...4: return "Easy"
         case 5...7: return "Steady"
@@ -484,6 +538,7 @@ private struct CoachAnalysisCard: View {
     }
 
     private var effortTint: Color {
+        if isShortActivity { return .accentEnergy }
         switch rpe {
         case 1...4: return .accentPrimary
         case 5...7: return .accentEnergy
@@ -493,16 +548,26 @@ private struct CoachAnalysisCard: View {
 
     private var headline: String {
         guard let run else { return "No run data was available for analysis." }
+        if isShortActivity {
+            return "This activity was saved, but it is too short for a reliable run analysis."
+        }
         let km = run.distanceMeters / 1_000
         return String(format: "You completed %.2f km at %@ /km average pace.", km, RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm))
     }
 
     private var benefitText: String {
-        rpe <= 6 ? "This supports aerobic consistency without adding unnecessary strain." : "This was a stronger effort. Keep the next run controlled."
+        if isShortActivity { return "Training benefit is not calculated for this short activity." }
+        return rpe <= 6 ? "This supports aerobic consistency without adding unnecessary strain." : "This was a stronger effort. Keep the next run controlled."
+    }
+
+    private var planFitText: String {
+        if isShortActivity { return "Saved for history, but not treated like a full plan signal." }
+        return "This GPS run updates your recent load and helps the next plan decision."
     }
 
     private var recoveryText: String {
-        rpe >= 7 ? "Hydrate, refuel, and keep the next 24h lighter." : "Rehydrate and refuel. Easy movement later is enough."
+        if isShortActivity { return "No recovery adjustment needed unless this was part of a longer effort." }
+        return rpe >= 7 ? "Hydrate, refuel, and keep the next 24h lighter." : "Rehydrate and refuel. Easy movement later is enough."
     }
 
     private var paceText: String {
@@ -512,6 +577,9 @@ private struct CoachAnalysisCard: View {
 
     private var loadText: String {
         guard let run else { return "Save or delete this activity before leaving the summary." }
+        if isShortActivity {
+            return "Keep this only if you want it in your history. RunSmart will avoid treating it like a full training run."
+        }
         return String(format: "%.1f km at %@ effort contributes to your weekly load.", run.distanceMeters / 1_000, effortLabel.lowercased())
     }
 }

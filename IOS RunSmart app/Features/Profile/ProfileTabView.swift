@@ -307,7 +307,15 @@ struct ProfileTabView: View {
                     ConnectedServiceTile(title: "Garmin", detail: "Garmin Connect", status: statusLabel("Garmin Connect"), symbol: "link.circle.fill", tint: .accentPrimary) {
                         open(.connectedService("Garmin Connect"))
                     }
-                    ConnectedServiceTile(title: "Garmin Wellness", detail: "Body Battery & insights", status: isGarminConnected ? "View" : "Connect Garmin first", symbol: "waveform.path.ecg", tint: .accentRecovery) {
+                    ConnectedServiceTile(
+                        title: "Garmin Wellness",
+                        detail: isGarminConnected ? "Body Battery & insights" : "Connect Garmin to view insights",
+                        status: isGarminConnected ? "View" : "Connect",
+                        symbol: "waveform.path.ecg",
+                        tint: .accentRecovery,
+                        showsStatusDot: false,
+                        statusTint: isGarminConnected ? .accentPrimary : .accentEnergy
+                    ) {
                         open(.garminWellness)
                     }
                     ConnectedServiceTile(title: "HealthKit", detail: "HealthKit read/write", status: statusLabel("HealthKit"), symbol: "heart.fill", tint: .accentHeart) {
@@ -491,6 +499,8 @@ private struct ConnectedServiceTile: View {
     var status: String
     var symbol: String
     var tint: Color
+    var showsStatusDot = true
+    var statusTint: Color? = nil
     var action: () -> Void
 
     var body: some View {
@@ -514,12 +524,14 @@ private struct ConnectedServiceTile: View {
                 }
                 Spacer()
                 HStack(spacing: 6) {
-                    Circle()
-                        .fill(status.lowercased().contains("connected") || status == "On" ? Color.accentPrimary : Color.textTertiary)
-                        .frame(width: 7, height: 7)
+                    if showsStatusDot {
+                        Circle()
+                            .fill(resolvedStatusTint)
+                            .frame(width: 7, height: 7)
+                    }
                     Text(status)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(status.lowercased().contains("connected") || status == "On" ? Color.accentPrimary : Color.textSecondary)
+                        .foregroundStyle(resolvedStatusTint)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
                 }
@@ -533,6 +545,11 @@ private struct ConnectedServiceTile: View {
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.border, lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+
+    private var resolvedStatusTint: Color {
+        if let statusTint { return statusTint }
+        return status.lowercased().contains("connected") || status == "On" ? .accentPrimary : .textSecondary
     }
 }
 

@@ -2182,3 +2182,38 @@ Implemented PR #55 HRV dual-source attribution plan for Garmin readiness. RunSma
 
 ### Remaining Risk
 Real Garmin Connect HealthKit metadata still needs a physical-device or TestFlight proof pass before App Store resubmission. This session did not archive, upload, push, or open the PR.
+## 2026-06-25
+
+### Task Summary
+Ran a Product Design audit of the RunSmart iOS app, saved 13 simulator screenshots plus audit notes, then implemented the highest-impact UX fixes.
+
+### Files Changed
+- `audits/product-design-2026-06-25/audit-notes.md`
+- `audits/product-design-2026-06-25/screenshots/*.jpg`
+- `IOS RunSmart app/App/RunSmartLiteAppShell.swift`
+- `IOS RunSmart app/DesignSystem/RunSmartDesignSystem.swift`
+- `IOS RunSmart app/Features/Plan/FlexWeekReasonPicker.swift`
+- `IOS RunSmart app/Features/Profile/ProfileTabView.swift`
+- `IOS RunSmart app/Features/Run/PostRunSummaryView.swift`
+- `IOS RunSmart app/Features/Run/RunTabView.swift`
+- `IOS RunSmart app/Features/Wellness/GarminWellnessViews.swift`
+- `tasks/todo.md`
+- `tasks/progress.md`
+- `tasks/session-log.md`
+
+### Changes
+- Added tab-bar hiding during active run and post-run review states.
+- Added confirmation before finishing/saving a run, with short-run-specific copy.
+- Added short-activity review messaging so 0.00 km/test runs are not presented as full training wins.
+- Made disabled neon buttons visually disabled and added Flex Week disabled CTA guidance.
+- Clarified Profile Garmin Wellness as an action row instead of a status-dot row.
+- Allowed Garmin Wellness health interpretation text to wrap instead of truncating.
+
+### Validation
+- `git diff --check` passed.
+- XcodeBuildMCP Debug simulator build passed with signing disabled.
+- Demo-mode smoke passed for Run: active run hides tab bar, Finish prompts before save, short-run summary shows review copy.
+- Demo-mode smoke passed for Profile/Garmin Wellness/Flex Week runtime snapshots.
+
+### Remaining Risk
+- Physical-device, Dynamic Type, VoiceOver, real outdoor GPS, HealthKit, and Garmin production data checks were not run in this session.

@@ -497,26 +497,47 @@ struct GlassCard<Content: View>: View {
 }
 
 struct NeonButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
     var isDestructive = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.buttonLabel)
-            .foregroundStyle(isDestructive ? Color.textPrimary : Color.black)
+            .foregroundStyle(isEnabled ? (isDestructive ? Color.textPrimary : Color.black) : Color.textSecondary)
             .padding(.vertical, 13)
             .padding(.horizontal, 18)
             .frame(maxWidth: .infinity)
             .background(
                 LinearGradient(
-                    colors: isDestructive ? [Color.accentHeart, Color.red.opacity(0.78)] : [Color.accentPrimary, Color.accentSuccess],
+                    colors: gradientColors,
                     startPoint: .leading,
                     endPoint: .trailing
                 )
             )
             .clipShape(RoundedRectangle(cornerRadius: RunSmartRadius.md, style: .continuous))
-            .shadow(color: (isDestructive ? Color.accentHeart : Color.accentPrimary).opacity(configuration.isPressed ? 0.18 : 0.42), radius: configuration.isPressed ? 8 : 18)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .overlay(
+                RoundedRectangle(cornerRadius: RunSmartRadius.md, style: .continuous)
+                    .stroke(isEnabled ? Color.clear : Color.border, lineWidth: 1)
+            )
+            .shadow(
+                color: shadowTint.opacity(isEnabled ? (configuration.isPressed ? 0.18 : 0.42) : 0),
+                radius: configuration.isPressed ? 8 : 18
+            )
+            .opacity(isEnabled ? 1 : 0.74)
+            .scaleEffect(configuration.isPressed && isEnabled ? 0.98 : 1)
             .animation(.spring(response: 0.24, dampingFraction: 0.74), value: configuration.isPressed)
+    }
+
+    private var gradientColors: [Color] {
+        if !isEnabled {
+            return [Color.surfaceCard.opacity(0.95), Color.surfaceElevated.opacity(0.92)]
+        }
+        return isDestructive ? [Color.accentHeart, Color.red.opacity(0.78)] : [Color.accentPrimary, Color.accentSuccess]
+    }
+
+    private var shadowTint: Color {
+        isDestructive ? .accentHeart : .accentPrimary
     }
 }
 
@@ -691,6 +712,8 @@ struct RunSmartHeader: View {
 }
 
 struct CustomTabBar: View {
+    static let contentAvoidancePadding: CGFloat = 96
+
     @Binding var selectedTab: RunSmartTab
     @Namespace private var indicator
 
