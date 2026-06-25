@@ -2,12 +2,12 @@ import Foundation
 import PostHog
 
 protocol AnalyticsTracking {
-    func track(_ event: String, properties: [String: Any])
-    func identify(userId: String, traits: [String: Any])
-    func reset()
+    nonisolated func track(_ event: String, properties: [String: Any])
+    nonisolated func identify(userId: String, traits: [String: Any])
+    nonisolated func reset()
 }
 
-final class PostHogAnalyticsService: AnalyticsTracking {
+nonisolated final class PostHogAnalyticsService: AnalyticsTracking {
     func track(_ event: String, properties: [String: Any]) {
         PostHogSDK.shared.capture(event, properties: properties)
     }
@@ -19,7 +19,7 @@ final class PostHogAnalyticsService: AnalyticsTracking {
     }
 }
 
-final class NullAnalyticsService: AnalyticsTracking {
+nonisolated final class NullAnalyticsService: AnalyticsTracking {
     func track(_ event: String, properties: [String: Any]) {}
     func identify(userId: String, traits: [String: Any]) {}
     func reset() {}

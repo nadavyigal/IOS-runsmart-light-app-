@@ -2948,7 +2948,7 @@ final class RunSmartReadinessTests: XCTestCase {
             "Analytics.shared must accept and expose NullAnalyticsService assignments")
     }
 
-    private final class CapturingAnalyticsService: AnalyticsTracking {
+    private nonisolated final class CapturingAnalyticsService: AnalyticsTracking {
         private(set) var events: [(name: String, properties: [String: Any])] = []
 
         func track(_ event: String, properties: [String: Any]) {
