@@ -70,7 +70,7 @@ struct LiveRunView: View {
                         LiveControlButton(title: "Discard", symbol: "trash.fill", tint: .accentHeart, prominent: false, action: onDiscard)
                     }
                 }
-                .padding(.bottom, 96)
+                .padding(.bottom, 28)
             }
             .foregroundStyle(Color.textPrimary)
             .padding(.horizontal, 18)
