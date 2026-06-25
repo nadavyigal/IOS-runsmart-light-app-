@@ -110,7 +110,7 @@ private struct WellnessPanel: View {
 
     var body: some View {
         ContentCard {
-            HStack(spacing: 14) {
+            HStack(alignment: .top, spacing: 14) {
                 Image(systemName: symbol)
                     .font(.title2)
                     .foregroundStyle(tint)
@@ -119,19 +119,26 @@ private struct WellnessPanel: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                         .font(.headingMD)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
                     Text(detail)
                         .font(.bodyMD)
                         .foregroundStyle(Color.textSecondary)
-                        .lineLimit(2)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
+
                 Text(value)
                     .font(.metricSM)
                     .foregroundStyle(tint)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                    .frame(minWidth: 48, alignment: .trailing)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(title), \(value), \(detail)")
         }
     }
 }

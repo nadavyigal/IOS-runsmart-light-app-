@@ -2,6 +2,27 @@
 
 ## Current Task
 
+**Objective:** Product Design full audit of the RunSmart iOS app using DEBUG demo mode screenshots.
+**Status:** Implemented — audit findings addressed in `codex/audit-ux-fixes`; draft PR pending/published after validation.
+**Branch:** `codex/audit-ux-fixes`
+
+### Checklist
+- [x] Read RunSmart lessons and Product Design audit workflow.
+- [x] Confirm app repo status is clean before audit.
+- [x] Capture accepted screenshots for key app screens/flows.
+- [x] Save full audit notes with step health, UX risks, accessibility risks, and evidence limits.
+- [x] Report audit output location and verification limits.
+- [x] Add visible disabled-state styling for Flex Week Continue.
+- [x] Hide tab navigation during active run and post-run review states.
+- [x] Add finish confirmation before saving a run.
+- [x] Add short-activity review copy for accidental/test runs.
+- [x] Improve Garmin Wellness readability and Profile service status semantics.
+- [x] Run Debug simulator build and focused demo smoke.
+
+---
+
+## Previous Current Task
+
 **Objective:** WP-15 — Wire up real Profile entry point for Garmin Wellness (`15-WP-WIRE-UP-GARMIN-WELLNESS-ENTRY-POINT.md`).
 **Status:** **Complete and merged** — PR #61 on `main` (`30d9914`). Simulator smoke passed; founder TestFlight device check remains.
 **Branch:** `main`
