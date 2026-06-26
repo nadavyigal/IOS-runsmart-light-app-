@@ -843,6 +843,9 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var routePoints: [RunRoutePoint]
     var routeMatchResult: RouteMatchResult? = nil
     var syncedAt: Date?
+    /// Garmin device model (e.g. "Garmin Forerunner 265"), when known. Required for the
+    /// "Garmin [device model]" attribution on Garmin-sourced rows per brand guidelines.
+    var sourceDeviceName: String? = nil
 }
 
 enum RouteKind: String, Codable, Hashable {
@@ -1134,6 +1137,9 @@ struct ConnectedDeviceStatus: Identifiable, Codable, Hashable {
     var lastSuccessfulSync: Date?
     var permissions: [String]
     var message: String?
+    /// Garmin only reports device identity on activity records, never on daily/wellness
+    /// summaries - this is the most recently seen device name, cached on garmin_connections.
+    var deviceName: String? = nil
 }
 
 enum FirstSyncReviewProvider: String, Codable, Hashable {

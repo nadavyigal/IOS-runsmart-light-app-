@@ -5,6 +5,7 @@ struct GarminWellnessViews: View {
     @State private var recovery: RecoverySnapshot = .loading
     @State private var wellness: WellnessSnapshot = .empty
     @State private var trends: WellnessTrendSeries = .empty
+    @State private var garminDeviceName: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -14,8 +15,9 @@ struct GarminWellnessViews: View {
                     // Garmin API Brand Guidelines (Health): device-sourced data must carry a
                     // "Garmin [device model]" attribution adjacent to the heading, above the fold.
                     // This whole view is Garmin wellness data (Body Battery is Garmin-exclusive),
-                    // so attribution is unconditional. Device model not surfaced → list "Garmin".
-                    Text("Garmin")
+                    // so attribution is unconditional. Falls back to "Garmin" if no device name
+                    // has been recorded yet (Garmin only reports device identity on activities).
+                    Text(garminDeviceName ?? "Garmin")
                         .font(.labelSM)
                         .foregroundStyle(Color.textTertiary)
                     Text(sourceTitle)
@@ -56,7 +58,10 @@ struct GarminWellnessViews: View {
             async let recoveryTask = services.recoverySnapshot()
             async let wellnessTask = services.wellnessSnapshot()
             async let trendTask = services.wellnessTrendSeries(days: 7)
+            async let statusTask = services.deviceStatuses()
+            let statuses = await statusTask
             (recovery, wellness, trends) = await (recoveryTask, wellnessTask, trendTask)
+            garminDeviceName = statuses.first { $0.provider == "Garmin Connect" }?.deviceName
         }
     }
 

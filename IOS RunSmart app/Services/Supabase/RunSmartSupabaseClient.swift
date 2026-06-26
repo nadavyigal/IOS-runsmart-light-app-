@@ -363,6 +363,27 @@ struct DBGarminConnection: Codable, Sendable {
     let lastSuccessfulSyncAt: String?
     let connectedAt: String?
     let scopes: [String]?
+    let deviceName: String?
+
+    init(
+        id: Int,
+        authUserId: UUID?,
+        status: String?,
+        lastSyncAt: String?,
+        lastSuccessfulSyncAt: String?,
+        connectedAt: String?,
+        scopes: [String]?,
+        deviceName: String? = nil
+    ) {
+        self.id = id
+        self.authUserId = authUserId
+        self.status = status
+        self.lastSyncAt = lastSyncAt
+        self.lastSuccessfulSyncAt = lastSuccessfulSyncAt
+        self.connectedAt = connectedAt
+        self.scopes = scopes
+        self.deviceName = deviceName
+    }
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -372,6 +393,7 @@ struct DBGarminConnection: Codable, Sendable {
         case lastSuccessfulSyncAt = "last_successful_sync_at"
         case connectedAt = "connected_at"
         case scopes
+        case deviceName = "device_name"
     }
 }
 
@@ -387,6 +409,35 @@ struct DBGarminActivity: Codable, Hashable, Sendable {
     let avgPaceSPerKm: Double?
     let elevationGainM: Double?
     let calories: Double?
+    let deviceName: String?
+
+    init(
+        id: Int,
+        authUserId: UUID?,
+        activityId: String,
+        startTime: String?,
+        sport: String?,
+        durationS: Double?,
+        distanceM: Double?,
+        avgHr: Int?,
+        avgPaceSPerKm: Double?,
+        elevationGainM: Double?,
+        calories: Double?,
+        deviceName: String? = nil
+    ) {
+        self.id = id
+        self.authUserId = authUserId
+        self.activityId = activityId
+        self.startTime = startTime
+        self.sport = sport
+        self.durationS = durationS
+        self.distanceM = distanceM
+        self.avgHr = avgHr
+        self.avgPaceSPerKm = avgPaceSPerKm
+        self.elevationGainM = elevationGainM
+        self.calories = calories
+        self.deviceName = deviceName
+    }
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -400,6 +451,7 @@ struct DBGarminActivity: Codable, Hashable, Sendable {
         case avgPaceSPerKm = "avg_pace_s_per_km"
         case elevationGainM = "elevation_gain_m"
         case calories
+        case deviceName = "device_name"
     }
 }
 

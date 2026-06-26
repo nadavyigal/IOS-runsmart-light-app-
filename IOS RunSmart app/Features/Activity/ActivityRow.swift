@@ -40,8 +40,7 @@ struct ActivityRow: View {
                     .foregroundStyle(Color.textPrimary)
                 // Garmin API Brand Guidelines: device-sourced data must carry a plain,
                 // unstylized "Garmin [device model]" attribution adjacent to the title, above
-                // the fold. Device model is not yet surfaced on RecordedRun, so we fall back to
-                // "Garmin" (permitted by the guidelines). No accent color / no letter-spacing.
+                // the fold. No accent color / no letter-spacing.
                 Text(metadataLine)
                     .font(.caption)
                     .foregroundStyle(Color.textTertiary)
@@ -57,10 +56,13 @@ struct ActivityRow: View {
         .padding(.vertical, 5)
     }
 
-    /// Metadata line shown under the run title, e.g. "Jun 22, 2026 at 5:41 PM · Garmin".
-    /// For Garmin-sourced runs this doubles as the required Garmin attribution.
+    /// Metadata line shown under the run title, e.g. "Jun 22, 2026 at 5:41 PM · Garmin Forerunner 265".
+    /// For Garmin-sourced runs this doubles as the required "Garmin [device model]" attribution.
     private var metadataLine: String {
         let date = run.startedAt.formatted(date: .abbreviated, time: .shortened)
-        return "\(date) · \(run.source.rawValue)"
+        guard run.source == .garmin, let deviceName = run.sourceDeviceName, !deviceName.isEmpty else {
+            return "\(date) · \(run.source.rawValue)"
+        }
+        return "\(date) · \(deviceName)"
     }
 }

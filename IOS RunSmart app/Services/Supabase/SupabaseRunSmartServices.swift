@@ -1925,7 +1925,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     state: state,
                     lastSuccessfulSync: lastSync,
                     permissions: conn.scopes ?? [],
-                    message: nil
+                    message: nil,
+                    deviceName: conn.deviceName
                 )
             }
         } catch {
