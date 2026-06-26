@@ -68,7 +68,8 @@ extension DBGarminActivity {
             averagePaceSecondsPerKm: pace,
             averageHeartRateBPM: avgHr,
             routePoints: [],
-            syncedAt: Date()
+            syncedAt: Date(),
+            sourceDeviceName: deviceName
         )
     }
 

@@ -7,6 +7,7 @@ struct RecoveryDashboardView: View {
     // Drives Garmin attribution: only shown when Garmin Connect is actually a data source,
     // so we never mischaracterize HealthKit-only data as Garmin-sourced.
     @State private var garminConnected = false
+    @State private var garminDeviceName: String?
 
     private var readinessValue: Double {
         min(1.0, max(0.0, Double(recovery.readiness) / 100.0))
@@ -27,9 +28,10 @@ struct RecoveryDashboardView: View {
                     SectionLabel(title: "Recovery dashboard", trailing: "Today")
                     // Garmin API Brand Guidelines (Health): device-sourced data on primary
                     // displays must carry a "Garmin [device model]" attribution adjacent to the
-                    // heading, above the fold. Device model is not surfaced, so we list "Garmin".
+                    // heading, above the fold. Falls back to "Garmin" if no device name has been
+                    // recorded yet (Garmin only reports device identity on activity records).
                     if garminConnected {
-                        Text("Garmin")
+                        Text(garminDeviceName ?? "Garmin")
                             .font(.labelSM)
                             .foregroundStyle(Color.textTertiary)
                     }
@@ -96,7 +98,9 @@ struct RecoveryDashboardView: View {
             async let statusTask = services.deviceStatuses()
             let statuses = await statusTask
             (recovery, trends) = await (recoveryTask, trendTask)
-            garminConnected = statuses.contains { $0.provider == "Garmin Connect" && $0.state == .connected }
+            let garminStatus = statuses.first { $0.provider == "Garmin Connect" }
+            garminConnected = garminStatus?.state == .connected
+            garminDeviceName = garminStatus?.deviceName
         }
     }
 }
