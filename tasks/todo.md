@@ -2,22 +2,35 @@
 
 ## Current Task
 
-**Objective:** Product Design full audit of the RunSmart iOS app using DEBUG demo mode screenshots.
-**Status:** Implemented — audit findings addressed in `codex/audit-ux-fixes`; draft PR pending/published after validation.
-**Branch:** `codex/audit-ux-fixes`
+**Objective:** Build 18 App Store/Garmin pre-flight.
+**Status:** Local Codex-executable checks complete after ASC closed the `1.0.4` train. Build 18 is now packaged as `1.0.5 (18)`; archive + non-upload App Store export passed. Apple ID-gated upload/submission, live confirmation, screenshot recapture, and Garmin send remain founder-only/external.
+**Branch:** `main`
 
 ### Checklist
-- [x] Read RunSmart lessons and Product Design audit workflow.
-- [x] Confirm app repo status is clean before audit.
-- [x] Capture accepted screenshots for key app screens/flows.
-- [x] Save full audit notes with step health, UX risks, accessibility risks, and evidence limits.
-- [x] Report audit output location and verification limits.
-- [x] Add visible disabled-state styling for Flex Week Continue.
-- [x] Hide tab navigation during active run and post-run review states.
-- [x] Add finish confirmation before saving a run.
-- [x] Add short-activity review copy for accidental/test runs.
-- [x] Improve Garmin Wellness readability and Profile service status semantics.
-- [x] Run Debug simulator build and focused demo smoke.
+- [x] Read RunSmart lessons and build-18 Garmin plan.
+- [x] Confirm iOS repo is on `main`, tracking `origin/main`, with only the untracked plan file dirty.
+- [x] Confirm PR #66 merge commit `5fdea72` is in iOS history.
+- [x] Confirm PR #66 is merged to `main` in GitHub and local history.
+- [x] Confirm ASC rejected `1.0.4 (18)` because the `1.0.4` train is closed.
+- [x] Bump `MARKETING_VERSION` from `1.0.4` to `1.0.5` while keeping `CURRENT_PROJECT_VERSION = 18`.
+- [x] Confirm web repo history includes PR #103 merge and recorded production deploy confirmation.
+- [x] Run fresh `1.0.5 (18)` Release archive.
+- [x] Run non-upload App Store export and inspect metadata/entitlements.
+- [ ] Founder: upload/submit `1.0.5 (18)` to App Store Connect and confirm it is genuinely live.
+- [ ] Recapture all 6 Gate-4 screenshots only after build 18 is live.
+- [ ] Founder: review/send Garmin reply with new zip attached.
+
+### Validation - 2026-06-29
+- Release archive passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-v1.0.5-build18-AppStore-20260629-codex.xcarchive" -allowProvisioningUpdates -quiet archive`
+- Non-upload App Store export passed:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-v1.0.5-build18-AppStore-20260629-codex.xcarchive" -exportPath "build/RunSmart-v1.0.5-build18-AppStoreExport-20260629-codex" -exportOptionsPlist ExportOptionsAppStore.plist -allowProvisioningUpdates -quiet`
+- Exported IPA metadata: display name `RunSmart`, bundle id `com.runsmart.lite`, version `1.0.5`, build `18`, `ITSAppUsesNonExemptEncryption=false`.
+- Exported IPA entitlements: Sign in with Apple, associated domains, HealthKit, `beta-reports-active=true`, and `get-task-allow=false`.
+- Archive contains dSYM: `IOS RunSmart app.app.dSYM`.
+- Known warning remains: deprecated `HKWorkout` initializer in `HealthKitSyncService.swift`.
+- `xcodebuild -validate-for-store` was not run because this installed Xcode rejects `-validate-for-store` as an invalid CLI option; Organizer/ASC validation remains founder-only.
+- Apple public lookup still shows live marketing version `1.0.4` with current version date `2026-06-24`, so `1.0.5 (18)` is not live yet.
 
 ---
 

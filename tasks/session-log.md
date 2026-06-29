@@ -2217,3 +2217,62 @@ Ran a Product Design audit of the RunSmart iOS app, saved 13 simulator screensho
 
 ### Remaining Risk
 - Physical-device, Dynamic Type, VoiceOver, real outdoor GPS, HealthKit, and Garmin production data checks were not run in this session.
+
+## 2026-06-26 - Build 18 ASC/Garmin pre-flight
+
+### Task Summary
+Executed the Codex-safe portions of `docs/superpowers/plans/2026-06-26-build18-asc-submission-and-garmin-resend.md`. Confirmed the build-18 Garmin brand fixes are merged locally, revalidated a Release archive, exported a non-upload App Store IPA, and updated Garmin handoff docs. Apple ID-gated upload/submission, live build-18 confirmation, screenshot recapture, and Garmin send remain outside this session.
+
+### Findings
+- iOS repo is on `main...origin/main`; the only dirty iOS item at start was the untracked build-18 plan file.
+- PR #66 merge commit `5fdea72` is in iOS history.
+- Xcode project declares `MARKETING_VERSION = 1.0.4` and `CURRENT_PROJECT_VERSION = 18`.
+- Web repo history includes PR #103 merge `83408f6`; `GARMIN-STATUS.md` already records production deployment confirmation.
+- Source inspection found `GarminLogoMark` wired in `SecondaryFlowView` and `device_name`/`deviceName` paths present in iOS and web code.
+- Apple public lookup confirms live marketing version `1.0.4` with current version date `2026-06-24`, but does not expose build number; it cannot prove build 18 is live.
+
+### Validation
+- Release archive passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-build18-AppStore-20260626-codex.xcarchive" -allowProvisioningUpdates -quiet archive`
+- Non-upload App Store export passed:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-build18-AppStore-20260626-codex.xcarchive" -exportPath "build/RunSmart-build18-AppStoreExport-20260626-codex" -exportOptionsPlist ExportOptionsAppStore.plist -allowProvisioningUpdates -quiet`
+- Exported IPA metadata: display name `RunSmart`, bundle id `com.runsmart.lite`, version `1.0.4`, build `18`, `ITSAppUsesNonExemptEncryption=false`.
+- Exported IPA entitlements: Sign in with Apple, associated domains, HealthKit, `beta-reports-active=true`, and `get-task-allow=false`.
+- dSYM present: `build/RunSmart-build18-AppStore-20260626-codex.xcarchive/dSYMs/IOS RunSmart app.app.dSYM`.
+- Known warning remains: deprecated `HKWorkout` initializer in `HealthKitSyncService.swift`.
+- `xcodebuild -validate-for-store` was not run because this installed Xcode rejects `-validate-for-store` as an invalid CLI option.
+
+### Remaining
+- Founder: upload/submit build 18 to App Store Connect, wait for Apple approval, and confirm build 18 genuinely live.
+- After live confirmation: recapture and verify all 6 Gate-4 screenshots against the build-18 Garmin wordmark/device attribution fixes.
+- Founder: review/send the Garmin reply with the new zip attached. The 01-03 logo remains the documented Garmin corporate wordmark fallback, not a guaranteed Connect-tile pass.
+
+## 2026-06-29 - Build 18 ASC train recovery after upload rejection
+
+### Task Summary
+Responded to the founder's Xcode Organizer upload failure for build 18. App Store Connect rejected `1.0.4 (18)` because `CFBundleShortVersionString = 1.0.4` is no longer open for new build submissions after the previously approved `1.0.4` release. Moved build 18 to the next marketing train, `1.0.5 (18)`, and reran local archive/export validation.
+
+### Findings
+- GitHub PR #66 is merged to `main`: `5fdea72129716cf6ba497c5adbc07f13508e85d4`, base `main`, merged 2026-06-26.
+- Local iOS `main` is tracking `origin/main` at `5fdea72`.
+- Web PR #103 is merged to the companion repo: `83408f60d0c989c7a7e416c5af0cbcb2c84538d5`; `GARMIN-STATUS.md` already records production deployment confirmation.
+- Public Apple lookup still reports live RunSmart marketing version `1.0.4` with current version release date `2026-06-24T21:05:29Z`; it does not expose build number and `1.0.5 (18)` is not live yet.
+
+### Changes
+- Updated `IOS RunSmart app.xcodeproj/project.pbxproj`: `MARKETING_VERSION = 1.0.5` for app and test targets; kept `CURRENT_PROJECT_VERSION = 18`.
+- Updated task memory and Garmin handoff docs to use `1.0.5 (18)` for the next founder upload/submission path.
+
+### Validation
+- Release archive passed:
+  `xcodebuild -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -configuration Release -destination "generic/platform=iOS" -archivePath "build/RunSmart-v1.0.5-build18-AppStore-20260629-codex.xcarchive" -allowProvisioningUpdates -quiet archive`
+- Non-upload App Store export passed:
+  `xcodebuild -exportArchive -archivePath "build/RunSmart-v1.0.5-build18-AppStore-20260629-codex.xcarchive" -exportPath "build/RunSmart-v1.0.5-build18-AppStoreExport-20260629-codex" -exportOptionsPlist ExportOptionsAppStore.plist -allowProvisioningUpdates -quiet`
+- Exported IPA metadata: display name `RunSmart`, bundle id `com.runsmart.lite`, version `1.0.5`, build `18`, `ITSAppUsesNonExemptEncryption=false`.
+- Exported IPA entitlements: Sign in with Apple, associated domains, HealthKit, `beta-reports-active=true`, and `get-task-allow=false`.
+- dSYM present: `build/RunSmart-v1.0.5-build18-AppStore-20260629-codex.xcarchive/dSYMs/IOS RunSmart app.app.dSYM`.
+- Known warning remains: deprecated `HKWorkout` initializer in `HealthKitSyncService.swift`.
+
+### Remaining
+- Founder: archive/upload/submit `1.0.5 (18)` to App Store Connect, wait for approval, and confirm `1.0.5 (18)` genuinely live.
+- After live confirmation: recapture and verify all 6 Gate-4 screenshots against the build-18 Garmin wordmark/device attribution fixes.
+- Founder: review/send the Garmin reply with the new zip attached. The 01-03 logo remains the documented Garmin corporate wordmark fallback, not a guaranteed Connect-tile pass.

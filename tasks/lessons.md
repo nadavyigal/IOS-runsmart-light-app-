@@ -41,8 +41,24 @@ Review this file at the start of future tasks.
 - Garmin OAuth on iOS must use the registered `runsmart://` callback scheme with `ASWebAuthenticationSession`, then poll `garmin_connections` until connected before returning success.
 - Before applying RLS or index migrations, inspect the live relation type in `pg_class`; views need `security_invoker` and protection on underlying tables, not table RLS or direct indexes.
 - With XcodeBuildMCP build tools, set DerivedData through session defaults or omit it; do not pass `-derivedDataPath` in `extraArgs` unless the tool is not already supplying one.
+- Before recording an App Store validation command as executable, verify the installed `xcodebuild` supports the flags; for this environment, `-validate-for-store` is not a supported CLI option, so use archive/export inspection locally and leave Organizer/ASC validation to founder-gated tooling.
+- If App Store Connect says a pre-release train is closed for new submissions, bump `MARKETING_VERSION` to the next train and re-archive; changing only `CURRENT_PROJECT_VERSION` cannot reopen a closed approved marketing version.
 
 ## Lesson Log
+
+### 2026-06-29 - Closed ASC Release Train Requires Marketing Version Bump
+Trigger: Founder archive upload for build 18 failed because App Store Connect rejected `CFBundleShortVersionString = 1.0.4`; the previously approved `1.0.4` train is closed for new build submissions.
+
+Lesson: A build-number bump is not enough once Apple has approved/released that marketing version. New upload attempts must move to the next marketing version train.
+
+Future rule: If App Store Connect says a pre-release train is closed for new submissions, bump `MARKETING_VERSION` to the next train and re-archive; changing only `CURRENT_PROJECT_VERSION` cannot reopen a closed approved marketing version.
+
+### 2026-06-26 - xcodebuild Store Validation Flag Is Not Portable
+Trigger: The build-18 Garmin plan asked Codex to rerun `xcodebuild ... -validate-for-store`, but the installed `xcodebuild` rejected `-validate-for-store` as an invalid option.
+
+Lesson: Release plans can preserve shorthand from Xcode Organizer or older/local tooling that is not actually executable in the current CLI.
+
+Future rule: Before recording an App Store validation command as executable, verify the installed `xcodebuild` supports the flags; for this environment, `-validate-for-store` is not a supported CLI option, so use archive/export inspection locally and leave Organizer/ASC validation to founder-gated tooling.
 
 ### 2026-06-17 - Filter Xcode Build Logs Around Secrets
 Trigger: A Release `xcodebuild` validation emitted expanded build settings, including service configuration values, in raw terminal output.

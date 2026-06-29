@@ -420,6 +420,9 @@
     "Finish" : {
 
     },
+    "Finish and Save" : {
+
+    },
     "FIRST 5K" : {
 
     },
@@ -427,9 +430,6 @@
 
     },
     "From the saved plan structure." : {
-
-    },
-    "Garmin" : {
 
     },
     "Garmin metrics are not fresh enough to approve. Use the manual check-in below." : {
@@ -555,6 +555,9 @@
 
     },
     "Keep Original Plan" : {
+
+    },
+    "Keep Recording" : {
 
     },
     "Keep Workout" : {
@@ -927,6 +930,9 @@
     "Shares a private progress summary without raw coordinates or a route map." : {
 
     },
+    "Short activity saved" : {
+
+    },
     "Sign Out" : {
 
     },
@@ -1076,6 +1082,9 @@
 
     },
     "This is a real activity, but no generated coach report has been saved yet." : {
+
+    },
+    "This looks too short for meaningful training analysis. Keep it for your history, or delete it if it was a test or accidental stop." : {
 
     },
     "This permanently deletes your account, training plans, and run history. This cannot be undone." : {
