@@ -867,6 +867,17 @@ enum RunSmartAttribution {
         "\(sourceLabel(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)) Run Report"
     }
 
+    /// Garmin API Brand Guidelines: plain "Garmin [device model]" label for activity rows, routes, and reports.
+    static func garminDeviceLabel(deviceName: String?, fallbackGarminDeviceName: String? = nil) -> String {
+        if let normalized = normalizedDeviceName(deviceName) {
+            return normalized
+        }
+        if let fallback = normalizedDeviceName(fallbackGarminDeviceName) {
+            return fallback
+        }
+        return RunSmartDataSource.garmin.rawValue
+    }
+
     private static func normalizedDeviceName(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
             return nil
@@ -900,6 +911,12 @@ struct RouteSuggestion: Identifiable, Codable, Hashable {
     var recommendationReason: String? = nil
     var savedRouteID: UUID? = nil
     var isFavorite: Bool = false
+    /// Plain "Garmin [device model]" attribution for Garmin-sourced route suggestions.
+    var sourceAttribution: String? = nil
+
+    var isGarminSourced: Bool {
+        id.hasPrefix("garmin-")
+    }
 }
 
 enum RouteRecommendationUnavailableReason: String, Codable, Hashable {

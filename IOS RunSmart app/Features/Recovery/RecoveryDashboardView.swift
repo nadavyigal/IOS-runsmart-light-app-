@@ -69,6 +69,7 @@ struct RecoveryDashboardView: View {
             RecoveryTrendTile(
                 title: "Training Readiness",
                 value: trends.latestReadinessDisplay,
+                attribution: garminConnected ? (garminDeviceName ?? "Garmin") : nil,
                 detail: trends.readinessTrendSummary,
                 bars: trends.readinessBars,
                 tint: .accentPrimary

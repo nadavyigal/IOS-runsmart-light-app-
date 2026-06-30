@@ -11,6 +11,7 @@ struct MorningCheckinView: View {
     @State private var recovery: RecoverySnapshot = .loading
     @State private var wellness: WellnessSnapshot = .empty
     @State private var garminApprovalFailed = false
+    @State private var garminDeviceName: String?
 
     private let moods = ["Strong", "Steady", "Tired", "Stressed"]
 
@@ -19,6 +20,11 @@ struct MorningCheckinView: View {
             HeroCard(accent: .accentPrimary) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Morning check-in")
+                    if hasGarminSignal {
+                        Text(garminDeviceName ?? "Garmin")
+                            .font(.labelSM)
+                            .foregroundStyle(Color.textTertiary)
+                    }
                     Text(hasGarminSignal ? "Approve Garmin readiness?" : "How ready do you feel before today’s training?")
                         .font(.headingLG)
                     Text(hasGarminSignal ? recovery.recommendation : "This adjusts workout intensity without storing medical records.")
@@ -91,11 +97,27 @@ struct MorningCheckinView: View {
                     .font(.bodyMD)
                     .foregroundStyle(Color.accentHeart)
             }
+
+            if hasGarminSignal {
+                Text("Insights derived in part from Garmin device-sourced data.")
+                    .font(.caption)
+                    .italic()
+                    .foregroundStyle(Color.textTertiary)
+            }
         }
         .task {
             async let recoveryTask = services.recoverySnapshot()
             async let wellnessTask = services.wellnessSnapshot()
+            async let statusTask = services.deviceStatuses()
+            let statuses = await statusTask
             (recovery, wellness) = await (recoveryTask, wellnessTask)
+            let garminStatus = statuses.first { $0.provider == "Garmin Connect" }
+            if garminStatus?.state == .connected {
+                garminDeviceName = RunSmartAttribution.garminDeviceLabel(
+                    deviceName: garminStatus?.deviceName,
+                    fallbackGarminDeviceName: garminStatus?.deviceName
+                )
+            }
         }
     }
 

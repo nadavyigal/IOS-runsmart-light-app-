@@ -2,27 +2,33 @@
 
 ## Current Task
 
-**Objective:** Garmin Report/Activity device attribution fallback.
-**Status:** Implemented locally. Report/Activity and Run Report now use the connected Garmin `deviceName` fallback when an individual activity row lacks `device_name`; final Xcode/archive validation and App Store shipping remain.
+**Objective:** Garmin brand compliance for v1.0.6 (19) — Connect tile, device attribution, derived-data footers.
+**Status:** Code complete locally. Debug simulator build succeeded. Device screenshot recapture + ASC archive remain founder steps.
 **Branch:** `main`
 
 ### Checklist
-- [x] Read RunSmart lessons and inspect current Garmin screenshot gap.
-- [x] Add shared attribution helper with activity-device precedence and connected-device fallback.
-- [x] Apply fallback to Report/Activity rows.
-- [x] Apply fallback to Run Report skeletons, cached/generated report details, summaries, and fallback generated reports.
-- [x] Add focused readiness tests for Garmin attribution precedence/fallback and non-Garmin preservation.
-- [x] Run deterministic static validation (`git diff --check`).
-- [ ] Run clean Xcode build/test or release archive on a healthy Xcode/simulator session.
-- [ ] Ship a new fixed build through App Store Connect and confirm it is genuinely live.
-- [ ] Recapture all 6 Gate-4 screenshots only after the fixed build is live.
-- [ ] Founder: review/send Garmin reply with new zip attached.
+- [x] Add `GarminConnectTile` asset + `GarminConnectBrandMark` (auth screens 01–03 only).
+- [x] Wire Connect tile to Profile Garmin tile + Connect sheet header (remove wordmark on wellness).
+- [x] Morning Check-In: device label + insights footer when Garmin signal present.
+- [x] Route for Today: `5K Loop` name + separate `sourceAttribution` metadata line.
+- [x] RunReportScaffold + RecentActivityRow: `Garmin [device model]` attribution.
+- [x] Recovery Training Readiness tile: Garmin source label when connected.
+- [x] Add `RunSmartAttribution.garminDeviceLabel` helper + unit tests.
+- [x] Debug simulator `xcodebuild build` passed.
+- [ ] Founder: archive/submit 1.0.6 (19), confirm live on App Store.
+- [ ] Recapture all 10 Gate-4 Garmin screenshots on live build.
+- [ ] Send Garmin reply with zip on ticket 213165.
 
 ### Validation - 2026-06-30
-- `git diff --check` passed.
-- Focused attribution XCTest compiled past source validation with only existing warnings, then hung in the local simulator install/launch worker and was interrupted after 109 seconds.
-- `xcodebuild build-for-testing` on a fresh DerivedData path also emitted only existing warnings, then hung in Xcode build operations and was interrupted.
-- Live `1.0.5 (18)` should not be used for Garmin reply evidence because Report/Run Report screenshots still showed bare `Garmin`.
+- Debug simulator build succeeded after Garmin compliance pass.
+- Replace official GCDP Connect tile PNG if App Store icon differs from Marc's branding kit asset.
+
+---
+
+## Previous Current Task
+
+**Objective:** Garmin Report/Activity device attribution fallback.
+**Status:** Implemented locally. Report/Activity and Run Report now use the connected Garmin `deviceName` fallback when an individual activity row lacks `device_name`; final Xcode/archive validation and App Store shipping remain.
 
 ---
 

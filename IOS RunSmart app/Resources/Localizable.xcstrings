@@ -432,6 +432,9 @@
     "From the saved plan structure." : {
 
     },
+    "Garmin Connect" : {
+
+    },
     "Garmin metrics are not fresh enough to approve. Use the manual check-in below." : {
 
     },
@@ -795,6 +798,9 @@
     "Recovery Timeline" : {
 
     },
+    "Remind Me Tomorrow" : {
+
+    },
     "Reminders are local, low-frequency, and can be turned off from Profile." : {
 
     },
@@ -954,7 +960,13 @@
     "Start" : {
 
     },
+    "Start %@ now, or get a calm reminder tomorrow morning." : {
+
+    },
     "Start a GPS run on the Run tab to capture splits and lap markers." : {
+
+    },
+    "Start Now" : {
 
     },
     "Start the Challenge" : {
@@ -1188,6 +1200,9 @@
 
     },
     "You completed 4 of 5 planned sessions. The missed strength day is not critical; keep Sunday easy." : {
+
+    },
+    "Your first run is ready" : {
 
     },
     "Your week is updated" : {

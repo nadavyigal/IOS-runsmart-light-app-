@@ -569,6 +569,12 @@ private struct TodayRouteRecommendationCard: View {
                             .foregroundStyle(Color.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
 
+                        if let attribution = route.sourceAttribution {
+                            Text(attribution)
+                                .font(.caption)
+                                .foregroundStyle(Color.textTertiary)
+                        }
+
                         Text(recommendation.reason)
                             .font(.bodyMD)
                             .foregroundStyle(Color.textSecondary)
