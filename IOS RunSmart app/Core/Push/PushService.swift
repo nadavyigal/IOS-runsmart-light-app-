@@ -211,6 +211,36 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
     }
 
     @discardableResult
+    func scheduleFirstRunReminder(workout: WorkoutSummary, now: Date = Date(), calendar: Calendar = .current) async -> Bool {
+        let granted: Bool
+        do {
+            granted = try await requestAuthorization()
+        } catch {
+            return false
+        }
+        guard granted else { return false }
+
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now.addingTimeInterval(86_400)
+        let start = calendar.startOfDay(for: tomorrow)
+        let fireDate = calendar.date(bySettingHour: 7, minute: 0, second: 0, of: start) ?? tomorrow
+        guard fireDate > now else { return false }
+
+        let request = RunSmartReminderRequest(
+            identifier: "runsmart.reminder.firstRun",
+            type: .workoutDue,
+            fireDate: fireDate,
+            workoutID: workout.id,
+            destination: .today,
+            content: RunSmartReminderContent(
+                title: "Time for your first RunSmart run",
+                body: "\(workout.title) is ready when you are."
+            )
+        )
+        try? await center.add(request.notificationRequest)
+        return true
+    }
+
+    @discardableResult
     func scheduleReturnLoopReminders(
         profile: OnboardingProfile,
         workouts: [WorkoutSummary],

@@ -12,6 +12,20 @@ Project-specific decisions. Read at the start of every session.
 
 ---
 
+## 2026-06-30 - WP-20 first-run activation on Garmin fix branch
+
+Worked on: Agentic OS WP-20 combined with PR #67 Garmin attribution fallback.
+
+Completed:
+- First-run activation sheet after plan save with Start Now / Remind Me Tomorrow.
+- Smart return reminders default ON for new onboarding profiles.
+- First-run analytics events and one-time App Store review prompt after first completed run.
+- Build bumped to `1.0.5 (19)` on `codex/garmin-attribution-fallback`.
+
+Decisions: Keep scope to one ASC train; defer sign-in-wall and broader onboarding redesign. Fold activation into the same build as Garmin fallback because both are small and founder plans to merge to `main` as `1.0.5 (19)`.
+
+Next session: Founder merge PR #67, archive/upload `1.0.5 (19)`, confirm live, recapture Garmin screenshots.
+
 ## 2026-06-24 - WP-15 RunSmart plan-to-run activation diagnostic
 
 Worked on: Diagnosed why a cohort could reach `plan_generated` but not reach D7 `run_completed`.

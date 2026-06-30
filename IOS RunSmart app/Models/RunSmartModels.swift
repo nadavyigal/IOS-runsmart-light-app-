@@ -1103,7 +1103,7 @@ struct OnboardingProfile: Codable, Equatable {
         preferredDays: ["Tue", "Thu", "Sat", "Sun"],
         units: "Metric",
         coachingTone: "Motivating",
-        notificationsEnabled: false,
+        notificationsEnabled: true,
         planAdjustmentConfirmationsEnabled: true
     )
 }

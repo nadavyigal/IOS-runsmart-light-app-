@@ -118,7 +118,7 @@ final class SupabaseSession: ObservableObject {
                     preferredDays: p.preferredTimes,
                     units: "Metric",
                     coachingTone: p.coachingStyle ?? "Motivating",
-                    notificationsEnabled: UserDefaults.standard.object(forKey: notificationPreferenceKey) as? Bool ?? false,
+                    notificationsEnabled: UserDefaults.standard.object(forKey: notificationPreferenceKey) as? Bool ?? true,
                     planAdjustmentConfirmationsEnabled: UserDefaults.standard.object(forKey: planAdjustmentConfirmationsKey) as? Bool ?? true
                 )
             } else {
