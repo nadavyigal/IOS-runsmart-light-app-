@@ -324,29 +324,18 @@ private struct FlowHeader: View {
         }
     }
 
-    /// True only for the Garmin-branded destinations. `.connectedService(String)` is shared with
-    /// non-Garmin services (e.g. "HealthKit") — must check the associated name, not just the case,
-    /// or the Garmin logo would incorrectly render on the HealthKit connection screen too.
-    private var usesGarminLogoMark: Bool {
+    /// True only for Garmin Connect authentication — not Garmin Wellness or other health surfaces.
+    private var usesGarminConnectTile: Bool {
         switch destination {
         case .connectedService(let name): name.localizedCaseInsensitiveContains("garmin")
-        case .garminWellness: true
         default: false
         }
     }
 
     @ViewBuilder
     private var headerMark: some View {
-        if usesGarminLogoMark {
-            // Garmin's logo is a wide wordmark (~3:1) — scaledToFit preserves its aspect ratio
-            // rather than cropping/stretching it into a square, per "do not alter these images."
-            Image("GarminLogoMark")
-                .resizable()
-                .scaledToFit()
-                .frame(height: 26)
-                .padding(.horizontal, 16)
-                .frame(height: 58)
-                .background(Color.textTertiary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        if usesGarminConnectTile {
+            GarminConnectBrandMark.headerTile()
         } else if usesNeutralServiceMark {
             Image(systemName: destination.symbol)
                 .font(.system(size: 26, weight: .semibold))
@@ -1040,6 +1029,14 @@ private struct RunReportScaffold: View {
     @State private var generationFailed = false
     @State private var showSaveRouteSheet = false
     @State private var isLoadingRoutePoints = true
+    @State private var garminDeviceName: String?
+
+    private var garminSourceLabel: String {
+        RunSmartAttribution.garminDeviceLabel(
+            deviceName: activity.deviceName,
+            fallbackGarminDeviceName: garminDeviceName
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -1048,6 +1045,9 @@ private struct RunReportScaffold: View {
                     SectionLabel(title: "Run Summary", trailing: activity.relativeStartLabel)
                     Text(activity.sportLabel)
                         .font(.title2.bold())
+                    Text(garminSourceLabel)
+                        .font(.caption)
+                        .foregroundStyle(Color.textTertiary)
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                         MetricBadge(title: "Distance", value: activity.distanceKmLabel)
                         MetricBadge(title: "Time", value: activity.durationLabel)
@@ -1063,7 +1063,7 @@ private struct RunReportScaffold: View {
                     DetailLine(label: "Started", value: startTimeLabel)
                     DetailLine(label: "Elevation", value: elevationLabel)
                     DetailLine(label: "Calories", value: caloriesLabel)
-                    DetailLine(label: "Source", value: "Garmin")
+                    DetailLine(label: "Source", value: garminSourceLabel)
                 }
             }
 
@@ -1150,6 +1150,11 @@ private struct RunReportScaffold: View {
         .task(id: activity.id) { await loadActivityReport() }
     }
 
+    private func loadGarminDeviceFallback() async {
+        let statuses = await services.deviceStatuses()
+        garminDeviceName = statuses.first { $0.provider == "Garmin Connect" }?.deviceName
+    }
+
     private var garminRunWithRoutePoints: RecordedRun? {
         guard var run = activity.toRecordedRun() else { return nil }
         run.routePoints = routePoints
@@ -1163,6 +1168,7 @@ private struct RunReportScaffold: View {
     }
 
     private func loadActivityReport() async {
+        async let deviceFallbackTask: Void = loadGarminDeviceFallback()
         isLoadingRoutePoints = true
         routePoints = activity.toRecordedRun()?.routePoints ?? []
         if routePoints.isEmpty, let authUserID = session.currentUserID {
@@ -1173,6 +1179,7 @@ private struct RunReportScaffold: View {
             if !routePoints.isEmpty { run.routePoints = routePoints }
             report = await services.runReport(for: run)
         }
+        await deviceFallbackTask
     }
 
     private func generateReport() async {
@@ -2053,6 +2060,7 @@ private struct ConnectedServiceDetailScaffold: View {
     @State private var status: ConnectedDeviceStatus?
     @State private var isWorking = false
     @State private var recentActivities: [DBGarminActivity] = []
+    @State private var garminDeviceName: String?
     @State private var healthRuns: [RecordedRun] = []
     @State private var firstSyncReview: FirstSyncReview?
 
@@ -2134,7 +2142,7 @@ private struct ConnectedServiceDetailScaffold: View {
                                     Button {
                                         router.open(.runReport(activity))
                                     } label: {
-                                        RecentActivityRow(activity: activity)
+                                        RecentActivityRow(activity: activity, fallbackGarminDeviceName: garminDeviceName)
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -2243,6 +2251,9 @@ private struct ConnectedServiceDetailScaffold: View {
     private func load() async {
         let statuses = await services.deviceStatuses()
         status = statuses.first(where: { $0.provider == serviceName })
+        if serviceName == "Garmin Connect" {
+            garminDeviceName = status?.deviceName
+        }
         if serviceName == "Garmin Connect", let userID = session.currentUserID {
             let activities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 20)
             recentActivities = Array(GarminImportProcessor.normalizedActivities(from: activities, isHidden: store.isRunHidden).prefix(10))

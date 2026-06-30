@@ -662,6 +662,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func routeSuggestions() async -> [RouteSuggestion] {
         guard let userID = currentUserID else { return [] }
+        let fallbackDeviceName = await garminDeviceNameFallback()
         let activities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 30)
             .filter { activity in
                 guard let run = activity.toRecordedRun() else { return false }
@@ -676,12 +677,16 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 let durationS = activity.durationS ?? (km * 360)
                 return RouteSuggestion(
                     id: "garmin-\(activity.id)",
-                    name: "\(bucket)K · from Garmin",
+                    name: "\(bucket)K Loop",
                     distanceKm: km,
                     elevationGainMeters: elevation,
                     estimatedDurationMinutes: Int(durationS / 60),
                     points: [],
-                    kind: .past
+                    kind: .past,
+                    sourceAttribution: RunSmartAttribution.garminDeviceLabel(
+                        deviceName: activity.deviceName,
+                        fallbackGarminDeviceName: fallbackDeviceName
+                    )
                 )
             }
     }
@@ -728,6 +733,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
 
         if let userID = currentUserID {
+            let fallbackDeviceName = await garminDeviceNameFallback()
             let activities = await GarminBridge.shared.recentActivities(authUserID: userID, limit: 30)
                 .filter { activity in
                     guard let run = activity.toRecordedRun() else { return false }
@@ -751,12 +757,16 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 )
                 suggestions.append(RouteSuggestion(
                     id: "garmin-\(activity.id)",
-                    name: "\(bucket)K · from Garmin",
+                    name: "\(bucket)K Loop",
                     distanceKm: km,
                     elevationGainMeters: Int(activity.elevationGainM ?? 0),
                     estimatedDurationMinutes: max(1, Int((activity.durationS ?? (km * 360)) / 60)),
                     points: [], kind: .past,
-                    recommendationReason: reason, savedRouteID: nil, isFavorite: false
+                    recommendationReason: reason, savedRouteID: nil, isFavorite: false,
+                    sourceAttribution: RunSmartAttribution.garminDeviceLabel(
+                        deviceName: activity.deviceName,
+                        fallbackGarminDeviceName: fallbackDeviceName
+                    )
                 ))
             }
         }

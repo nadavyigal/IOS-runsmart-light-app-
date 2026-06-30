@@ -2068,6 +2068,36 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(RunSmartAttribution.runReportTitle(for: run, fallbackGarminDeviceName: "Garmin Forerunner 965"), "HealthKit Run Report")
     }
 
+    func testGarminDeviceLabelUsesActivityNameThenFallback() {
+        XCTAssertEqual(
+            RunSmartAttribution.garminDeviceLabel(deviceName: "Forerunner 965", fallbackGarminDeviceName: "Garmin Fenix 8"),
+            "Garmin Forerunner 965"
+        )
+        XCTAssertEqual(
+            RunSmartAttribution.garminDeviceLabel(deviceName: nil, fallbackGarminDeviceName: "Garmin Forerunner 965"),
+            "Garmin Forerunner 965"
+        )
+        XCTAssertEqual(RunSmartAttribution.garminDeviceLabel(deviceName: nil, fallbackGarminDeviceName: nil), "Garmin")
+    }
+
+    func testGarminRouteSuggestionUsesLoopNameAndSourceAttribution() {
+        let route = RouteSuggestion(
+            id: "garmin-abc",
+            name: "5K Loop",
+            distanceKm: 5.0,
+            elevationGainMeters: 12,
+            estimatedDurationMinutes: 28,
+            points: [],
+            kind: .past,
+            sourceAttribution: "Garmin Forerunner 965"
+        )
+
+        XCTAssertTrue(route.isGarminSourced)
+        XCTAssertEqual(route.name, "5K Loop")
+        XCTAssertEqual(route.sourceAttribution, "Garmin Forerunner 965")
+        XCTAssertFalse(route.name.localizedCaseInsensitiveContains("from Garmin"))
+    }
+
     func testCoachFallbackResponseUsesEntryPointSpecificContext() async {
         let run = makeRun(
             source: .runSmart,

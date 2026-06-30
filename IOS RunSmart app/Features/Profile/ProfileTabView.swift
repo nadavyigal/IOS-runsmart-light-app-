@@ -304,7 +304,7 @@ struct ProfileTabView: View {
             VStack(alignment: .leading, spacing: 12) {
                 SectionLabel(title: "Connected")
                 VStack(spacing: 8) {
-                    ConnectedServiceTile(title: "Garmin", detail: "Garmin Connect", status: statusLabel("Garmin Connect"), symbol: "link.circle.fill", tint: .accentPrimary) {
+                    ConnectedServiceTile(title: "Garmin", detail: "Garmin Connect", status: statusLabel("Garmin Connect"), symbol: "link.circle.fill", tint: .accentPrimary, brandImageName: "GarminConnectTile") {
                         open(.connectedService("Garmin Connect"))
                     }
                     ConnectedServiceTile(
@@ -499,6 +499,7 @@ private struct ConnectedServiceTile: View {
     var status: String
     var symbol: String
     var tint: Color
+    var brandImageName: String? = nil
     var showsStatusDot = true
     var statusTint: Color? = nil
     var action: () -> Void
@@ -506,11 +507,21 @@ private struct ConnectedServiceTile: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: symbol)
-                    .font(.bodyMD.weight(.bold))
-                    .foregroundStyle(tint)
-                    .frame(width: 34, height: 34)
-                    .background(tint.opacity(0.12), in: Circle())
+                Group {
+                    if let brandImageName {
+                        Image(brandImageName)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 34, height: 34)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    } else {
+                        Image(systemName: symbol)
+                            .font(.bodyMD.weight(.bold))
+                            .foregroundStyle(tint)
+                            .frame(width: 34, height: 34)
+                            .background(tint.opacity(0.12), in: Circle())
+                    }
+                }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.bodyMD.weight(.semibold))
@@ -577,6 +588,7 @@ struct AchievementBadge: View {
 
 struct RecentActivityRow: View {
     var activity: DBGarminActivity
+    var fallbackGarminDeviceName: String? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -588,7 +600,7 @@ struct RecentActivityRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(activity.sportLabel)
                     .font(.subheadline.weight(.semibold))
-                Text(activity.relativeStartLabel)
+                Text(metadataLine)
                     .font(.caption)
                     .foregroundStyle(Color.textSecondary)
             }
@@ -613,5 +625,13 @@ struct RecentActivityRow: View {
         if s.contains("bike") || s.contains("cycle") { return "bicycle" }
         if s.contains("swim") { return "figure.pool.swim" }
         return "figure.mixed.cardio"
+    }
+
+    private var metadataLine: String {
+        let attribution = RunSmartAttribution.garminDeviceLabel(
+            deviceName: activity.deviceName,
+            fallbackGarminDeviceName: fallbackGarminDeviceName
+        )
+        return "\(activity.relativeStartLabel) · \(attribution)"
     }
 }
