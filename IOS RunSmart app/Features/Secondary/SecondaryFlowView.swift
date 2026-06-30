@@ -1168,7 +1168,7 @@ private struct RunReportScaffold: View {
     }
 
     private func loadActivityReport() async {
-        await loadGarminDeviceFallback()
+        async let deviceFallbackTask: Void = loadGarminDeviceFallback()
         isLoadingRoutePoints = true
         routePoints = activity.toRecordedRun()?.routePoints ?? []
         if routePoints.isEmpty, let authUserID = session.currentUserID {
@@ -1179,6 +1179,7 @@ private struct RunReportScaffold: View {
             if !routePoints.isEmpty { run.routePoints = routePoints }
             report = await services.runReport(for: run)
         }
+        await deviceFallbackTask
     }
 
     private func generateReport() async {

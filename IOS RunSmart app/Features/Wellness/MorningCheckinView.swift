@@ -11,6 +11,7 @@ struct MorningCheckinView: View {
     @State private var recovery: RecoverySnapshot = .loading
     @State private var wellness: WellnessSnapshot = .empty
     @State private var garminApprovalFailed = false
+    @State private var garminConnected = false
     @State private var garminDeviceName: String?
 
     private let moods = ["Strong", "Steady", "Tired", "Stressed"]
@@ -20,20 +21,20 @@ struct MorningCheckinView: View {
             HeroCard(accent: .accentPrimary) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Morning check-in")
-                    if hasGarminSignal {
+                    if garminConnected {
                         Text(garminDeviceName ?? "Garmin")
                             .font(.labelSM)
                             .foregroundStyle(Color.textTertiary)
                     }
-                    Text(hasGarminSignal ? "Approve Garmin readiness?" : "How ready do you feel before today’s training?")
+                    Text(showsGarminProposal ? "Approve Garmin readiness?" : "How ready do you feel before today’s training?")
                         .font(.headingLG)
-                    Text(hasGarminSignal ? recovery.recommendation : "This adjusts workout intensity without storing medical records.")
+                    Text(showsGarminProposal ? recovery.recommendation : "This adjusts workout intensity without storing medical records.")
                         .font(.bodyMD)
                         .foregroundStyle(Color.textSecondary)
                 }
             }
 
-            if hasGarminSignal {
+            if showsGarminProposal {
                 ContentCard {
                     VStack(alignment: .leading, spacing: 12) {
                         SectionLabel(title: "Garmin proposal", trailing: "Approve")
@@ -98,7 +99,7 @@ struct MorningCheckinView: View {
                     .foregroundStyle(Color.accentHeart)
             }
 
-            if hasGarminSignal {
+            if showsGarminProposal {
                 Text("Insights derived in part from Garmin device-sourced data.")
                     .font(.caption)
                     .italic()
@@ -112,17 +113,17 @@ struct MorningCheckinView: View {
             let statuses = await statusTask
             (recovery, wellness) = await (recoveryTask, wellnessTask)
             let garminStatus = statuses.first { $0.provider == "Garmin Connect" }
-            if garminStatus?.state == .connected {
-                garminDeviceName = RunSmartAttribution.garminDeviceLabel(
-                    deviceName: garminStatus?.deviceName,
-                    fallbackGarminDeviceName: garminStatus?.deviceName
-                )
-            }
+            garminConnected = garminStatus?.state == .connected
+            garminDeviceName = garminStatus?.deviceName
         }
     }
 
     private var hasGarminSignal: Bool {
         recovery.readiness > 0 || recovery.bodyBattery > 0 || recovery.hrv != "—" || recovery.sleep != "—"
+    }
+
+    private var showsGarminProposal: Bool {
+        garminConnected && hasGarminSignal
     }
 
     private func approveGarmin() async {
