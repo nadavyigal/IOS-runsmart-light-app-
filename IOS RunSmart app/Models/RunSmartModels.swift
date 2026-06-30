@@ -848,6 +848,33 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var sourceDeviceName: String? = nil
 }
 
+enum RunSmartAttribution {
+    static func sourceLabel(for run: RecordedRun, fallbackGarminDeviceName: String? = nil) -> String {
+        guard run.source == .garmin else { return run.source.rawValue }
+
+        if let deviceName = normalizedDeviceName(run.sourceDeviceName) {
+            return deviceName
+        }
+
+        if let fallback = normalizedDeviceName(fallbackGarminDeviceName) {
+            return fallback
+        }
+
+        return run.source.rawValue
+    }
+
+    static func runReportTitle(for run: RecordedRun, fallbackGarminDeviceName: String? = nil) -> String {
+        "\(sourceLabel(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)) Run Report"
+    }
+
+    private static func normalizedDeviceName(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+}
+
 enum RouteKind: String, Codable, Hashable {
     case past
     case generated
@@ -1528,6 +1555,15 @@ struct RunReportDetail: Identifiable, Codable, Hashable {
             averageHeartRate: averageHeartRate,
             isGenerated: isGenerated
         )
+    }
+
+    func withGarminDeviceFallback(for run: RecordedRun, fallbackGarminDeviceName: String?) -> RunReportDetail {
+        guard run.source == .garmin else { return self }
+        var copy = self
+        let sourceLabel = RunSmartAttribution.sourceLabel(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)
+        copy.source = sourceLabel
+        copy.title = "\(sourceLabel) Run Report"
+        return copy
     }
 }
 

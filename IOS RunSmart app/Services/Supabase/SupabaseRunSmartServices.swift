@@ -583,6 +583,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return Array(ActivityConsolidationService.userVisibleRecentRuns(runs).prefix(limit))
     }
 
+    private func garminDeviceNameFallback() async -> String? {
+        guard let userID = currentUserID else { return nil }
+        let status = await fetchGarminConnection(userID: userID)
+        return status.deviceName
+    }
+
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
         let movingTime = TimeInterval(max(1, durationMinutes) * 60)
         let distanceMeters = max(0.1, distanceKm) * 1_000
@@ -1084,22 +1090,26 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         guard limit > 0 else { return [] }
 
         let runs = await recentRuns(limit: max(limit * 3, limit))
-        let reports = await withTaskGroup(of: RunReportDetail.self) { group in
+        let fallbackGarminDeviceName = await garminDeviceNameFallback()
+        let reportPairs = await withTaskGroup(of: (RecordedRun, RunReportDetail).self) { group in
             for run in runs {
                 group.addTask {
-                    if let r = await self.runReport(for: run) { return r }
-                    return await MainActor.run { Self.reportSkeleton(for: run) }
+                    if let r = await self.runReport(for: run) { return (run, r) }
+                    return await MainActor.run { (run, Self.reportSkeleton(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)) }
                 }
             }
-            var collected: [RunReportDetail] = []
-            for await report in group {
-                collected.append(report)
+            var collected: [(RecordedRun, RunReportDetail)] = []
+            for await pair in group {
+                collected.append(pair)
             }
             return collected
         }
 
         var seen = Set<String>()
-        return reports
+        return reportPairs
+            .map { run, report in
+                report.withGarminDeviceFallback(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)
+            }
             .sorted { $0.sortDate > $1.sortDate }
             .filter { report in
                 guard !seen.contains(report.runID) else { return false }
@@ -1120,13 +1130,16 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? {
+        let fallbackGarminDeviceName = await garminDeviceNameFallback()
         if let existing = await runReport(for: run) {
-            return existing
+            return existing.withGarminDeviceFallback(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)
         }
 
         let recent = Array((await recentRuns()).prefix(5))
         let upcoming = Array((await nextWorkouts(limit: 3)))
-        let fallback = Self.fallbackRunReport(for: run, recentRuns: recent, upcomingWorkouts: upcoming)
+        let fallback = Self
+            .fallbackRunReport(for: run, recentRuns: recent, upcomingWorkouts: upcoming)
+            .withGarminDeviceFallback(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)
         guard let token = try? await supabase.auth.session.accessToken else {
             await cacheRunReport(fallback)
             return fallback
@@ -1141,7 +1154,9 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 RunSmartAPI.Endpoint(path: "api/run-report", method: .post, body: body),
                 as: RunSmartDTO.RunReportResponse.self
             )
-            let report = Self.report(from: payload.report, run: run)
+            let report = Self
+                .report(from: payload.report, run: run)
+                .withGarminDeviceFallback(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)
             await cacheRunReport(report)
             await MainActor.run {
                 NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
@@ -2485,14 +2500,15 @@ extension SupabaseRunSmartServices {
             }
     }
 
-    static func reportSkeleton(for run: RecordedRun) -> RunReportDetail {
+    static func reportSkeleton(for run: RecordedRun, fallbackGarminDeviceName: String? = nil) -> RunReportDetail {
         let runID = reportRunID(for: run)
+        let sourceLabel = RunSmartAttribution.sourceLabel(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)
         return RunReportDetail(
             id: "report-\(runID)",
             runID: runID,
-            title: "\(run.source.rawValue) Run",
+            title: "\(sourceLabel) Run Report",
             dateLabel: run.startedAt.formatted(date: .abbreviated, time: .omitted),
-            source: run.source.rawValue,
+            source: sourceLabel,
             distance: String(format: "%.2f km", run.distanceMeters / 1_000),
             duration: RunRecorder.timeLabel(run.movingTimeSeconds),
             averagePace: RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm),
@@ -2515,6 +2531,7 @@ extension SupabaseRunSmartServices {
         upcomingWorkouts: [WorkoutSummary]
     ) -> RunReportDetail {
         let runID = reportRunID(for: run)
+        let sourceLabel = RunSmartAttribution.sourceLabel(for: run)
         let distanceKm = run.distanceMeters / 1_000
         let pace = RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm)
         let effort = fallbackEffort(for: run)
@@ -2531,9 +2548,9 @@ extension SupabaseRunSmartServices {
         return RunReportDetail(
             id: "report-\(runID)",
             runID: runID,
-            title: "\(run.source.rawValue) Run Report",
+            title: "\(sourceLabel) Run Report",
             dateLabel: run.startedAt.formatted(date: .abbreviated, time: .omitted),
-            source: run.source.rawValue,
+            source: sourceLabel,
             distance: String(format: "%.2f km", distanceKm),
             duration: RunRecorder.timeLabel(run.movingTimeSeconds),
             averagePace: pace,
@@ -2591,12 +2608,13 @@ extension SupabaseRunSmartServices {
         }
 
         let runID = reportRunID(for: run)
+        let sourceLabel = RunSmartAttribution.sourceLabel(for: run)
         return RunReportDetail(
             id: insight.id?.uuidString ?? "insight-\(runID)",
             runID: runID,
-            title: "\(run.source.rawValue) Run Report",
+            title: "\(sourceLabel) Run Report",
             dateLabel: run.startedAt.formatted(date: .abbreviated, time: .omitted),
-            source: run.source.rawValue,
+            source: sourceLabel,
             distance: String(format: "%.2f km", run.distanceMeters / 1_000),
             duration: RunRecorder.timeLabel(run.movingTimeSeconds),
             averagePace: RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm),
@@ -2619,12 +2637,13 @@ extension SupabaseRunSmartServices {
 
     static func report(from payload: RunSmartDTO.RunReportPayload, run: RecordedRun) -> RunReportDetail {
         let runID = reportRunID(for: run)
+        let sourceLabel = RunSmartAttribution.sourceLabel(for: run)
         return RunReportDetail(
             id: "report-\(runID)",
             runID: runID,
-            title: "\(run.source.rawValue) Run Report",
+            title: "\(sourceLabel) Run Report",
             dateLabel: run.startedAt.formatted(date: .abbreviated, time: .omitted),
-            source: run.source.rawValue,
+            source: sourceLabel,
             distance: String(format: "%.2f km", run.distanceMeters / 1_000),
             duration: RunRecorder.timeLabel(run.movingTimeSeconds),
             averagePace: RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm),

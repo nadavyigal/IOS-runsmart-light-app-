@@ -2276,3 +2276,24 @@ Responded to the founder's Xcode Organizer upload failure for build 18. App Stor
 - Founder: archive/upload/submit `1.0.5 (18)` to App Store Connect, wait for approval, and confirm `1.0.5 (18)` genuinely live.
 - After live confirmation: recapture and verify all 6 Gate-4 screenshots against the build-18 Garmin wordmark/device attribution fixes.
 - Founder: review/send the Garmin reply with the new zip attached. The 01-03 logo remains the documented Garmin corporate wordmark fallback, not a guaranteed Connect-tile pass.
+
+## 2026-06-30 - Garmin Report/Activity device attribution fallback
+
+### Task Summary
+Patched the remaining Garmin submission risk found in live `1.0.5 (18)` screenshots: Report rows and Run Report detail could still show bare `Garmin` when an individual activity row lacked `device_name`, even though the connection status knew the user's model.
+
+### Changes
+- Added a shared `RunSmartAttribution` helper that keeps activity-level Garmin `sourceDeviceName` first and uses the connected Garmin `deviceName` as fallback.
+- Wired the main Report/Activity list to fetch connected device statuses and pass the Garmin device name into `ActivityRow`.
+- Applied the same fallback to report skeletons, report summaries, cached/generated report details, and deterministic fallback reports.
+- Added focused readiness tests covering activity-device precedence, connected-device fallback, and non-Garmin preservation.
+
+### Validation
+- `git diff --check` passed.
+- Focused attribution XCTest compiled past source validation with only existing warnings, then hung in the local simulator install/launch worker and was interrupted after 109 seconds.
+- `xcodebuild build-for-testing` on a fresh DerivedData path also emitted only existing warnings, then hung in Xcode build operations and was interrupted.
+
+### Remaining
+- Run a clean Xcode build/test or archive on a healthy Xcode/simulator session.
+- Ship a new fixed build through App Store Connect; do not send Garmin screenshots from live `1.0.5 (18)` because Report/Run Report evidence still showed bare `Garmin`.
+- After the fixed build is live, recapture all 6 Gate-4 screenshots and verify screens 04-06 visibly show `Garmin Forerunner 965` or the user's actual connected Garmin model.

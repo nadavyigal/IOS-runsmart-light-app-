@@ -8,6 +8,7 @@ struct ReportTabView: View {
     @State private var runReports: [RunReportSummary] = []
     @State private var trainingLoad: TrainingLoadSnapshot = .loading
     @State private var recovery: RecoverySnapshot = .loading
+    @State private var garminDeviceName: String?
     @State private var runPendingRemoval: RecordedRun?
     @State private var removalFailed = false
     @State private var refreshDebounceTask: Task<Void, Never>?
@@ -80,11 +81,13 @@ struct ReportTabView: View {
             async let reportsTask = services.latestRunReports(limit: 50)
             async let loadTask = services.trainingLoadSnapshot()
             async let recoveryTask = services.recoverySnapshot()
-            let (freshRuns, reports, load, rec) = await (runsTask, reportsTask, loadTask, recoveryTask)
+            async let statusesTask = services.deviceStatuses()
+            let (freshRuns, reports, load, rec, statuses) = await (runsTask, reportsTask, loadTask, recoveryTask, statusesTask)
             runs = freshRuns
             runReports = reports
             trainingLoad = load
             recovery = rec
+            garminDeviceName = statuses.first { $0.provider == "Garmin Connect" }?.deviceName
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
             scheduleDebouncedRefresh()
@@ -113,7 +116,11 @@ struct ReportTabView: View {
             try? await Task.sleep(nanoseconds: 350_000_000)
             guard !Task.isCancelled else { return }
             refreshRuns()
-            runReports = await services.latestRunReports(limit: 50)
+            async let reportsTask = services.latestRunReports(limit: 50)
+            async let statusesTask = services.deviceStatuses()
+            let (reports, statuses) = await (reportsTask, statusesTask)
+            runReports = reports
+            garminDeviceName = statuses.first { $0.provider == "Garmin Connect" }?.deviceName
         }
     }
 
@@ -131,6 +138,7 @@ struct ReportTabView: View {
                     ForEach(runs) { run in
                         ActivityRow(
                             run: run,
+                            fallbackGarminDeviceName: garminDeviceName,
                             onTap: { openReport(for: run) },
                             onDelete: { runPendingRemoval = run }
                         )
@@ -259,9 +267,11 @@ struct ReportTabView: View {
 
     private func openReport(for run: RecordedRun) {
         Task {
-            let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
+            let fallbackDeviceName = garminDeviceName
+            let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run, fallbackGarminDeviceName: fallbackDeviceName)
+            let displayReport = report.withGarminDeviceFallback(for: run, fallbackGarminDeviceName: fallbackDeviceName)
             await MainActor.run {
-                openReportDetail(report)
+                openReportDetail(displayReport)
             }
         }
     }

@@ -43,8 +43,16 @@ Review this file at the start of future tasks.
 - With XcodeBuildMCP build tools, set DerivedData through session defaults or omit it; do not pass `-derivedDataPath` in `extraArgs` unless the tool is not already supplying one.
 - Before recording an App Store validation command as executable, verify the installed `xcodebuild` supports the flags; for this environment, `-validate-for-store` is not a supported CLI option, so use archive/export inspection locally and leave Organizer/ASC validation to founder-gated tooling.
 - If App Store Connect says a pre-release train is closed for new submissions, bump `MARKETING_VERSION` to the next train and re-archive; changing only `CURRENT_PROJECT_VERSION` cannot reopen a closed approved marketing version.
+- For Garmin submission evidence, visually verify each required screenshot against the exact rejected requirement; source support for `device_name` is not enough when legacy activity rows can lack it and need connection-level fallback.
 
 ## Lesson Log
+
+### 2026-06-30 - Garmin Evidence Needs Row-Level Visual Verification
+Trigger: Live `1.0.5 (18)` screenshots showed Recovery/Wellness with `Garmin Forerunner 965`, but Report/Run Report still displayed bare `Garmin` because individual activity rows lacked `device_name`.
+
+Lesson: Passing code paths for new Garmin imports do not guarantee submission screenshots are compliant when legacy or cached rows omit attribution fields.
+
+Future rule: For Garmin submission evidence, visually verify each required screenshot against the exact rejected requirement; source support for `device_name` is not enough when legacy activity rows can lack it and need connection-level fallback.
 
 ### 2026-06-29 - Closed ASC Release Train Requires Marketing Version Bump
 Trigger: Founder archive upload for build 18 failed because App Store Connect rejected `CFBundleShortVersionString = 1.0.4`; the previously approved `1.0.4` train is closed for new build submissions.

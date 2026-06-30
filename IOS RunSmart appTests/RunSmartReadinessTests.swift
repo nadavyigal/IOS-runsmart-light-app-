@@ -414,7 +414,8 @@ final class RunSmartReadinessTests: XCTestCase {
         distanceMeters: Double,
         movingTimeSeconds: TimeInterval,
         heartRate: Int? = nil,
-        routePoints: [RunRoutePoint] = []
+        routePoints: [RunRoutePoint] = [],
+        sourceDeviceName: String? = nil
     ) -> RecordedRun {
         RecordedRun(
             id: id,
@@ -427,7 +428,8 @@ final class RunSmartReadinessTests: XCTestCase {
             averagePaceSecondsPerKm: movingTimeSeconds / max(distanceMeters / 1_000, 0.1),
             averageHeartRateBPM: heartRate,
             routePoints: routePoints,
-            syncedAt: Date(timeIntervalSince1970: 30_000)
+            syncedAt: Date(timeIntervalSince1970: 30_000),
+            sourceDeviceName: sourceDeviceName
         )
     }
 
@@ -2013,6 +2015,44 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertTrue(context.limitations.contains("No wellness check-in is available yet."))
         XCTAssertTrue(context.limitations.contains("No saved or suggested routes are available yet."))
         XCTAssertTrue(context.limitations.contains("No run reports are available yet."))
+    }
+
+    func testGarminAttributionUsesActivityDeviceNameBeforeFallback() {
+        let run = makeRun(
+            source: .garmin,
+            startedAt: makeDate("2026-05-01"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500,
+            sourceDeviceName: "Garmin Forerunner 965"
+        )
+
+        XCTAssertEqual(RunSmartAttribution.sourceLabel(for: run, fallbackGarminDeviceName: "Garmin Fenix 8"), "Garmin Forerunner 965")
+        XCTAssertEqual(RunSmartAttribution.runReportTitle(for: run, fallbackGarminDeviceName: "Garmin Fenix 8"), "Garmin Forerunner 965 Run Report")
+    }
+
+    func testGarminAttributionUsesConnectedDeviceFallbackWhenActivityLacksDeviceName() {
+        let run = makeRun(
+            source: .garmin,
+            startedAt: makeDate("2026-05-01"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500
+        )
+
+        XCTAssertEqual(RunSmartAttribution.sourceLabel(for: run, fallbackGarminDeviceName: "Garmin Forerunner 965"), "Garmin Forerunner 965")
+        XCTAssertEqual(RunSmartAttribution.runReportTitle(for: run, fallbackGarminDeviceName: "Garmin Forerunner 965"), "Garmin Forerunner 965 Run Report")
+    }
+
+    func testGarminAttributionKeepsNonGarminSourcesUnchanged() {
+        let run = makeRun(
+            source: .healthKit,
+            startedAt: makeDate("2026-05-01"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500,
+            sourceDeviceName: "Garmin Forerunner 965"
+        )
+
+        XCTAssertEqual(RunSmartAttribution.sourceLabel(for: run, fallbackGarminDeviceName: "Garmin Forerunner 965"), "HealthKit")
+        XCTAssertEqual(RunSmartAttribution.runReportTitle(for: run, fallbackGarminDeviceName: "Garmin Forerunner 965"), "HealthKit Run Report")
     }
 
     func testCoachFallbackResponseUsesEntryPointSpecificContext() async {
