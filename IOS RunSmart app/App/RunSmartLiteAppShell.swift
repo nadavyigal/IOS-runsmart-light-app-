@@ -140,6 +140,7 @@ struct RunSmartLiteAppShell: View {
     @State private var planNoticeDismissTask: Task<Void, Never>?
     @State private var pendingOnboardingCompletion: OnboardingProfile?
     @State private var recordingOnboardingFinished = false
+    @State private var firstRunActivation: FirstRunActivationContext?
     private let services: any RunSmartServiceProviding = RunSmartDemoMode.services
 
     var body: some View {
@@ -283,6 +284,18 @@ struct RunSmartLiteAppShell: View {
             .environment(\.runSmartServices, services)
             .environment(\.runRecorder, recorder)
         }
+        .sheet(item: $firstRunActivation) { context in
+            FirstRunActivationSheet(
+                workout: context.workout,
+                onStartNow: { handleFirstRunStartNow(context.workout) },
+                onRemindMe: { handleFirstRunRemindMe(context.workout) }
+            )
+            .interactiveDismissDisabled()
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .environmentObject(router)
+            .environmentObject(session)
+        }
     }
 
     @ViewBuilder
@@ -305,7 +318,8 @@ struct RunSmartLiteAppShell: View {
                         coachingTone: profile.coachingTone.isEmpty ? "Motivating" : profile.coachingTone,
                         targetDate: Date().addingTimeInterval(21 * 24 * 3600)
                     )
-                    _ = await services.saveTrainingGoal(request)
+                    let saved = await services.saveTrainingGoal(request)
+                    await presentFirstRunActivationIfNeeded(planSaved: saved)
                 }
             }
             .environmentObject(session)
@@ -391,6 +405,46 @@ struct RunSmartLiteAppShell: View {
             recentRuns: runs,
             recovery: recovery
         )
+    }
+
+    private func presentFirstRunActivationIfNeeded(planSaved: Bool) async {
+        guard planSaved else { return }
+        let workouts = await services.nextWorkouts(limit: 5)
+        let firstWorkout = workouts.first(where: { PlanPresentationModels.isWorkout($0) && !$0.isComplete })
+            ?? workouts.first(where: { PlanPresentationModels.isWorkout($0) })
+        guard let firstWorkout else { return }
+        await MainActor.run {
+            firstRunActivation = FirstRunActivationContext(workout: firstWorkout)
+        }
+    }
+
+    private func handleFirstRunStartNow(_ workout: WorkoutSummary) {
+        Analytics.trackFirstRunCTATapped(action: "start_now", workoutType: workout.kind.rawValue)
+        Analytics.trackPlanRunCTATapped(
+            source: "onboarding_first_run",
+            workoutType: workout.kind.rawValue,
+            scheduledToday: Calendar.current.isDateInToday(workout.scheduledDate),
+            hasPriorRuns: false
+        )
+        firstRunActivation = nil
+        router.startRun(with: workout)
+    }
+
+    private func handleFirstRunRemindMe(_ workout: WorkoutSummary) {
+        Analytics.trackFirstRunCTATapped(action: "remind_me", workoutType: workout.kind.rawValue)
+        session.setNotificationsEnabled(true)
+        firstRunActivation = nil
+        router.selectedTab = .today
+        Task {
+            let scheduled = await PushService.shared.scheduleFirstRunReminder(workout: workout)
+            if scheduled {
+                Analytics.trackFirstRunReminderScheduled(
+                    source: "onboarding_first_run",
+                    workoutType: workout.kind.rawValue
+                )
+            }
+            await refreshReturnLoopReminders()
+        }
     }
 
 #if DEBUG

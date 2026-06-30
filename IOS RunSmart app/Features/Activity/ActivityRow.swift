@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ActivityRow: View {
     var run: RecordedRun
+    var fallbackGarminDeviceName: String? = nil
     var onTap: () -> Void = {}
     var onDelete: (() -> Void)?
 
@@ -60,9 +61,6 @@ struct ActivityRow: View {
     /// For Garmin-sourced runs this doubles as the required "Garmin [device model]" attribution.
     private var metadataLine: String {
         let date = run.startedAt.formatted(date: .abbreviated, time: .shortened)
-        guard run.source == .garmin, let deviceName = run.sourceDeviceName, !deviceName.isEmpty else {
-            return "\(date) · \(run.source.rawValue)"
-        }
-        return "\(date) · \(deviceName)"
+        return "\(date) · \(RunSmartAttribution.sourceLabel(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName))"
     }
 }

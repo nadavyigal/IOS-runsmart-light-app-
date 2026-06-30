@@ -66,6 +66,10 @@ extension Analytics {
                 "duration_s": durationSeconds,
                 "run_type": runType
             ])
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                AppStoreReviewPrompt.requestAfterFirstRunIfNeeded()
+            }
         }
     }
 
@@ -141,6 +145,27 @@ extension Analytics {
             "workout_type": workoutType,
             "scheduled_today": scheduledToday,
             "has_prior_runs": hasPriorRuns
+        ])
+    }
+
+    static func trackFirstRunCTAViewed(workoutType: String, scheduledToday: Bool) {
+        shared.track("first_run_cta_viewed", properties: [
+            "workout_type": workoutType,
+            "scheduled_today": scheduledToday
+        ])
+    }
+
+    static func trackFirstRunCTATapped(action: String, workoutType: String) {
+        shared.track("first_run_cta_tapped", properties: [
+            "action": action,
+            "workout_type": workoutType
+        ])
+    }
+
+    static func trackFirstRunReminderScheduled(source: String, workoutType: String) {
+        shared.track("first_run_reminder_scheduled", properties: [
+            "source": source,
+            "workout_type": workoutType
         ])
     }
 

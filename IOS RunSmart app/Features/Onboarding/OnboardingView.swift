@@ -111,7 +111,7 @@ struct OnboardingView: View {
     }
 
     private var completionStep: some View {
-        OnboardingStepShell(title: "Ready", subtitle: "Your personalized training plan is being created. Open Today to see your first workout.", symbol: "checkmark.seal.fill") {
+        OnboardingStepShell(title: "Ready", subtitle: "RunSmart is building your plan. Next, commit to your first run.", symbol: "checkmark.seal.fill") {
             OnboardingPrimaryButton(title: "Start RunSmart", symbol: "figure.run") {
                 var completed = profile
                 if completed.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

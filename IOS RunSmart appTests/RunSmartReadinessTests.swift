@@ -414,7 +414,8 @@ final class RunSmartReadinessTests: XCTestCase {
         distanceMeters: Double,
         movingTimeSeconds: TimeInterval,
         heartRate: Int? = nil,
-        routePoints: [RunRoutePoint] = []
+        routePoints: [RunRoutePoint] = [],
+        sourceDeviceName: String? = nil
     ) -> RecordedRun {
         RecordedRun(
             id: id,
@@ -427,7 +428,8 @@ final class RunSmartReadinessTests: XCTestCase {
             averagePaceSecondsPerKm: movingTimeSeconds / max(distanceMeters / 1_000, 0.1),
             averageHeartRateBPM: heartRate,
             routePoints: routePoints,
-            syncedAt: Date(timeIntervalSince1970: 30_000)
+            syncedAt: Date(timeIntervalSince1970: 30_000),
+            sourceDeviceName: sourceDeviceName
         )
     }
 
@@ -2015,6 +2017,57 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertTrue(context.limitations.contains("No run reports are available yet."))
     }
 
+    func testGarminAttributionUsesActivityDeviceNameBeforeFallback() {
+        let run = makeRun(
+            source: .garmin,
+            startedAt: makeDate("2026-05-01"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500,
+            sourceDeviceName: "Garmin Forerunner 965"
+        )
+
+        XCTAssertEqual(RunSmartAttribution.sourceLabel(for: run, fallbackGarminDeviceName: "Garmin Fenix 8"), "Garmin Forerunner 965")
+        XCTAssertEqual(RunSmartAttribution.runReportTitle(for: run, fallbackGarminDeviceName: "Garmin Fenix 8"), "Garmin Forerunner 965 Run Report")
+    }
+
+    func testGarminAttributionUsesConnectedDeviceFallbackWhenActivityLacksDeviceName() {
+        let run = makeRun(
+            source: .garmin,
+            startedAt: makeDate("2026-05-01"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500
+        )
+
+        XCTAssertEqual(RunSmartAttribution.sourceLabel(for: run, fallbackGarminDeviceName: "Garmin Forerunner 965"), "Garmin Forerunner 965")
+        XCTAssertEqual(RunSmartAttribution.runReportTitle(for: run, fallbackGarminDeviceName: "Garmin Forerunner 965"), "Garmin Forerunner 965 Run Report")
+    }
+
+    func testGarminAttributionAddsBrandPrefixToBareModelNames() {
+        let run = makeRun(
+            source: .garmin,
+            startedAt: makeDate("2026-05-01"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500,
+            sourceDeviceName: "Forerunner 965"
+        )
+
+        XCTAssertEqual(RunSmartAttribution.sourceLabel(for: run), "Garmin Forerunner 965")
+        XCTAssertEqual(RunSmartAttribution.runReportTitle(for: run), "Garmin Forerunner 965 Run Report")
+    }
+
+    func testGarminAttributionKeepsNonGarminSourcesUnchanged() {
+        let run = makeRun(
+            source: .healthKit,
+            startedAt: makeDate("2026-05-01"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500,
+            sourceDeviceName: "Garmin Forerunner 965"
+        )
+
+        XCTAssertEqual(RunSmartAttribution.sourceLabel(for: run, fallbackGarminDeviceName: "Garmin Forerunner 965"), "HealthKit")
+        XCTAssertEqual(RunSmartAttribution.runReportTitle(for: run, fallbackGarminDeviceName: "Garmin Forerunner 965"), "HealthKit Run Report")
+    }
+
     func testCoachFallbackResponseUsesEntryPointSpecificContext() async {
         let run = makeRun(
             source: .runSmart,
@@ -2870,9 +2923,11 @@ final class RunSmartReadinessTests: XCTestCase {
     }
 
     func testReturnReminderPlanRespectsDisabledPreference() {
+        var profile = OnboardingProfile.empty
+        profile.notificationsEnabled = false
         let workout = makeWorkout(date: "2026-05-18", kind: .easy, title: "Easy Run")
         let plan = RunSmartReminderPlan.make(
-            profile: OnboardingProfile.empty,
+            profile: profile,
             workouts: [workout],
             recentRuns: [],
             recovery: .loading,
@@ -2882,9 +2937,38 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertTrue(plan.shouldCancelExisting)
     }
 
+    func testOnboardingProfileDefaultsSmartRemindersOn() {
+        XCTAssertTrue(OnboardingProfile.empty.notificationsEnabled)
+    }
+
+    func testFirstRunReminderSchedulesTomorrowMorning() async {
+        let workoutID = UUID(uuidString: "00000000-0000-0000-0000-000000006B02")!
+        let workout = makeWorkout(id: workoutID, date: "2026-05-18", kind: .easy, title: "Easy 3K")
+        let now = makeDate("2026-05-17")
+        let calendar = Calendar(identifier: .gregorian)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: now)!
+        let expectedFireDate = calendar.date(bySettingHour: 7, minute: 0, second: 0, of: calendar.startOfDay(for: tomorrow))!
+
+        let request = RunSmartReminderRequest(
+            identifier: "runsmart.reminder.firstRun",
+            type: .workoutDue,
+            fireDate: expectedFireDate,
+            workoutID: workout.id,
+            destination: .today,
+            content: RunSmartReminderContent(
+                title: "Time for your first RunSmart run",
+                body: "\(workout.title) is ready when you are."
+            )
+        )
+
+        XCTAssertEqual(request.identifier, "runsmart.reminder.firstRun")
+        XCTAssertEqual(request.workoutID, workoutID)
+        XCTAssertEqual(calendar.component(.hour, from: request.fireDate), 7)
+        XCTAssertTrue(calendar.isDate(request.fireDate, inSameDayAs: tomorrow))
+    }
+
     func testReturnReminderPlanSchedulesTomorrowWorkoutWhenEnabled() {
-        var profile = OnboardingProfile.empty
-        profile.notificationsEnabled = true
+        let profile = OnboardingProfile.empty
         let workoutID = UUID(uuidString: "00000000-0000-0000-0000-000000006B01")!
         let workout = makeWorkout(id: workoutID, date: "2026-05-18", kind: .easy, title: "Easy Run")
 
