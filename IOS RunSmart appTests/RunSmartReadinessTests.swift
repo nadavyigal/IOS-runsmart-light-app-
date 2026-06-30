@@ -2042,6 +2042,19 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(RunSmartAttribution.runReportTitle(for: run, fallbackGarminDeviceName: "Garmin Forerunner 965"), "Garmin Forerunner 965 Run Report")
     }
 
+    func testGarminAttributionAddsBrandPrefixToBareModelNames() {
+        let run = makeRun(
+            source: .garmin,
+            startedAt: makeDate("2026-05-01"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500,
+            sourceDeviceName: "Forerunner 965"
+        )
+
+        XCTAssertEqual(RunSmartAttribution.sourceLabel(for: run), "Garmin Forerunner 965")
+        XCTAssertEqual(RunSmartAttribution.runReportTitle(for: run), "Garmin Forerunner 965 Run Report")
+    }
+
     func testGarminAttributionKeepsNonGarminSourcesUnchanged() {
         let run = makeRun(
             source: .healthKit,

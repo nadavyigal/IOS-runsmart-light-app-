@@ -87,7 +87,7 @@ struct ReportTabView: View {
             runReports = reports
             trainingLoad = load
             recovery = rec
-            garminDeviceName = statuses.first { $0.provider == "Garmin Connect" }?.deviceName
+            garminDeviceName = statuses.first { $0.provider == "Garmin Connect" && $0.state == .connected }?.deviceName
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
             scheduleDebouncedRefresh()
@@ -120,7 +120,7 @@ struct ReportTabView: View {
             async let statusesTask = services.deviceStatuses()
             let (reports, statuses) = await (reportsTask, statusesTask)
             runReports = reports
-            garminDeviceName = statuses.first { $0.provider == "Garmin Connect" }?.deviceName
+            garminDeviceName = statuses.first { $0.provider == "Garmin Connect" && $0.state == .connected }?.deviceName
         }
     }
 

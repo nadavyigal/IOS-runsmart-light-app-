@@ -871,7 +871,14 @@ enum RunSmartAttribution {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
             return nil
         }
-        return trimmed
+        if trimmed.localizedCaseInsensitiveCompare("Garmin") == .orderedSame {
+            return "Garmin"
+        }
+        if trimmed.lowercased().hasPrefix("garmin ") {
+            let model = trimmed.dropFirst("garmin".count).trimmingCharacters(in: .whitespacesAndNewlines)
+            return model.isEmpty ? "Garmin" : "Garmin \(model)"
+        }
+        return "Garmin \(trimmed)"
     }
 }
 

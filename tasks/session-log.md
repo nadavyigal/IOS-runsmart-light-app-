@@ -3,24 +3,27 @@
 ## 2026-06-30 - WP-20 first-run activation + Garmin attribution (PR #67)
 
 ### Task Summary
-Executed Agentic OS WP-20 on branch `codex/garmin-attribution-fallback` (PR #67). Combined the existing Garmin Report/Activity `device_name` fallback with the smallest rs-onboarding-001 activation intervention for a single ASC-ready `1.0.5 (19)` build.
+Executed Agentic OS WP-20 on branch `codex/garmin-attribution-fallback` (PR #67). Combined the existing Garmin Report/Activity `device_name` fallback with the smallest rs-onboarding-001 activation intervention for a single ASC-ready `1.0.6 (19)` build.
 
 ### Changes
 - Garmin attribution fallback (already on branch): activity rows prefer `sourceDeviceName`, then connected Garmin `deviceName`, across Report/Activity/Run Report surfaces.
+- Addressed CodeRabbit Garmin attribution feedback: connected-status-only fallback and automatic `Garmin` prefix for bare model names.
 - Default Smart return reminders ON in `OnboardingProfile.empty` and new-user profile load fallback.
 - Added `FirstRunActivationSheet` after successful plan save: Start Now routes to Run; Remind Me Tomorrow enables notifications and schedules a local 7am next-day reminder.
 - Added analytics: `first_run_cta_viewed`, `first_run_cta_tapped`, `first_run_reminder_scheduled`; existing `plan_run_cta_tapped` also fires from onboarding start-now.
 - Added `AppStoreReviewPrompt` after first `run_completed` (one-time, positive moment only).
-- Bumped `CURRENT_PROJECT_VERSION` to `19` (`MARKETING_VERSION` remains `1.0.5`).
+- Bumped `CURRENT_PROJECT_VERSION` to `19` and `MARKETING_VERSION` to `1.0.6`.
 
 ### Validation
 - `git diff --check` passed.
 - Simulator `xcodebuild build` succeeded (`/tmp/RunSmartDerivedData-WP20`).
 - Focused XCTests passed on iPhone 17 simulator: onboarding default reminders, disabled reminder plan, enabled reminder plan, first-run reminder schedule shape.
+- After CodeRabbit fixes, focused Garmin attribution XCTests passed on iPhone 17 simulator: activity device precedence, connected fallback, bare model brand-prefix normalization, and non-Garmin preservation.
+- Generic simulator build after CodeRabbit fixes hung in local Xcode build operations after existing HealthKit deprecation warnings and was interrupted.
 
 ### Founder-only next steps
 - Merge PR #67 into `main`.
-- Archive/export `1.0.5 (19)` and upload to App Store Connect.
+- Archive/export `1.0.6 (19)` and upload to App Store Connect.
 - After live confirmation, recapture all 6 Garmin Gate-4 screenshots and send Garmin reply.
 
 ### Follow-up metric

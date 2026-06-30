@@ -586,6 +586,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     private func garminDeviceNameFallback() async -> String? {
         guard let userID = currentUserID else { return nil }
         let status = await fetchGarminConnection(userID: userID)
+        guard status.state == .connected else { return nil }
         return status.deviceName
     }
 

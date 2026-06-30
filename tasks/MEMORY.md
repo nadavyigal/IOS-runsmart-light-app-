@@ -20,11 +20,11 @@ Completed:
 - First-run activation sheet after plan save with Start Now / Remind Me Tomorrow.
 - Smart return reminders default ON for new onboarding profiles.
 - First-run analytics events and one-time App Store review prompt after first completed run.
-- Build bumped to `1.0.5 (19)` on `codex/garmin-attribution-fallback`.
+- Build bumped to `1.0.6 (19)` on `codex/garmin-attribution-fallback`.
 
-Decisions: Keep scope to one ASC train; defer sign-in-wall and broader onboarding redesign. Fold activation into the same build as Garmin fallback because both are small and founder plans to merge to `main` as `1.0.5 (19)`.
+Decisions: Keep scope to one ASC train; defer sign-in-wall and broader onboarding redesign. Fold activation into the same build as Garmin fallback because both are small and founder plans to merge to `main` as `1.0.6 (19)`.
 
-Next session: Founder merge PR #67, archive/upload `1.0.5 (19)`, confirm live, recapture Garmin screenshots.
+Next session: Founder archive/upload `1.0.6 (19)`, confirm live, recapture Garmin screenshots.
 
 ## 2026-06-24 - WP-15 RunSmart plan-to-run activation diagnostic
 
