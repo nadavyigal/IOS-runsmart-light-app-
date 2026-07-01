@@ -24,7 +24,7 @@ enum SecondaryDestination: Hashable, Identifiable {
     case morningCheckin
     case goalWizard
     case weeklyRecap
-    case garminWellness
+    case wellnessTrends
     case zoneAnalysis
     case routeCreator
     case badgeCabinet
@@ -56,7 +56,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .morningCheckin: "morningCheckin"
         case .goalWizard: "goalWizard"
         case .weeklyRecap: "weeklyRecap"
-        case .garminWellness: "garminWellness"
+        case .wellnessTrends: "wellnessTrends"
         case .zoneAnalysis: "zoneAnalysis"
         case .routeCreator: "routeCreator"
         case .badgeCabinet: "badgeCabinet"
@@ -89,7 +89,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .morningCheckin: "Morning Check-In"
         case .goalWizard: "Goal Wizard"
         case .weeklyRecap: "Weekly Recap"
-        case .garminWellness: "Garmin Wellness"
+        case .wellnessTrends: "Wellness Trends"
         case .zoneAnalysis: "Zone Analysis"
         case .routeCreator: "Route Creator"
         case .badgeCabinet: "Badge Cabinet"
@@ -143,8 +143,8 @@ enum SecondaryDestination: Hashable, Identifiable {
             "Set or revise the training goal."
         case .weeklyRecap:
             "Summarize the week and next coaching move."
-        case .garminWellness:
-            "Wellness panels from connected Garmin data."
+        case .wellnessTrends:
+            "Body Battery, HRV, and recovery trends from your connected device."
         case .zoneAnalysis:
             "Understand effort distribution and heart rate zones."
         case .routeCreator:
@@ -183,7 +183,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .morningCheckin: "sunrise.fill"
         case .goalWizard: "target"
         case .weeklyRecap: "calendar.badge.checkmark"
-        case .garminWellness: "waveform.path.ecg"
+        case .wellnessTrends: "waveform.path.ecg"
         case .zoneAnalysis: "heart.circle.fill"
         case .routeCreator: "point.topleft.down.curvedto.point.bottomright.up"
         case .badgeCabinet: "seal.fill"
@@ -274,8 +274,8 @@ private struct SecondaryContentView: View {
             GoalWizardView()
         case .weeklyRecap:
             WeeklyRecapView()
-        case .garminWellness:
-            GarminWellnessViews()
+        case .wellnessTrends:
+            WellnessTrendsView()
         case .zoneAnalysis:
             ZoneAnalysisView()
         case .routeCreator:
@@ -313,18 +313,18 @@ private struct FlowHeader: View {
 
     /// Header mark. For third-party connected services (e.g. Garmin Connect) we must NOT pair the
     /// RunSmart logo with the service name — Garmin's API Brand Guidelines treat that as implying
-    /// ownership of Garmin Connect. True for third-party-service destinations whose title is a
-    /// vendor trademark (e.g. "Garmin Connect", "Garmin Wellness", "HealthKit"). Pairing the
-    /// RunSmart logo with these would imply ownership of the vendor's brand — Garmin's API Brand
-    /// Guidelines prohibit this for Garmin. We show the official Garmin logo mark instead.
+    /// ownership of Garmin Connect. True only for destinations whose title itself is a vendor
+    /// trademark (e.g. "Garmin Connect", "HealthKit"). Screens that merely display device-sourced
+    /// data under a RunSmart-owned name (Recovery, Wellness Trends) attribute the device inline in
+    /// their content instead and keep the normal RunSmart header.
     private var usesNeutralServiceMark: Bool {
         switch destination {
-        case .connectedService, .garminWellness: true
+        case .connectedService: true
         default: false
         }
     }
 
-    /// True only for Garmin Connect authentication — not Garmin Wellness or other health surfaces.
+    /// True only for Garmin Connect authentication — not other health surfaces.
     private var usesGarminConnectTile: Bool {
         switch destination {
         case .connectedService(let name): name.localizedCaseInsensitiveContains("garmin")
