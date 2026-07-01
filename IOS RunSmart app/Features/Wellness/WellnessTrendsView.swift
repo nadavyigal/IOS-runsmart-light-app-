@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct GarminWellnessViews: View {
+struct WellnessTrendsView: View {
     @Environment(\.runSmartServices) private var services
     @State private var recovery: RecoverySnapshot = .loading
     @State private var wellness: WellnessSnapshot = .empty
@@ -11,7 +11,7 @@ struct GarminWellnessViews: View {
         VStack(alignment: .leading, spacing: 16) {
             HeroCard(accent: .accentRecovery) {
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionLabel(title: "Garmin wellness")
+                    SectionLabel(title: "Wellness trends")
                     // Garmin API Brand Guidelines (Health): device-sourced data must carry a
                     // "Garmin [device model]" attribution adjacent to the heading, above the fold.
                     // This whole view is Garmin wellness data (Body Battery is Garmin-exclusive),

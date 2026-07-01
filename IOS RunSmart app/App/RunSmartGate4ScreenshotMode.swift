@@ -25,8 +25,8 @@ enum RunSmartGate4ScreenshotMode {
             return .connectedService("Garmin Connect")
         case "recoveryDashboard", "recovery":
             return .recoveryDashboard
-        case "garminWellness":
-            return .garminWellness
+        case "wellnessTrends":
+            return .wellnessTrends
         default:
             return nil
         }

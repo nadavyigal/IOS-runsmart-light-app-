@@ -308,7 +308,7 @@ struct ProfileTabView: View {
                         open(.connectedService("Garmin Connect"))
                     }
                     ConnectedServiceTile(
-                        title: "Garmin Wellness",
+                        title: "Wellness Trends",
                         detail: isGarminConnected ? "Body Battery & insights" : "Connect Garmin to view insights",
                         status: isGarminConnected ? "View" : "Connect",
                         symbol: "waveform.path.ecg",
@@ -316,7 +316,7 @@ struct ProfileTabView: View {
                         showsStatusDot: false,
                         statusTint: isGarminConnected ? .accentPrimary : .accentEnergy
                     ) {
-                        open(.garminWellness)
+                        open(.wellnessTrends)
                     }
                     ConnectedServiceTile(title: "HealthKit", detail: "HealthKit read/write", status: statusLabel("HealthKit"), symbol: "heart.fill", tint: .accentHeart) {
                         open(.connectedService("HealthKit"))
@@ -509,11 +509,12 @@ private struct ConnectedServiceTile: View {
             HStack(spacing: 12) {
                 Group {
                     if let brandImageName {
+                        // Brand guidelines prohibit altering official marks (no reshaping/cropping) --
+                        // render the tile at its native shape, unlike the app's own iconography below.
                         Image(brandImageName)
                             .resizable()
                             .scaledToFit()
                             .frame(width: 34, height: 34)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     } else {
                         Image(systemName: symbol)
                             .font(.bodyMD.weight(.bold))
