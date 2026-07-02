@@ -5,7 +5,13 @@ struct WellnessTrendsView: View {
     @State private var recovery: RecoverySnapshot = .loading
     @State private var wellness: WellnessSnapshot = .empty
     @State private var trends: WellnessTrendSeries = .empty
+    @State private var garminConnected = false
     @State private var garminDeviceName: String?
+
+    private var garminAttributionLabel: String? {
+        guard garminConnected, recovery.includesGarminDeviceSourcedData || !trends.days.isEmpty else { return nil }
+        return RunSmartAttribution.garminDeviceLabel(deviceName: nil, fallbackGarminDeviceName: garminDeviceName)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -15,11 +21,14 @@ struct WellnessTrendsView: View {
                     // Garmin API Brand Guidelines (Health): device-sourced data must carry a
                     // "Garmin [device model]" attribution adjacent to the heading, above the fold.
                     // This whole view is Garmin wellness data (Body Battery is Garmin-exclusive),
-                    // so attribution is unconditional. Falls back to "Garmin" if no device name
-                    // has been recorded yet (Garmin only reports device identity on activities).
-                    Text(garminDeviceName ?? "Garmin")
-                        .font(.labelSM)
-                        .foregroundStyle(Color.textTertiary)
+                    // so attribution appears only when the loaded snapshot/trends actually include
+                    // Garmin device-sourced data. Falls back to "Garmin" if no device name has
+                    // been recorded yet (Garmin only reports device identity on activities).
+                    if let garminAttributionLabel {
+                        Text(garminAttributionLabel)
+                            .font(.labelSM)
+                            .foregroundStyle(Color.textTertiary)
+                    }
                     Text(sourceTitle)
                         .font(.headingLG)
                     Text(wellness.checkInStatus)
@@ -49,10 +58,12 @@ struct WellnessTrendsView: View {
             )
 
             // Garmin API Brand Guidelines (Health): approved attribution line for derived insights.
-            Text("Insights derived in part from Garmin device-sourced data.")
-                .font(.caption)
-                .italic()
-                .foregroundStyle(Color.textTertiary)
+            if garminAttributionLabel != nil {
+                Text("Insights derived in part from Garmin device-sourced data.")
+                    .font(.caption)
+                    .italic()
+                    .foregroundStyle(Color.textTertiary)
+            }
         }
         .task {
             async let recoveryTask = services.recoverySnapshot()
@@ -61,7 +72,9 @@ struct WellnessTrendsView: View {
             async let statusTask = services.deviceStatuses()
             let statuses = await statusTask
             (recovery, wellness, trends) = await (recoveryTask, wellnessTask, trendTask)
-            garminDeviceName = statuses.first { $0.provider == "Garmin Connect" }?.deviceName
+            let garminStatus = statuses.first { $0.provider == "Garmin Connect" }
+            garminConnected = garminStatus?.state == .connected
+            garminDeviceName = garminStatus?.deviceName
         }
     }
 

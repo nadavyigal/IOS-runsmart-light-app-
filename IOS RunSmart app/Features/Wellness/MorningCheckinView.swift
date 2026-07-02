@@ -16,13 +16,18 @@ struct MorningCheckinView: View {
 
     private let moods = ["Strong", "Steady", "Tired", "Stressed"]
 
+    private var garminAttributionLabel: String? {
+        guard showsGarminProposal else { return nil }
+        return RunSmartAttribution.garminDeviceLabel(deviceName: nil, fallbackGarminDeviceName: garminDeviceName)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HeroCard(accent: .accentPrimary) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Morning check-in")
-                    if garminConnected {
-                        Text(garminDeviceName ?? "Garmin")
+                    if let garminAttributionLabel {
+                        Text(garminAttributionLabel)
                             .font(.labelSM)
                             .foregroundStyle(Color.textTertiary)
                     }
@@ -119,7 +124,7 @@ struct MorningCheckinView: View {
     }
 
     private var hasGarminSignal: Bool {
-        recovery.readiness > 0 || recovery.bodyBattery > 0 || recovery.hrv != "—" || recovery.sleep != "—"
+        recovery.includesGarminDeviceSourcedData
     }
 
     private var showsGarminProposal: Bool {

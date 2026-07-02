@@ -1427,6 +1427,7 @@ struct RecoverySnapshot: Hashable {
     var hrvSource: HRVSource = .unknown
     var stress: String
     var recommendation: String
+    var includesGarminDeviceSourcedData: Bool = false
 }
 
 struct WellnessSnapshot: Hashable {

@@ -1613,7 +1613,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             hrv: resolvedHRV.map { String(format: "%.0f ms", $0.value) } ?? "—",
             hrvSource: resolvedHRV?.source ?? .unknown,
             stress: "—",
-            recommendation: (metrics.bodyBattery ?? 0) >= 50 ? "Recovery data synced from Garmin." : "Keep this one easy until recovery improves."
+            recommendation: (metrics.bodyBattery ?? 0) >= 50 ? "Recovery data synced from Garmin." : "Keep this one easy until recovery improves.",
+            includesGarminDeviceSourcedData: true
         )
     }
 

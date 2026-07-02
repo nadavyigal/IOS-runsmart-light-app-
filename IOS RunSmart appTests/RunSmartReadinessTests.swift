@@ -2080,6 +2080,50 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(RunSmartAttribution.garminDeviceLabel(deviceName: nil, fallbackGarminDeviceName: nil), "Garmin")
     }
 
+    func testBareConnectedGarminDeviceFallbackGetsBrandPrefix() {
+        let run = makeRun(
+            source: .garmin,
+            startedAt: makeDate("2026-05-01"),
+            distanceMeters: 5_000,
+            movingTimeSeconds: 1_500
+        )
+
+        XCTAssertEqual(
+            RunSmartAttribution.sourceLabel(for: run, fallbackGarminDeviceName: "Forerunner 965"),
+            "Garmin Forerunner 965"
+        )
+        XCTAssertEqual(
+            RunSmartAttribution.garminDeviceLabel(deviceName: nil, fallbackGarminDeviceName: "Forerunner 965"),
+            "Garmin Forerunner 965"
+        )
+    }
+
+    func testRecoverySnapshotDefaultsToNonGarminUntilExplicitlyMarked() {
+        let healthOnly = RecoverySnapshot(
+            readiness: 72,
+            bodyBattery: 72,
+            sleep: "7h 10m",
+            hrv: "48 ms",
+            hrvSource: .appleHealth,
+            stress: "62 bpm resting",
+            recommendation: "Recovery data synced from Apple Health."
+        )
+
+        let garmin = RecoverySnapshot(
+            readiness: 76,
+            bodyBattery: 76,
+            sleep: "7h 40m",
+            hrv: "52 ms",
+            hrvSource: .garmin,
+            stress: "—",
+            recommendation: "Recovery data synced from Garmin.",
+            includesGarminDeviceSourcedData: true
+        )
+
+        XCTAssertFalse(healthOnly.includesGarminDeviceSourcedData)
+        XCTAssertTrue(garmin.includesGarminDeviceSourcedData)
+    }
+
     func testGarminRouteSuggestionUsesLoopNameAndSourceAttribution() {
         let route = RouteSuggestion(
             id: "garmin-abc",

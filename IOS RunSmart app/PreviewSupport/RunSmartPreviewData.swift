@@ -135,7 +135,8 @@ enum RunSmartDemoData {
         hrv: "Stable",
         hrvSource: .garmin,
         stress: "Low",
-        recommendation: "Your recovery is strong enough for a controlled tempo session."
+        recommendation: "Your recovery is strong enough for a controlled tempo session.",
+        includesGarminDeviceSourcedData: true
     )
 
     static let wellness = WellnessSnapshot(
