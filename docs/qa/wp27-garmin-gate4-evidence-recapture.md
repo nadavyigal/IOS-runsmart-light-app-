@@ -1,4 +1,4 @@
-# WP-26: Garmin Gate-4 Evidence Recapture
+# WP-27: Garmin Gate-4 Evidence Recapture
 
 *Track:* Garmin Production Gate
 *Status:* Founder-run required
@@ -31,20 +31,20 @@ Relevant rules to verify:
 
 - `main` includes PR #69: removed "Garmin Wellness" naming and stopped clipping the Garmin Connect tile.
 - `main` includes PR #70: bumped version/build to `1.0.7 (20)`.
-- WP-26 branch starts from WP-25 Garmin track setup and does not add app-code changes.
+- WP-27 branch starts from the Garmin track cleanup and does not add app-code changes for evidence capture.
 
 ### Asset State
 
 Current local Garmin Connect tile:
 
 ```text
-Path: IOS RunSmart app/Assets.xcassets/GarminConnectTile.imageset/garmin-connect-tile.jpg
-Type: JPEG
-Dimensions: 512x512
-SHA-256: 4df876736f980433a7f3e634a2209d383aa72c139851affa2f5013a38071d1f2
+Path: IOS RunSmart app/Assets.xcassets/GarminConnectTile.imageset/gc-app-tile_iOS.pdf
+Type: PDF
+Source: https://static.garmincdn.com/com.garmin.connect/content/images/developer/gc-app-tile/gc-app-tile_iOS.pdf
+SHA-256: f5c298184be1139257a22814b04a01da6f020f3123e14eca8f47d30a8c2d9712
 ```
 
-Open risk: this confirms the local file shape and hash, but not that the file is a pristine Garmin-provided asset. Before sending the next package, download the current official Garmin Connect tile from Garmin's brand page and compare it visually and, when practical, by file provenance/hash.
+Tile provenance verified on 2026-07-02 by downloading the official iOS tile PDF from Garmin's public brand page and replacing the prior local 512x512 JPEG derivative. The prior local JPEG SHA-256 was `4df876736f980433a7f3e634a2209d383aa72c139851affa2f5013a38071d1f2`; it was not byte-identical to Garmin's official iOS PDF or highest-density PNG.
 
 ## Preconditions
 
@@ -55,7 +55,7 @@ Do not start capture until all are true:
 - [ ] The capture device has the exact build installed.
 - [ ] The Garmin account is connected and has at least one synced activity with a known device model when available.
 - [ ] The device is unlocked, charged, and set to the target appearance mode for the screenshot set.
-- [ ] The official Garmin Connect tile asset provenance has been checked.
+- [x] The official Garmin Connect tile asset provenance has been checked.
 
 ## Required Screenshot Set
 
@@ -166,4 +166,3 @@ Stop and do not send the package if any of these occur:
 - The Garmin Connect tile is visibly altered or cannot be proven to come from Garmin's official asset source.
 - Device model is known but not shown on Garmin device-sourced data surfaces.
 - The reviewer clarifies that "start all over" means a new production app submission rather than evidence recapture.
-

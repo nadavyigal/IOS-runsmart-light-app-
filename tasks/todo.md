@@ -2,12 +2,12 @@
 
 ## Current Task
 
-**Objective:** WP-27 — Garmin Data Trust Audit.
-**Status:** Complete locally. Audit complete, recovery/wellness attribution provenance tightened, compile validation passed, focused XCTest runner blocked after build by simulator worker materialization.
+**Objective:** WP-27 — Garmin Gate-4 evidence cleanup + Data Trust Audit.
+**Status:** Complete locally. Numbering collision cleanup complete; audit complete, recovery/wellness attribution provenance tightened, official tile provenance fixed, and full XCTest verification passed.
 **Branch:** `codex/wp27-garmin-data-trust-audit`
 
 ### Checklist
-- [x] Confirm WP-26 is safely handed off in PR #71 and identify remaining founder-only blockers.
+- [x] Confirm PR #71 was mislabeled as WP-26 and is canonically WP-27 founder-run evidence work.
 - [x] Locate WP-27 under the WP-25 Garmin track.
 - [x] Audit Today route attribution.
 - [x] Audit Activity/Report row and Run Report detail attribution.
@@ -15,27 +15,28 @@
 - [x] Fix product-critical false-attribution risk on HealthKit-only recovery data.
 - [x] Normalize cached Garmin device model labels through the attribution helper.
 - [x] Add focused attribution/provenance tests.
-- [x] Run focused tests and static verification.
-- [ ] Commit, push, and open PR.
+- [x] Run full XCTest suite and confirm the two WP-27 tests execute.
+- [x] Verify official Garmin Connect tile provenance or record founder blocker.
+- [x] Commit and push to existing PR #72.
 
 ### Validation - 2026-07-02
 - `git diff --check` passed.
 - App-source search found no `Garmin Wellness` / `garminWellness` strings.
-- Focused `xcodebuild test` built the app and test bundle, then stalled during simulator test launch with target-runner `waiting for workers to materialize`; interrupted and recorded as simulator infrastructure, not source failure.
-- Generic iOS Simulator build passed with signing disabled:
-  `xcodebuild build -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-wp27-build-dd CODE_SIGNING_ALLOWED=NO -quiet`
+- Full `xcodebuild test` passed on `iPhone 17 Pro, OS=26.5` with `-parallel-testing-enabled NO`: 234 XCTest tests and 3 Swift Testing tests passed.
+- Confirmed `testBareConnectedGarminDeviceFallbackGetsBrandPrefix` and `testRecoverySnapshotDefaultsToNonGarminUntilExplicitlyMarked` executed and passed.
+- Earlier iPhone 17 full-suite attempt built and launched but stalled before test-case output; interrupted after 224.522 seconds and retried on iPhone 17 Pro.
 - Known warning remains: `HealthKitSyncService.swift` uses deprecated `HKWorkout` initializer.
 
 ---
 
 ## Previous Current Task
 
-**Objective:** WP-26 — Garmin Gate-4 evidence recapture runbook.
-**Status:** Complete locally. Evidence runbook implemented; actual screenshots, asset provenance confirmation, App Store/TestFlight verification, and Garmin reply remain founder-run steps.
-**Branch:** `codex/wp26-garmin-gate4-evidence`
+**Objective:** WP-27 — Garmin Gate-4 evidence recapture runbook.
+**Status:** Complete locally after numbering correction. Evidence runbook implemented; actual screenshots, asset provenance confirmation, App Store/TestFlight verification, and Garmin reply remain founder-run steps.
+**Branch:** historical PR #71 branch was named `codex/wp26-garmin-gate4-evidence`, but the work is canonically WP-27.
 
 ### Checklist
-- [x] Locate WP-26 candidate under the WP-25 Garmin track.
+- [x] Rename mistakenly framed WP-26 evidence runbook to WP-27.
 - [x] Confirm current code baseline includes PR #69 and PR #70 context.
 - [x] Record Garmin source requirements and public guidance links.
 - [x] Capture current local Garmin Connect tile metadata/hash for provenance comparison.
@@ -44,11 +45,11 @@
 - [x] Keep code, version/build, App Store Connect, and Garmin ticket state untouched.
 - [ ] Founder: install/verify `1.0.7 (20)` on real device.
 - [ ] Founder: recapture all six Gate-4 screenshots.
-- [ ] Founder: confirm official Garmin Connect tile provenance.
+- [x] Session: confirmed official Garmin Connect tile provenance and replaced prior JPEG derivative with Garmin-served iOS PDF.
 - [ ] Founder: verify package against Garmin brand PDF and send/clarify ticket reply.
 
 ### Validation - 2026-07-02
-- `file`, `sips`, and `shasum -a 256` recorded local tile metadata for `GarminConnectTile.imageset/garmin-connect-tile.jpg`.
+- Official Garmin tile provenance verified from `https://developer.garmin.com/brand-guidelines/connect/`; prior local JPEG derivative was replaced with Garmin-served `gc-app-tile_iOS.pdf`.
 - Static code search found no remaining `Garmin Wellness` / `garminWellness` strings in app source.
 - No app code changed.
 
@@ -56,22 +57,21 @@
 
 ## Previous Current Task
 
-**Objective:** WP-25 — Garmin track initiation and Gate-4 restart planning.
-**Status:** Complete. Planning artifact created and static verification passed. No app feature code, release bump, or App Store/Garmin-ticket action in this package.
+**Objective:** Superseded local Garmin track initiation note.
+**Status:** Superseded. Canonical WP-25 lives in Agentic OS executive-os/work-packets, not this repo.
 **Branch:** `codex/wp25-garmin-track`
 
 ### Checklist
 - [x] Start from canonical app repo, not outer wrapper status.
 - [x] Confirm app repo is clean and current `main` includes PR #69 and PR #70.
 - [x] Create branch `codex/wp25-garmin-track`.
-- [x] Add `docs/specs/wp25-garmin-track.md` as the Garmin track anchor.
+- [x] Replace `docs/specs/wp25-garmin-track.md` with a pointer to canonical Agentic OS work-packet specs.
 - [x] Keep WP-24 paused and out of scope.
 - [x] Run planning-only static verification.
 - [x] Commit planning artifact.
 
 ### Notes
-- WP-25 names the broader Garmin track. Future Garmin work packages should be WP-26+, scoped separately.
-- Current Gate-4 next move is evidence-first: founder/live-device `1.0.7 (20)` recapture, brand-PDF verification, then Garmin reply package.
+- This repo does not own WP-25 or WP-26. Current Gate-4 next move is WP-27 founder/live-device `1.0.7 (20)` recapture, brand-PDF verification, then Garmin reply package.
 
 ---
 

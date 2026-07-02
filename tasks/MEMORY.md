@@ -12,18 +12,35 @@ Project-specific decisions. Read at the start of every session.
 
 ---
 
+## 2026-07-02 - WP-27 Garmin Numbering Collision Cleanup
+
+Worked on: Corrected same-day Garmin WP numbering collision on PR #72.
+
+Completed:
+- Renamed the Gate-4 evidence recapture runbook from WP-26 to WP-27.
+- Replaced the misleading local WP-25 Garmin track spec with a pointer to canonical Agentic OS work-packet specs.
+- Recorded that this repo does not own WP-25 or WP-26; WP-26 is founder-only Garmin Developer Portal application work.
+- Replaced the local Garmin Connect tile JPEG derivative with Garmin's official iOS tile PDF from Garmin's public brand page.
+- Ran the full XCTest suite on iPhone 17 Pro, OS 26.5; 234 XCTest tests and 3 Swift Testing tests passed, including both WP-27 attribution/provenance tests.
+
+Decisions: Keep the reviewed Garmin data trust fixes in PR #72, but do not let them substitute for WP-27's founder-owned Gate-4 evidence deliverables.
+
+Next session: Push PR #72 update if needed, then leave physical-device screenshot capture pending for the founder.
+
+---
+
 ## 2026-07-02 - WP-25 Garmin Track
 
-Worked on: Initiated WP-25 as the Garmin track while WP-24 remains paused.
+Worked on: Superseded local planning artifact; canonical WP-25 lives in Agentic OS, not this repo.
 
 Completed:
 - Created branch `codex/wp25-garmin-track` from current `main`.
-- Added `docs/specs/wp25-garmin-track.md` to anchor future Garmin work packages.
+- Added `docs/specs/wp25-garmin-track.md`, later replaced with a pointer because canonical Garmin work-packet specs live in Agentic OS executive-os/work-packets/WP-25 through WP-28.
 - Recorded that PR #69 and PR #70 are already on `main`: Garmin Gate-4 naming/logo remediation plus `1.0.7 (20)` build bump.
 
-Decisions: WP-25 is planning/track setup only. Do not combine WP-24, E7 wearable-depth implementation, or founder-only App Store/Garmin-ticket actions into this package.
+Decisions: This repo does not own WP-25 or WP-26. Do not combine WP-24, E7 wearable-depth implementation, or founder-only App Store/Garmin-ticket actions into this package.
 
-Next session: Start WP-26 candidate for Gate-4 evidence recapture once founder/live-device access is available.
+Next session: Continue WP-27 Gate-4 evidence cleanup and data trust audit verification on PR #72.
 
 ---
 

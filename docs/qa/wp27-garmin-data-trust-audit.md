@@ -13,11 +13,11 @@ Audit Garmin-derived labels, fallback behavior, and source attribution across To
 
 WP-27 is ready to execute as a code/data-trust audit because:
 
-- WP-25 established the Garmin track.
-- WP-26 is pushed and open as PR #71 with the founder-run evidence package.
-- WP-26 founder actions remain pending, but they do not block a local audit of Garmin data attribution paths.
+- Canonical Garmin work-packet specs live in Agentic OS executive-os/work-packets/WP-25 through WP-28.
+- PR #71 was mislabeled WP-26, but its Gate-4 evidence package is canonically WP-27.
+- Founder-owned live-device evidence actions remain pending, but they do not block a local audit of Garmin data attribution paths.
 
-WP-27 is not a replacement for WP-26 live-device evidence. It should not send Garmin replies or claim Gate-4 readiness.
+WP-27 data-trust fixes are not a replacement for WP-27 live-device evidence. This repo should not send Garmin replies or claim Gate-4 readiness.
 
 ## Audit Results
 
@@ -55,12 +55,13 @@ WP-27 is not a replacement for WP-26 live-device evidence. It should not send Ga
 
 - `git diff --check` passed.
 - App-source search found no `Garmin Wellness` / `garminWellness` strings.
-- Focused `xcodebuild test` built the app and test bundle, then stalled during simulator test launch with target-runner `waiting for workers to materialize`; interrupted and recorded as simulator infrastructure, not source failure.
-- Generic iOS Simulator build passed with signing disabled.
+- Full `xcodebuild test` passed on `iPhone 17 Pro, OS=26.5` with `-parallel-testing-enabled NO`: 234 XCTest tests and 3 Swift Testing tests passed.
+- Confirmed `testBareConnectedGarminDeviceFallbackGetsBrandPrefix` and `testRecoverySnapshotDefaultsToNonGarminUntilExplicitlyMarked` executed and passed.
+- Earlier iPhone 17 full-suite attempt built and launched but stalled before test-case output; interrupted after 224.522 seconds and retried on iPhone 17 Pro.
 - Known warning remains: `HealthKitSyncService.swift` uses deprecated `HKWorkout` initializer.
 
 ## Remaining Founder/Live Checks
 
-- WP-26 still must verify the actual `1.0.7 (20)` screenshots on a real device.
-- The official Garmin Connect tile asset provenance remains a founder-side check.
+- WP-27 founder-owned real-device screenshot capture still must verify the actual `1.0.7 (20)` screenshots on a real device.
+- Official Garmin Connect tile provenance is now verified in repo; founder still needs to verify captured screenshots render the asset correctly.
 - If Garmin responds with new instructions about "start all over," update this audit before starting WP-28.
