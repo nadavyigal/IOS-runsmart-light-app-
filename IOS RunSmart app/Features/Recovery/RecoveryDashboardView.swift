@@ -21,6 +21,11 @@ struct RecoveryDashboardView: View {
         }
     }
 
+    private var garminAttributionLabel: String? {
+        guard garminConnected, recovery.includesGarminDeviceSourcedData else { return nil }
+        return RunSmartAttribution.garminDeviceLabel(deviceName: nil, fallbackGarminDeviceName: garminDeviceName)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HeroCard(accent: .accentSuccess) {
@@ -30,8 +35,8 @@ struct RecoveryDashboardView: View {
                     // displays must carry a "Garmin [device model]" attribution adjacent to the
                     // heading, above the fold. Falls back to "Garmin" if no device name has been
                     // recorded yet (Garmin only reports device identity on activity records).
-                    if garminConnected {
-                        Text(garminDeviceName ?? "Garmin")
+                    if let garminAttributionLabel {
+                        Text(garminAttributionLabel)
                             .font(.labelSM)
                             .foregroundStyle(Color.textTertiary)
                     }
@@ -69,7 +74,7 @@ struct RecoveryDashboardView: View {
             RecoveryTrendTile(
                 title: "Training Readiness",
                 value: trends.latestReadinessDisplay,
-                attribution: garminConnected ? (garminDeviceName ?? "Garmin") : nil,
+                attribution: garminAttributionLabel,
                 detail: trends.readinessTrendSummary,
                 bars: trends.readinessBars,
                 tint: .accentPrimary
@@ -86,7 +91,7 @@ struct RecoveryDashboardView: View {
 
             // Garmin API Brand Guidelines (Health): approved attribution line for AI/derived
             // insights built in part from Garmin device-sourced data.
-            if garminConnected {
+            if garminAttributionLabel != nil {
                 Text("Insights derived in part from Garmin device-sourced data.")
                     .font(.caption)
                     .italic()

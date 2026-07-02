@@ -1,5 +1,28 @@
 # Session Log
 
+## 2026-07-02 - WP-27 Garmin Data Trust Audit
+
+### Task Summary
+Started WP-27 after confirming WP-26 is safely handed off in PR #71 but still founder-blocked for live screenshots. Audited Garmin labels and source attribution across Today routes, Activity/Report, Run Report, Recovery dashboard, Wellness Trends, Morning Check-In, and Profile connected surfaces.
+
+### Changes
+- Added `RecoverySnapshot.includesGarminDeviceSourcedData` so UI attribution can distinguish Garmin-backed recovery from HealthKit/manual fallback.
+- Marked Supabase Garmin recovery snapshots as Garmin device-sourced.
+- Gated Recovery dashboard, Wellness Trends, and Morning Check-In Garmin attribution/derived-data footers on actual Garmin-backed data.
+- Normalized cached Garmin device names through `RunSmartAttribution.garminDeviceLabel(...)` so bare model names render as `Garmin [device model]`.
+- Added focused tests for bare connected-device fallback labels and recovery provenance defaults.
+- Added `docs/qa/wp27-garmin-data-trust-audit.md`.
+
+### Validation
+- `git diff --check` passed.
+- App-source search found no `Garmin Wellness` / `garminWellness` strings.
+- Focused `xcodebuild test` built the app and test bundle, then stalled during simulator test launch with target-runner `waiting for workers to materialize`; interrupted and recorded as simulator infrastructure, not source failure.
+- Generic iOS Simulator build passed with signing disabled:
+  `xcodebuild build -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-wp27-build-dd CODE_SIGNING_ALLOWED=NO -quiet`
+- Known warning remains: `HealthKitSyncService.swift` uses deprecated `HKWorkout` initializer.
+
+---
+
 ## 2026-07-02 - WP-26 Garmin Gate-4 evidence recapture
 
 ### Task Summary

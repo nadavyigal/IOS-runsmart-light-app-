@@ -2,6 +2,34 @@
 
 ## Current Task
 
+**Objective:** WP-27 — Garmin Data Trust Audit.
+**Status:** Complete locally. Audit complete, recovery/wellness attribution provenance tightened, compile validation passed, focused XCTest runner blocked after build by simulator worker materialization.
+**Branch:** `codex/wp27-garmin-data-trust-audit`
+
+### Checklist
+- [x] Confirm WP-26 is safely handed off in PR #71 and identify remaining founder-only blockers.
+- [x] Locate WP-27 under the WP-25 Garmin track.
+- [x] Audit Today route attribution.
+- [x] Audit Activity/Report row and Run Report detail attribution.
+- [x] Audit Recovery dashboard, Wellness Trends, Morning Check-In, and Profile connected surfaces.
+- [x] Fix product-critical false-attribution risk on HealthKit-only recovery data.
+- [x] Normalize cached Garmin device model labels through the attribution helper.
+- [x] Add focused attribution/provenance tests.
+- [x] Run focused tests and static verification.
+- [ ] Commit, push, and open PR.
+
+### Validation - 2026-07-02
+- `git diff --check` passed.
+- App-source search found no `Garmin Wellness` / `garminWellness` strings.
+- Focused `xcodebuild test` built the app and test bundle, then stalled during simulator test launch with target-runner `waiting for workers to materialize`; interrupted and recorded as simulator infrastructure, not source failure.
+- Generic iOS Simulator build passed with signing disabled:
+  `xcodebuild build -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "generic/platform=iOS Simulator" -derivedDataPath /tmp/runsmart-wp27-build-dd CODE_SIGNING_ALLOWED=NO -quiet`
+- Known warning remains: `HealthKitSyncService.swift` uses deprecated `HKWorkout` initializer.
+
+---
+
+## Previous Current Task
+
 **Objective:** WP-26 — Garmin Gate-4 evidence recapture runbook.
 **Status:** Complete locally. Evidence runbook implemented; actual screenshots, asset provenance confirmation, App Store/TestFlight verification, and Garmin reply remain founder-run steps.
 **Branch:** `codex/wp26-garmin-gate4-evidence`

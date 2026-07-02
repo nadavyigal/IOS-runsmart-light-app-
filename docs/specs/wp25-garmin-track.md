@@ -71,6 +71,8 @@ Status: implemented as a founder-run evidence runbook in `docs/qa/wp26-garmin-ga
 - Confirm legacy Garmin rows without device names still render compliant attribution.
 - Add focused tests only where behavior is product-critical.
 
+Status: implemented in `docs/qa/wp27-garmin-data-trust-audit.md`; code tightened Recovery, Wellness Trends, and Morning Check-In attribution gating.
+
 ### WP-28 Candidate: Garmin Product Depth
 - Resume the E7 wearable-depth spec when Gate-4 compliance is stable.
 - Implement real 7-day Garmin HRV/readiness trends in small verified slices.
