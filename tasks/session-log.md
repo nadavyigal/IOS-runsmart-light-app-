@@ -1,5 +1,20 @@
 # Session Log
 
+## 2026-07-02 - WP-25 Garmin track initiation
+
+### Task Summary
+Initiated WP-25 as the Garmin track after WP-24 was paused. Created branch `codex/wp25-garmin-track` from current `main`, which already includes PR #69 Garmin Gate-4 brand remediation and PR #70 `1.0.7 (20)` build bump.
+
+### Decisions
+- Treat WP-25 as a planning/coordination package, not product-code implementation.
+- Keep Garmin Gate-4 evidence recapture as the next likely work package, separate from this track setup.
+- Preserve WP-24 paused state and do not mix its scope into Garmin track work.
+
+### Next Recommended Story
+WP-26 candidate: install/verify `1.0.7 (20)` on a real device, recapture all required Gate-4 screenshots, verify them against Garmin's brand PDF, confirm the Garmin Connect tile source asset is pristine, and prepare the ticket reply package.
+
+---
+
 ## 2026-06-30 - WP-20 first-run activation + Garmin attribution (PR #67)
 
 ### Task Summary

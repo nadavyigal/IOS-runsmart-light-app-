@@ -2,6 +2,27 @@
 
 ## Current Task
 
+**Objective:** WP-25 — Garmin track initiation and Gate-4 restart planning.
+**Status:** Complete. Planning artifact created and static verification passed. No app feature code, release bump, or App Store/Garmin-ticket action in this package.
+**Branch:** `codex/wp25-garmin-track`
+
+### Checklist
+- [x] Start from canonical app repo, not outer wrapper status.
+- [x] Confirm app repo is clean and current `main` includes PR #69 and PR #70.
+- [x] Create branch `codex/wp25-garmin-track`.
+- [x] Add `docs/specs/wp25-garmin-track.md` as the Garmin track anchor.
+- [x] Keep WP-24 paused and out of scope.
+- [x] Run planning-only static verification.
+- [x] Commit planning artifact.
+
+### Notes
+- WP-25 names the broader Garmin track. Future Garmin work packages should be WP-26+, scoped separately.
+- Current Gate-4 next move is evidence-first: founder/live-device `1.0.7 (20)` recapture, brand-PDF verification, then Garmin reply package.
+
+---
+
+## Previous Current Task
+
 **Objective:** Garmin brand compliance for v1.0.6 (19) — Connect tile, device attribution, derived-data footers.
 **Status:** Code complete locally. Debug simulator build succeeded. Device screenshot recapture + ASC archive remain founder steps.
 **Branch:** `main`

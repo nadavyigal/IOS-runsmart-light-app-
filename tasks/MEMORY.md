@@ -12,6 +12,21 @@ Project-specific decisions. Read at the start of every session.
 
 ---
 
+## 2026-07-02 - WP-25 Garmin Track
+
+Worked on: Initiated WP-25 as the Garmin track while WP-24 remains paused.
+
+Completed:
+- Created branch `codex/wp25-garmin-track` from current `main`.
+- Added `docs/specs/wp25-garmin-track.md` to anchor future Garmin work packages.
+- Recorded that PR #69 and PR #70 are already on `main`: Garmin Gate-4 naming/logo remediation plus `1.0.7 (20)` build bump.
+
+Decisions: WP-25 is planning/track setup only. Do not combine WP-24, E7 wearable-depth implementation, or founder-only App Store/Garmin-ticket actions into this package.
+
+Next session: Start WP-26 candidate for Gate-4 evidence recapture once founder/live-device access is available.
+
+---
+
 ## 2026-06-30 - WP-20 first-run activation on Garmin fix branch
 
 Worked on: Agentic OS WP-20 combined with PR #67 Garmin attribution fallback.
