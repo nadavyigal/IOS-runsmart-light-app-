@@ -1,5 +1,28 @@
 # Session Log
 
+## 2026-07-02 - WP-26 Garmin Gate-4 evidence recapture
+
+### Task Summary
+Implemented WP-26 as a founder-run Garmin Gate-4 evidence recapture package. Added a dedicated QA runbook with source requirements, screenshot matrix, pass/fail criteria, local Garmin Connect tile metadata, evidence manifest, stop conditions, and a reply draft for tickets `213145` / `213165`.
+
+### Changes
+- Added `docs/qa/wp26-garmin-gate4-evidence-recapture.md`.
+- Updated `docs/specs/wp25-garmin-track.md` to mark WP-26 as implemented as a runbook.
+- Updated canonical task state in `tasks/todo.md`.
+
+### Validation
+- Checked current local Garmin Connect tile metadata: JPEG, 512x512, SHA-256 `4df876736f980433a7f3e634a2209d383aa72c139851affa2f5013a38071d1f2`.
+- Static search found no `Garmin Wellness` or `garminWellness` strings in app source.
+- No app code, build number, App Store Connect state, Garmin credentials, or Garmin ticket state changed.
+
+### Founder-only next steps
+- Install or confirm `1.0.7 (20)` on a real device.
+- Recapture all six Gate-4 screenshots.
+- Confirm the Garmin Connect tile asset is official/pristine.
+- Verify against the Garmin brand PDF, then decide whether to ask Marc to clarify "start all over" or send the corrected evidence package.
+
+---
+
 ## 2026-07-02 - WP-25 Garmin track initiation
 
 ### Task Summary

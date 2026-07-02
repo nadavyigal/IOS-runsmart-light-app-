@@ -64,6 +64,8 @@ WP-25 is the Garmin track initiation and Gate-4 restart package.
 - Confirm whether the official Garmin Connect tile asset is pristine.
 - Prepare the Garmin reply package for ticket 213145/213165.
 
+Status: implemented as a founder-run evidence runbook in `docs/qa/wp26-garmin-gate4-evidence-recapture.md`.
+
 ### WP-27 Candidate: Garmin Data Trust Audit
 - Audit Garmin-derived data labels, fallback behavior, and source attribution across Today, Report, Recovery, and Profile.
 - Confirm legacy Garmin rows without device names still render compliant attribution.

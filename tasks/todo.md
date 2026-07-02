@@ -2,6 +2,32 @@
 
 ## Current Task
 
+**Objective:** WP-26 — Garmin Gate-4 evidence recapture runbook.
+**Status:** Complete locally. Evidence runbook implemented; actual screenshots, asset provenance confirmation, App Store/TestFlight verification, and Garmin reply remain founder-run steps.
+**Branch:** `codex/wp26-garmin-gate4-evidence`
+
+### Checklist
+- [x] Locate WP-26 candidate under the WP-25 Garmin track.
+- [x] Confirm current code baseline includes PR #69 and PR #70 context.
+- [x] Record Garmin source requirements and public guidance links.
+- [x] Capture current local Garmin Connect tile metadata/hash for provenance comparison.
+- [x] Create Gate-4 screenshot matrix and pass/fail criteria.
+- [x] Add evidence manifest and reply draft.
+- [x] Keep code, version/build, App Store Connect, and Garmin ticket state untouched.
+- [ ] Founder: install/verify `1.0.7 (20)` on real device.
+- [ ] Founder: recapture all six Gate-4 screenshots.
+- [ ] Founder: confirm official Garmin Connect tile provenance.
+- [ ] Founder: verify package against Garmin brand PDF and send/clarify ticket reply.
+
+### Validation - 2026-07-02
+- `file`, `sips`, and `shasum -a 256` recorded local tile metadata for `GarminConnectTile.imageset/garmin-connect-tile.jpg`.
+- Static code search found no remaining `Garmin Wellness` / `garminWellness` strings in app source.
+- No app code changed.
+
+---
+
+## Previous Current Task
+
 **Objective:** WP-25 — Garmin track initiation and Gate-4 restart planning.
 **Status:** Complete. Planning artifact created and static verification passed. No app feature code, release bump, or App Store/Garmin-ticket action in this package.
 **Branch:** `codex/wp25-garmin-track`
