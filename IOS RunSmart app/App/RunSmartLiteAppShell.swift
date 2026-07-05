@@ -409,13 +409,25 @@ struct RunSmartLiteAppShell: View {
 
     private func presentFirstRunActivationIfNeeded(planSaved: Bool) async {
         guard planSaved else { return }
-        let workouts = await services.nextWorkouts(limit: 5)
-        let firstWorkout = workouts.first(where: { PlanPresentationModels.isWorkout($0) && !$0.isComplete })
-            ?? workouts.first(where: { PlanPresentationModels.isWorkout($0) })
-        guard let firstWorkout else { return }
+        // saveTrainingGoal kicks off async plan generation; workouts are not queryable until it finishes.
+        guard let firstWorkout = await firstRunnableWorkoutAfterPlanGeneration() else { return }
         await MainActor.run {
             firstRunActivation = FirstRunActivationContext(workout: firstWorkout)
         }
+    }
+
+    private func firstRunnableWorkoutAfterPlanGeneration(timeoutSeconds: TimeInterval = 45) async -> WorkoutSummary? {
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        while Date() < deadline {
+            if Task.isCancelled { return nil }
+            let workouts = await services.nextWorkouts(limit: 5)
+            if let workout = workouts.first(where: { PlanPresentationModels.isWorkout($0) && !$0.isComplete })
+                ?? workouts.first(where: { PlanPresentationModels.isWorkout($0) }) {
+                return workout
+            }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        return nil
     }
 
     private func handleFirstRunStartNow(_ workout: WorkoutSummary) {

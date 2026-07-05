@@ -2392,3 +2392,31 @@ Patched the remaining Garmin submission risk found in live `1.0.5 (18)` screensh
 - Run a clean Xcode build/test or archive on a healthy Xcode/simulator session.
 - Ship a new fixed build through App Store Connect; do not send Garmin screenshots from live `1.0.5 (18)` because Report/Run Report evidence still showed bare `Garmin`.
 - After the fixed build is live, recapture all 6 Gate-4 screenshots and verify screens 04-06 visibly show `Garmin Forerunner 965` or the user's actual connected Garmin model.
+
+## 2026-07-05 - WP-15 activation diagnostic + WP-34 credential-guard recovery
+
+### Task Summary
+D7 App Store readout showed 0/12 users with `run_completed` within 7 days despite some reaching `plan_generated`; 94.7% onboarding drop. Audited funnel instrumentation and post-plan UX. Searched exhaustively for lost WP-34 Garmin credential-guard branch.
+
+### WP-15 Findings
+- Event names on current code paths align with PostHog dashboards (`run_completed` canonical; not `run_logged`). `onboarding_completed` fires in `OnboardingView` on "Start RunSmart" tap — before aha moments and before async profile/plan work completes (funnel timing nuance).
+- Post-plan affordances exist on main: `FirstRunActivationSheet`, Today `upNext` "Start Next Run" (PR #62), `plan_run_cta_tapped` bridge event, WP-20 reminder path.
+- **Root cause (plan → run):** `saveTrainingGoal` kicks off `regenerateTrainingPlan` in a detached `Task` and returns `true` immediately. `presentFirstRunActivationIfNeeded` queried `nextWorkouts` before `persistGeneratedPlan`, so `activePlan` had no workouts → first-run sheet silently skipped → no `first_run_cta_viewed` / weak path to `run_started`.
+- **Onboarding 94.7% drop (separate):** Sign-in wall + 5 onboarding steps + 2 aha screens before main app; not Garmin-related. Permission denial events not instrumented.
+- GPS/Health blockers possible at run start but secondary for cohort that reached `plan_generated`.
+
+### WP-15 Changes
+- `RunSmartLiteAppShell.swift`: `firstRunnableWorkoutAfterPlanGeneration()` polls `nextWorkouts` up to 45s before presenting `FirstRunActivationSheet`.
+
+### WP-34 Recovery
+- `baa19aa` / `codex/wp24-garmin-credential-guard` not found: reflog, all branches, `git fsck --unreachable`, stash, `git fetch` + `ls-remote`, May-2025 bundle, gstack/other clones.
+- Logged incident in `tasks/ERRORS.md`. No re-implementation (founder decision: re-scope WP-34 or park).
+
+### Validation
+- One-file Swift change; isolated `xcodebuild` attempted but blocked by concurrent DerivedData lock / long compile — not claimed as green build this session.
+
+### Metrics to watch
+- `plan_generated` → `plan_run_cta_tapped` → `run_started` → `run_completed` (target >=20% plan-to-run on next cohort).
+
+### Not done
+- No broad onboarding redesign, no permission analytics, no Garmin scope, no WP-34 re-implementation, no ASC release of fix build.

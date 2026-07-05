@@ -12,6 +12,23 @@ Project-specific decisions. Read at the start of every session.
 
 ---
 
+## 2026-07-05 - WP-15 plan-to-run activation + WP-34 credential-guard loss
+
+Worked on: Agentic OS WP-15 (D7 readout: 0/12 run_completed, 94.7% onboarding drop) and WP-34 (recover `codex/wp24-garmin-credential-guard` / `baa19aa`).
+
+Completed:
+- Audited activation funnel events on live code paths: `app_launched`, `sign_in_completed`, `onboarding_started/step/completed`, `plan_generated`, `first_run_cta_*`, `plan_run_cta_tapped`, `run_started`, `run_completed`, reminder events — names match `AnalyticsEvents.swift` call sites; no `run_logged` duplicate-class bug; permission denials not instrumented.
+- Confirmed post-plan UI: `FirstRunActivationSheet` (Start Now / Remind Me Tomorrow), Today `upNext` → "Start Next Run" (PR #62), Plan tab workout taps — all on main.
+- Root cause for plan_generated → no run: `saveTrainingGoal` returns before async `regenerateTrainingPlan` completes; `presentFirstRunActivationIfNeeded` immediately called `nextWorkouts`, got `[]`, skipped sheet silently.
+- Fix: poll `nextWorkouts` up to 45s before presenting first-run sheet (`RunSmartLiteAppShell.swift`).
+- WP-34: exhaustive git/bundle/clone/stash/fsck search — commit `baa19aa` and branch absent; logged in `tasks/ERRORS.md`.
+
+Decisions: Ship WP-15 as tiny one-file fix; do not re-create WP-34 credential guard without explicit founder approval (new scope). Monitor `plan_generated -> plan_run_cta_tapped -> run_started -> run_completed`; success threshold >=20% plan-to-run.
+
+Next session: Release build with WP-15 fix; founder decides WP-34 re-implement vs park.
+
+---
+
 ## 2026-07-02 - WP-27 Garmin Numbering Collision Cleanup
 
 Worked on: Corrected same-day Garmin WP numbering collision on PR #72.
