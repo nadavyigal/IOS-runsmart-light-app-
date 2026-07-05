@@ -12,6 +12,23 @@ Project-specific decisions. Read at the start of every session.
 
 ---
 
+## 2026-07-05 - WP-15 shipped build 21 + activation readout (in progress)
+
+Worked on: Ship WP-15 fix (`6ed8b97`) to App Store Connect; verify activation funnel against D7 Readout #2 baseline.
+
+Completed:
+- Pre-submission checklists reviewed (`tasks/lessons.md`, `docs/qa/testflight-checklist.md`, `docs/qa/app-store-readiness-checklist.md`).
+- Release archive **1.0.7 (21)** succeeded from clean detached worktree (main worktree blocked by Finder duplicate `* 2.swift` files in folder-synced app root).
+- ASC upload **succeeded** 2026-07-05 ~20:18 UTC+3 via `ExportOptionsAppStoreUpload.plist`.
+- PostHog project **171597** baseline funnel (2026-06-19→2026-07-05, `filterTestAccounts=true`): `plan_generated`=1 → `plan_run_cta_tapped`=0 → `run_started`=0 → `run_completed`=0 (**0% plan-to-run**); `first_run_cta_viewed`=0 confirms sheet-skip root cause.
+- Documented full query + readout in `tasks/progress.md`.
+
+Decisions: Treat D7 Readout #2 (0/12 mature `run_completed`, 94.7% onboarding drop) as canonical pre-fix baseline. Post-fix measurement deferred to **2026-07-08+** on build-21 cohort. Success gate remains >=20% plan-to-run.
+
+Next session: Re-run PostHog funnel for build-21 users after 3–7 days live. If `first_run_cta_viewed` lifts but `run_started` stays flat, investigate permission blocks and Today `upNext` routing before broader onboarding redesign.
+
+---
+
 ## 2026-07-05 - WP-15 plan-to-run activation + WP-34 credential-guard loss
 
 Worked on: Agentic OS WP-15 (D7 readout: 0/12 run_completed, 94.7% onboarding drop) and WP-34 (recover `codex/wp24-garmin-credential-guard` / `baa19aa`).
