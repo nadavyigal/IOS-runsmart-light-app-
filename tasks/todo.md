@@ -2,6 +2,24 @@
 
 ## Current Task
 
+**Objective:** Garmin Internal Test path official-requirements research.
+**Status:** Complete in chat. Read Agentic OS WP-24 through WP-28, reviewed local Gate-4 rejection history, and ran a sourced Garmin documentation/public-evidence pass. No product or app code changes made.
+**Branch:** `main` / dirty local workspace
+
+### Checklist
+- [x] Read canonical Agentic OS Garmin work packets WP-24 through WP-28.
+- [x] Read app/web Gate-4 rejection and Marc-email-derived status history.
+- [x] Research current official Garmin Connect Developer Program requirements and brand/data restrictions.
+- [x] Flag where local Marc-derived understanding is matched, contradicted, or not publicly grounded.
+
+### Validation - 2026-07-06
+- `git status --short` inspected before work; existing dirty/untracked files were not overwritten.
+- External research used official Garmin pages/PDFs where available, plus clearly marked public forum/third-party evidence for non-official failure patterns.
+
+---
+
+## Previous Current Task
+
 **Objective:** WP-27 — Garmin Gate-4 evidence cleanup + Data Trust Audit.
 **Status:** Complete locally. Numbering collision cleanup complete; audit complete, recovery/wellness attribution provenance tightened, official tile provenance fixed, and full XCTest verification passed.
 **Branch:** `codex/wp27-garmin-data-trust-audit`
