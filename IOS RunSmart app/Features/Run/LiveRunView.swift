@@ -14,74 +14,83 @@ struct LiveRunView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            VStack(spacing: 12) {
-                RunSmartTopBar(title: "Run")
+            // WP-37 S4 follow-up: on shorter screens (e.g. iPhone SE 3rd gen,
+            // 375x667pt) the fixed-height panels above leave less room than the
+            // button row + its labels need, and a bare VStack has no scroll
+            // fallback — labels were silently clipped past the screen edge with
+            // no way to reveal them. minHeight (not maxHeight) lets the Spacer
+            // below still pin the buttons to the bottom on tall screens exactly
+            // as before, while short screens scroll instead of clipping.
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 12) {
+                    RunSmartTopBar(title: "Run")
 
-                GPSStatusPill(status: gpsStatus, detail: gpsDetail, phase: phase)
-                LiveRunStateBanner(phase: phase, elapsedSeconds: elapsedSeconds)
+                    GPSStatusPill(status: gpsStatus, detail: gpsDetail, phase: phase)
+                    LiveRunStateBanner(phase: phase, elapsedSeconds: elapsedSeconds)
 
-                RunSmartPanel(cornerRadius: 22, padding: 0, accent: .accentPrimary) {
-                    if let primaryMetric = metrics.first {
-                        VStack(spacing: 0) {
-                            LiveMetricCard(metric: primaryMetric, isPrimary: true)
-                                .padding(.horizontal, 18)
-                                .padding(.top, 16)
-                                .padding(.bottom, 12)
+                    RunSmartPanel(cornerRadius: 22, padding: 0, accent: .accentPrimary) {
+                        if let primaryMetric = metrics.first {
+                            VStack(spacing: 0) {
+                                LiveMetricCard(metric: primaryMetric, isPrimary: true)
+                                    .padding(.horizontal, 18)
+                                    .padding(.top, 16)
+                                    .padding(.bottom, 12)
 
-                            HStack(spacing: 0) {
-                                ForEach(Array(metrics.dropFirst().enumerated()), id: \.element.id) { index, metric in
-                                    LiveMetricCard(metric: metric, isPrimary: false)
-                                        .padding(14)
-                                        .frame(maxWidth: .infinity, minHeight: 94)
-                                        .overlay(alignment: .leading) {
-                                            Rectangle()
-                                                .fill(Color.border.opacity(0.72))
-                                                .frame(width: index == 0 ? 0 : 1)
-                                        }
+                                HStack(spacing: 0) {
+                                    ForEach(Array(metrics.dropFirst().enumerated()), id: \.element.id) { index, metric in
+                                        LiveMetricCard(metric: metric, isPrimary: false)
+                                            .padding(14)
+                                            .frame(maxWidth: .infinity, minHeight: 94)
+                                            .overlay(alignment: .leading) {
+                                                Rectangle()
+                                                    .fill(Color.border.opacity(0.72))
+                                                    .frame(width: index == 0 ? 0 : 1)
+                                            }
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                .frame(height: max(174, min(218, proxy.size.height * 0.25)))
+                    .frame(height: max(174, min(218, proxy.size.height * 0.25)))
 
-                if routePoints.isEmpty {
-                    RunSmartRoutePreview(title: "GPS", showGPS: true, height: max(82, min(124, proxy.size.height * 0.14)))
-                } else {
-                    RunSmartPanel(cornerRadius: 20, padding: 8) {
-                        RouteMapView(points: routePoints, title: "GPS")
-                            .frame(height: max(78, min(116, proxy.size.height * 0.13)))
-                    }
-                }
-
-                Spacer(minLength: 0)
-
-                // WP-37 S3: never show 4 buttons. Coach is irrelevant while paused
-                // (VoiceCoachService is itself paused, so there's nothing to mute),
-                // so the paused state swaps it for Discard instead of appending a
-                // fourth button — keeps the row at 3 buttons on every screen width.
-                HStack(alignment: .bottom, spacing: 18) {
-                    LiveControlButton(title: phase == .paused ? "Resume" : "Pause", symbol: phase == .paused ? "play.fill" : "pause.fill", tint: .accentPrimary, prominent: true, action: onPauseResume)
-                    LiveControlButton(title: "Finish", symbol: "stop.fill", tint: .accentHeart, prominent: false, action: onFinish)
-                    if phase == .paused {
-                        LiveControlButton(title: "Discard", symbol: "trash.fill", tint: .accentHeart, prominent: false, action: onDiscard)
+                    if routePoints.isEmpty {
+                        RunSmartRoutePreview(title: "GPS", showGPS: true, height: max(82, min(124, proxy.size.height * 0.14)))
                     } else {
-                        LiveControlButton(
-                            title: voiceCoach.isEnabled ? "Coach" : "Muted",
-                            symbol: voiceCoach.isEnabled ? "waveform" : "waveform.slash",
-                            tint: voiceCoach.isEnabled ? .accentPrimary : .textSecondary,
-                            prominent: false,
-                            action: { voiceCoach.setEnabled(!voiceCoach.isEnabled) }
-                        )
+                        RunSmartPanel(cornerRadius: 20, padding: 8) {
+                            RouteMapView(points: routePoints, title: "GPS")
+                                .frame(height: max(78, min(116, proxy.size.height * 0.13)))
+                        }
                     }
+
+                    Spacer(minLength: 0)
+
+                    // WP-37 S3: never show 4 buttons. Coach is irrelevant while paused
+                    // (VoiceCoachService is itself paused, so there's nothing to mute),
+                    // so the paused state swaps it for Discard instead of appending a
+                    // fourth button — keeps the row at 3 buttons on every screen width.
+                    HStack(alignment: .bottom, spacing: 18) {
+                        LiveControlButton(title: phase == .paused ? "Resume" : "Pause", symbol: phase == .paused ? "play.fill" : "pause.fill", tint: .accentPrimary, prominent: true, action: onPauseResume)
+                        LiveControlButton(title: "Finish", symbol: "stop.fill", tint: .accentHeart, prominent: false, action: onFinish)
+                        if phase == .paused {
+                            LiveControlButton(title: "Discard", symbol: "trash.fill", tint: .accentHeart, prominent: false, action: onDiscard)
+                        } else {
+                            LiveControlButton(
+                                title: voiceCoach.isEnabled ? "Coach" : "Muted",
+                                symbol: voiceCoach.isEnabled ? "waveform" : "waveform.slash",
+                                tint: voiceCoach.isEnabled ? .accentPrimary : .textSecondary,
+                                prominent: false,
+                                action: { voiceCoach.setEnabled(!voiceCoach.isEnabled) }
+                            )
+                        }
+                    }
+                    .padding(.bottom, 28)
                 }
-                .padding(.bottom, 28)
+                .foregroundStyle(Color.textPrimary)
+                .padding(.horizontal, 18)
+                .padding(.top, 14)
+                .padding(.bottom, 0)
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
             }
-            .foregroundStyle(Color.textPrimary)
-            .padding(.horizontal, 18)
-            .padding(.top, 14)
-            .padding(.bottom, 0)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .foregroundStyle(Color.textPrimary)
         .background(Color.black.opacity(0.52).ignoresSafeArea())

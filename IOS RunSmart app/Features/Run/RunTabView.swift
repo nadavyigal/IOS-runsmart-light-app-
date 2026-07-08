@@ -90,10 +90,13 @@ struct RunTabView: View {
             )
             VoiceCoachService.shared.deliverCue(context: context)
         }
-        .confirmationDialog(
+        // WP-37 S4: confirmationDialog rendered with only the destructive/confirm
+        // action visible on iOS 26 (device-confirmed) — "Keep Workout"/"Keep
+        // Recording" never appeared, leaving a mid-run mis-tap with no visible way
+        // back. .alert reliably renders both actions; same copy, same roles.
+        .alert(
             "Discard this workout?",
-            isPresented: $isConfirmingDiscard,
-            titleVisibility: .visible
+            isPresented: $isConfirmingDiscard
         ) {
             Button("Discard Workout", role: .destructive) {
                 discardRun()
@@ -102,10 +105,9 @@ struct RunTabView: View {
         } message: {
             Text("This removes the current timer, distance, and route.")
         }
-        .confirmationDialog(
+        .alert(
             finishConfirmationTitle,
-            isPresented: $isConfirmingFinish,
-            titleVisibility: .visible
+            isPresented: $isConfirmingFinish
         ) {
             Button("Finish and Save") {
                 finishRun()
