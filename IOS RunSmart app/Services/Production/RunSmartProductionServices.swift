@@ -455,6 +455,21 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        if phase == .recording || phase == .paused {
+            // Only an explicit permission denial should abort an active run. Every
+            // other CLLocationManager failure (e.g. kCLErrorLocationUnknown) is
+            // transient per Apple's docs and must not silently discard a run that's
+            // already in progress; keep recording and surface degraded-GPS copy.
+            if (error as? CLError)?.code == .denied {
+                stopTracking()
+                lastErrorMessage = "Location permission is required to record GPS runs."
+                phase = .denied
+                return
+            }
+            lastErrorMessage = "Weak GPS signal. RunSmart keeps recording and will reconnect automatically."
+            return
+        }
+
         lastErrorMessage = error.localizedDescription
         phase = .failed
     }
@@ -544,6 +559,10 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     private func acceptRecordingLocation(_ location: CLLocation, forceDisplay: Bool = false) {
+        // A usable location means GPS has reconnected; clear any transient-error
+        // copy set by locationManager(_:didFailWithError:) so the GPS pill reverts
+        // to normal accuracy messaging instead of sticking on the old error text.
+        lastErrorMessage = nil
         if let previous = lastAcceptedLocation {
             let delta = location.distance(from: previous)
             guard delta >= 1 else { return }
