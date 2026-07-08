@@ -1804,6 +1804,44 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(moving, 90)
     }
 
+    // WP-37 S5: PostRunSummaryView.splitRows used to fabricate paces as
+    // `averagePace + ((km % 3) - 1) * 4s` and present them as "KM SPLITS".
+    // RunRecorder.kilometerSplits(from:) replaces that with real per-km splits
+    // derived from route-point GPS distance and timestamps; a split only
+    // appears once the recorded route actually crosses that kilometer boundary.
+    func testKilometerSplitsComputesRealPaceFromRoutePointCrossings() {
+        let start = Date(timeIntervalSince1970: 5_000)
+        // ~0.011 degrees latitude ≈ 1221m at this latitude — comfortably clears
+        // each 1000m boundary with margin, and never double-crosses a boundary
+        // within one segment (1221m < 2000m).
+        let points = [
+            RunRoutePoint(latitude: 32.0000, longitude: 34.0, timestamp: start, horizontalAccuracy: 8, altitude: nil),
+            RunRoutePoint(latitude: 32.0110, longitude: 34.0, timestamp: start.addingTimeInterval(300), horizontalAccuracy: 8, altitude: nil),
+            RunRoutePoint(latitude: 32.0220, longitude: 34.0, timestamp: start.addingTimeInterval(630), horizontalAccuracy: 8, altitude: nil)
+        ]
+
+        let splits = RunRecorder.kilometerSplits(from: points)
+
+        XCTAssertEqual(splits.count, 2, "distance never reaches a 3rd kilometer, so only 2 real splits should exist")
+        XCTAssertEqual(splits[0].km, 1)
+        XCTAssertEqual(splits[0].paceSecondsPerKm, 300, accuracy: 0.5, "split 1 pace must be the real elapsed time to cross 1km (5:00/km), not a fabricated drift value")
+        XCTAssertEqual(splits[1].km, 2)
+        XCTAssertEqual(splits[1].paceSecondsPerKm, 330, accuracy: 0.5, "split 2 pace must be the real elapsed time between the 1km and 2km crossings (5:30/km)")
+    }
+
+    func testKilometerSplitsReturnsEmptyWhenRouteNeverCompletesAKilometer() {
+        let start = Date(timeIntervalSince1970: 5_100)
+        // ~0.005 degrees latitude ≈ 555m — well under the 1000m first boundary.
+        let points = [
+            RunRoutePoint(latitude: 32.0000, longitude: 34.0, timestamp: start, horizontalAccuracy: 8, altitude: nil),
+            RunRoutePoint(latitude: 32.0050, longitude: 34.0, timestamp: start.addingTimeInterval(180), horizontalAccuracy: 8, altitude: nil)
+        ]
+
+        let splits = RunRecorder.kilometerSplits(from: points)
+
+        XCTAssertTrue(splits.isEmpty, "a run that never completes a full kilometer must show no splits (real crossing, not run.distanceMeters >= 500 filler)")
+    }
+
     @MainActor
     func testRunRecorderWaitsForUsableGPSLockBeforeStartingTimer() {
         let recorder = RunRecorder()

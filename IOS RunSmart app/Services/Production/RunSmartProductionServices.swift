@@ -650,6 +650,42 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         return String(format: "%d:%02d", Int32(total / 60), Int32(total % 60))
     }
 
+    /// Real per-kilometer splits derived from route-point GPS distance and
+    /// timestamps — WP-37 S5. A split for kilometer N only appears once the
+    /// recorded route has actually crossed N*1000m; a run that never completes
+    /// a full kilometer returns an empty array (no fabricated/filler splits).
+    /// Multiple boundaries crossed within one sparse GPS segment are all
+    /// attributed to that segment's end timestamp rather than interpolated.
+    static func kilometerSplits(from routePoints: [RunRoutePoint], maxSplits: Int = 8) -> [KilometerSplit] {
+        guard routePoints.count >= 2, let first = routePoints.first else { return [] }
+
+        var splits: [KilometerSplit] = []
+        var cumulativeDistance: Double = 0
+        var nextBoundaryMeters: Double = 1_000
+        var previousBoundaryTimestamp = first.timestamp
+        var previousPoint = first
+
+        for point in routePoints.dropFirst() {
+            guard splits.count < maxSplits else { break }
+
+            let segmentDistance = CLLocation(latitude: previousPoint.latitude, longitude: previousPoint.longitude)
+                .distance(from: CLLocation(latitude: point.latitude, longitude: point.longitude))
+            cumulativeDistance += segmentDistance
+
+            while cumulativeDistance >= nextBoundaryMeters, splits.count < maxSplits {
+                let km = splits.count + 1
+                let splitSeconds = max(0, point.timestamp.timeIntervalSince(previousBoundaryTimestamp))
+                splits.append(KilometerSplit(km: km, paceSecondsPerKm: splitSeconds))
+                previousBoundaryTimestamp = point.timestamp
+                nextBoundaryMeters += 1_000
+            }
+
+            previousPoint = point
+        }
+
+        return splits
+    }
+
     static func movingDuration(
         startedAt: Date,
         endedAt: Date,
