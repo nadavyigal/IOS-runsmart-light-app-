@@ -1944,6 +1944,71 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertTrue(recorder.routePoints.isEmpty)
     }
 
+    // WP-37 S2: a transient GPS error (e.g. kCLErrorLocationUnknown) mid-run must
+    // not abort the recording. Before the fix, locationManager(_:didFailWithError:)
+    // set phase = .failed on ANY error while recording, silently kicking the run
+    // back to PreRun with no save. Apple's docs treat kCLErrorLocationUnknown as
+    // transient; only an explicit .denied should stop an active run.
+    @MainActor
+    func testRunRecorderIgnoresTransientGPSErrorWhileRecording() {
+        let recorder = RunRecorder()
+        let now = Date(timeIntervalSince1970: 4_000)
+
+        recorder.startAcquiringLocation(startLocationUpdates: false)
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0800, longitude: 34.7800, accuracy: 10, timestamp: now)
+        ], now: now)
+        XCTAssertEqual(recorder.phase, .recording)
+
+        recorder.locationManager(CLLocationManager(), didFailWithError: CLError(.locationUnknown))
+
+        XCTAssertEqual(recorder.phase, .recording, "a transient GPS error must not abort an active recording")
+        XCTAssertNotNil(recorder.lastErrorMessage, "the GPS pill should surface degraded-signal copy")
+
+        // GPS recovers: the next usable location must clear the transient-error copy.
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0801, longitude: 34.7801, accuracy: 10, timestamp: now.addingTimeInterval(2))
+        ], now: now.addingTimeInterval(2))
+
+        XCTAssertEqual(recorder.phase, .recording)
+        XCTAssertNil(recorder.lastErrorMessage, "recovered GPS must clear the stale transient-error message")
+
+        recorder.discard()
+    }
+
+    @MainActor
+    func testRunRecorderStopsSafelyWhenPermissionDeniedWhileRecording() {
+        let recorder = RunRecorder()
+        let now = Date(timeIntervalSince1970: 4_100)
+
+        recorder.startAcquiringLocation(startLocationUpdates: false)
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0800, longitude: 34.7800, accuracy: 10, timestamp: now)
+        ], now: now)
+        XCTAssertEqual(recorder.phase, .recording)
+
+        recorder.locationManager(CLLocationManager(), didFailWithError: CLError(.denied))
+
+        XCTAssertEqual(recorder.phase, .denied, "an explicit permission denial must still stop an active run")
+        XCTAssertNotNil(recorder.lastErrorMessage)
+    }
+
+    @MainActor
+    func testRunRecorderStillFailsOnErrorWhenNotRecording() {
+        let recorder = RunRecorder()
+        let now = Date(timeIntervalSince1970: 4_200)
+
+        recorder.startAcquiringLocation(startLocationUpdates: false)
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.08, longitude: 34.78, accuracy: 80, timestamp: now)
+        ], now: now)
+        XCTAssertEqual(recorder.phase, .acquiringLocation, "weak accuracy should not have started recording yet")
+
+        recorder.locationManager(CLLocationManager(), didFailWithError: CLError(.locationUnknown))
+
+        XCTAssertEqual(recorder.phase, .failed, "pre-recording behavior is unchanged: any error still surfaces as .failed before a run has started")
+    }
+
     @MainActor
     func testRunRecorderDisplayRouteSimplificationPreservesRawRouteData() {
         let now = Date(timeIntervalSince1970: 2_400)
