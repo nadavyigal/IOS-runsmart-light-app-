@@ -1251,6 +1251,9 @@ private struct RunReportDetailScaffold: View {
                         MetricBadge(title: "Time", value: report.duration)
                         MetricBadge(title: "Avg Pace", value: report.averagePace)
                         MetricBadge(title: "Avg HR", value: report.averageHeartRate)
+                        if let rpeLabel {
+                            MetricBadge(title: "RPE", value: rpeLabel)
+                        }
                     }
                     Text(report.source)
                         .font(.caption.bold())
@@ -1292,6 +1295,10 @@ private struct RunReportDetailScaffold: View {
                 .disabled(isGenerating)
             }
         }
+    }
+
+    private var rpeLabel: String? {
+        reportRun?.rpe.map { "\($0)/10" }
     }
 
     private func generateReportTapped() {

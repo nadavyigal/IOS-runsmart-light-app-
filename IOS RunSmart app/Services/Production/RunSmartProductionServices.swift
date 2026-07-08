@@ -71,6 +71,13 @@ final class RunSmartLocalStore {
         load([RecordedRun].self, key: "runsmart.runs") ?? []
     }
 
+    func updateRunRPE(_ run: RecordedRun, rpe: Int?) -> RecordedRun {
+        var updated = run
+        updated.rpe = rpe
+        saveRun(updated)
+        return updated
+    }
+
     func visibleRuns(_ runs: [RecordedRun]) -> [RecordedRun] {
         runs.filter { !isRunHidden($0) }
     }
@@ -870,6 +877,14 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         )
         store.saveRun(run)
         return run
+    }
+
+    func updateRunRPE(_ run: RecordedRun, rpe: Int?) async -> RecordedRun {
+        let updated = store.updateRunRPE(run, rpe: rpe)
+        await MainActor.run {
+            NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+        }
+        return updated
     }
 
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult? {

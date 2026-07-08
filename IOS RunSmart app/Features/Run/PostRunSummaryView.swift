@@ -14,7 +14,8 @@ struct PostRunSummaryView: View {
     var onSave: () -> Void
     var onDelete: () -> Void
 
-    @State private var rpe = 6
+    @State private var rpe: Int?
+    @State private var ratedRun: RecordedRun?
     @State private var showDeleteConfirmation = false
     @State private var showSaveRouteSheet = false
     @State private var achievementContext: AchievementContext?
@@ -44,7 +45,7 @@ struct PostRunSummaryView: View {
                             PostRunStatPill(title: "Route", value: routeLabel, tint: .accentRecovery)
                         }
 
-                        RouteMapView(points: run?.routePoints ?? [], title: "Completed route")
+                        RouteMapView(points: displayRun?.routePoints ?? [], title: "Completed route")
                             .frame(height: 142)
                     }
                 }
@@ -59,7 +60,7 @@ struct PostRunSummaryView: View {
                     NoticedMomentCard(context: noticeContext)
                 }
 
-                CoachAnalysisCard(run: run, rpe: rpe, isShortActivity: isShortActivity)
+                CoachAnalysisCard(run: displayRun, rpe: rpe, isShortActivity: isShortActivity)
                 Button {
                     onSave()
                     router.selectedTab = .report
@@ -147,7 +148,12 @@ struct PostRunSummaryView: View {
             }
         }
         .task(id: run?.id) {
+            ratedRun = outcome?.canonicalRun ?? run
+            rpe = ratedRun?.rpe
             await loadAhaMoments()
+        }
+        .onChange(of: rpe) { _, newValue in
+            Task { await persistRPE(newValue) }
         }
         .confirmationDialog("Delete this activity?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
             Button("Delete Activity", role: .destructive, action: onDelete)
@@ -164,27 +170,27 @@ struct PostRunSummaryView: View {
     }
 
     private var distanceLabel: String {
-        guard let run else { return "-- km" }
+        guard let run = displayRun else { return "-- km" }
         return String(format: "%.2f km", run.distanceMeters / 1_000)
     }
 
     private var timeLabel: String {
-        guard let run else { return "--" }
+        guard let run = displayRun else { return "--" }
         return RunRecorder.timeLabel(run.movingTimeSeconds)
     }
 
     private var paceLabel: String {
-        guard let run else { return "--" }
+        guard let run = displayRun else { return "--" }
         return RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm)
     }
 
     private var routeLabel: String {
-        guard let run else { return "--" }
+        guard let run = displayRun else { return "--" }
         return run.routePoints.isEmpty ? "No map" : "\(run.routePoints.count) pts"
     }
 
     private var isShortActivity: Bool {
-        guard let run else { return false }
+        guard let run = displayRun else { return false }
         return run.distanceMeters < 100 || run.movingTimeSeconds < 60
     }
 
@@ -198,9 +204,21 @@ struct PostRunSummaryView: View {
     }
 
     private var splitRows: [SplitRow] {
-        guard let run else { return [] }
+        guard let run = displayRun else { return [] }
         return RunRecorder.kilometerSplits(from: run.routePoints).map { split in
             SplitRow(km: split.km, pace: RunRecorder.paceLabel(secondsPerKm: split.paceSecondsPerKm))
+        }
+    }
+
+    private var displayRun: RecordedRun? {
+        ratedRun ?? outcome?.canonicalRun ?? run
+    }
+
+    private func persistRPE(_ value: Int?) async {
+        guard let run = displayRun else { return }
+        let updated = await services.updateRunRPE(run, rpe: value)
+        await MainActor.run {
+            ratedRun = updated
         }
     }
 
@@ -481,7 +499,7 @@ private struct PostRunStatPill: View {
 
 private struct CoachAnalysisCard: View {
     var run: RecordedRun?
-    var rpe: Int
+    var rpe: Int?
     var isShortActivity = false
 
     var body: some View {
@@ -527,6 +545,7 @@ private struct CoachAnalysisCard: View {
 
     private var effortLabel: String {
         if isShortActivity { return "Review" }
+        guard let rpe else { return "Not rated" }
         switch rpe {
         case 1...4: return "Easy"
         case 5...7: return "Steady"
@@ -536,6 +555,7 @@ private struct CoachAnalysisCard: View {
 
     private var effortTint: Color {
         if isShortActivity { return .accentEnergy }
+        guard let rpe else { return .textSecondary }
         switch rpe {
         case 1...4: return .accentPrimary
         case 5...7: return .accentEnergy
@@ -554,6 +574,7 @@ private struct CoachAnalysisCard: View {
 
     private var benefitText: String {
         if isShortActivity { return "Training benefit is not calculated for this short activity." }
+        guard let rpe else { return "Rate the effort if you want this run tagged with how it felt." }
         return rpe <= 6 ? "This supports aerobic consistency without adding unnecessary strain." : "This was a stronger effort. Keep the next run controlled."
     }
 
@@ -564,6 +585,7 @@ private struct CoachAnalysisCard: View {
 
     private var recoveryText: String {
         if isShortActivity { return "No recovery adjustment needed unless this was part of a longer effort." }
+        guard let rpe else { return "Recovery guidance sharpens once you rate the effort." }
         return rpe >= 7 ? "Hydrate, refuel, and keep the next 24h lighter." : "Rehydrate and refuel. Easy movement later is enough."
     }
 

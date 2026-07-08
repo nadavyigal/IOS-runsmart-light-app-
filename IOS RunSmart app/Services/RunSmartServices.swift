@@ -59,8 +59,17 @@ protocol RunLogging {
     func currentRunMetrics() async -> [MetricTile]
     func recentRuns() async -> [RecordedRun]
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun
+    func updateRunRPE(_ run: RecordedRun, rpe: Int?) async -> RecordedRun
     func removeRun(_ run: RecordedRun) async -> Bool
     func finishRun() async
+}
+
+extension RunLogging {
+    func updateRunRPE(_ run: RecordedRun, rpe: Int?) async -> RecordedRun {
+        var updated = run
+        updated.rpe = rpe
+        return updated
+    }
 }
 
 protocol TrainingContextProviding {
@@ -397,6 +406,8 @@ enum TrainingContextCoachResponder {
 
 #if DEBUG
 struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, ProfileProviding, RunLogging {
+    private let store = RunSmartLocalStore.shared
+
     func todayRecommendation() async -> TodayRecommendation {
         RunSmartPreviewData.today
     }
@@ -452,7 +463,9 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     }
 
     func recentRuns() async -> [RecordedRun] {
-        RunSmartPreviewData.recordedRuns
+        let localRuns = store.visibleRuns(store.loadRuns()).sorted { $0.startedAt > $1.startedAt }
+        guard !localRuns.isEmpty else { return RunSmartPreviewData.recordedRuns }
+        return localRuns + RunSmartPreviewData.recordedRuns
     }
 
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
@@ -474,6 +487,10 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     }
 
     func removeRun(_ run: RecordedRun) async -> Bool { false }
+
+    func updateRunRPE(_ run: RecordedRun, rpe: Int?) async -> RecordedRun {
+        store.updateRunRPE(run, rpe: rpe)
+    }
 
     func finishRun() async {}
 

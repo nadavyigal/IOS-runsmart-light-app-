@@ -61,6 +61,9 @@ struct ActivityRow: View {
     /// For Garmin-sourced runs this doubles as the required "Garmin [device model]" attribution.
     private var metadataLine: String {
         let date = run.startedAt.formatted(date: .abbreviated, time: .shortened)
-        return "\(date) · \(RunSmartAttribution.sourceLabel(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName))"
+        let rpeText = run.rpe.map { "RPE \($0)/10" }
+        return [date, RunSmartAttribution.sourceLabel(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName), rpeText]
+            .compactMap { $0 }
+            .joined(separator: " · ")
     }
 }
