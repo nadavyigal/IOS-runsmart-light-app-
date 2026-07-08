@@ -56,18 +56,23 @@ struct LiveRunView: View {
 
                 Spacer(minLength: 0)
 
+                // WP-37 S3: never show 4 buttons. Coach is irrelevant while paused
+                // (VoiceCoachService is itself paused, so there's nothing to mute),
+                // so the paused state swaps it for Discard instead of appending a
+                // fourth button — keeps the row at 3 buttons on every screen width.
                 HStack(alignment: .bottom, spacing: 18) {
                     LiveControlButton(title: phase == .paused ? "Resume" : "Pause", symbol: phase == .paused ? "play.fill" : "pause.fill", tint: .accentPrimary, prominent: true, action: onPauseResume)
                     LiveControlButton(title: "Finish", symbol: "stop.fill", tint: .accentHeart, prominent: false, action: onFinish)
-                    LiveControlButton(
-                        title: voiceCoach.isEnabled ? "Coach" : "Muted",
-                        symbol: voiceCoach.isEnabled ? "waveform" : "waveform.slash",
-                        tint: voiceCoach.isEnabled ? .accentPrimary : .textSecondary,
-                        prominent: false,
-                        action: { voiceCoach.setEnabled(!voiceCoach.isEnabled) }
-                    )
                     if phase == .paused {
                         LiveControlButton(title: "Discard", symbol: "trash.fill", tint: .accentHeart, prominent: false, action: onDiscard)
+                    } else {
+                        LiveControlButton(
+                            title: voiceCoach.isEnabled ? "Coach" : "Muted",
+                            symbol: voiceCoach.isEnabled ? "waveform" : "waveform.slash",
+                            tint: voiceCoach.isEnabled ? .accentPrimary : .textSecondary,
+                            prominent: false,
+                            action: { voiceCoach.setEnabled(!voiceCoach.isEnabled) }
+                        )
                     }
                 }
                 .padding(.bottom, 28)
