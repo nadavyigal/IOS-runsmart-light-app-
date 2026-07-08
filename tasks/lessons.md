@@ -54,6 +54,7 @@ Review this file at the start of future tasks.
 - A `GeometryReader` + non-scrolling `VStack` with fixed-height-floor panels (e.g. `.frame(height: max(174, min(218, proxy.size.height * 0.25)))`) has no scroll fallback and can silently clip trailing content (button labels) on short screens (iPhone SE, 667pt) even though it renders fine on taller phones. Wrap in `ScrollView` and change the inner frame from `maxHeight: .infinity` to `minHeight: proxy.size.height` — this preserves the existing bottom-pinned layout (via `Spacer(minLength: 0)`) on tall screens while making short screens scroll instead of clip.
 - SwiftUI Map `Annotation` titles render as visible map labels. For live runner/current-position indicators, use an unlabeled annotation and put the meaning in the surrounding UI or accessibility surface; otherwise replacing a wrong "Finish" marker with a visible "Current position" label still violates the plain-dot intent.
 - Post-run controls that ask for subjective user input must either persist that input to the saved run or start in a clearly unset state and remain non-authoritative; never preselect a fake value that is silently discarded. When validating accelerated demo-mode runs, make sure the QA service path can surface locally saved runs in history without weakening production visibility filters.
+- Pre-run previews must not claim live GPS unless they are backed by real location/map data. Decorative route sketches should be labeled as sketches, and short-screen reachability must be verified by scrolling on iPhone SE as well as checking the first viewport on larger phones.
 
 ## Lesson Log
 
@@ -91,6 +92,13 @@ Trigger: The post-run summary preselected "How did that feel?" at 6/10 and then 
 Lesson: A preselected subjective rating is a product claim, not a harmless default. If the saved model and history/report surfaces do not carry that value, the control teaches users not to trust the run summary.
 
 Future rule: For any post-run subjective control, wire persistence and a visible readback in the saved run before shipping; otherwise start from an explicit unset state or remove the control. For simulator runs compressed by `-RUNSMART_DEMO_MODE`, keep production filtering intact and expose local recorded runs only through the demo service path so history persistence can still be QAed.
+
+### 2026-07-08 - PreRun Preview Copy Must Match Data Reality (WP-37 S8)
+Trigger: `PreRunView` labeled a decorative `RunSmartRoutePreview` as `GPS preview`, while the same non-scrolling layout could keep the real Last Run card out of reach on iPhone SE.
+
+Lesson: Sensor-language copy ("GPS preview") reads like live data, even when the implementation is only a stylized sketch. Pairing that with unreachable real history reverses the trust hierarchy: fake-looking-live content is prominent, real content is hidden.
+
+Future rule: Do not label decorative route art as GPS/current-location/map preview unless it is backed by real location data. Use a scrollable short-screen fallback for PreRun-style stacks and verify both first-viewport copy and scroll reachability on iPhone 17 plus iPhone SE.
 
 ### 2026-06-30 - Garmin Evidence Needs Row-Level Visual Verification
 Trigger: Live `1.0.5 (18)` screenshots showed Recovery/Wellness with `Garmin Forerunner 965`, but Report/Run Report still displayed bare `Garmin` because individual activity rows lacked `device_name`.

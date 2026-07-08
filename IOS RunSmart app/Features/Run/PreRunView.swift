@@ -13,78 +13,80 @@ struct PreRunView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            VStack(alignment: .leading, spacing: 12) {
-                RunSmartTopBar(title: "Run")
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 12) {
+                    RunSmartTopBar(title: "Run")
 
-                GPSStatusPill(status: gpsStatus, detail: gpsDetail, phase: phase)
+                    GPSStatusPill(status: gpsStatus, detail: gpsDetail, phase: phase)
 
-                RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            SectionLabel(title: "Ready")
-                            Text(plannedWorkout?.title ?? "Free Run")
-                                .font(.displayMD)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.72)
-                            Text(workoutDetail)
-                                .font(.metricSM)
-                                .foregroundStyle(Color.accentPrimary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.78)
-                        }
-
-                        HStack(alignment: .center, spacing: 16) {
-                            StartRunButton(title: startTitle, isWaiting: phase == .requestingPermission || phase == .acquiringLocation, action: onStart)
-                            Spacer()
-                            VStack(alignment: .leading, spacing: 9) {
-                                Label("GPS route", systemImage: "location.fill")
-                                Label("Pace", systemImage: "timer")
-                                Label("Moving time", systemImage: "stopwatch")
-                            }
-                            .font(.bodyMD.weight(.semibold))
-                            .foregroundStyle(Color.textSecondary)
-                            .frame(width: 132, alignment: .leading)
-                        }
-
-                        HStack(spacing: 10) {
-                            RunOptionButton(title: "Route", symbol: "map.fill", tint: .accentRecovery, action: onRoute)
-                            RunOptionButton(title: "Audio", symbol: "speaker.wave.2.fill", tint: .accentPrimary, action: onAudio)
-                        }
-
-                        if let selectedRoute {
-                            SelectedPreRunRouteCard(route: selectedRoute)
-                        }
-
-                        PreRunCueTimeline(plannedWorkout: plannedWorkout)
-                    }
-                }
-
-                Button(action: onRoute) {
-                    RunSmartRoutePreview(title: "GPS preview", showGPS: true, height: max(118, min(170, proxy.size.height * 0.18)))
-                }
-                .buttonStyle(.plain)
-
-                if let lastRun = metrics.first {
-                    RunSmartPanel(cornerRadius: 18, padding: 12) {
-                        HStack(spacing: 12) {
-                            SectionLabel(title: "Last Run")
-                            Spacer()
-                            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                Text(lastRun.value)
+                    RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                SectionLabel(title: "Ready")
+                                Text(plannedWorkout?.title ?? "Free Run")
+                                    .font(.displayMD)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                                Text(workoutDetail)
                                     .font(.metricSM)
-                                Text(lastRun.unit)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(lastRun.tint)
+                                    .foregroundStyle(Color.accentPrimary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.78)
+                            }
+
+                            HStack(alignment: .center, spacing: 16) {
+                                StartRunButton(title: startTitle, isWaiting: phase == .requestingPermission || phase == .acquiringLocation, action: onStart)
+                                Spacer()
+                                VStack(alignment: .leading, spacing: 9) {
+                                    Label("GPS route", systemImage: "location.fill")
+                                    Label("Pace", systemImage: "timer")
+                                    Label("Moving time", systemImage: "stopwatch")
+                                }
+                                .font(.bodyMD.weight(.semibold))
+                                .foregroundStyle(Color.textSecondary)
+                                .frame(width: 132, alignment: .leading)
+                            }
+
+                            HStack(spacing: 10) {
+                                RunOptionButton(title: "Route", symbol: "map.fill", tint: .accentRecovery, action: onRoute)
+                                RunOptionButton(title: "Audio", symbol: "speaker.wave.2.fill", tint: .accentPrimary, action: onAudio)
+                            }
+
+                            if let selectedRoute {
+                                SelectedPreRunRouteCard(route: selectedRoute)
+                            }
+
+                            PreRunCueTimeline(plannedWorkout: plannedWorkout)
+                        }
+                    }
+
+                    Button(action: onRoute) {
+                        RunSmartRoutePreview(title: "Route sketch", showGPS: false, height: max(118, min(170, proxy.size.height * 0.18)))
+                    }
+                    .buttonStyle(.plain)
+
+                    if let lastRun = metrics.first {
+                        RunSmartPanel(cornerRadius: 18, padding: 12) {
+                            HStack(spacing: 12) {
+                                SectionLabel(title: "Last Run")
+                                Spacer()
+                                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                    Text(lastRun.value)
+                                        .font(.metricSM)
+                                    Text(lastRun.unit)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(lastRun.tint)
+                                }
                             }
                         }
                     }
                 }
+                .foregroundStyle(Color.textPrimary)
+                .padding(.horizontal, 18)
+                .padding(.top, 14)
+                .padding(.bottom, 128)
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
             }
-            .foregroundStyle(Color.textPrimary)
-            .padding(.horizontal, 18)
-            .padding(.top, 14)
-            .padding(.bottom, 128)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .background(Color.black.opacity(0.52).ignoresSafeArea())
     }
