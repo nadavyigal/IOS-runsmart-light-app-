@@ -1,10 +1,10 @@
-Status: WP-15 fix shipped to App Store Connect as **1.0.7 (21)** on 2026-07-05. Post-fix activation cohort readout is **pending** (needs ~3–7 days live on build 21). WP-34 Garmin credential-guard branch remains unrecoverable — founder decision required. WP-27 Garmin Gate-4 evidence cleanup complete on main; founder-run screenshots still pending.
+Status: WP-15 fix shipped to App Store Connect as **1.0.7 (21)** on 2026-07-05. Post-fix activation cohort readout is **pending** (needs ~3–7 days live on build 21). WP-34 Garmin credential-guard: closed, explicitly parked per EXD-019 (2026-07-05) — commit unrecoverable, not being reimplemented; revisit 2026-08-01 with EXD-015 reread. WP-27 Garmin Gate-4 evidence cleanup complete on main; founder-run screenshots still pending.
 Current Phase: PHASE 2 — Activation diagnostics + Garmin maintenance (EXD-015).
 Active Story: WP-15 — monitor `plan_generated -> plan_run_cta_tapped -> run_started -> run_completed` on build 21 cohort (target >=20% plan-to-run).
 Last Completed Story: 2026-07-05 — WP-15 release: archived and uploaded **1.0.7 (21)** with `firstRunnableWorkoutAfterPlanGeneration()` poll fix (commit `6ed8b97`).
-Next Recommended Story: Re-run PostHog funnel on **2026-07-08+** for build-21-only users (`filterTestAccounts=true`). Founder: decide WP-34 re-implement vs park. Then WP-27 Gate-4 screenshots if Garmin path resumes.
+Next Recommended Story: Re-run PostHog funnel on **2026-07-08+** for build-21-only users (`filterTestAccounts=true`). Then WP-27 Gate-4 screenshots if Garmin path resumes.
 Estimated Completion: Post-fix funnel gate opens ~2026-07-08 (3 days after ASC upload) once enough onboarding→plan completions mature.
-Blockers: (1) Post-fix cohort not yet measurable same-day as upload. (2) WP-34 lost work. (3) Local main worktree has Finder duplicate `* 2.swift` files that block archive — release built from clean detached worktree at `6ed8b97`; clean duplicates before next local archive.
+Blockers: (1) Post-fix cohort not yet measurable same-day as upload. (2) Local main worktree has Finder duplicate `* 2.swift` files that block archive — release built from clean detached worktree at `6ed8b97`; clean duplicates before next local archive.
 Last Validation: 2026-07-05 — Release archive **SUCCEEDED** (clean worktree, ~10 min). ASC upload **SUCCEEDED** (`ExportOptionsAppStoreUpload.plist`). Archive metadata: `RunSmart` / `com.runsmart.lite` / `1.0.7` / `21` / `ITSAppUsesNonExemptEncryption=false` / dSYM present. Known HKWorkout deprecation warning only.
 PM Artifacts: Activation funnel events in `.agent-os/distribution/analytics-instrumentation-spec.md`; WP-34 incident in `tasks/ERRORS.md`.
 Last Updated: 2026-07-05
