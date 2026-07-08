@@ -4,6 +4,7 @@ import MapKit
 struct RouteMapView: View {
     var points: [RunRoutePoint]
     var title: String?
+    var isLive = false
     @State private var position: MapCameraPosition = .region(Self.defaultRegion)
 
     private var coordinates: [CLLocationCoordinate2D] {
@@ -46,7 +47,11 @@ struct RouteMapView: View {
                         Marker("Start", systemImage: "play.fill", coordinate: first)
                             .tint(.green)
                     }
-                    if let last = coordinates.last {
+                    if isLive, let last = coordinates.last {
+                        Annotation("", coordinate: last, anchor: .center) {
+                            LivePositionMarker()
+                        }
+                    } else if let last = coordinates.last {
                         Marker("Finish", systemImage: "flag.fill", coordinate: last)
                             .tint(.red)
                     }
@@ -85,5 +90,22 @@ struct RouteMapView: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct LivePositionMarker: View {
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.accentPrimary.opacity(0.22))
+                .frame(width: 24, height: 24)
+            Circle()
+                .fill(Color.accentPrimary)
+                .frame(width: 12, height: 12)
+            Circle()
+                .stroke(Color.white, lineWidth: 2)
+                .frame(width: 12, height: 12)
+        }
+        .accessibilityHidden(true)
     }
 }
