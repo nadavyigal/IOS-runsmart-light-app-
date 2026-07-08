@@ -198,12 +198,9 @@ struct PostRunSummaryView: View {
     }
 
     private var splitRows: [SplitRow] {
-        guard let run, run.distanceMeters >= 500 else { return [] }
-        let fullKm = max(1, Int(run.distanceMeters / 1_000))
-        return (1...min(fullKm, 8)).map { km in
-            let drift = Double((km % 3) - 1) * 4
-            let pace = max(1, run.averagePaceSecondsPerKm + drift)
-            return SplitRow(km: km, pace: RunRecorder.paceLabel(secondsPerKm: pace))
+        guard let run else { return [] }
+        return RunRecorder.kilometerSplits(from: run.routePoints).map { split in
+            SplitRow(km: split.km, pace: RunRecorder.paceLabel(secondsPerKm: split.paceSecondsPerKm))
         }
     }
 
@@ -627,7 +624,7 @@ private struct SplitPreviewCard: View {
                 .padding(14)
 
                 if splits.isEmpty {
-                    Text("Splits appear after at least 500m of GPS distance.")
+                    Text("Splits appear once you complete 1 km of GPS distance.")
                         .font(.bodyMD)
                         .foregroundStyle(Color.textSecondary)
                         .padding(.horizontal, 14)

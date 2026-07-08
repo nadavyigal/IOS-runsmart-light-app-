@@ -829,6 +829,16 @@ struct RunRoutePoint: Identifiable, Codable, Hashable {
     }
 }
 
+/// A single completed kilometer split, computed from real GPS route-point
+/// timestamps and distances (see `RunRecorder.kilometerSplits(from:)`) — never
+/// synthesized. `km` is only present once the recorded route actually crosses
+/// that kilometer boundary.
+struct KilometerSplit: Identifiable, Equatable {
+    var id: Int { km }
+    var km: Int
+    var paceSecondsPerKm: Double
+}
+
 struct RecordedRun: Identifiable, Codable, Hashable {
     var id: UUID
     var providerActivityID: String?
