@@ -291,6 +291,13 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     private var lastDisplayRouteUpdate: Date?
     private var shouldStartAfterPermission = false
 
+    /// Injectable authorization lookup so recorder phase transitions can be unit-tested
+    /// under a known authorization state. Defaults to the live `CLLocationManager`.
+    var authorizationStatusProvider: (() -> CLAuthorizationStatus)?
+    private var authorizationStatus: CLAuthorizationStatus {
+        authorizationStatusProvider?() ?? manager.authorizationStatus
+    }
+
     nonisolated static let requiredStartAccuracy: CLLocationAccuracy = 35
     nonisolated static let acceptedRecordingAccuracy: CLLocationAccuracy = 65
     nonisolated static let maximumLocationAge: TimeInterval = 15
@@ -340,12 +347,12 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func start() {
-        if manager.authorizationStatus == .notDetermined {
+        if authorizationStatus == .notDetermined {
             shouldStartAfterPermission = true
             requestPermission()
             return
         }
-        guard manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse else {
+        guard authorizationStatus == .authorizedAlways || authorizationStatus == .authorizedWhenInUse else {
             shouldStartAfterPermission = false
             phase = .denied
             lastErrorMessage = "Location permission is required to record GPS runs."
@@ -399,7 +406,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         stopTracking()
         resetCurrentRun()
         lastSavedRun = nil
-        updatePhaseForAuthorization()
+        resolveTerminalPhase()
     }
 
     @discardableResult
@@ -430,7 +437,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         )
         store.saveRun(run)
         lastSavedRun = run
-        updatePhaseForAuthorization()
+        resetCurrentRun()
+        resolveTerminalPhase()
         return run
     }
 
@@ -452,7 +460,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     private func updatePhaseForAuthorization() {
-        switch manager.authorizationStatus {
+        switch authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
             if phase == .idle || phase == .requestingPermission || phase == .denied || phase == .failed {
                 phase = .ready
@@ -464,6 +472,25 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             phase = .idle
         @unknown default:
             phase = .failed
+        }
+    }
+
+    /// Resolve the recorder to a non-recording terminal phase after a run ends
+    /// (finish/discard). Unlike `updatePhaseForAuthorization()`, this always moves
+    /// the phase out of `.recording`/`.paused`, so the Run tab returns to PreRun
+    /// instead of rendering a frozen "zombie" live-run screen. It must never be
+    /// called on authorization-change callbacks, which can fire mid-run.
+    private func resolveTerminalPhase() {
+        switch authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            phase = .ready
+        case .denied, .restricted:
+            shouldStartAfterPermission = false
+            phase = .denied
+        case .notDetermined:
+            phase = .idle
+        @unknown default:
+            phase = .ready
         }
     }
 

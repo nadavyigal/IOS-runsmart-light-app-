@@ -44,8 +44,17 @@ Review this file at the start of future tasks.
 - Before recording an App Store validation command as executable, verify the installed `xcodebuild` supports the flags; for this environment, `-validate-for-store` is not a supported CLI option, so use archive/export inspection locally and leave Organizer/ASC validation to founder-gated tooling.
 - If App Store Connect says a pre-release train is closed for new submissions, bump `MARKETING_VERSION` to the next train and re-archive; changing only `CURRENT_PROJECT_VERSION` cannot reopen a closed approved marketing version.
 - For Garmin submission evidence, visually verify each required screenshot against the exact rejected requirement; source support for `device_name` is not enough when legacy activity rows can lack it and need connection-level fallback.
+- A `RunRecorder` phase-reset test that relies on the test host's `.notDetermined` authorization masks the device zombie-recorder bug: `updatePhaseForAuthorization()` resets `.recording`→`.idle` under `.notDetermined` but leaves it stuck under `.authorizedWhenInUse`. Inject authorization via `authorizationStatusProvider` and assert the authorized-path phase transition, or the test passes on CI while the bug ships.
+- Post-run recorder teardown (`finish()`/`discard()`) must call `resolveTerminalPhase()` (always exits `.recording`/`.paused`), never `updatePhaseForAuthorization()` (guarded, no-op mid-run); the auth-change callback must keep using `updatePhaseForAuthorization()` so a mid-run permission change never yanks an active run to `.ready`.
 
 ## Lesson Log
+
+### 2026-07-08 - Zombie Recorder: Phase Never Reset After Finish/Discard (WP-37 S1)
+Trigger: Fable run-recording audit found that after Save/View Report/Delete, the Run tab renders a frozen "Recording" zombie screen (no Start button, tab bar hidden, only escape is killing the app); ships in 1.0.7 (21).
+
+Lesson: `RunRecorder.finish()` and `discard()` delegated the post-run phase reset to `updatePhaseForAuthorization()`, whose authorized branch only resets phase when it is `.idle/.requestingPermission/.denied/.failed` — never `.recording/.paused`. On a device (`.authorizedWhenInUse`) the phase stuck; the existing discard test passed only because the test host is `.notDetermined` (which does reset to `.idle`), masking the device bug.
+
+Future rule: For terminal state-machine transitions, do not reuse an authorization-normalizer whose guards were written for a different call site. Add a dedicated resolver (`resolveTerminalPhase()`) that unconditionally exits the live state, keep the guarded normalizer for auth-change callbacks, and unit-test the authorized path via an injected authorization seam plus a red-state check (reintroduce the bug, confirm the test fails).
 
 ### 2026-06-30 - Garmin Evidence Needs Row-Level Visual Verification
 Trigger: Live `1.0.5 (18)` screenshots showed Recovery/Wellness with `Garmin Forerunner 965`, but Report/Run Report still displayed bare `Garmin` because individual activity rows lacked `device_name`.
