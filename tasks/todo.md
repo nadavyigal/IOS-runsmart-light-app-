@@ -2,19 +2,28 @@
 
 ## Current Task
 
-**Objective:** Garmin Internal Test path official-requirements research.
-**Status:** Complete in chat. Read Agentic OS WP-24 through WP-28, reviewed local Gate-4 rejection history, and ran a sourced Garmin documentation/public-evidence pass. No product or app code changes made.
-**Branch:** `main` / dirty local workspace
+**Objective:** WP-37 S6 — Live map current position is not "Finish".
+**Status:** Implemented and validated in clean story worktree; branch prepared for PR/merge handoff.
+**Branch:** `claude/wp37-runsmart-s6-live-map-marker` in `/tmp/rs-wp37-s6`
 
 ### Checklist
-- [x] Read canonical Agentic OS Garmin work packets WP-24 through WP-28.
-- [x] Read app/web Gate-4 rejection and Marc-email-derived status history.
-- [x] Research current official Garmin Connect Developer Program requirements and brand/data restrictions.
-- [x] Flag where local Marc-derived understanding is matched, contradicted, or not publicly grounded.
+- [x] Read canonical RunSmart task memory and WP-37 tracker/audit context.
+- [x] Create clean story worktree from fresh `origin/main`.
+- [x] Add live/post-run mode to `RouteMapView` without changing default post-run markers.
+- [x] Pass `isLive: true` only from `LiveRunView`.
+- [x] Run clean Debug simulator build.
+- [x] Device-QA live map on iPhone 17 simulator with demo mode and simulated GPS.
+- [x] Device-QA live map on iPhone SE simulator with demo mode and simulated GPS.
+- [x] Confirm post-run summary still shows Start/Finish markers.
+- [x] Save visual evidence screenshots under `docs/qa/reports/assets-2026-07-08-wp37-s6/`.
+- [x] Prepare branch for commit, push, PR, review checks, and merge.
+- [ ] Update WP-37 tracker Progress after merge.
 
-### Validation - 2026-07-06
-- `git status --short` inspected before work; existing dirty/untracked files were not overwritten.
-- External research used official Garmin pages/PDFs where available, plus clearly marked public forum/third-party evidence for non-official failure patterns.
+### Validation - 2026-07-08
+- `xcodebuild ... -destination 'platform=iOS Simulator,name=iPhone 17' ... -quiet build` passed; known HealthKit `HKWorkout` initializer deprecation warning only.
+- iPhone 17 simulator (`-RUNSMART_DEMO_MODE`, simulated CoreLocation route): live map shows Start + unlabeled current-position dot, no "Finish"; post-run completed route still shows Start + Finish.
+- Fresh iPhone SE 3rd-gen simulator (`-RUNSMART_DEMO_MODE`, simulated CoreLocation route): live map shows Start + unlabeled current-position dot, no "Finish".
+- No unit test added because S6 is pure SwiftUI Map annotation presentation with no logic seam; acceptance is visual and was checked on both required widths.
 
 ---
 

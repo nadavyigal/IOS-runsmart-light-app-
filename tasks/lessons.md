@@ -52,6 +52,7 @@ Review this file at the start of future tasks.
 - Never derive per-segment display data (splits, laps, intervals) from a run's *aggregate* stat (`averagePaceSecondsPerKm`) plus an arbitrary formula — that's fabrication even if it "looks plausible." A `max(1, ...)` guard forcing at least one entry is a second, subtler fabrication (a sub-1km run gets a fake "km 1" split). Derive per-segment data from the actual per-point GPS timestamps/distances, and let the segment legitimately not exist (empty state) when the recorded data doesn't support it — see `RunRecorder.kilometerSplits(from:)`.
 - On this environment's iOS 26 simulator, SwiftUI `confirmationDialog` renders only the destructive/primary action button and silently drops any `role: .cancel` button — device-confirmed via zoomed screenshot, not a hypothesis. `.alert` with the identical copy/roles/actions reliably renders both buttons. Prefer `.alert` over `confirmationDialog` for any destructive confirmation with a cancel path until this is fixed upstream.
 - A `GeometryReader` + non-scrolling `VStack` with fixed-height-floor panels (e.g. `.frame(height: max(174, min(218, proxy.size.height * 0.25)))`) has no scroll fallback and can silently clip trailing content (button labels) on short screens (iPhone SE, 667pt) even though it renders fine on taller phones. Wrap in `ScrollView` and change the inner frame from `maxHeight: .infinity` to `minHeight: proxy.size.height` — this preserves the existing bottom-pinned layout (via `Spacer(minLength: 0)`) on tall screens while making short screens scroll instead of clip.
+- SwiftUI Map `Annotation` titles render as visible map labels. For live runner/current-position indicators, use an unlabeled annotation and put the meaning in the surrounding UI or accessibility surface; otherwise replacing a wrong "Finish" marker with a visible "Current position" label still violates the plain-dot intent.
 
 ## Lesson Log
 
@@ -75,6 +76,13 @@ Trigger: Fable run-recording audit plus device-QA smoke test found `RunTabView`'
 Lesson: `confirmationDialog` silently dropping `role: .cancel` buttons is an iOS 26 simulator/runtime quirk, not a code bug — the SwiftUI declaration was correct. Fixed height floors on the metric/preview panels above the button row assumed every supported screen had enough vertical space; nothing degraded gracefully when that assumption broke on the shortest supported device.
 
 Future rule: Prefer `.alert` over `confirmationDialog` for destructive confirmations with a cancel path on this codebase until Apple fixes the rendering bug (same copy/roles/actions carry over unchanged). For any non-scrolling `GeometryReader`+`VStack` layout with height-floor panels, wrap in `ScrollView` with `minHeight: proxy.size.height` (not `maxHeight: .infinity`) on the inner frame so short screens scroll instead of clipping, while tall screens keep the existing bottom-pinned layout via `Spacer(minLength: 0)`. Verify both dialog rendering and label visibility on both iPhone 17 and iPhone SE simulators, not just the default destination.
+
+### 2026-07-08 - SwiftUI Map Annotation Titles Are Visible Labels (WP-37 S6)
+Trigger: While fixing the live map's wrong red "Finish" flag, the first pass replaced it with an `Annotation("Current position", ...)` dot. The red Finish marker was gone, but the map rendered visible "Current position" text under the dot, which was still not the requested plain live-position indicator.
+
+Lesson: SwiftUI Map annotation titles are display text, not just accessibility metadata. Using a descriptive title can accidentally add another map label and turn a visual trust fix into a different kind of clutter.
+
+Future rule: For live/current-position dots in `RouteMapView`, keep the annotation title empty unless product explicitly wants a visible label. Verify map-label changes with screenshots, not just accessibility snapshots, because the rendered map content is the acceptance surface.
 
 ### 2026-06-30 - Garmin Evidence Needs Row-Level Visual Verification
 Trigger: Live `1.0.5 (18)` screenshots showed Recovery/Wellness with `Garmin Forerunner 965`, but Report/Run Report still displayed bare `Garmin` because individual activity rows lacked `device_name`.
