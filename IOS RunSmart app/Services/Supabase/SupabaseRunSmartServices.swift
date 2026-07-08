@@ -221,7 +221,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                             distanceKm: run.distanceMeters / 1_000,
                             durationMinutes: max(1, Int(run.movingTimeSeconds / 60)),
                             avgPace: RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm),
-                            rpe: nil,
+                            rpe: run.rpe,
                             notes: run.source.rawValue
                         )
                     }
@@ -628,6 +628,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         store.saveRun(run)
         await postRunsChanged()
         return run
+    }
+
+    func updateRunRPE(_ run: RecordedRun, rpe: Int?) async -> RecordedRun {
+        let updated = store.updateRunRPE(run, rpe: rpe)
+        await postRunsChanged()
+        return updated
     }
 
     func removeRun(_ run: RecordedRun) async -> Bool {

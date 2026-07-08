@@ -2,28 +2,33 @@
 
 ## Current Task
 
-**Objective:** WP-37 S6 — Live map current position is not "Finish".
+**Objective:** WP-37 S7 — Persist RPE or stop pretending.
 **Status:** Implemented and validated in clean story worktree; branch prepared for PR/merge handoff.
-**Branch:** `claude/wp37-runsmart-s6-live-map-marker` in `/tmp/rs-wp37-s6`
+**Branch:** `claude/wp37-runsmart-s7-rpe-persistence` in `/tmp/rs-wp37-s7`
 
 ### Checklist
 - [x] Read canonical RunSmart task memory and WP-37 tracker/audit context.
 - [x] Create clean story worktree from fresh `origin/main`.
-- [x] Add live/post-run mode to `RouteMapView` without changing default post-run markers.
-- [x] Pass `isLive: true` only from `LiveRunView`.
+- [x] Start the post-run RPE selector in a genuinely unset state.
+- [x] Persist selected RPE through the local run store and service layer.
+- [x] Show persisted RPE on run history rows and run report detail.
+- [x] Add a focused local-store XCTest for RPE persistence.
+- [x] Run red-state check by temporarily removing the store save and confirming the test fails.
+- [x] Run focused XCTest after restoring the fix.
 - [x] Run clean Debug simulator build.
-- [x] Device-QA live map on iPhone 17 simulator with demo mode and simulated GPS.
-- [x] Device-QA live map on iPhone SE simulator with demo mode and simulated GPS.
-- [x] Confirm post-run summary still shows Start/Finish markers.
-- [x] Save visual evidence screenshots under `docs/qa/reports/assets-2026-07-08-wp37-s6/`.
+- [x] Device-QA RPE selection/history on iPhone 17 simulator with demo mode and simulated GPS.
+- [x] Device-QA RPE selection/history on iPhone SE simulator with demo mode and simulated GPS.
+- [x] Save visual evidence screenshots under `docs/qa/reports/assets-2026-07-08-wp37-s7/`.
 - [x] Prepare branch for commit, push, PR, review checks, and merge.
 - [ ] Update WP-37 tracker Progress after merge.
 
 ### Validation - 2026-07-08
-- `xcodebuild ... -destination 'platform=iOS Simulator,name=iPhone 17' ... -quiet build` passed; known HealthKit `HKWorkout` initializer deprecation warning only.
-- iPhone 17 simulator (`-RUNSMART_DEMO_MODE`, simulated CoreLocation route): live map shows Start + unlabeled current-position dot, no "Finish"; post-run completed route still shows Start + Finish.
-- Fresh iPhone SE 3rd-gen simulator (`-RUNSMART_DEMO_MODE`, simulated CoreLocation route): live map shows Start + unlabeled current-position dot, no "Finish".
-- No unit test added because S6 is pure SwiftUI Map annotation presentation with no logic seam; acceptance is visual and was checked on both required widths.
+- `xcodebuild ... -only-testing:'IOS RunSmart appTests/RunSmartReadinessTests/testLocalStorePersistsRunRPESelection' ...` passed after the fix.
+- Red-state check passed: temporarily removing `saveRun(updated)` from `RunSmartLocalStore.updateRunRPE` made `testLocalStorePersistsRunRPESelection` fail with reloaded `rpe == nil`; restoring the save made it pass again.
+- `xcodebuild ... -destination 'platform=iOS Simulator,name=iPhone 17' ... -quiet build` passed.
+- iPhone 17 simulator (`-RUNSMART_DEMO_MODE`, simulated CoreLocation route): post-run summary starts at `Not rated`, selecting 8 changes the selector to `8/10`, and the Report history row shows `RPE 8/10`.
+- iPhone SE simulator (`-RUNSMART_DEMO_MODE`, simulated CoreLocation route): post-run summary starts at `Not rated`, selecting 8 changes the selector to `8/10`, and the Report history row shows `RPE 8/10`.
+- Evidence screenshots saved under `docs/qa/reports/assets-2026-07-08-wp37-s7/`.
 
 ---
 

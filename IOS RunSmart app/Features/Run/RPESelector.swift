@@ -1,12 +1,12 @@
 import SwiftUI
 
 struct RPESelector: View {
-    @Binding var value: Int
+    @Binding var value: Int?
 
     var body: some View {
         ContentCard {
             VStack(alignment: .leading, spacing: 12) {
-                SectionLabel(title: "How did that feel?", trailing: "\(value)/10")
+                SectionLabel(title: "How did that feel?", trailing: value.map { "\($0)/10" } ?? "Not rated")
                 HStack(spacing: 6) {
                     ForEach(1...10, id: \.self) { number in
                         Button { value = number } label: {

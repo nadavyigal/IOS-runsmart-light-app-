@@ -852,6 +852,7 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var averageHeartRateBPM: Int?
     var routePoints: [RunRoutePoint]
     var routeMatchResult: RouteMatchResult? = nil
+    var rpe: Int? = nil
     var syncedAt: Date?
     /// Garmin device model (e.g. "Garmin Forerunner 265"), when known. Required for the
     /// "Garmin [device model]" attribution on Garmin-sourced rows per brand guidelines.

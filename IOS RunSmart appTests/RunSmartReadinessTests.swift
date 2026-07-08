@@ -2521,6 +2521,31 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(store.visibleRuns(store.loadRuns()).contains { $0.source == .healthKit && $0.providerActivityID == providerID })
     }
 
+    func testLocalStorePersistsRunRPESelection() {
+        let store = RunSmartLocalStore.shared
+        let run = RecordedRun(
+            id: UUID(),
+            providerActivityID: nil,
+            source: .runSmart,
+            startedAt: Date(timeIntervalSince1970: 21_000),
+            endedAt: Date(timeIntervalSince1970: 21_900),
+            distanceMeters: 3_000,
+            movingTimeSeconds: 900,
+            averagePaceSecondsPerKm: 300,
+            averageHeartRateBPM: nil,
+            routePoints: [],
+            syncedAt: nil
+        )
+
+        store.saveRun(run)
+        let updated = store.updateRunRPE(run, rpe: 8)
+        let reloaded = store.loadRuns().first { $0.id == run.id }
+
+        XCTAssertEqual(updated.rpe, 8)
+        XCTAssertEqual(reloaded?.rpe, 8)
+        XCTAssertTrue(store.removeRun(updated))
+    }
+
     func testDBRunInsertUsesHealthKitProviderForHealthImports() throws {
         let providerID = UUID(uuidString: "44444444-4444-4444-4444-444444444444")!.uuidString
         let run = RecordedRun(
