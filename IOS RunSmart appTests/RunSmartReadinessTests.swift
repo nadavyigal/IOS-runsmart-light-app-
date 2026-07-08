@@ -1889,6 +1889,61 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertNotEqual(recorder.phase, .recording)
     }
 
+    // WP-37 S1: on a device with granted location permission, finishing a run must
+    // leave the live-run state so the Run tab returns to PreRun. Before the fix,
+    // finish()/discard() called updatePhaseForAuthorization(), which never reset
+    // phase out of .recording/.paused when authorized, leaving a frozen "zombie"
+    // recording screen with no Start button (only escape: kill the app). These
+    // tests simulate the authorized state via authorizationStatusProvider; the
+    // pre-existing discard test above passes only because the test host is
+    // .notDetermined, which masked the device bug.
+    @MainActor
+    func testRunRecorderFinishReturnsToReadyPhaseWhenAuthorized() {
+        let recorder = RunRecorder()
+        recorder.authorizationStatusProvider = { .authorizedWhenInUse }
+        let now = Date(timeIntervalSince1970: 3_000)
+
+        recorder.startAcquiringLocation(startLocationUpdates: false)
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0800, longitude: 34.7800, accuracy: 10, timestamp: now),
+            makeLocation(latitude: 32.0810, longitude: 34.7810, accuracy: 10, timestamp: now.addingTimeInterval(3))
+        ], now: now)
+        XCTAssertEqual(recorder.phase, .recording)
+
+        let run = recorder.finish()
+
+        XCTAssertNotNil(run)
+        XCTAssertEqual(recorder.phase, .ready, "after finishing an authorized run the recorder must return to .ready so the Run tab shows PreRun, not a zombie recording screen")
+        XCTAssertNotEqual(recorder.phase, .recording)
+        XCTAssertNotEqual(recorder.phase, .paused)
+        XCTAssertEqual(recorder.distanceMeters, 0, "finish must clear stale metrics so the next run starts from zero")
+        XCTAssertTrue(recorder.routePoints.isEmpty)
+        XCTAssertNotNil(recorder.lastSavedRun)
+    }
+
+    @MainActor
+    func testRunRecorderPauseThenDiscardReturnsToReadyPhaseWhenAuthorized() {
+        let recorder = RunRecorder()
+        recorder.authorizationStatusProvider = { .authorizedWhenInUse }
+        let now = Date(timeIntervalSince1970: 3_100)
+
+        recorder.startAcquiringLocation(startLocationUpdates: false)
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0800, longitude: 34.7800, accuracy: 10, timestamp: now),
+            makeLocation(latitude: 32.0810, longitude: 34.7810, accuracy: 10, timestamp: now.addingTimeInterval(3))
+        ], now: now)
+        XCTAssertEqual(recorder.phase, .recording)
+
+        recorder.pause()
+        XCTAssertEqual(recorder.phase, .paused)
+
+        recorder.discard()
+
+        XCTAssertEqual(recorder.phase, .ready, "discarding from paused while authorized must return to PreRun, not leave a paused zombie screen")
+        XCTAssertNil(recorder.lastSavedRun)
+        XCTAssertTrue(recorder.routePoints.isEmpty)
+    }
+
     @MainActor
     func testRunRecorderDisplayRouteSimplificationPreservesRawRouteData() {
         let now = Date(timeIntervalSince1970: 2_400)
