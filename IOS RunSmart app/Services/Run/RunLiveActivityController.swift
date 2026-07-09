@@ -50,6 +50,9 @@ enum RunLiveActivityController {
                 pushType: nil
             )
         } catch {
+#if DEBUG
+            print("RunLiveActivityController: Activity.request failed: \(error)")
+#endif
             activity = nil
         }
     }

@@ -301,7 +301,7 @@ private struct LiveControlButton: View {
 
     private var accessibilityHint: String {
         switch title {
-        case "Pause": return "Pauses distance tracking. Moving time keeps running."
+        case "Pause": return "Pauses distance tracking. Moving time stops while paused."
         case "Resume": return "Resumes distance tracking."
         case "Finish": return "Opens finish and save confirmation."
         case "Discard": return "Opens discard workout confirmation."

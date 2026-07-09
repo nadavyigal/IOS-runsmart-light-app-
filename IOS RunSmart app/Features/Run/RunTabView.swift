@@ -60,7 +60,10 @@ struct RunTabView: View {
             recorder.start()
         }
 #endif
-        .onAppear(perform: updateTabBarVisibility)
+        .onAppear {
+            updateTabBarVisibility()
+            updateRunSessionSideEffects(for: recorder.phase)
+        }
         .onDisappear {
             router.isTabBarHidden = false
             RunScreenAwakePolicy.setRecordingActive(false)

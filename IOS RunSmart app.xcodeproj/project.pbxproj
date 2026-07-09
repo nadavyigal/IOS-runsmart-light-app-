@@ -52,6 +52,11 @@
 			path = RunSmartRunLiveActivityExtension;
 			sourceTree = "<group>";
 		};
+		WW38150E2FA0B36A006C1A3C /* RunSmartShared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = RunSmartShared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -87,6 +92,7 @@
 				33F1D5C02FA0B36A006C1A3C /* IOS RunSmart app */,
 				33F1D5D12FA0B36A006C1A3C /* IOS RunSmart appTests */,
 				WW3814032FA0B36A006C1A3C /* RunSmartRunLiveActivityExtension */,
+				WW38150E2FA0B36A006C1A3C /* RunSmartShared */,
 				33F1D5BF2FA0B36A006C1A3C /* Products */,
 				AASECRETS012FA0FFFF00001 /* RunSmartConfig.xcconfig */,
 			);
@@ -122,6 +128,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				33F1D5C02FA0B36A006C1A3C /* IOS RunSmart app */,
+				WW38150E2FA0B36A006C1A3C /* RunSmartShared */,
 			);
 			name = "IOS RunSmart app";
 			packageProductDependencies = (
@@ -169,6 +176,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				WW3814032FA0B36A006C1A3C /* RunSmartRunLiveActivityExtension */,
+				WW38150E2FA0B36A006C1A3C /* RunSmartShared */,
 			);
 			name = RunSmartRunLiveActivityExtension;
 			packageProductDependencies = (
@@ -598,7 +606,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RunSmartRunLiveActivityExtension-Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "RunSmart Run";
-				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -625,7 +632,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RunSmartRunLiveActivityExtension-Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "RunSmart Run";
-				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

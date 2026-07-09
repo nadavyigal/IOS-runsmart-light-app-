@@ -26,7 +26,7 @@ struct RunRecordingLiveActivityWidget: Widget {
             } compactTrailing: {
                 Image(systemName: context.state.isPaused ? "pause.fill" : "figure.run")
             } minimal: {
-                Image(systemName: "figure.run")
+                Image(systemName: context.state.isPaused ? "pause.fill" : "figure.run")
             }
         }
     }
