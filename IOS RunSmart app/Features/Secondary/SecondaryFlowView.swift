@@ -1050,7 +1050,7 @@ private struct RunReportScaffold: View {
                         .foregroundStyle(Color.textTertiary)
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                         MetricBadge(title: "Distance", value: activity.distanceKmLabel)
-                        MetricBadge(title: "Time", value: activity.durationLabel)
+                        MetricBadge(title: "Moving time", value: activity.durationLabel)
                         MetricBadge(title: "Avg Pace", value: paceLabel)
                         MetricBadge(title: "Avg HR", value: heartRateLabel)
                     }
@@ -1248,7 +1248,7 @@ private struct RunReportDetailScaffold: View {
                         .font(.title2.bold())
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                         MetricBadge(title: "Distance", value: report.distance)
-                        MetricBadge(title: "Time", value: report.duration)
+                        MetricBadge(title: "Moving time", value: report.duration)
                         MetricBadge(title: "Avg Pace", value: report.averagePace)
                         MetricBadge(title: "Avg HR", value: report.averageHeartRate)
                         if let rpeLabel {
@@ -1531,7 +1531,7 @@ private struct LapMarkerScaffold: View {
                         Text(recorder.distanceLabel + " km")
                             .font(.system(size: 48, weight: .bold, design: .rounded))
                         HStack {
-                            MetricBadge(title: "Time", value: recorder.movingLabel)
+                            MetricBadge(title: "Moving time", value: recorder.movingLabel)
                             MetricBadge(title: "Pace", value: recorder.currentPaceLabel + " /km")
                         }
                     } else {
@@ -1565,11 +1565,7 @@ private struct PostRunSummaryScaffold: View {
 
     private var timeLabel: String {
         guard let run else { return "--" }
-        let t = Int(run.movingTimeSeconds)
-        if t >= 3600 {
-            return String(format: "%d:%02d:%02d", Int32(t / 3600), Int32((t % 3600) / 60), Int32(t % 60))
-        }
-        return String(format: "%d:%02d", Int32(t / 60), Int32(t % 60))
+        return RunRecorder.timeLabel(run.movingTimeSeconds)
     }
 
     var body: some View {
@@ -1580,7 +1576,7 @@ private struct PostRunSummaryScaffold: View {
                     HStack {
                         MetricBadge(title: "Distance", value: distanceLabel)
                         MetricBadge(title: "Avg Pace", value: paceLabel)
-                        MetricBadge(title: "Time", value: timeLabel)
+                        MetricBadge(title: "Moving time", value: timeLabel)
                     }
                     Text(statusCopy)
                         .font(.callout)

@@ -559,7 +559,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return [
             MetricTile(title: "Distance", value: String(format: "%.2f", last.distanceMeters / 1_000), unit: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up", tint: Color.lime),
             MetricTile(title: "Pace", value: RunRecorder.paceLabel(secondsPerKm: last.averagePaceSecondsPerKm), unit: "/km", symbol: "timer", tint: Color.lime),
-            MetricTile(title: "Time", value: RunRecorder.timeLabel(last.movingTimeSeconds), unit: "", symbol: "stopwatch", tint: .white),
+            MetricTile(title: "Moving time", value: RunRecorder.timeLabel(last.movingTimeSeconds), unit: "", symbol: "stopwatch", tint: .white),
             MetricTile(title: "Source", value: last.source.rawValue, unit: "", symbol: "sensor.tag.radiowaves.forward", tint: .cyan)
         ]
     }

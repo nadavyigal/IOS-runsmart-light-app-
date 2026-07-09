@@ -457,7 +457,7 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
         [
             MetricTile(title: "Distance", value: "5.24", unit: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up", tint: Color.lime),
             MetricTile(title: "Pace", value: "5:08", unit: "/km", symbol: "timer", tint: Color.lime),
-            MetricTile(title: "Time", value: "26:54", unit: "", symbol: "stopwatch", tint: .white),
+            MetricTile(title: "Moving time", value: "26:54", unit: "", symbol: "stopwatch", tint: .white),
             MetricTile(title: "Heart Rate", value: "154", unit: "bpm", symbol: "heart", tint: .red)
         ]
     }
@@ -505,14 +505,23 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func latestRunReports(limit: Int) async -> [RunReportSummary] { Array(RunSmartDemoData.runReports.prefix(limit)) }
     func runReport(for run: RecordedRun) async -> RunReportDetail? {
         let keys = [run.providerActivityID, run.id.uuidString].compactMap { $0 }
+        // Prefer a matching demo fixture; otherwise build a skeleton from the
+        // real run so local/seeded simulator runs (WP-38 S10 hour-boundary QA)
+        // show RunRecorder.timeLabel output instead of an unrelated fixture.
         return RunSmartDemoData.runReportDetails.first { detail in
             keys.contains(detail.runID) || keys.contains(detail.id)
-        } ?? RunSmartDemoData.runReportDetails.first
+        } ?? SupabaseRunSmartServices.reportSkeleton(for: run)
     }
     func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail? { await runReport(for: run) }
     func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail? {
-        RunSmartDemoData.runReportDetails.first { $0.runID == runID || $0.id == runID }
-            ?? RunSmartDemoData.runReportDetails.first
+        if let detail = RunSmartDemoData.runReportDetails.first(where: { $0.runID == runID || $0.id == runID }) {
+            return detail
+        }
+        let runs = await recentRuns()
+        if let run = runs.first(where: { $0.id.uuidString == runID || $0.providerActivityID == runID }) {
+            return SupabaseRunSmartServices.reportSkeleton(for: run)
+        }
+        return nil
     }
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult? { nil }
     func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? { nil }

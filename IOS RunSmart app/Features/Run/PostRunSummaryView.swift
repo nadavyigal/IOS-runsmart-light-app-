@@ -40,7 +40,7 @@ struct PostRunSummaryView: View {
                             .displayTightTracking()
 
                         HStack(spacing: 8) {
-                            PostRunStatPill(title: "Time", value: timeLabel, tint: .accentPrimary)
+                            PostRunStatPill(title: "Moving time", value: timeLabel, tint: .accentPrimary)
                             PostRunStatPill(title: "Pace", value: paceLabel, tint: .accentEnergy)
                             PostRunStatPill(title: "Route", value: routeLabel, tint: .accentRecovery)
                         }
@@ -155,11 +155,15 @@ struct PostRunSummaryView: View {
         .onChange(of: rpe) { _, newValue in
             Task { await persistRPE(newValue) }
         }
-        .confirmationDialog("Delete this activity?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
-            Button("Delete Activity", role: .destructive, action: onDelete)
-            Button("Keep Activity", role: .cancel) {}
+        // WP-38 S11: source-neutral delete copy (old Garmin wording preserved in
+        // tasks/garmin-deferred-copy-restore.md for when Garmin reconnects).
+        // Prefer .alert over confirmationDialog so Cancel stays visible on iOS 26
+        // (same WP-37 S4 lesson as Finish/Discard).
+        .alert("Delete this run?", isPresented: $showDeleteConfirmation) {
+            Button("Delete Run", role: .destructive, action: onDelete)
+            Button("Keep Run", role: .cancel) {}
         } message: {
-            Text("This removes the run from RunSmart. It will not delete anything from Garmin.")
+            Text("This removes the run from your RunSmart history.")
         }
         .sheet(isPresented: $showSaveRouteSheet) {
             if let run {
@@ -278,7 +282,7 @@ struct PostRunSummaryView: View {
             subtitle: run.startedAt.formatted(date: .abbreviated, time: .omitted),
             metrics: [
                 ProgressShareMetric(title: "Distance", value: distanceLabel),
-                ProgressShareMetric(title: "Time", value: timeLabel),
+                ProgressShareMetric(title: "Moving time", value: timeLabel),
                 ProgressShareMetric(title: "Avg Pace", value: paceLabel)
             ],
             insight: "RunSmart saved this activity for private progress tracking.",

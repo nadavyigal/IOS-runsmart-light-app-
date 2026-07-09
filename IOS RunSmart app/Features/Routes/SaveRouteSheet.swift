@@ -80,7 +80,7 @@ struct SaveRouteSheet: View {
     private var routeStatsRow: some View {
         HStack(spacing: 8) {
             statPill(title: "Distance", value: String(format: "%.2f km", run.distanceMeters / 1_000))
-            statPill(title: "Time", value: RunRecorder.timeLabel(run.movingTimeSeconds))
+            statPill(title: "Moving time", value: RunRecorder.timeLabel(run.movingTimeSeconds))
             statPill(title: "Points", value: "\(run.routePoints.count)")
         }
     }

@@ -646,8 +646,14 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         pausedAt = nil
     }
 
+    /// Formats run duration for live HUD / post-run / history.
+    /// Under 1 hour: `MM:SS` (zero-padded minutes). At/above 3600s: `H:MM:SS`
+    /// so a 90-minute run reads `1:30:00` instead of `90:00` (WP-38 S10).
     static func timeLabel(_ seconds: TimeInterval) -> String {
         let total = max(0, Int(seconds.rounded()))
+        if total >= 3600 {
+            return String(format: "%d:%02d:%02d", Int32(total / 3600), Int32((total % 3600) / 60), Int32(total % 60))
+        }
         return String(format: "%02d:%02d", Int32(total / 60), Int32(total % 60))
     }
 
@@ -850,7 +856,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         return [
             MetricTile(title: "Distance", value: last.map { String(format: "%.2f", $0.distanceMeters / 1_000) } ?? "0.00", unit: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up", tint: Color.lime),
             MetricTile(title: "Pace", value: last.map { RunRecorder.paceLabel(secondsPerKm: $0.averagePaceSecondsPerKm) } ?? "--", unit: "/km", symbol: "timer", tint: Color.lime),
-            MetricTile(title: "Time", value: last.map { RunRecorder.timeLabel($0.movingTimeSeconds) } ?? "00:00", unit: "", symbol: "stopwatch", tint: .white),
+            MetricTile(title: "Moving time", value: last.map { RunRecorder.timeLabel($0.movingTimeSeconds) } ?? "00:00", unit: "", symbol: "stopwatch", tint: .white),
             MetricTile(title: "Source", value: last?.source.rawValue ?? "Ready", unit: "", symbol: "sensor.tag.radiowaves.forward", tint: .cyan)
         ]
     }
