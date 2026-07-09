@@ -35,7 +35,7 @@ struct ProgressSharePayload: Hashable {
             subtitle: report.dateLabel,
             metrics: [
                 ProgressShareMetric(title: "Distance", value: report.distance),
-                ProgressShareMetric(title: "Time", value: report.duration),
+                ProgressShareMetric(title: "Moving time", value: report.duration),
                 ProgressShareMetric(title: "Avg Pace", value: report.averagePace)
             ],
             insight: report.notes.summary,

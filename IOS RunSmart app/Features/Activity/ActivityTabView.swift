@@ -52,7 +52,7 @@ struct ReportTabView: View {
                         }
                         HStack(spacing: 10) {
                             ActivityMetricPill(title: "Runs", value: "\(runs.count)", tint: .accentSuccess)
-                            ActivityMetricPill(title: "Time", value: totalMovingTime.activityDurationLabel, tint: .accentRecovery)
+                            ActivityMetricPill(title: "Moving time", value: totalMovingTime.activityDurationLabel, tint: .accentRecovery)
                             ActivityMetricPill(title: "Source", value: "Real", tint: .accentPrimary)
                         }
                     }
@@ -95,17 +95,21 @@ struct ReportTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
             scheduleDebouncedRefresh()
         }
-        .confirmationDialog("Remove this run?", isPresented: Binding(
+        // WP-38 S11: source-neutral delete copy for every run source (old Garmin
+        // wording preserved in tasks/garmin-deferred-copy-restore.md).
+        // Prefer .alert over confirmationDialog so Cancel stays visible on iOS 26
+        // (same WP-37 S4 lesson as Finish/Discard).
+        .alert("Delete this run?", isPresented: Binding(
             get: { runPendingRemoval != nil },
             set: { if !$0 { runPendingRemoval = nil } }
-        ), titleVisibility: .visible) {
-            Button("Remove Run", role: .destructive) {
+        )) {
+            Button("Delete Run", role: .destructive) {
                 guard let run = runPendingRemoval else { return }
                 Task { await remove(run) }
             }
             Button("Cancel", role: .cancel) { runPendingRemoval = nil }
         } message: {
-            Text("RunSmart/manual runs are deleted from RunSmart. Garmin runs are hidden in RunSmart but stay in Garmin.")
+            Text("This removes the run from your RunSmart history.")
         }
     }
 

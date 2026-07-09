@@ -27,6 +27,8 @@ enum RunSmartGate4ScreenshotMode {
             return .recoveryDashboard
         case "wellnessTrends":
             return .wellnessTrends
+        case "addActivity":
+            return .addActivity
         default:
             return nil
         }

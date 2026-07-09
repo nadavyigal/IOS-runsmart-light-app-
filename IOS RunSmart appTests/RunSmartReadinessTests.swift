@@ -1804,6 +1804,23 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(moving, 90)
     }
 
+    // WP-38 S10: timeLabel used to keep printing MM:SS past the hour
+    // boundary ("90:00" for a 90-minute run). Branch to H:MM:SS at >=3600s
+    // so live HUD / post-run / history inherit the fix from one helper.
+    func testTimeLabelUsesHourFormatAtAndAboveOneHour() {
+        XCTAssertEqual(RunRecorder.timeLabel(3600), "1:00:00", "exactly 60:00 must switch to H:MM:SS")
+        XCTAssertEqual(RunRecorder.timeLabel(5400), "1:30:00", "90-minute run must read 1:30:00, not 90:00")
+        XCTAssertEqual(RunRecorder.timeLabel(3661), "1:01:01")
+    }
+
+    func testTimeLabelKeepsMinuteFormatUnderOneHour() {
+        XCTAssertEqual(RunRecorder.timeLabel(0), "00:00")
+        XCTAssertEqual(RunRecorder.timeLabel(59), "00:59")
+        XCTAssertEqual(RunRecorder.timeLabel(60), "01:00")
+        XCTAssertEqual(RunRecorder.timeLabel(2700), "45:00", "45-minute run must stay MM:SS")
+        XCTAssertEqual(RunRecorder.timeLabel(3599), "59:59", "one second under an hour must stay MM:SS")
+    }
+
     // WP-37 S5: PostRunSummaryView.splitRows used to fabricate paces as
     // `averagePace + ((km % 3) - 1) * 4s` and present them as "KM SPLITS".
     // RunRecorder.kilometerSplits(from:) replaces that with real per-km splits

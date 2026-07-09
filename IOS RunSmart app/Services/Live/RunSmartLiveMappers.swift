@@ -54,7 +54,7 @@ enum RunSmartDTOMapper {
         [
             MetricTile(title: "Distance", value: dto.distanceKm, unit: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up", tint: Color.lime),
             MetricTile(title: "Pace", value: dto.pacePerKm, unit: "/km", symbol: "timer", tint: Color.lime),
-            MetricTile(title: "Time", value: dto.elapsedTime, unit: "", symbol: "stopwatch", tint: .white),
+            MetricTile(title: "Moving time", value: dto.elapsedTime, unit: "", symbol: "stopwatch", tint: .white),
             MetricTile(title: "Heart Rate", value: dto.heartRateBPM, unit: "bpm", symbol: "heart", tint: .red)
         ]
     }
