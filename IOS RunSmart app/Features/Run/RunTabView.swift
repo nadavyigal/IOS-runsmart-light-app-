@@ -26,6 +26,7 @@ struct RunTabView: View {
                 LiveRunView(
                     metrics: liveMetrics,
                     routePoints: recorder.displayRoutePoints,
+                    splitRoutePoints: recorder.routePoints,
                     phase: recorder.phase,
                     gpsStatus: gpsStatus,
                     gpsDetail: gpsDetail,
@@ -51,6 +52,14 @@ struct RunTabView: View {
         .task {
             await reloadMetrics()
         }
+#if DEBUG
+        .onAppear {
+            guard RunSmartDemoMode.isEnabled,
+                  ProcessInfo.processInfo.arguments.contains("-AUTO_START_RUN"),
+                  recorder.phase == .ready else { return }
+            recorder.start()
+        }
+#endif
         .onAppear(perform: updateTabBarVisibility)
         .onDisappear {
             router.isTabBarHidden = false
