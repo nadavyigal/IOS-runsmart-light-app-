@@ -19,10 +19,15 @@ struct RPESelector: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Rate effort \(number) out of 10")
+                        .accessibilityAddTraits(value == number ? .isSelected : [])
                     }
                 }
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("How did that feel?")
+        .accessibilityValue(value.map { "\($0) out of 10" } ?? "Not rated")
     }
 
     private func tint(for number: Int) -> Color {
