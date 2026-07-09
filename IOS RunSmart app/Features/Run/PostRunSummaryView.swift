@@ -74,6 +74,8 @@ struct PostRunSummaryView: View {
                         .overlay(Capsule().stroke(Color.accentPrimary.opacity(0.55), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("View Report")
+                .accessibilityHint("Saves this activity and opens the report tab.")
                 if let report = outcome?.report {
                     ProgressShareCard(payload: .runReport(report))
                     ProgressShareButton(payload: .runReport(report))
@@ -114,6 +116,7 @@ struct PostRunSummaryView: View {
                         Label("Keep Activity", systemImage: "checkmark.circle.fill")
                     }
                     .buttonStyle(NeonButtonStyle())
+                    .accessibilityHint("Returns to the run tab and keeps this saved activity.")
 
                     Button(role: .destructive) {
                         showDeleteConfirmation = true
@@ -127,6 +130,8 @@ struct PostRunSummaryView: View {
                             .overlay(Capsule().stroke(Color.accentHeart.opacity(0.55), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Delete run")
+                    .accessibilityHint("Opens delete confirmation for this saved activity.")
                 }
             }
             .foregroundStyle(Color.textPrimary)

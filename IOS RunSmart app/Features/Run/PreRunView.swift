@@ -64,6 +64,8 @@ struct PreRunView: View {
                         RunSmartRoutePreview(title: "Route sketch", showGPS: false, height: max(118, min(170, proxy.size.height * 0.18)))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Route sketch")
+                    .accessibilityHint("Opens route creator.")
 
                     if let lastRun = metrics.first {
                         RunSmartPanel(cornerRadius: 18, padding: 12) {
@@ -175,6 +177,8 @@ private struct RunOptionButton: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityHint("Opens \(title.lowercased()) options for this run.")
     }
 }
 
@@ -202,6 +206,7 @@ private struct StartRunButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
+        .accessibilityHint(isWaiting ? "Waiting for GPS before the run can start." : "Starts GPS run recording.")
         .disabled(isWaiting)
     }
 }

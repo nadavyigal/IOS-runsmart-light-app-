@@ -145,6 +145,9 @@ private struct LiveKmSplitsPanel: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Kilometer splits")
+                .accessibilityValue(latestSplitAccessibilityValue)
+                .accessibilityHint(isExpanded ? "Collapse split list" : "Expand split list")
 
                 if isExpanded {
                     ForEach(splits) { split in
@@ -175,6 +178,12 @@ private struct LiveKmSplitsPanel: View {
         }
         .animation(.easeInOut(duration: 0.2), value: splits.count)
     }
+
+    private var latestSplitAccessibilityValue: String {
+        guard let latest = splits.last else { return "No completed kilometers yet" }
+        let pace = RunRecorder.paceLabel(secondsPerKm: latest.paceSecondsPerKm)
+        return "\(splits.count) splits. Latest kilometer \(latest.km), pace \(pace) per kilometer."
+    }
 }
 
 private struct LiveMetricCard: View {
@@ -200,6 +209,8 @@ private struct LiveMetricCard: View {
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(metric.title), \(metric.value) \(metric.unit)")
     }
 }
 
@@ -242,6 +253,8 @@ private struct LiveRunStateBanner: View {
         .frame(height: 66)
         .background(Color.surfaceElevated.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(tint.opacity(0.42), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title). \(subtitle). Moving time \(RunRecorder.timeLabel(elapsedSeconds)).")
     }
 
     private var title: String {
@@ -282,5 +295,18 @@ private struct LiveControlButton: View {
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle())
+        .accessibilityLabel(title)
+        .accessibilityHint(accessibilityHint)
+    }
+
+    private var accessibilityHint: String {
+        switch title {
+        case "Pause": return "Pauses distance tracking. Moving time keeps running."
+        case "Resume": return "Resumes distance tracking."
+        case "Finish": return "Opens finish and save confirmation."
+        case "Discard": return "Opens discard workout confirmation."
+        case "Coach", "Muted": return "Toggles voice coach cues during this run."
+        default: return ""
+        }
     }
 }
