@@ -3,6 +3,8 @@ import SwiftUI
 struct LiveRunView: View {
     var metrics: [MetricTile]
     var routePoints: [RunRoutePoint]
+    /// Full GPS route for split math — must match post-run `run.routePoints` (WP-38 S12).
+    var splitRoutePoints: [RunRoutePoint]
     var phase: RunRecordingPhase
     var gpsStatus: String
     var gpsDetail: String
@@ -11,6 +13,7 @@ struct LiveRunView: View {
     var onFinish: () -> Void
     var onDiscard: () -> Void
     @ObservedObject private var voiceCoach = VoiceCoachService.shared
+    @State private var showsKmSplits = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -62,6 +65,10 @@ struct LiveRunView: View {
                         }
                     }
 
+                    if !completedKmSplits.isEmpty {
+                        LiveKmSplitsPanel(splits: completedKmSplits, isExpanded: $showsKmSplits)
+                    }
+
                     Spacer(minLength: 0)
 
                     // WP-37 S3: never show 4 buttons. Coach is irrelevant while paused
@@ -94,6 +101,79 @@ struct LiveRunView: View {
         }
         .foregroundStyle(Color.textPrimary)
         .background(Color.black.opacity(0.52).ignoresSafeArea())
+    }
+
+    private var completedKmSplits: [KilometerSplit] {
+        RunRecorder.kilometerSplits(from: splitRoutePoints)
+    }
+}
+
+/// Collapsed-by-default live split list — appears only after the first full km (WP-38 S12).
+private struct LiveKmSplitsPanel: View {
+    var splits: [KilometerSplit]
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        RunSmartPanel(cornerRadius: 16, padding: 0) {
+            VStack(spacing: 0) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Label("KM SPLITS", systemImage: "speedometer")
+                            .font(.labelSM)
+                            .foregroundStyle(Color.accentPrimary)
+                            .lineLimit(1)
+                        Spacer(minLength: 4)
+                        if let latest = splits.last {
+                            Text(RunRecorder.paceLabel(secondsPerKm: latest.paceSecondsPerKm))
+                                .font(.metricSM)
+                                .monospacedDigit()
+                                .foregroundStyle(Color.textPrimary)
+                            Text("km \(latest.km)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.textTertiary)
+                        }
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.textSecondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if isExpanded {
+                    ForEach(splits) { split in
+                        HStack {
+                            Text("\(split.km)")
+                                .font(.bodyMD)
+                                .foregroundStyle(Color.textSecondary)
+                                .frame(width: 24, alignment: .leading)
+                            Text(RunRecorder.paceLabel(secondsPerKm: split.paceSecondsPerKm))
+                                .font(.metricSM)
+                                .monospacedDigit()
+                            Spacer()
+                            Text("km \(split.km)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.textTertiary)
+                        }
+                        .padding(.horizontal, 12)
+                        .frame(height: 40)
+                        .overlay(alignment: .top) {
+                            Rectangle()
+                                .fill(Color.border.opacity(0.72))
+                                .frame(height: 1)
+                        }
+                    }
+                    .padding(.bottom, 4)
+                }
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: splits.count)
     }
 }
 
