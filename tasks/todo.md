@@ -2,6 +2,25 @@
 
 ## Current Task
 
+**Objective:** WP-40 S1 — Move the real Apple Health connect action into the primary onboarding flow.
+**Status:** Implemented and validated locally on the existing `claude/wp40-healthkit-activation` branch; partial S2 changes and QA artifacts remain uncommitted and were not expanded.
+**Branch:** `claude/wp40-healthkit-activation`
+
+### Checklist
+- [x] Read the canonical WP-40 packet and current RunSmart task memory.
+- [x] Lock S1 only; keep S2 auto-import, S3 value surfacing, and S4 live funnel verification out of scope.
+- [x] Confirm the onboarding step is optional and uses the existing HealthKit provider connection route.
+- [x] Add a focused S1 unit contract with a red/green run.
+- [x] Verify the Apple Health prompt appears in onboarding on a fresh simulator replay.
+- [x] Verify Continue without connecting reaches the Ready step.
+- [x] Verify Connect Apple Health opens the real system Health permission flow.
+- [x] Run final Debug build and `git diff --check`.
+- [x] Update progress/session memory and prepare story handoff.
+
+---
+
+## Previous Current Task
+
 **Objective:** WP-37 S8 — PreRun honesty: real preview, visible Last Run.
 **Status:** Implemented and validated in clean story worktree; branch prepared for PR/merge handoff.
 **Branch:** `claude/wp37-runsmart-s8-prerun-honesty` in `/tmp/rs-wp37-s8`

@@ -6,6 +6,7 @@ Review this file at the start of future tasks.
 - Keep `AGENTS.md`, `CLAUDE.md`, and `CODEX.md` as routers, not manuals.
 - Load only the files needed for the current workflow.
 - Use app-repo `tasks/todo.md`, `tasks/lessons.md`, and `tasks/session-log.md` as the single source of truth; outer wrapper status files should only point here.
+- A branch name, dirty diff, or QA artifact is not authoritative work-packet status; read the canonical packet and follow the user's stated story boundary before declaring work started or blocked.
 - For Xcode validation, prefer quiet/filtered logs because build settings can echo xcconfig-backed service keys; never paste raw build setting output into task memory or final reports.
 - Do not assume the project is already a clean RunSmart app; verify whether files still use resume-builder names.
 - Do not change app feature code when the task is to install or update the operating layer only.
@@ -57,6 +58,13 @@ Review this file at the start of future tasks.
 - Pre-run previews must not claim live GPS unless they are backed by real location/map data. Decorative route sketches should be labeled as sketches, and short-screen reachability must be verified by scrolling on iPhone SE as well as checking the first viewport on larger phones.
 
 ## Lesson Log
+
+### 2026-07-10 - Branch State Is Not Work-Packet Status (WP-40 correction)
+Trigger: WP-40 was initially treated as in-progress because the checkout was on `claude/wp40-healthkit-activation` with matching dirty files and screenshots, but the canonical packet still said Not Started and the user explicitly directed execution.
+
+Lesson: Workspace evidence can be partial, stale, or abandoned. It is useful implementation context, but it does not override the canonical packet or the user's current instruction.
+
+Future rule: Read the named work packet first, lock exactly one story, then classify dirty matching files as partial work to preserve and audit—never as proof that the story is already active or blocked.
 
 ### 2026-07-08 - Zombie Recorder: Phase Never Reset After Finish/Discard (WP-37 S1)
 Trigger: Fable run-recording audit found that after Save/View Report/Delete, the Run tab renders a frozen "Recording" zombie screen (no Start button, tab bar hidden, only escape is killing the app); ships in 1.0.7 (21).

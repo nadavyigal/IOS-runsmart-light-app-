@@ -2472,6 +2472,36 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(response.plan?.workouts.first?.day, "Mon")
     }
 
+    func testOnboardingHealthKitStepUsesExistingProviderAndRequiresConnectedState() {
+        XCTAssertEqual(OnboardingHealthKitStep.providerName, HealthKitSyncService.providerName)
+
+        let connected = ConnectedDeviceStatus(
+            provider: HealthKitSyncService.providerName,
+            state: .connected,
+            lastSuccessfulSync: nil,
+            permissions: [],
+            message: nil
+        )
+        let disconnected = ConnectedDeviceStatus(
+            provider: HealthKitSyncService.providerName,
+            state: .disconnected,
+            lastSuccessfulSync: nil,
+            permissions: [],
+            message: nil
+        )
+        let error = ConnectedDeviceStatus(
+            provider: HealthKitSyncService.providerName,
+            state: .error,
+            lastSuccessfulSync: nil,
+            permissions: [],
+            message: "Health access was not granted."
+        )
+
+        XCTAssertTrue(OnboardingHealthKitStep.didConnect(connected))
+        XCTAssertFalse(OnboardingHealthKitStep.didConnect(disconnected))
+        XCTAssertFalse(OnboardingHealthKitStep.didConnect(error))
+    }
+
     func testHealthKitWorkoutMapperUsesStableProviderIDAndPace() {
         let providerID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
         let snapshot = HealthKitWorkoutSnapshot(

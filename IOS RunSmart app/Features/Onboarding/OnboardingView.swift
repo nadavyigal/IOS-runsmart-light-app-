@@ -1,15 +1,27 @@
 import SwiftUI
 
+enum OnboardingHealthKitStep {
+    static let providerName = HealthKitSyncService.providerName
+
+    static func didConnect(_ status: ConnectedDeviceStatus) -> Bool {
+        status.provider == providerName && status.state == .connected
+    }
+}
+
 struct OnboardingView: View {
+    @Environment(\.runSmartServices) private var services
+
     @State private var profile: OnboardingProfile
     @State private var step = 0
+    @State private var healthKitStatus: ConnectedDeviceStatus?
+    @State private var isConnectingHealthKit = false
     var onComplete: (OnboardingProfile) -> Void
 
     private let goals = ["First 5K", "10K PR", "Half Marathon", "Marathon", "Just Run More"]
     private let experiences = ["Getting started", "Building base", "Consistent runner", "Race focused"]
     private let tones = ["Motivating", "Calm", "Direct"]
     private let weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    private let stepCount = 5
+    private let stepCount = 6
 
     init(initialProfile: OnboardingProfile, onComplete: @escaping (OnboardingProfile) -> Void) {
         _profile = State(initialValue: initialProfile)
@@ -26,7 +38,8 @@ struct OnboardingView: View {
                     experienceStep.tag(1)
                     scheduleStep.tag(2)
                     privacyStep.tag(3)
-                    completionStep.tag(4)
+                    healthKitStep.tag(4)
+                    completionStep.tag(5)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
             }
@@ -36,8 +49,21 @@ struct OnboardingView: View {
             if step == 0 {
                 Analytics.trackOnboardingStarted()
             }
+#if DEBUG
+            applyDebugOnboardingStepIfNeeded()
+#endif
         }
     }
+
+#if DEBUG
+    private func applyDebugOnboardingStepIfNeeded() {
+        let args = ProcessInfo.processInfo.arguments
+        guard let idx = args.firstIndex(of: "-RUNSMART_ONBOARDING_STEP"),
+              args.indices.contains(idx + 1),
+              let requested = Int(args[idx + 1]) else { return }
+        step = min(max(requested, 0), stepCount - 1)
+    }
+#endif
 
     private var progress: some View {
         HStack(spacing: 6) {
@@ -104,9 +130,63 @@ struct OnboardingView: View {
                 .font(.caption)
                 .foregroundStyle(Color.textSecondary)
             DevicePreviewRow(title: "Garmin Connect", detail: "Import supported runs and wellness signals after you connect Garmin.", symbol: "link.circle.fill")
-            DevicePreviewRow(title: "HealthKit", detail: "Uses HealthKit to read approved workouts, routes, heart rate, HRV, sleep, steps, and active energy. When you allow it, RunSmart can also write completed GPS runs to Health.", symbol: "heart.fill")
             RookieChallengeCallout()
             OnboardingPrimaryButton(title: "Confirm Privacy", symbol: "arrow.right", action: advance)
+        }
+    }
+
+    private var healthKitStep: some View {
+        OnboardingStepShell(
+            title: "Apple Health",
+            subtitle: "Import workouts and wellness data you already track. You can skip and connect later from Profile.",
+            symbol: "heart.fill"
+        ) {
+            Text("RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health.")
+                .font(.caption)
+                .foregroundStyle(Color.textSecondary)
+
+            if let healthKitStatus, OnboardingHealthKitStep.didConnect(healthKitStatus) {
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.lime)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Health connected")
+                            .font(.bodyMD.weight(.semibold))
+                        if let message = healthKitStatus.message, !message.isEmpty {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.lime.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                OnboardingPrimaryButton(title: "Continue", symbol: "arrow.right", action: advance)
+            } else {
+                OnboardingPrimaryButton(title: isConnectingHealthKit ? "Connecting…" : "Connect Apple Health", symbol: "link") {
+                    connectHealthKit()
+                }
+                .disabled(isConnectingHealthKit)
+                .accessibilityIdentifier("onboarding.healthkit.connect")
+            }
+
+            if !isHealthKitConnected {
+                Button("Continue without connecting") {
+                    advance()
+                }
+                .font(.bodyMD.weight(.semibold))
+                .foregroundStyle(Color.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 4)
+                .accessibilityIdentifier("onboarding.healthkit.skip")
+            }
+        }
+        .task(id: step) {
+            guard step == 4 else { return }
+            await refreshHealthKitStatus()
+            Analytics.trackHealthKitDisclosureViewed(state: healthKitStatus?.state.rawValue ?? "unknown")
         }
     }
 
@@ -127,8 +207,32 @@ struct OnboardingView: View {
         }
     }
 
+    private var isHealthKitConnected: Bool {
+        guard let healthKitStatus else { return false }
+        return OnboardingHealthKitStep.didConnect(healthKitStatus)
+    }
+
+    private func refreshHealthKitStatus() async {
+        let statuses = await services.deviceStatuses()
+        healthKitStatus = statuses.first(where: { $0.provider == OnboardingHealthKitStep.providerName })
+    }
+
+    private func connectHealthKit() {
+        guard !isConnectingHealthKit else { return }
+        Analytics.trackHealthKitConnectTapped()
+        isConnectingHealthKit = true
+        Task {
+            let status = await services.connect(provider: OnboardingHealthKitStep.providerName)
+            healthKitStatus = status
+            isConnectingHealthKit = false
+            if OnboardingHealthKitStep.didConnect(status) {
+                advance()
+            }
+        }
+    }
+
     private func advance() {
-        let stepNames = ["goal", "experience", "schedule", "privacy", "coaching"]
+        let stepNames = ["goal", "experience", "schedule", "privacy", "healthkit", "ready"]
         let completedStep = step
         withAnimation(RunSmartMotion.tabSpring) {
             step = min(stepCount - 1, step + 1)
