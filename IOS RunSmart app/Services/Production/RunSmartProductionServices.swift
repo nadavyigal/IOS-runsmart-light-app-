@@ -1084,7 +1084,9 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
             return status
         }
         if provider == "HealthKit" {
-            return await requestHealthAccess()
+            let status = await requestHealthAccess()
+            guard status.state == .connected else { return status }
+            return await syncHealthData()
         }
         let status = ConnectedDeviceStatus(provider: provider, state: .error, lastSuccessfulSync: nil, permissions: [], message: "Unsupported provider.")
         store.saveDeviceStatus(status)
@@ -1139,12 +1141,16 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
                 NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
             }
         }
+        await MainActor.run {
+            NotificationCenter.default.post(name: .runSmartHealthDidChange, object: nil)
+        }
         saveFirstSyncReviewIfNeeded(
             provider: .healthKit,
             status: result.status,
             importedRuns: result.runs,
             skippedDuplicateCount: result.skippedDuplicates
         )
+        Analytics.trackHealthKitSyncCompleted(importedCount: result.runs.count)
         return result.status
     }
 

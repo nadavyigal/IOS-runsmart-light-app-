@@ -910,7 +910,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         guard provider == "Garmin Connect" else {
             let status = await healthSync.requestAccess()
             store.saveDeviceStatus(status)
-            return status
+            guard status.state == .connected else { return status }
+            return await syncHealthData()
         }
         do {
             try await GarminBridge.shared.connect()
