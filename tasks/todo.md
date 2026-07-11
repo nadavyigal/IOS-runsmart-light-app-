@@ -2,6 +2,27 @@
 
 ## Current Task
 
+**Objective:** WP-40 S1-S4 — HealthKit activation & discoverability (see `executive-os/work-packets/WP-40-runsmart-healthkit-activation.md` in Agentic OS).
+**Status:** S1 committed + pushed (PR #84, draft). S2 implemented and device-QA'd, committed this session. S3 code-verified (no gap found). S4 queried — funnel mechanics work but no real-user data exists yet since S1 hasn't merged/shipped.
+**Branch:** `claude/wp40-healthkit-activation` (pushed, upstream set, PR #84)
+
+### Checklist
+- [x] S1: onboarding HealthKit step, focused test, simulator QA — committed `bf0ed00`, pushed, PR #84 opened.
+- [x] S1: physical-device QA on founder's real iPhone — Connect routes through the real HealthKit path (real account already authorized, so no fresh permission sheet; exercised real sync instead), skip reaches Ready. Relaunch required a manual force-quit — devicectl `launch` foregrounds an already-running process instead of restarting it.
+- [x] S2: found auto-import was genuinely manual-only before this change (confirmed via code read, not assumed). Fixed in `ProductionRunSmartServices.swift` + `SupabaseRunSmartServices.swift`: `connect(provider:)` now calls `syncHealthData()` automatically after a successful HealthKit connect.
+- [x] S2: physical-device QA with real data — "Imported 4 Health workouts. Synced 4 to RunSmart. Skipped 70 already saved or hidden." Real dedup logic, real account. See `docs/qa/reports/wp40-s2-physical-device-qa.md`.
+- [x] S2: full suite (117 XCTest + 5 Swift Testing) re-run with S2 present — 0 failures. No new unit test added; neither service struct has any existing unit-test seam, and the packet's own S2 acceptance criteria is device QA, not unit tests.
+- [ ] S2: periodic/background re-sync — confirmed no existing mechanism, explicitly NOT built per the packet's "don't build speculatively" instruction. Open decision for the founder, not a gap.
+- [x] S3: code-verified `todayHealthSummary()`/`recoverySnapshot()`/`wellnessSnapshot()` all read the real HealthKit daily snapshot with proper Apple Health fallback labeling — no gap found, no new UI needed. See `docs/qa/reports/wp40-s3-s4-verification.md`.
+- [ ] S3: live on-device screenshot of Today/Recovery reflecting the synced data — USB tunnel dropped mid-session before this could be captured. Not blocking (code path confirmed correct) but still open.
+- [x] S4: queried PostHog project 171597 funnel (`healthkit_disclosure_viewed → healthkit_connect_tapped → healthkit_sync_completed`, `filterTestAccounts=true`, 90d) — 9/7/5. Confirmed via actor list + daily trend breakdown that this is pre-existing Profile-tab QA/dev activity (event-count spikes of 27 and 23 in single days), not real users on the new S1 flow, since S1 is still an unmerged draft PR. Full write-up in `docs/qa/reports/wp40-s3-s4-verification.md`.
+- [ ] S4: real re-read — only possible after PR #84 merges and a real cohort has time to onboard through it. Cannot be completed pre-merge; this is expected per the packet, not a shortfall.
+- [x] `git diff --check` clean on all commits this session.
+
+---
+
+## Previous Current Task
+
 **Objective:** WP-37 S8 — PreRun honesty: real preview, visible Last Run.
 **Status:** Implemented and validated in clean story worktree; branch prepared for PR/merge handoff.
 **Branch:** `claude/wp37-runsmart-s8-prerun-honesty` in `/tmp/rs-wp37-s8`

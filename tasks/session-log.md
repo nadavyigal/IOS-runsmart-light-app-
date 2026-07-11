@@ -1,5 +1,32 @@
 # Session Log
 
+## 2026-07-10 - WP-40 S1 Apple Health primary-flow activation
+
+### Task Summary
+Executed only WP-40 S1 on the existing `claude/wp40-healthkit-activation` branch. Preserved partial uncommitted WP-40 files found at session start, completed the onboarding HealthKit connection boundary, and did not expand the pre-existing S2 auto-sync edits.
+
+### Changes
+- Added a skippable Apple Health step before the Ready step in onboarding.
+- Reused the existing HealthKit provider connect route and existing analytics events.
+- Added connected-state policy coverage plus stable Connect/Skip accessibility identifiers.
+- Kept Skip available only while HealthKit is not already connected.
+- Added a focused S1 simulator QA report.
+
+### Validation
+- TDD red: focused test failed because `OnboardingHealthKitStep` did not exist.
+- TDD green: `testOnboardingHealthKitStepUsesExistingProviderAndRequiresConnectedState` passed (1/1).
+- iPhone 17 Debug simulator build passed.
+- Onboarding replay exposed Connect and Skip; Skip reached Ready; Connect used the real HealthKit route and advanced on the already-authorized simulator.
+- Preserved system Health Access sheet evidence: `docs/qa/reports/wp40-18-after-wait.png`.
+- `git diff --check` passed.
+
+### Not Done
+- S2 auto-import, S3 value surfacing, and S4 production PostHog verification were not completed.
+- No commit, push, or PR was requested or created.
+- Physical-device HealthKit QA remains required.
+
+---
+
 ## 2026-07-02 - WP-27 Garmin Data Trust Audit
 
 ### Task Summary
