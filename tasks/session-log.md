@@ -2447,3 +2447,17 @@ D7 App Store readout showed 0/12 users with `run_completed` within 7 days despit
 
 ### Not done
 - No broad onboarding redesign, no permission analytics, no Garmin scope, no WP-34 re-implementation, no ASC release of fix build.
+## 2026-07-11 - WP-42 HealthKit raw HogQL funnel autopsy
+
+### Result
+- Queried PostHog project 171597 read-only through `2026-07-11 14:57:58 UTC` for the first WP-40 build `1.0.7 (21)` cohort.
+- First production-looking disclosure was `2026-07-11 05:48:24.950 UTC`.
+- The only production-looking build/disclosure person also had TestFlight and sideloaded events; person-stable union exclusion removed that person, leaving 0 clean build users and 0 clean disclosure viewers.
+- Reported no readable first cohort, no funnel percentage, and no largest-loss step rather than manufacturing a 0% funnel.
+
+### Evidence and scope
+- Verified release anchor `236dde0` and Xcode version/build `1.0.7 (21)`.
+- Verified UTC project timezone, canonical native app/library properties, HealthKit event taxonomy, and current test-account filter.
+- Frozen exclusion/readiness HogQL returned `1 production-looking / 1 excluded / 0 clean` twice; TestFlight and sideloaded exclusions fully overlap.
+- Added `docs/qa/reports/runsmart-wp40-healthkit-raw-hogql-funnel-autopsy-2026-07-11.md` with exact HogQL, exclusion audit, privacy-safe appendix, and re-read condition.
+- No PostHog objects/configuration, app code, instrumentation, backend, release, HealthKit behavior, or sensitive user/health data changed.
