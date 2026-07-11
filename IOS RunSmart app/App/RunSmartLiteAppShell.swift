@@ -110,6 +110,16 @@ enum RunSmartRecordingMode {
             || env["RUNSMART_RECORD_ONBOARDING"] == "1"
     }
 
+    /// QA-only: skip the post-onboarding aha-moments carousel and land directly on Today,
+    /// so a HealthKit-connected simulator run reaches the Today tab without fighting the
+    /// aha-moments/first-run-activation sheet flow. Only takes effect alongside onboarding replay.
+    static var isSkipAhaMomentsEnabled: Bool {
+        let args = ProcessInfo.processInfo.arguments
+        let env = ProcessInfo.processInfo.environment
+        return args.contains("-RUNSMART_SKIP_AHA_MOMENTS")
+            || env["RUNSMART_SKIP_AHA_MOMENTS"] == "1"
+    }
+
     static var onboardingProfile: OnboardingProfile {
         OnboardingProfile(
             displayName: "Alex Morgan",
@@ -337,12 +347,21 @@ struct RunSmartLiteAppShell: View {
         if recordingOnboardingFinished {
             tabbedContent
         } else if let pendingProfile = pendingOnboardingCompletion {
-            OnboardingAhaMomentsContainer(profile: pendingProfile) {
-                pendingOnboardingCompletion = nil
-                recordingOnboardingFinished = true
-                router.selectedTab = .plan
+            if RunSmartRecordingMode.isSkipAhaMomentsEnabled {
+                Color.clear
+                    .onAppear {
+                        pendingOnboardingCompletion = nil
+                        recordingOnboardingFinished = true
+                        router.selectedTab = .today
+                    }
+            } else {
+                OnboardingAhaMomentsContainer(profile: pendingProfile) {
+                    pendingOnboardingCompletion = nil
+                    recordingOnboardingFinished = true
+                    router.selectedTab = .plan
+                }
+                .environmentObject(session)
             }
-            .environmentObject(session)
         } else {
             OnboardingView(initialProfile: RunSmartRecordingMode.onboardingProfile) { profile in
                 pendingOnboardingCompletion = profile
