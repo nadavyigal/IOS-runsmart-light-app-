@@ -56,6 +56,24 @@ RunSmart is built for calm, consistent running. It does not diagnose medical con
 - "Replaces your coach" — it complements, in most cases
 - "Runna is unsafe" — use the softer "some users report overload following plans rigidly" framing
 
+## Demand-Mining Update (2026-07-11) — DRAFT, pending founder approval
+
+Sourced from `executive-os/research/2026-07-11-demand-mining-right-user-fit.md` (Agentic OS). Two peer-reviewed citations now back existing claims in this file, plus a new right-fit language bank:
+
+1. **The "10% rule" line above (Churned-Runna Voice) can now cite a real study.** Frandsen et al., *Br J Sports Med* 2025 (n=5,205, Garmin-Runsafe data): overuse injury risk rises specifically when a **single run exceeds 10% of the longest run in the past 30 days** — not a generic "don't increase weekly mileage 10%" claim. Use the precise version going forward; it's more defensible and more specific.
+2. **New stat for ASO/positioning:** Relph et al., *Int J Environ Res Public Health* 2023 — only **27.3% of beginners complete** a 9-week Couch-to-5K programme (rounds to "73% don't finish"). Programme design/progression was a named driver, alongside prior injury (predicted non-completion, OR 7.56).
+3. **Right-fit language bank** (primary sources: HealthUnlocked C25K community + dated app-review quotes): "too hard," "too aggressive," "felt like a failure," "can't run a minute," "need walk breaks," injury fear. This is the actual vocabulary of the wrong-fit-traffic hypothesis on the ~94.7% onboarding drop — race-aggressive users bouncing off a readiness-first product.
+4. **Caution:** Runna already ships a named "Post-Injury Plan" and "Not Feeling 100%" feature (press-confirmed). "We support returning runners too" is not a differentiator on its own — sharpen to daily readiness + not making the user feel like a failure, which the sourced language bank above supports directly.
+
+**Draft App Store description variant (rs-aso-002-draft) — leads with the sourced stat, not yet approved, does not replace rs-aso-001:**
+```
+Only 27% of people finish a standard 9-week beginner running plan* — most quit because the plan gets harder faster than their body does. RunSmart adjusts daily instead: what to run today, a plan that backs off when you need it, and an honest post-run summary. No feeling like a failure. No plan that outruns your body.
+
+*Relph et al., Int J Environ Res Public Health, 2023.
+```
+
+**Decision needed:** whether to run rs-aso-002-draft as a subtitle/promo-text test against rs-aso-001, or fold the stat into existing copy instead of a full variant.
+
 ## Email Subject Patterns
 
 - Welcome: "Your first plan, ready to look at"
