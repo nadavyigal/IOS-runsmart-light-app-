@@ -3,8 +3,8 @@
 ## Current Task
 
 **Objective:** WP-40 S1-S4 — HealthKit activation & discoverability (see `executive-os/work-packets/WP-40-runsmart-healthkit-activation.md` in Agentic OS).
-**Status:** S1 committed + pushed (PR #84, draft). S2 implemented and device-QA'd, committed this session. S3 code-verified (no gap found). S4 queried — funnel mechanics work but no real-user data exists yet since S1 hasn't merged/shipped.
-**Branch:** `claude/wp40-healthkit-activation` (pushed, upstream set, PR #84)
+**Status:** S1+S2 merged to `main` as `236dde0` via PR #84 (2026-07-11), branch deleted. S3 code-verified (no gap found), on-device screenshot still not captured (non-blocking). S4 real-cohort re-read now unblocked but needs live traffic through the merged flow — no data yet. No next work packet queued for RunSmart iOS after this; see `tasks/progress.md` Next Recommended Story.
+**Branch:** merged and deleted (`claude/wp40-healthkit-activation`)
 
 ### Checklist
 - [x] S1: onboarding HealthKit step, focused test, simulator QA — committed `bf0ed00`, pushed, PR #84 opened.
