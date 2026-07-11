@@ -2,11 +2,24 @@
 
 ## Current Task
 
-**Objective:** WP-40 S1-S4 — HealthKit activation & discoverability (see `executive-os/work-packets/WP-40-runsmart-healthkit-activation.md` in Agentic OS).
-**Status:** S1+S2 merged to `main` as `236dde0` via PR #84 (2026-07-11), branch deleted. S3 code-verified (no gap found), on-device screenshot still not captured (non-blocking). S4 real-cohort re-read now unblocked but needs live traffic through the merged flow — no data yet. No next work packet queued for RunSmart iOS after this; see `tasks/progress.md` Next Recommended Story.
-**Branch:** merged and deleted (`claude/wp40-healthkit-activation`)
+**Objective:** WP-42 — RunSmart HealthKit raw HogQL funnel autopsy.
+**Status:** Complete as a cohort-readiness result: through 2026-07-11 14:57:58 UTC, the only production-looking `1.0.7 (21)` disclosure viewer overlapped TestFlight+sideloaded traffic and was excluded, leaving 0 clean viewers. No funnel or bottleneck is reportable yet.
+**Branch:** `codex/wp42-healthkit-funnel-autopsy`
 
 ### Checklist
+- [x] Verify WP-40 release anchor: merge `236dde0`, version `1.0.7 (21)`.
+- [x] Verify PostHog project 171597 timezone, event taxonomy, property schema, and test-account configuration.
+- [x] Derive first production-looking build-21 disclosure timestamp from raw events.
+- [x] Apply one person-stable emulator/TestFlight/sideload exclusion set.
+- [x] Freeze and rerun exact HogQL; reconcile exclusion overlaps and clean-person arithmetic.
+- [x] Save privacy-safe report and reproduction query under `docs/qa/reports/`.
+- [x] Do not manufacture a zero-percent funnel when the clean cohort is empty.
+
+### Re-read gate
+- [ ] Rerun when at least one build `1.0.7 (21)` disclosure viewer has no emulator, TestFlight, or sideloaded evidence anywhere in their event history.
+- [ ] Require at least 10 clean disclosure viewers before recommending a product change from the funnel.
+
+## Previous Current Task — WP-40
 - [x] S1: onboarding HealthKit step, focused test, simulator QA — committed `bf0ed00`, pushed, PR #84 opened.
 - [x] S1: physical-device QA on founder's real iPhone — Connect routes through the real HealthKit path (real account already authorized, so no fresh permission sheet; exercised real sync instead), skip reaches Ready. Relaunch required a manual force-quit — devicectl `launch` foregrounds an already-running process instead of restarting it.
 - [x] S2: found auto-import was genuinely manual-only before this change (confirmed via code read, not assumed). Fixed in `ProductionRunSmartServices.swift` + `SupabaseRunSmartServices.swift`: `connect(provider:)` now calls `syncHealthData()` automatically after a successful HealthKit connect.
