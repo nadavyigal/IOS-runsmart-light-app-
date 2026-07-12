@@ -2,24 +2,22 @@
 
 ## Current Task
 
-**Objective:** WP-42 — RunSmart HealthKit raw HogQL funnel autopsy.
-**Status:** Complete as a cohort-readiness result: through 2026-07-11 14:57:58 UTC, the only production-looking `1.0.7 (21)` disclosure viewer overlapped TestFlight+sideloaded traffic and was excluded, leaving 0 clean viewers. No funnel or bottleneck is reportable yet.
-**Branch:** `codex/wp42-healthkit-funnel-autopsy`
+**Objective:** Ship **1.0.8 (22)** to App Store Connect (includes WP-37, WP-38, WP-40).
+**Status:** **Archived 2026-07-12** — waiting for App Store Connect / App Review.
+**Handoff:** `docs/qa/reports/release-1.0.8-build22-handoff.md`
 
 ### Checklist
-- [x] Verify WP-40 release anchor: merge `236dde0`, version `1.0.7 (21)`.
-- [x] Verify PostHog project 171597 timezone, event taxonomy, property schema, and test-account configuration.
-- [x] Derive first production-looking build-21 disclosure timestamp from raw events.
-- [x] Apply one person-stable emulator/TestFlight/sideload exclusion set.
-- [x] Freeze and rerun exact HogQL; reconcile exclusion overlaps and clean-person arithmetic.
-- [x] Save privacy-safe report and reproduction query under `docs/qa/reports/`.
-- [x] Do not manufacture a zero-percent funnel when the clean cohort is empty.
+- [x] Bump `MARKETING_VERSION` → 1.0.8, `CURRENT_PROJECT_VERSION` → 22 (all targets).
+- [x] Update `fastlane/metadata/en-US/release_notes.txt`.
+- [x] Confirm no `* 2.swift` duplicates in app source.
+- [x] Confirm `RunSmartSecrets.xcconfig` present.
+- [x] Release archive compile + embedded validate-for-store (clean worktree).
+- [x] Founder: **Product → Archive** in Xcode (Distribution signing) — **2026-07-12**.
+- [ ] Upload to ASC confirmed + TestFlight smoke (onboarding HealthKit, Today card, short run).
+- [ ] App Review approval / release to production.
+- [ ] Re-run WP-42 after real users on 1.0.8 (22).
 
-### Re-read gate
-- [ ] Rerun when at least one build `1.0.7 (21)` disclosure viewer has no emulator, TestFlight, or sideloaded evidence anywhere in their event history.
-- [ ] Require at least 10 clean disclosure viewers before recommending a product change from the funnel.
-
-## Previous Current Task — WP-40
+## Previous Current Task — WP-42
 - [x] S1: onboarding HealthKit step, focused test, simulator QA — committed `bf0ed00`, pushed, PR #84 opened.
 - [x] S1: physical-device QA on founder's real iPhone — Connect routes through the real HealthKit path (real account already authorized, so no fresh permission sheet; exercised real sync instead), skip reaches Ready. Relaunch required a manual force-quit — devicectl `launch` foregrounds an already-running process instead of restarting it.
 - [x] S2: found auto-import was genuinely manual-only before this change (confirmed via code read, not assumed). Fixed in `ProductionRunSmartServices.swift` + `SupabaseRunSmartServices.swift`: `connect(provider:)` now calls `syncHealthData()` automatically after a successful HealthKit connect.
@@ -27,9 +25,9 @@
 - [x] S2: full suite (117 XCTest + 5 Swift Testing) re-run with S2 present — 0 failures. No new unit test added; neither service struct has any existing unit-test seam, and the packet's own S2 acceptance criteria is device QA, not unit tests.
 - [ ] S2: periodic/background re-sync — confirmed no existing mechanism, explicitly NOT built per the packet's "don't build speculatively" instruction. Open decision for the founder, not a gap.
 - [x] S3: code-verified `todayHealthSummary()`/`recoverySnapshot()`/`wellnessSnapshot()` all read the real HealthKit daily snapshot with proper Apple Health fallback labeling — no gap found, no new UI needed. See `docs/qa/reports/wp40-s3-s4-verification.md`.
-- [ ] S3: live on-device screenshot of Today/Recovery reflecting the synced data — USB tunnel dropped mid-session before this could be captured. Not blocking (code path confirmed correct) but still open.
-- [x] S4: queried PostHog project 171597 funnel (`healthkit_disclosure_viewed → healthkit_connect_tapped → healthkit_sync_completed`, `filterTestAccounts=true`, 90d) — 9/7/5. Confirmed via actor list + daily trend breakdown that this is pre-existing Profile-tab QA/dev activity (event-count spikes of 27 and 23 in single days), not real users on the new S1 flow, since S1 is still an unmerged draft PR. Full write-up in `docs/qa/reports/wp40-s3-s4-verification.md`.
-- [ ] S4: real re-read — only possible after PR #84 merges and a real cohort has time to onboard through it. Cannot be completed pre-merge; this is expected per the packet, not a shortfall.
+- [x] S3: live on-device screenshot of Today reflecting synced HealthKit data — founder iPhone 2026-07-12: **Today's activity / Apple Health**, Steps **1.8k**, Active kcal **46**, Sleep `--` (no sleep sample in HK window; not blocking). Evidence: `docs/qa/reports/assets-2026-07-12-wp40-s3/`. Recovery Apple Health copy: Profile → Wellness Trends → Readiness (optional screenshot).
+- [x] S4: pre-merge baseline in `docs/qa/reports/wp40-s3-s4-verification.md` (9/7/5 QA bursts).
+- [x] S4: post-merge re-read 2026-07-12 — build `1.0.7 (21)` raw events firing (`healthkit_sync_completed` ×3 on 1 person); ordered funnel n=1 not decision-grade; WP-42 clean cohort still 0. See `docs/qa/reports/wp40-s3-s4-device-closeout-2026-07-12.md`.
 - [x] `git diff --check` clean on all commits this session.
 
 ---
