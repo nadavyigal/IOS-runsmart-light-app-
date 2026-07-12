@@ -50,6 +50,16 @@
         }
       }
     },
+    "%@, %@ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@ %3$@"
+          }
+        }
+      }
+    },
     "%@, %@, %@" : {
       "localizations" : {
         "en" : {
@@ -80,6 +90,16 @@
         }
       }
     },
+    "%@. %@. Moving time %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@. %2$@. Moving time %3$@."
+          }
+        }
+      }
+    },
     "%lld" : {
 
     },
@@ -87,6 +107,9 @@
 
     },
     "%lld m" : {
+
+    },
+    "%lld out of 10" : {
 
     },
     "%lld run days per week" : {
@@ -262,6 +285,9 @@
     "COLLAPSE" : {
 
     },
+    "Collapse split list" : {
+
+    },
     "Comparisons get sharper after one more matched run on this benchmark route." : {
 
     },
@@ -278,6 +304,9 @@
 
     },
     "Continue" : {
+
+    },
+    "Continue without connecting" : {
 
     },
     "Could not delete account" : {
@@ -319,16 +348,19 @@
     "Delete Account" : {
 
     },
-    "Delete Activity" : {
+    "Delete Route" : {
 
     },
-    "Delete Route" : {
+    "Delete run" : {
+
+    },
+    "Delete Run" : {
 
     },
     "Delete saved route?" : {
 
     },
-    "Delete this activity?" : {
+    "Delete this run?" : {
 
     },
     "Delete your RunSmart account?" : {
@@ -402,6 +434,9 @@
     "EXPAND" : {
 
     },
+    "Expand split list" : {
+
+    },
     "Explain this run ✦" : {
 
     },
@@ -468,6 +503,9 @@
     "GPS route" : {
 
     },
+    "Health connected" : {
+
+    },
     "home_score_excellent" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -519,6 +557,9 @@
         }
       }
     },
+    "How did that feel?" : {
+
+    },
     "How ready do you feel before today’s training?" : {
 
     },
@@ -563,10 +604,16 @@
     "Keep Recording" : {
 
     },
+    "Keep Run" : {
+
+    },
     "Keep Workout" : {
 
     },
     "Key Insights" : {
+
+    },
+    "Kilometer splits" : {
 
     },
     "km" : {
@@ -699,6 +746,9 @@
     "Not feeling 100%?" : {
 
     },
+    "Not rated" : {
+
+    },
     "Notes" : {
 
     },
@@ -715,6 +765,15 @@
 
     },
     "Open Share Sheet" : {
+
+    },
+    "Opens %@ options for this run." : {
+
+    },
+    "Opens delete confirmation for this saved activity." : {
+
+    },
+    "Opens route creator." : {
 
     },
     "Optional notes about this route" : {
@@ -786,6 +845,9 @@
     "Quick access in your route library." : {
 
     },
+    "Rate effort %lld out of 10" : {
+
+    },
     "READY TO TRAIN" : {
 
     },
@@ -813,16 +875,13 @@
     "Remove run" : {
 
     },
-    "Remove Run" : {
-
-    },
-    "Remove this run?" : {
-
-    },
     "Remove this saved route and benchmark tracking from RunSmart." : {
 
     },
     "Report generation failed. Check your connection and try again." : {
+
+    },
+    "Returns to the run tab and keeps this saved activity." : {
 
     },
     "Review Changes" : {
@@ -844,6 +903,9 @@
 
     },
     "Route selected" : {
+
+    },
+    "Route sketch" : {
 
     },
     "RS" : {
@@ -874,9 +936,6 @@
 
     },
     "RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health." : {
-
-    },
-    "RunSmart/manual runs are deleted from RunSmart. Garmin runs are hidden in RunSmart but stay in Garmin." : {
 
     },
     "Safety notes" : {
@@ -921,6 +980,9 @@
     "Saved to your history" : {
 
     },
+    "Saves this activity and opens the report tab." : {
+
+    },
     "Saving" : {
 
     },
@@ -954,7 +1016,7 @@
     "Smart return reminders" : {
 
     },
-    "Splits appear after at least 500m of GPS distance." : {
+    "Splits appear once you complete 1 km of GPS distance." : {
 
     },
     "Start" : {
@@ -976,6 +1038,9 @@
 
     },
     "Start Workout" : {
+
+    },
+    "Starts GPS run recording." : {
 
     },
     "Stop tracking progress on this route." : {
@@ -1108,7 +1173,7 @@
     "This removes the current timer, distance, and route." : {
 
     },
-    "This removes the run from RunSmart. It will not delete anything from Garmin." : {
+    "This removes the run from your RunSmart history." : {
 
     },
     "This Week" : {
@@ -1167,6 +1232,9 @@
 
     },
     "View Report" : {
+
+    },
+    "Waiting for GPS before the run can start." : {
 
     },
     "Want to talk through what's going on? Coach can look at the full picture and suggest a more sustainable approach." : {

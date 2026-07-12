@@ -26,16 +26,28 @@
 
 **WP-37 S2 — Don't abort a run on transient GPS errors (P0), 2026-07-08:** Fixed `RunRecorder.locationManager(_:didFailWithError:)` unconditionally setting `phase = .failed` on any error while recording/paused, which silently kicked an active run back to PreRun and lost it on a transient `kCLErrorLocationUnknown`-class failure. Fix: while `.recording`/`.paused`, only an explicit `CLError.denied` stops the run (`stopTracking()`, `phase = .denied`); every other error keeps recording and surfaces "Weak GPS signal. RunSmart keeps recording and will reconnect automatically." via `lastErrorMessage`; `acceptRecordingLocation` clears `lastErrorMessage` on the next good fix so the pill doesn't stay stale. Non-recording states keep the prior any-error→`.failed` behavior unchanged. **Validation:** clean worktree `/tmp/rs-wp37-s2` (branched fresh off `main`, independent of S1), iPhone 17 sim — 3 new focused tests PASS (`testRunRecorderIgnoresTransientGPSErrorWhileRecording`, `testRunRecorderStopsSafelyWhenPermissionDeniedWhileRecording`, `testRunRecorderStillFailsOnErrorWhenNotRecording`); red-state check confirmed both new tests FAIL when the old unconditional-fail behavior is reintroduced. **Corroborating finding (fixed by S1/PR #73, already merged):** while validating, found the pre-existing `testRunRecorderDiscardResetsCurrentWorkoutWithoutSaving` failing on **unmodified `main`** in this environment — verified in an isolated pristine worktree with zero edits — because this Mac's iPhone 17 simulator has drifted to real `.authorizedWhenInUse` location authorization instead of `.notDetermined`, which is exactly the S1 zombie-phase root cause manifesting live in the existing suite; S1 was already merged by the time S2 rebased onto `main`, so this test now passes again post-rebase. **Rebased onto post-S1 `main` (`b97064c`) 2026-07-08 to resolve merge conflicts with S1's changes to the same file; both fixes coexist and verified together.** **Device QA still owed (both S1 and S2):** record ≥1 min → Save → confirm Run tab shows PreRun with Start + tab bar; repeat via View Report and Delete; pause→discard→PreRun; start a second run, metrics from 0. Switch `simctl location` scenarios mid-run (or toggle location) → run keeps recording, pill shows degraded-GPS copy, no data loss; denying permission mid-run still stops safely. Branch `claude/wp37-runsmart-s2-gps-transient-errors`. Files: `Services/Production/RunSmartProductionServices.swift`, `IOS RunSmart appTests/RunSmartReadinessTests.swift`. Next: S3–S8 not started.
 
-Status: WP-38 (RunSmart Record-Run UX Follow-ups) **COMPLETE** — S9–S14d merged (PR #81, #82, #83). S13 stays gated (HealthKit accuracy precondition). WP-40 S1+S2 (Apple Health onboarding connect + auto-import) **MERGED to main as `236dde0` via PR #84 (2026-07-11)**. WP-42 first-cohort autopsy completed with **no readable clean cohort yet**.
-Current Phase: PHASE 2 — Activation diagnostics + record-run polish follow-ups (WP-38 closed, WP-40 S1+S2 shipped).
-Active Story: None — WP-42 queried through 2026-07-11 14:57:58 UTC. One production-looking build `1.0.7 (21)` disclosure person overlapped TestFlight+sideloaded traffic and was excluded; 0 clean build users / 0 clean disclosure viewers remain, so no funnel percentage or bottleneck is valid.
-Last Completed Story: 2026-07-11 — WP-42 HealthKit raw HogQL cohort-readiness autopsy; report at `docs/qa/reports/runsmart-wp40-healthkit-raw-hogql-funnel-autopsy-2026-07-11.md`.
-Next Recommended Story: Re-run WP-42 after at least one build `1.0.7 (21)` disclosure viewer has no emulator/TestFlight/sideloaded evidence; wait for 10 clean disclosure viewers before product-change recommendations. S13 (live calories/steps) remains gated by HealthKit accuracy research. WP-35 remains founder-admin pending the accountant call.
-Estimated Completion: WP-38 closed 2026-07-09; WP-40 S1+S2 closed 2026-07-11.
-Blockers: Re-check Finder `* 2.*` duplicates before next Release archive; physical lock-screen Live Activity capture still owed for S14b; S3 on-device screenshot of Today/Recovery reflecting synced HealthKit data still not captured (code path confirmed correct, not blocking).
-Last Validation: 2026-07-11 — PR #84 checks green (GitGuardian pass), squash-merged to main, branch deleted.
-PM Artifacts: WP-38 packet in Agentic OS; WP-40 packet in Agentic OS `executive-os/work-packets/WP-40-runsmart-healthkit-activation.md`; evidence under `docs/qa/reports/assets-2026-07-09-wp38-s14/` and `docs/qa/reports/wp40-*`.
-Last Updated: 2026-07-11
+Status: **1.0.8 (22) archived 2026-07-12 — waiting for App Store Connect / App Review.** WP-38 **COMPLETE**. WP-40 **COMPLETE**. Handoff: `docs/qa/reports/release-1.0.8-build22-handoff.md`.
+Current Phase: PHASE 2 — Release 1.0.8 (22) (WP-37/38/40 bundle).
+Active Story: ASC review / TestFlight smoke after processing.
+Last Completed Story: 2026-07-12 — Founder archived 1.0.8 (22) from Xcode Organizer.
+Next Recommended Story: Confirm ASC upload processing; TestFlight smoke; re-run WP-42 on clean 1.0.8 cohort after users onboard.
+Blockers: None — awaiting Apple review.
+Last Validation: 2026-07-12 — Release archive from Xcode; version 1.0.8 (22).
+Last Updated: 2026-07-12
+
+---
+
+## 2026-07-12 — RunSmart 1.0.8 (22) archived
+
+| Field | Value |
+|---|---|
+| **Version** | 1.0.8 |
+| **Build number** | 22 |
+| **Archive date (UTC+3)** | 2026-07-12 |
+| **Includes** | WP-37 run reliability, WP-38 run UX (splits, Live Activity), WP-40 HealthKit onboarding + auto-import |
+| **ASC status** | Archived locally; **waiting for review** |
+| **Handoff** | `docs/qa/reports/release-1.0.8-build22-handoff.md` |
+| **Replaces** | 1.0.7 (21) on ASC (~2026-07-05) |
 
 ---
 

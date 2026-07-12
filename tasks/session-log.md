@@ -1,5 +1,40 @@
 # Session Log
 
+## 2026-07-12 - RunSmart 1.0.8 (22) release tracking commit
+
+### Task Summary
+Committed version bump, release notes, QA closeout docs, and task-memory update after founder archived **1.0.8 (22)** from Xcode Organizer. Build is **waiting for App Store Connect / App Review**.
+
+### Changes
+- `MARKETING_VERSION` 1.0.7 → 1.0.8, `CURRENT_PROJECT_VERSION` 21 → 22 (all targets).
+- Release notes + handoff + WP-40 S3/S4 device closeout reports.
+- Task status: archived, awaiting review.
+
+### Not Done
+- TestFlight smoke on processed ASC build.
+- WP-42 re-read on clean 1.0.8 user cohort.
+
+---
+
+## 2026-07-12 - WP-40 S3 device closeout + S4 post-merge re-read
+
+### Task Summary
+Closed the remaining WP-40 verification gap with founder physical-device QA on a cable-connected iPhone 13. Today Apple Health value surfacing was captured; PostHog build-21 funnel was re-read after PR #84 merge.
+
+### Validation
+- **S3 Today (PASS):** Today tab shows **Today's activity** with **Apple Health** attribution — Steps **1.8k**, Active kcal **46**, Sleep `--` (no sleep sample in HealthKit window; not blocking).
+- Evidence saved: `docs/qa/reports/assets-2026-07-12-wp40-s3/wp40-s3-today-apple-health-card.png`.
+- **S3 Recovery path:** Profile → Wellness Trends → Readiness should show `"Recovery data synced from Apple Health."` when Garmin is not the recovery source (optional screenshot).
+- **S4 re-read:** PostHog 171597, 2026-07-11→12 — raw `healthkit_sync_completed` ×3 on build 21; ordered funnel n=1 not decision-grade; WP-42 clean cohort still 0.
+- Closeout report: `docs/qa/reports/wp40-s3-s4-device-closeout-2026-07-12.md`.
+
+### Not Done
+- Optional Recovery wellness screenshot.
+- S2 periodic background HealthKit re-sync (founder product decision).
+- WP-42 decision-grade funnel (needs ≥10 clean native disclosure viewers).
+
+---
+
 ## 2026-07-10 - WP-40 S1 Apple Health primary-flow activation
 
 ### Task Summary

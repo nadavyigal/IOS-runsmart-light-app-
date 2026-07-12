@@ -1,1 +1,8 @@
-RunSmart 1.0 includes adaptive training plans, Today recommendations, GPS run recording, post-run reports, route context, Garmin and Apple Health support, private progress sharing, local reminders, and authenticated Coach chat.
+RunSmart 1.0.8 improves run recording reliability, adds live kilometer splits and lock-screen run status, and makes Apple Health part of onboarding with automatic workout import.
+
+What's new:
+- Connect Apple Health during onboarding; workouts import right after you connect
+- Today's activity card shows steps and calories from Apple Health
+- More reliable GPS recording, finish/discard flows, and run controls on all iPhone sizes
+- Live per-km splits while you run; moving time labels; better post-run summaries
+- Lock-screen and Dynamic Island run status while recording (supported devices)
