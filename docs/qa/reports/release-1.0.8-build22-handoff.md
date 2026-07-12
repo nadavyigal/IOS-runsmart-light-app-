@@ -1,8 +1,8 @@
 # RunSmart 1.0.8 (22) — App Store Connect release handoff
 
-**Date:** 2026-07-12  
-**Source commit:** `main` @ `2877fcb` + version bump  
-**Replaces ASC build:** 1.0.7 (21) — submitted ~2026-07-05 (WP-15 only)  
+**Date:** 2026-07-12
+**Source commit:** `main` @ `2877fcb` + version bump
+**Replaces ASC build:** 1.0.7 (21) — submitted ~2026-07-05 (WP-15 only)
 **ASC status:** **Archived 2026-07-12 — waiting for App Store Connect / App Review**
 
 ## Verdict: **Archived — awaiting review**
@@ -58,7 +58,7 @@ Automated Release archive **compiled and validated successfully**. Command-line 
 
 ## Validation artifact
 
-CLI archive (Development-signed, for compile proof only):  
+CLI archive (Development-signed, for compile proof only):
 `/tmp/rs-release-108-22/build/RunSmart-v1.0.8-build22-AppStore.xcarchive`
 
 Safe to delete after your Xcode archive succeeds: `rm -rf /tmp/rs-release-108-22`
