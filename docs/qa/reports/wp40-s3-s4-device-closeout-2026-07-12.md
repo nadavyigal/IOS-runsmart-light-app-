@@ -22,8 +22,8 @@ Sleep `--` is expected when Apple Health has no `sleepAnalysis` samples in the i
 
 ## S4 — PostHog funnel re-read (post PR #84 merge)
 
-**Project:** [Running coach — 171597](https://us.posthog.com/project/171597)  
-**Window:** 2026-07-11 → 2026-07-12 (UTC)  
+**Project:** [Running coach — 171597](https://us.posthog.com/project/171597)
+**Window:** 2026-07-11 → 2026-07-12 (UTC)
 **Filter:** `filterTestAccounts=true`
 
 ### Ordered funnel
