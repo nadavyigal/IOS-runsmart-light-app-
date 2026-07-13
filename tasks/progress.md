@@ -26,14 +26,28 @@
 
 **WP-37 S2 — Don't abort a run on transient GPS errors (P0), 2026-07-08:** Fixed `RunRecorder.locationManager(_:didFailWithError:)` unconditionally setting `phase = .failed` on any error while recording/paused, which silently kicked an active run back to PreRun and lost it on a transient `kCLErrorLocationUnknown`-class failure. Fix: while `.recording`/`.paused`, only an explicit `CLError.denied` stops the run (`stopTracking()`, `phase = .denied`); every other error keeps recording and surfaces "Weak GPS signal. RunSmart keeps recording and will reconnect automatically." via `lastErrorMessage`; `acceptRecordingLocation` clears `lastErrorMessage` on the next good fix so the pill doesn't stay stale. Non-recording states keep the prior any-error→`.failed` behavior unchanged. **Validation:** clean worktree `/tmp/rs-wp37-s2` (branched fresh off `main`, independent of S1), iPhone 17 sim — 3 new focused tests PASS (`testRunRecorderIgnoresTransientGPSErrorWhileRecording`, `testRunRecorderStopsSafelyWhenPermissionDeniedWhileRecording`, `testRunRecorderStillFailsOnErrorWhenNotRecording`); red-state check confirmed both new tests FAIL when the old unconditional-fail behavior is reintroduced. **Corroborating finding (fixed by S1/PR #73, already merged):** while validating, found the pre-existing `testRunRecorderDiscardResetsCurrentWorkoutWithoutSaving` failing on **unmodified `main`** in this environment — verified in an isolated pristine worktree with zero edits — because this Mac's iPhone 17 simulator has drifted to real `.authorizedWhenInUse` location authorization instead of `.notDetermined`, which is exactly the S1 zombie-phase root cause manifesting live in the existing suite; S1 was already merged by the time S2 rebased onto `main`, so this test now passes again post-rebase. **Rebased onto post-S1 `main` (`b97064c`) 2026-07-08 to resolve merge conflicts with S1's changes to the same file; both fixes coexist and verified together.** **Device QA still owed (both S1 and S2):** record ≥1 min → Save → confirm Run tab shows PreRun with Start + tab bar; repeat via View Report and Delete; pause→discard→PreRun; start a second run, metrics from 0. Switch `simctl location` scenarios mid-run (or toggle location) → run keeps recording, pill shows degraded-GPS copy, no data loss; denying permission mid-run still stops safely. Branch `claude/wp37-runsmart-s2-gps-transient-errors`. Files: `Services/Production/RunSmartProductionServices.swift`, `IOS RunSmart appTests/RunSmartReadinessTests.swift`. Next: S3–S8 not started.
 
-Status: **1.0.8 (22) archived 2026-07-12 — waiting for App Store Connect / App Review.** WP-38 **COMPLETE**. WP-40 **COMPLETE**. Handoff: `docs/qa/reports/release-1.0.8-build22-handoff.md`.
-Current Phase: PHASE 2 — Release 1.0.8 (22) (WP-37/38/40 bundle).
-Active Story: ASC review / TestFlight smoke after processing.
-Last Completed Story: 2026-07-12 — Founder archived 1.0.8 (22) from Xcode Organizer.
-Next Recommended Story: Confirm ASC upload processing; TestFlight smoke; re-run WP-42 on clean 1.0.8 cohort after users onboard.
-Blockers: None — awaiting Apple review.
-Last Validation: 2026-07-12 — Release archive from Xcode; version 1.0.8 (22).
-Last Updated: 2026-07-12
+Status: **1.0.8 (22) approved by App Review and live on the App Store (2026-07-13).** WP-37 **COMPLETE**. WP-38 **COMPLETE**. WP-40 **COMPLETE**. Handoff: `docs/qa/reports/release-1.0.8-build22-handoff.md`.
+Current Phase: PHASE 2 — Release 1.0.8 (22) (WP-37/38/40 bundle) — live.
+Active Story: TestFlight/live smoke on 1.0.8 (22); re-run WP-42 once a clean post-release cohort exists.
+Last Completed Story: 2026-07-13 — 1.0.8 (22) approved and live on the App Store.
+Next Recommended Story: Live smoke pass on 1.0.8 (22) from the App Store build; re-run WP-42 on a clean 1.0.8 cohort after users onboard.
+Blockers: None.
+Last Validation: 2026-07-13 — App Store Connect shows 1.0.8 (22) approved and live (founder-confirmed).
+Last Updated: 2026-07-13
+
+---
+
+## 2026-07-13 — RunSmart 1.0.8 (22) approved and live
+
+| Field | Value |
+|---|---|
+| **Version** | 1.0.8 |
+| **Build number** | 22 |
+| **Approval/live date** | 2026-07-13 (founder-confirmed) |
+| **Includes** | WP-37 run reliability, WP-38 run UX (splits, Live Activity), WP-40 HealthKit onboarding + auto-import |
+| **ASC status** | **Approved — live on the App Store** |
+| **Handoff** | `docs/qa/reports/release-1.0.8-build22-handoff.md` |
+| **Replaces** | 1.0.7 (21) on ASC (~2026-07-05) |
 
 ---
 
@@ -45,7 +59,7 @@ Last Updated: 2026-07-12
 | **Build number** | 22 |
 | **Archive date (UTC+3)** | 2026-07-12 |
 | **Includes** | WP-37 run reliability, WP-38 run UX (splits, Live Activity), WP-40 HealthKit onboarding + auto-import |
-| **ASC status** | Archived locally; **waiting for review** |
+| **ASC status** | Archived locally; waiting for review (superseded — see 2026-07-13 entry above) |
 | **Handoff** | `docs/qa/reports/release-1.0.8-build22-handoff.md` |
 | **Replaces** | 1.0.7 (21) on ASC (~2026-07-05) |
 
