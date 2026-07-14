@@ -2,8 +2,26 @@
 
 ## Current Task
 
+**Objective:** Complete the FTUX upgrade plan (WP-44 S1–S6 + WP-45 remainder) so a release containing WP-43+44+45 can ship.
+**Status:** **Implementation complete 2026-07-14** on branch `claude/device-smoke-release-prep-50eafe` — 268 tests, 0 failures. PR pending merge.
+**Plan doc:** `docs/plans/2026-07-13-ftux-upgrade-plan.md` (only on branch `claude/runsmart-ftux-audit-240648`).
+
+### Checklist
+- [x] WP-44 S1 — first-screen daily-answer copy (structure deferred to E2, founder decision).
+- [x] WP-44 S6 — in-app Safari for Terms/Privacy (`SafariView`).
+- [x] WP-44 S4 — Coaching step rename, Back control, Garmin/Rookie marketing deferred.
+- [x] WP-44 S2 — HealthKit connect failure copy, Report skeleton, duplicate button removed.
+- [x] WP-44 S5 — rest-day recovery guidance on Today.
+- [x] WP-44 S3 — `Services/TrainingMetrics.swift` single-source accessors (founder-approved design).
+- [x] WP-45 — full event remainder + `plan_generation_timed_out` wired + `onboarding_completed_at` person property. (`share_progress_completed` deliberately unwired — no ShareLink completion API.)
+- [x] Full suite green (268/268) + Debug build SUCCEEDED.
+- [ ] Founder device build + smoke (WP-43 S6/S1 gaps + new WP-44 surfaces).
+- [ ] Merge PR; then release 1.0.9 (23); then verify events in PostHog; then Experiment E1.
+
+## Previous Current Task
+
 **Objective:** Ship **1.0.8 (22)** to App Store Connect (includes WP-37, WP-38, WP-40).
-**Status:** **Archived 2026-07-12** — waiting for App Store Connect / App Review.
+**Status:** **Live on the App Store 2026-07-13.**
 **Handoff:** `docs/qa/reports/release-1.0.8-build22-handoff.md`
 
 ### Checklist
