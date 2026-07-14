@@ -144,6 +144,7 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var router = AppRouter()
     @StateObject private var session = SupabaseSession()
     @StateObject private var recorder = RunRecorder()
+    @StateObject private var planGeneration = PlanGenerationStore()
     @State private var didPresentMorningCheckin = false
     @State private var isShowingLaunch = !RunSmartDemoMode.isEnabled
     @State private var planNotice: RunSmartPlanNotice?
@@ -210,6 +211,7 @@ struct RunSmartLiteAppShell: View {
         .environmentObject(router)
         .environmentObject(session)
         .environmentObject(recorder)
+        .environmentObject(planGeneration)
         .environment(\.runSmartServices, services)
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
@@ -316,18 +318,7 @@ struct RunSmartLiteAppShell: View {
                 pendingOnboardingCompletion = nil
                 Task {
                     await session.completeOnboarding(profile)
-                    let request = TrainingGoalRequest(
-                        displayName: profile.displayName,
-                        goal: profile.goal.isEmpty ? "build a running habit" : profile.goal,
-                        experience: profile.experience.isEmpty ? "beginner" : profile.experience,
-                        age: profile.age,
-                        averageWeeklyDistanceKm: profile.averageWeeklyDistanceKm,
-                        trainingDataSource: profile.trainingDataSource,
-                        weeklyRunDays: profile.weeklyRunDays > 0 ? profile.weeklyRunDays : 3,
-                        preferredDays: profile.preferredDays.isEmpty ? ["Mon", "Wed", "Sat"] : profile.preferredDays,
-                        coachingTone: profile.coachingTone.isEmpty ? "Motivating" : profile.coachingTone,
-                        targetDate: Date().addingTimeInterval(21 * 24 * 3600)
-                    )
+                    let request = TrainingGoalRequest.onboardingDefault(from: profile)
                     let saved = await services.saveTrainingGoal(request)
                     await presentFirstRunActivationIfNeeded(planSaved: saved)
                 }
@@ -498,7 +489,7 @@ struct RunSmartLiteAppShell: View {
     }
 }
 
-private struct RunSmartPlanNotice: Equatable {
+struct RunSmartPlanNotice: Equatable {
     let id = UUID()
     let status: RunSmartPlanGenerationStatus
     let title: String
@@ -521,7 +512,10 @@ private struct RunSmartPlanNotice: Equatable {
             tint = .accentSuccess
         case .failed:
             title = "Plan Update Delayed"
-            message = "Training data was saved. Open Training Data to retry the plan update."
+            // Don't send a first-time user to a Profile-buried screen they have
+            // never seen — Today and Plan now carry their own inline retry
+            // (WP-43 S1 / audit §4 Risk 1).
+            message = "Your details are saved. Tap Try again on Today or Plan to rebuild your plan."
             symbol = "exclamationmark.triangle.fill"
             tint = .accentHeart
         }

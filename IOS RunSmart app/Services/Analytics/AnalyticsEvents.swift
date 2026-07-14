@@ -48,6 +48,29 @@ extension Analytics {
         ])
     }
 
+    // MARK: - Plan generation lifecycle (WP-45)
+
+    static func trackPlanGenerationStarted() {
+        shared.track("plan_generation_started", properties: [:])
+    }
+
+    static func trackPlanGenerationSucceeded(durationMs: Int?) {
+        shared.track("plan_generation_succeeded", properties: durationProperties(durationMs))
+    }
+
+    static func trackPlanGenerationFailed(durationMs: Int?) {
+        shared.track("plan_generation_failed", properties: durationProperties(durationMs))
+    }
+
+    static func trackPlanGenerationTimedOut(durationMs: Int?) {
+        shared.track("plan_generation_timed_out", properties: durationProperties(durationMs))
+    }
+
+    private static func durationProperties(_ durationMs: Int?) -> [String: Any] {
+        guard let durationMs else { return [:] }
+        return ["duration_ms": durationMs]
+    }
+
     // MARK: - Run Engagement
 
     static func trackRunStarted(source: String) {

@@ -4,6 +4,7 @@ struct PlanTabView: View {
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
+    @EnvironmentObject private var planGeneration: PlanGenerationStore
 
     @State private var weekWorkouts: [WorkoutSummary] = []
     @State private var nextWorkouts: [WorkoutSummary] = []
@@ -58,6 +59,15 @@ struct PlanTabView: View {
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     header
+
+                    // Never leave Plan as an empty calendar while the coach
+                    // builds the plan, and keep the retry here (WP-43 S1).
+                    if planGeneration.state.showsGeneratingCard || planGeneration.state.showsInlineRetry {
+                        PlanGenerationStatusCard(
+                            state: planGeneration.state,
+                            onRetry: retryPlanGeneration
+                        )
+                    }
 
                     if let current {
                         PlanCurrentWeekSection(week: current) { workout in
@@ -244,6 +254,16 @@ struct PlanTabView: View {
 
     private func openPlanCoach() {
         router.openCoach(context: .plan)
+    }
+
+    /// Rebuilds the plan from the saved profile without leaving Plan
+    /// (WP-43 S1). Uses the same request the onboarding completion builds.
+    private func retryPlanGeneration() {
+        planGeneration.markGenerating()
+        Task {
+            let request = TrainingGoalRequest.onboardingDefault(from: session.onboardingProfile)
+            _ = await services.saveTrainingGoal(request)
+        }
     }
 
     private func showPreviousMonth() {

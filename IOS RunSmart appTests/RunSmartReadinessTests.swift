@@ -4056,6 +4056,20 @@ final class RunSmartReadinessTests: XCTestCase {
         }
     }
 
+    // The audit's actual §10 B12 evidence string ("Imported activity ·
+    // Heuristic") comes from PlanExplanationSource.displayName, rendered on
+    // Today next to the trigger — a separate enum from PostRunLearningSource.
+    func testPlanExplanationSourceDisplayNamesAreUserFacing() {
+        for source in [PlanExplanationSource.heuristic, .ai, .fallback] {
+            let label = source.displayName
+            XCTAssertFalse(label.isEmpty, "\(source) needs a display label")
+            let lowered = label.lowercased()
+            XCTAssertFalse(lowered.contains("heuristic"), "\(source) label leaks 'Heuristic': \(label)")
+            XCTAssertFalse(lowered.contains("fallback"), "\(source) label leaks 'Fallback': \(label)")
+            XCTAssertNotEqual(label, "AI", "the AI source must render as coach language, not the raw tier name")
+        }
+    }
+
     // WP-43 S6: OnboardingProfile.empty.goal defaulted to "10K improvement" —
     // a value not among the five visible goal options, so a user who never
     // picked a goal had a plan silently built around it (audit §4 Risk 9 /
@@ -4078,6 +4092,59 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertTrue(
             defaultGoal.isEmpty || OnboardingView.goalOptions.contains(defaultGoal),
             "the default goal must be empty (forcing a choice) or a visible option; got '\(defaultGoal)'"
+        )
+    }
+
+    // WP-43 S1: after onboarding there was no explicit plan-generation state —
+    // Today/Plan rendered a blank body for ~30-45s while generation ran, and the
+    // only signal was a transient banner that vanished (audit §4 Risk 1).
+    // PlanGenerationStore maps the existing notification to an explicit state so
+    // Today/Plan always show the generating card, the plan, or an inline retry.
+    private func postPlanGeneration(_ status: RunSmartPlanGenerationStatus, on center: NotificationCenter) {
+        center.post(name: .runSmartPlanGenerationStatusDidChange, object: status)
+    }
+
+    func testPlanGenerationStateTransitionsGeneratingToReady() {
+        let center = NotificationCenter()
+        let store = PlanGenerationStore(notificationCenter: center)
+
+        XCTAssertEqual(store.state, .idle, "no plan activity yet")
+        XCTAssertFalse(store.state.showsGeneratingCard)
+
+        postPlanGeneration(.generating, on: center)
+        XCTAssertEqual(store.state, .generating, "the generating notification must surface the waiting state")
+        XCTAssertTrue(store.state.showsGeneratingCard, "Today/Plan must show the generating card, never a blank body")
+        XCTAssertFalse(store.state.showsInlineRetry)
+
+        postPlanGeneration(.amended, on: center)
+        XCTAssertEqual(store.state, .ready, "a successful regeneration must resolve to ready")
+        XCTAssertFalse(store.state.showsGeneratingCard, "the generating card must disappear once the plan is ready")
+        XCTAssertFalse(store.state.showsInlineRetry)
+    }
+
+    func testPlanGenerationFailureExposesInlineRetry() {
+        let center = NotificationCenter()
+        let store = PlanGenerationStore(notificationCenter: center)
+
+        postPlanGeneration(.generating, on: center)
+        postPlanGeneration(.failed, on: center)
+
+        XCTAssertEqual(store.state, .failed)
+        XCTAssertTrue(store.state.showsInlineRetry, "a failed generation must expose an inline retry on Today/Plan")
+        XCTAssertFalse(store.state.showsGeneratingCard, "a failed generation must not keep showing the generating card")
+
+        // Retrying returns to the generating card without leaving Today/Plan.
+        store.markGenerating()
+        XCTAssertEqual(store.state, .generating)
+        XCTAssertTrue(store.state.showsGeneratingCard)
+        XCTAssertFalse(store.state.showsInlineRetry)
+    }
+
+    func testPlanGenerationFailedNoticeDoesNotPointAtBuriedScreen() {
+        let message = RunSmartPlanNotice(status: .failed).message
+        XCTAssertFalse(
+            message.contains("Training Data"),
+            "the failure notice must not send a first-time user to a Profile-buried screen; got: \(message)"
         )
     }
 }

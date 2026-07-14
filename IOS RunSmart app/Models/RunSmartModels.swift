@@ -96,6 +96,24 @@ struct TrainingGoalRequest: Hashable {
     var coachingTone: String
     var targetDate: Date
     var challenge: TrainingChallengeContext? = nil
+
+    /// Builds the post-onboarding plan request from a profile, applying the same
+    /// safe fallbacks everywhere. Shared by onboarding completion and the
+    /// inline Today/Plan retry (WP-43 S1) so both regenerate identically.
+    static func onboardingDefault(from profile: OnboardingProfile, now: Date = Date()) -> TrainingGoalRequest {
+        TrainingGoalRequest(
+            displayName: profile.displayName,
+            goal: profile.goal.isEmpty ? "build a running habit" : profile.goal,
+            experience: profile.experience.isEmpty ? "beginner" : profile.experience,
+            age: profile.age,
+            averageWeeklyDistanceKm: profile.averageWeeklyDistanceKm,
+            trainingDataSource: profile.trainingDataSource,
+            weeklyRunDays: profile.weeklyRunDays > 0 ? profile.weeklyRunDays : 3,
+            preferredDays: profile.preferredDays.isEmpty ? ["Mon", "Wed", "Sat"] : profile.preferredDays,
+            coachingTone: profile.coachingTone.isEmpty ? "Motivating" : profile.coachingTone,
+            targetDate: now.addingTimeInterval(21 * 24 * 3600)
+        )
+    }
 }
 
 struct TrainingChallengeContext: Hashable {
@@ -373,11 +391,15 @@ enum PlanExplanationSource: String, Hashable {
     case ai = "AI"
     case fallback
 
+    /// User-facing label only. The raw enum stays for logic/analytics — these
+    /// strings render on Today next to the trigger (e.g. "Imported activity ·
+    /// Heuristic"), which is developer vocabulary a runner should never see
+    /// (audit §4 Risk 10 / §10 B12, WP-43 S5).
     var displayName: String {
         switch self {
-        case .heuristic: "Heuristic"
-        case .ai: "AI"
-        case .fallback: "Fallback"
+        case .heuristic: "Based on your plan"
+        case .ai: "Coach analysis"
+        case .fallback: "Quick take"
         }
     }
 }
