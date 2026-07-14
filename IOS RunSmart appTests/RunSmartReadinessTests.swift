@@ -3966,6 +3966,31 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(OnboardingView.coachingStepCTA, "Continue", "the CTA must not ask the user to 'confirm privacy' they never reviewed")
     }
 
+    // WP-44 S2: a failed HealthKit connect in onboarding used to silently reset
+    // the button (audit §4 Risk 7) — no error, no retry hint. A non-connected
+    // result must surface user-facing failure copy; a connected one must not.
+    func testHealthKitConnectSurfacesFailureState() {
+        let failed = ConnectedDeviceStatus(
+            provider: OnboardingHealthKitStep.providerName,
+            state: .error,
+            lastSuccessfulSync: nil,
+            permissions: [],
+            message: nil
+        )
+        let message = OnboardingHealthKitStep.failureMessage(for: failed)
+        XCTAssertNotNil(message, "a failed connect must tell the user it failed")
+        XCTAssertTrue(message!.contains("Profile"), "failure copy must say where to retry later")
+
+        let connected = ConnectedDeviceStatus(
+            provider: OnboardingHealthKitStep.providerName,
+            state: .connected,
+            lastSuccessfulSync: nil,
+            permissions: [],
+            message: nil
+        )
+        XCTAssertNil(OnboardingHealthKitStep.failureMessage(for: connected), "a successful connect must not show failure copy")
+    }
+
     // WP-43 S4: StructuredWorkoutFactory.intervalSteps used to derive the rep
     // count from `distanceKm(from: workout.distance)`, which digit-strips
     // "8 x 400m" into "8400" → 8400 km → reps = max(4, Int(8400/0.4)) = 21000,

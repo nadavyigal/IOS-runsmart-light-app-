@@ -350,25 +350,31 @@ struct PostRunLearningCard: View {
                 StatusChip(text: model.planImpact.label, tint: model.planImpact.tint)
             }
 
-            Button {
-                Task { await performAction() }
-            } label: {
-                Label(actionTitle, systemImage: actionSymbol)
-                    .font(.buttonLabel)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .foregroundStyle(actionEnabled ? Color.black : Color.textSecondary)
-                    .background(actionEnabled ? Color.accentPrimary : Color.surfaceCard, in: Capsule())
-                    .overlay(Capsule().stroke(actionEnabled ? Color.accentPrimary.opacity(0.5) : Color.border, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .disabled(!actionEnabled || isSaving || saveState == .saved)
+            // WP-44 S2: unavailable actions used to render a permanently disabled
+            // button AND a caption with the same text (the audit's duplicate
+            // "Review manually", §10 B6). A control that can never be tapped is
+            // not a control — keep only the explanatory message.
+            if case .saveSuggestedWorkout = model.action {
+                Button {
+                    Task { await performAction() }
+                } label: {
+                    Label(actionTitle, systemImage: actionSymbol)
+                        .font(.buttonLabel)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .foregroundStyle(actionEnabled ? Color.black : Color.textSecondary)
+                        .background(actionEnabled ? Color.accentPrimary : Color.surfaceCard, in: Capsule())
+                        .overlay(Capsule().stroke(actionEnabled ? Color.accentPrimary.opacity(0.5) : Color.border, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .disabled(!actionEnabled || isSaving || saveState == .saved)
 
-            if saveState == .failed {
-                Text(PostRunSuggestedWorkoutSaveCopy.failureMessage)
-                    .font(.caption)
-                    .foregroundStyle(Color.accentHeart)
-                    .fixedSize(horizontal: false, vertical: true)
+                if saveState == .failed {
+                    Text(PostRunSuggestedWorkoutSaveCopy.failureMessage)
+                        .font(.caption)
+                        .foregroundStyle(Color.accentHeart)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             if case let .unavailable(message) = model.action {

@@ -6,6 +6,14 @@ enum OnboardingHealthKitStep {
     static func didConnect(_ status: ConnectedDeviceStatus) -> Bool {
         status.provider == providerName && status.state == .connected
     }
+
+    /// WP-44 S2: a failed connect used to silently reset the button (audit §4
+    /// Risk 7, §10 B5) — the user tapped, nothing visibly happened, and there
+    /// was no hint the action failed or where to retry. Nil means connected.
+    static func failureMessage(for status: ConnectedDeviceStatus) -> String? {
+        guard !didConnect(status) else { return nil }
+        return "Couldn't connect Apple Health. You can try again now, or later from Profile."
+    }
 }
 
 struct OnboardingView: View {
@@ -15,6 +23,7 @@ struct OnboardingView: View {
     @State private var step = 0
     @State private var healthKitStatus: ConnectedDeviceStatus?
     @State private var isConnectingHealthKit = false
+    @State private var healthKitFailureMessage: String?
     var onComplete: (OnboardingProfile) -> Void
 
     static let goalOptions = ["First 5K", "10K PR", "Half Marathon", "Marathon", "Just Run More"]
@@ -230,6 +239,14 @@ struct OnboardingView: View {
                 }
                 .disabled(isConnectingHealthKit)
                 .accessibilityIdentifier("onboarding.healthkit.connect")
+
+                if let healthKitFailureMessage {
+                    Text(healthKitFailureMessage)
+                        .font(.caption)
+                        .foregroundStyle(Color.accentHeart)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("onboarding.healthkit.failure")
+                }
             }
 
             if !isHealthKitConnected {
@@ -281,12 +298,15 @@ struct OnboardingView: View {
         guard !isConnectingHealthKit else { return }
         Analytics.trackHealthKitConnectTapped()
         isConnectingHealthKit = true
+        healthKitFailureMessage = nil
         Task {
             let status = await services.connect(provider: OnboardingHealthKitStep.providerName)
             healthKitStatus = status
             isConnectingHealthKit = false
             if OnboardingHealthKitStep.didConnect(status) {
                 advance()
+            } else {
+                healthKitFailureMessage = OnboardingHealthKitStep.failureMessage(for: status)
             }
         }
     }
