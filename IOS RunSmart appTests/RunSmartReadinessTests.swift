@@ -3937,6 +3937,59 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertNotNil(mappedOther)
         XCTAssertFalse(mappedOther!.contains("credential type"), "generic fallback copy must not leak the raw error's wording")
     }
+
+    // WP-43 S4: StructuredWorkoutFactory.intervalSteps used to derive the rep
+    // count from `distanceKm(from: workout.distance)`, which digit-strips
+    // "8 x 400m" into "8400" → 8400 km → reps = max(4, Int(8400/0.4)) = 21000,
+    // rendering "21000 × 400 m" in the breakdown sheet while the card honestly
+    // shows "8 x 400m". The rep count must be parsed from the structured
+    // interval notation instead.
+    private func makeIntervalSummary(distance: String) -> WorkoutSummary {
+        WorkoutSummary(
+            id: UUID(),
+            scheduledDate: Date(timeIntervalSince1970: 0),
+            planID: nil,
+            weekday: "TUE",
+            date: "29",
+            kind: .intervals,
+            title: "Intervals",
+            distance: distance,
+            detail: "",
+            isToday: true,
+            isComplete: false,
+            durationMinutes: nil,
+            targetPaceSecondsPerKm: nil,
+            intensity: nil,
+            trainingPhase: nil,
+            workoutStructure: nil,
+            adjustedAt: nil,
+            adjustedReason: nil
+        )
+    }
+
+    private func repsStepDuration(for distance: String) -> String? {
+        let steps = StructuredWorkoutFactory.makeSteps(for: makeIntervalSummary(distance: distance))
+        return steps?.first { $0.title == "Repeats" }?.duration
+    }
+
+    func testIntervalBreakdownParsesRepsFromStructure() {
+        XCTAssertEqual(
+            repsStepDuration(for: "8 x 400m"),
+            "8 × 400 m",
+            "an '8 x 400m' interval must render 8 reps parsed from the notation, not a digit-stripped 21000"
+        )
+        XCTAssertEqual(repsStepDuration(for: "6 × 800m"), "6 × 800 m")
+        XCTAssertEqual(repsStepDuration(for: "10x200m"), "10 × 200 m")
+    }
+
+    func testBreakdownNeverExceedsPlausibleReps() {
+        for distance in ["8 x 400m", "6 × 800m", "10x200m", "5 x 1000m"] {
+            let duration = repsStepDuration(for: distance) ?? ""
+            let leadingReps = Int(duration.prefix { $0.isNumber }) ?? -1
+            XCTAssertGreaterThan(leadingReps, 0, "\(distance) must yield a positive rep count")
+            XCTAssertLessThanOrEqual(leadingReps, 40, "\(distance) must never render an implausible rep count (was 21000)")
+        }
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {

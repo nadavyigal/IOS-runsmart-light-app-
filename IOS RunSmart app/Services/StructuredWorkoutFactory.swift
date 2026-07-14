@@ -122,18 +122,55 @@ enum StructuredWorkoutFactory {
     }
 
     private static func intervalSteps(workout: WorkoutSummary, note: String) -> [WorkoutStep] {
-        let pace = derivedPaceLabel(workout: workout) ?? "4:45 /km"
-        let reps: Int
-        if let km = distanceKm(from: workout.distance), km > 0 {
-            reps = max(4, Int((km / 0.4).rounded()))
+        // Prefer the plan's own pace; only fall back to a hardcoded default,
+        // and when we do, label it estimated so the sheet doesn't assert a
+        // precise target the card never showed.
+        let derivedPace = derivedPaceLabel(workout: workout)
+        let target = derivedPace ?? "4:45 /km (est.)"
+
+        // Parse the rep count from the structured interval notation (e.g.
+        // "8 x 400m" → 8 reps × 400 m). Never digit-strip a total distance —
+        // that turned "8 x 400m" into "8400" → 21000 reps.
+        let repsLabel: String
+        if let parsed = parseIntervalReps(from: workout.distance) {
+            repsLabel = "\(parsed.reps) × \(parsed.repDistance)"
+        } else if !workout.distance.trimmingCharacters(in: .whitespaces).isEmpty {
+            // Not rep-notation — show the plan's own distance rather than
+            // fabricating a rep count.
+            repsLabel = workout.distance
         } else {
-            reps = 6
+            repsLabel = "6 × 400 m"
         }
+
         return [
             WorkoutStep(title: "Warm Up", duration: "10:00", target: "Easy jog", note: "Add mobility before speed", tint: .orange),
-            WorkoutStep(title: "Repeats", duration: "\(reps) × 400 m", target: pace, note: note.isEmpty ? "Jog 200 m between reps" : note, tint: .red),
+            WorkoutStep(title: "Repeats", duration: repsLabel, target: target, note: note.isEmpty ? "Jog 200 m between reps" : note, tint: .red),
             WorkoutStep(title: "Cool Down", duration: "10:00", target: "Easy jog", note: "Let heart rate settle", tint: .green)
         ]
+    }
+
+    /// Parses interval rep notation such as "8 x 400m", "8 × 400 m", or
+    /// "10x200m" into a rep count and a normalized rep-distance label.
+    /// Returns nil when the string is a plain total distance (e.g. "6.4 km")
+    /// rather than rep notation, so callers never synthesize a rep count by
+    /// digit-stripping a total distance.
+    static func parseIntervalReps(from distanceString: String) -> (reps: Int, repDistance: String)? {
+        let pattern = #"^\s*(\d+)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(km|m|meters|metres)?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        let range = NSRange(distanceString.startIndex..., in: distanceString)
+        guard let match = regex.firstMatch(in: distanceString, options: [], range: range),
+              let repsRange = Range(match.range(at: 1), in: distanceString),
+              let distRange = Range(match.range(at: 2), in: distanceString),
+              let reps = Int(distanceString[repsRange]), reps > 0 else { return nil }
+
+        let distValue = String(distanceString[distRange])
+        var unit = "m"
+        if match.range(at: 3).location != NSNotFound,
+           let unitRange = Range(match.range(at: 3), in: distanceString) {
+            let raw = distanceString[unitRange].lowercased()
+            unit = (raw == "km") ? "km" : "m"
+        }
+        return (reps, "\(distValue) \(unit)")
     }
 
     private static func hillSteps(note: String) -> [WorkoutStep] {
