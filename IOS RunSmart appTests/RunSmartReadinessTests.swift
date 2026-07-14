@@ -3958,6 +3958,14 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(SignInView.LegalDocument.privacy.url, ExternalURLs.privacy)
     }
 
+    // WP-44 S4: the fourth onboarding step was titled "Privacy" with a
+    // "Confirm Privacy" CTA while its content is coaching tone + reminders —
+    // the title must match the content (audit §7/§9).
+    func testOnboardingCoachingStepCopyMatchesContent() {
+        XCTAssertEqual(OnboardingView.coachingStepTitle, "Coaching", "step title must describe its content (tone + reminders), not claim to be a privacy step")
+        XCTAssertEqual(OnboardingView.coachingStepCTA, "Continue", "the CTA must not ask the user to 'confirm privacy' they never reviewed")
+    }
+
     // WP-43 S4: StructuredWorkoutFactory.intervalSteps used to derive the rep
     // count from `distanceKm(from: workout.distance)`, which digit-strips
     // "8 x 400m" into "8400" → 8400 km → reps = max(4, Int(8400/0.4)) = 21000,

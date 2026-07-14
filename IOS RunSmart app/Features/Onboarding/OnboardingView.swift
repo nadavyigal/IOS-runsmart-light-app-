@@ -20,6 +20,12 @@ struct OnboardingView: View {
     static let goalOptions = ["First 5K", "10K PR", "Half Marathon", "Marathon", "Just Run More"]
     static let experienceOptions = ["Getting started", "Building base", "Consistent runner", "Race focused"]
 
+    /// WP-44 S4: the step was titled "Privacy" with a "Confirm Privacy" CTA, but
+    /// its content is coaching tone + reminders (audit §7/§9 — title didn't match
+    /// content). Static so the copy is testable.
+    static let coachingStepTitle = "Coaching"
+    static let coachingStepCTA = "Continue"
+
     /// A goal step may only advance once the user has picked a visible option,
     /// so a plan is never built from an empty or unseen goal (audit §4 Risk 9).
     static func canAdvanceFromGoal(_ profile: OnboardingProfile) -> Bool {
@@ -57,7 +63,7 @@ struct OnboardingView: View {
                     case 0: goalStep
                     case 1: experienceStep
                     case 2: scheduleStep
-                    case 3: privacyStep
+                    case 3: coachingStep
                     case 4: healthKitStep
                     default: completionStep
                     }
@@ -90,6 +96,25 @@ struct OnboardingView: View {
 
     private var progress: some View {
         HStack(spacing: 6) {
+            // WP-44 S4: onboarding had no back affordance — a mis-tapped Continue
+            // was unrecoverable. Steps still only advance via Continue.
+            Button {
+                withAnimation(RunSmartMotion.tabSpring) {
+                    step = max(0, step - 1)
+                }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(Color.textSecondary)
+                    .frame(width: 28, height: 28)
+                    .background(Color.surfaceElevated, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .opacity(step > 0 ? 1 : 0)
+            .disabled(step == 0)
+            .accessibilityLabel("Back")
+            .accessibilityIdentifier("onboarding.back")
+
             ForEach(0..<stepCount, id: \.self) { index in
                 Capsule()
                     .fill(index <= step ? Color.accentPrimary : Color.border)
@@ -154,17 +179,19 @@ struct OnboardingView: View {
         }
     }
 
-    private var privacyStep: some View {
-        OnboardingStepShell(title: "Privacy", subtitle: "Choose coaching tone and data signals. You can connect devices later.", symbol: "lock.shield.fill") {
+    // WP-44 S4: Garmin's DevicePreviewRow and the 21-Day Rookie Challenge callout
+    // moved out of onboarding — both already exist post-activation (Garmin connect
+    // in Profile, the challenge card on Today), so onboarding no longer front-loads
+    // marketing before the user has seen the product.
+    private var coachingStep: some View {
+        OnboardingStepShell(title: Self.coachingStepTitle, subtitle: "Choose coaching tone and reminders. You can connect devices later.", symbol: "person.wave.2.fill") {
             OnboardingChoiceGrid(options: tones, selection: $profile.coachingTone)
             Toggle("Smart return reminders", isOn: $profile.notificationsEnabled)
                 .tint(Color.accentPrimary)
             Text("Reminders are local, low-frequency, and can be turned off from Profile.")
                 .font(.caption)
                 .foregroundStyle(Color.textSecondary)
-            DevicePreviewRow(title: "Garmin Connect", detail: "Import supported runs and wellness signals after you connect Garmin.", symbol: "link.circle.fill")
-            RookieChallengeCallout()
-            OnboardingPrimaryButton(title: "Confirm Privacy", symbol: "arrow.right", action: advance)
+            OnboardingPrimaryButton(title: Self.coachingStepCTA, symbol: "arrow.right", action: advance)
         }
     }
 
@@ -265,6 +292,9 @@ struct OnboardingView: View {
     }
 
     private func advance() {
+        // "privacy" stays as the analytics step name even though the user-facing
+        // title is now "Coaching" (WP-44 S4) — renaming it would break existing
+        // PostHog funnels built on this value.
         let stepNames = ["goal", "experience", "schedule", "privacy", "healthkit", "ready"]
         let completedStep = step
         withAnimation(RunSmartMotion.tabSpring) {
@@ -322,24 +352,6 @@ private struct OnboardingStepShell<Content: View>: View {
     }
 }
 
-private struct RookieChallengeCallout: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            RunSmartLogoMark(size: 42, filled: false, glow: false)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("21-Day Rookie Challenge")
-                    .font(.bodyMD.weight(.semibold))
-                Text("A lightweight starter block for confidence, consistency, and safe progression.")
-                    .font(.caption)
-                    .foregroundStyle(Color.textSecondary)
-            }
-        }
-        .padding(12)
-        .background(Color.accentPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.accentPrimary.opacity(0.24), lineWidth: 1))
-    }
-}
-
 private struct OnboardingChoiceGrid: View {
     var options: [String]
     @Binding var selection: String
@@ -378,24 +390,3 @@ private struct OnboardingPrimaryButton: View {
     }
 }
 
-private struct DevicePreviewRow: View {
-    var title: String
-    var detail: String
-    var symbol: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .foregroundStyle(Color.accentPrimary)
-                .frame(width: 40, height: 40)
-                .background(Color.accentPrimary.opacity(0.10), in: Circle())
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.bodyMD.weight(.semibold))
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(Color.textSecondary)
-            }
-        }
-    }
-}
