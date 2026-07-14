@@ -1,5 +1,6 @@
 import XCTest
 import CoreLocation
+import AuthenticationServices
 @testable import IOS_RunSmart_app
 
 final class RunSmartReadinessTests: XCTestCase {
@@ -3908,6 +3909,33 @@ final class RunSmartReadinessTests: XCTestCase {
             planAdjustmentConfirmationsEnabled: true
         )
         XCTAssertFalse(Beginner5KHabitTrack.isBeginnerFirst5K(profile: advancedProfile))
+    }
+
+    // WP-43 S2: SignInView used to set `errorMessage = error.localizedDescription`,
+    // which surfaced raw strings like "com.apple.AuthenticationServices.AuthorizationError
+    // error 1000" straight to a first-time user. humanReadableAppleSignInError(for:) maps
+    // ASAuthorizationError cases to human copy and must never forward NSError.localizedDescription.
+    func testSignInErrorMappingHidesRawNSError() {
+        let canceled = NSError(
+            domain: ASAuthorizationError.errorDomain,
+            code: ASAuthorizationError.canceled.rawValue
+        )
+        XCTAssertNil(SignInView.humanReadableAppleSignInError(for: canceled), "user backed out — no error should show")
+
+        let failed = NSError(
+            domain: ASAuthorizationError.errorDomain,
+            code: ASAuthorizationError.failed.rawValue,
+            userInfo: [NSLocalizedDescriptionKey: "com.apple.AuthenticationServices.AuthorizationError error 1000"]
+        )
+        let mapped = SignInView.humanReadableAppleSignInError(for: failed)
+        XCTAssertNotNil(mapped)
+        XCTAssertFalse(mapped!.contains("com.apple"), "raw NSError domain string must never reach the screen")
+        XCTAssertFalse(mapped!.contains("1000"), "raw NSError code must never reach the screen")
+
+        let otherError = AppleSignInError.invalidCredential
+        let mappedOther = SignInView.humanReadableAppleSignInError(for: otherError)
+        XCTAssertNotNil(mappedOther)
+        XCTAssertFalse(mappedOther!.contains("credential type"), "generic fallback copy must not leak the raw error's wording")
     }
 }
 
