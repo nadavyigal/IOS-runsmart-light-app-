@@ -154,9 +154,13 @@ enum StructuredWorkoutFactory {
     /// Returns nil when the string is a plain total distance (e.g. "6.4 km")
     /// rather than rep notation, so callers never synthesize a rep count by
     /// digit-stripping a total distance.
+    private static let repNotationRegex = try? NSRegularExpression(
+        pattern: #"^\s*(\d+)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(km|m|meters|metres)?"#,
+        options: [.caseInsensitive]
+    )
+
     static func parseIntervalReps(from distanceString: String) -> (reps: Int, repDistance: String)? {
-        let pattern = #"^\s*(\d+)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(km|m|meters|metres)?"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        guard let regex = repNotationRegex else { return nil }
         let range = NSRange(distanceString.startIndex..., in: distanceString)
         guard let match = regex.firstMatch(in: distanceString, options: [], range: range),
               let repsRange = Range(match.range(at: 1), in: distanceString),

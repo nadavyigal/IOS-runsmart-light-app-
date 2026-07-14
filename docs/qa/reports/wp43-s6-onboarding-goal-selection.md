@@ -10,7 +10,9 @@
 2. **`OnboardingView.swift`** —
    - Promoted the option lists to `static let goalOptions` / `experienceOptions` and added pure predicates `canAdvanceFromGoal(_:)` / `canAdvanceFromExperience(_:)` (`options.contains(profile.X)`).
    - Goal and Experience "Continue" now pass `isEnabled:` from those predicates; `OnboardingPrimaryButton` gained an `isEnabled` param (default `true`, so other call sites are untouched) applying `.disabled(!isEnabled)` + 0.45 opacity.
-   - Added `.gesture(DragGesture())` to the TabView to swallow horizontal swipes, so steps advance only via explicit Continue.
+   - Replaced the page-style `TabView` with a `switch` that renders only the active step, so swiping past a required step is structurally impossible and steps advance only via explicit Continue.
+
+     **Revised after CodeRabbit review (PR #88).** The first implementation kept the paged `TabView` and blocked swipes with `.gesture(DragGesture())`. CodeRabbit flagged (Major) that this intercepts *all* drags in the subtree, which would also swallow the vertical scrolling inside `OnboardingStepShell`'s `ScrollView` — on a short screen or at large Dynamic Type that can strand the Continue button off-screen. This matched the exact risk this report already carried as its top open risk, so it was accepted and fixed structurally. Their alternative suggestion, `.scrollDisabled(true)`, was **not** used: it propagates through the environment and would risk disabling the child ScrollViews too.
 
 **Scope note:** `experience` keeps its `"Building base"` default because that **is** a visible option — the plan explicitly allows the "preselect a visible option" path. Only `goal` had a hidden default. The predicate is applied to both steps regardless.
 
@@ -30,4 +32,6 @@
 
 ## Risks
 
-Low–medium. The `.gesture(DragGesture())` swipe-block is the least test-covered piece; if it were to interfere with taps inside a step, the Continue buttons would stop working — the Goal-step screenshot shows the step interactive and rendering normally, and buttons use a separate tap gesture, but a founder smoke of the full onboarding flow on device is worth doing before release.
+Low, after the CodeRabbit-driven revision. Replacing the paged `TabView` with a `switch` removes the gesture-interference class of bug entirely: each step keeps its own native `ScrollView`, so vertical scrolling is untouched and swipe-skipping is structurally impossible rather than suppressed. Post-fix QA: Goal step renders with Continue visible and reachable on **iPhone 17** (`onboarding-goal-step.png`) and **iPhone SE** (`onboarding-goal-step-se.png`), and the full suite stays green (178 tests, 0 failures).
+
+Residual: the *empty-goal disabled* Continue still hasn't been seen on-device (the debug replay flag prefills the goal), and the step transition animation changed from a horizontal page slide to a crossfade. A founder smoke of the real onboarding flow is still worth doing before release.

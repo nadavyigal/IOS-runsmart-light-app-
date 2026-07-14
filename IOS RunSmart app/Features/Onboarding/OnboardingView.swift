@@ -46,19 +46,25 @@ struct OnboardingView: View {
             RunSmartBackground(context: .today(readiness: 82))
             VStack(spacing: 0) {
                 progress
-                TabView(selection: $step) {
-                    goalStep.tag(0)
-                    experienceStep.tag(1)
-                    scheduleStep.tag(2)
-                    privacyStep.tag(3)
-                    healthKitStep.tag(4)
-                    completionStep.tag(5)
+                // Render only the active step. A page-style TabView let users
+                // swipe past a required step (e.g. leave Goal with no visible
+                // selection), and blocking that with a drag gesture would also
+                // swallow the vertical scrolling inside each step — on a short
+                // screen or at large Dynamic Type that can strand the Continue
+                // button off-screen. Steps advance only via Continue.
+                Group {
+                    switch step {
+                    case 0: goalStep
+                    case 1: experienceStep
+                    case 2: scheduleStep
+                    case 3: privacyStep
+                    case 4: healthKitStep
+                    default: completionStep
+                    }
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                // Swallow horizontal swipes so users can't skip a required step
-                // (e.g. leave Goal without a visible selection). Steps advance
-                // only via the explicit Continue buttons.
-                .gesture(DragGesture())
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .id(step)
+                .transition(.opacity)
             }
         }
         .foregroundStyle(Color.textPrimary)

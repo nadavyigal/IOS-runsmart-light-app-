@@ -43,7 +43,14 @@ final class PlanGenerationStore: ObservableObject {
             queue: nil
         ) { [weak self] note in
             guard let status = note.object as? RunSmartPlanGenerationStatus else { return }
-            self?.apply(status)
+            // Posts currently always happen inside `MainActor.run`, so this runs
+            // synchronously on main. Hop defensively anyway: a future background
+            // post would otherwise mutate `@Published` off-main and crash SwiftUI.
+            if Thread.isMainThread {
+                self?.apply(status)
+            } else {
+                DispatchQueue.main.async { self?.apply(status) }
+            }
         }
     }
 
