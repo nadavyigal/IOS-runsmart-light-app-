@@ -3938,6 +3938,26 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(mappedOther!.contains("credential type"), "generic fallback copy must not leak the raw error's wording")
     }
 
+    // WP-44 S1: the first screen's pills said "Run guidance and cue previews"
+    // (feature-speak) and "HealthKit reads approved data..." (compliance-speak).
+    // The audit's daily-answer promise must lead, and neither old bullet may return.
+    func testSignInFeaturePillsLeadWithDailyAnswerPromise() {
+        let texts = SignInView.featurePills.map(\.text)
+        XCTAssertEqual(texts.first, "Know exactly what to run today", "the daily-answer promise must be the first thing a skeptical user reads")
+        for text in texts {
+            XCTAssertFalse(text.contains("cue previews"), "feature-speak bullet must not return")
+            XCTAssertFalse(text.contains("approved data"), "compliance-speak bullet must not return")
+        }
+    }
+
+    // WP-44 S6: Terms/Privacy used to be `Link`s that ejected a pre-auth user to
+    // external Safari. They now present in-app; the document URLs must still be
+    // the canonical ExternalURLs so the in-app move never changes the destination.
+    func testSignInLegalDocumentsUseCanonicalURLs() {
+        XCTAssertEqual(SignInView.LegalDocument.terms.url, ExternalURLs.terms)
+        XCTAssertEqual(SignInView.LegalDocument.privacy.url, ExternalURLs.privacy)
+    }
+
     // WP-43 S4: StructuredWorkoutFactory.intervalSteps used to derive the rep
     // count from `distanceKm(from: workout.distance)`, which digit-strips
     // "8 x 400m" into "8400" → 8400 km → reps = max(4, Int(8400/0.4)) = 21000,

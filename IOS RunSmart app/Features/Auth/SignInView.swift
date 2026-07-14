@@ -6,6 +6,31 @@ struct SignInView: View {
     @State private var isSigningIn = false
     @State private var errorMessage: String?
     @State private var currentNonce = AppleSignInHelper.randomNonce()
+    @State private var legalDocument: LegalDocument?
+
+    /// First-screen promise pills (WP-44 S1). The audit (§4 Risk 2, §9) flagged
+    /// "Run guidance and cue previews" as feature-speak and the HealthKit bullet
+    /// as compliance-speak; a first-time user should see the daily answer the
+    /// app actually sells. Static so copy is testable.
+    static let featurePills: [(symbol: String, text: String)] = [
+        ("sun.max.fill", "Know exactly what to run today"),
+        ("calendar", "A plan that adapts to your runs"),
+        ("heart.fill", "Works with Apple Health"),
+    ]
+
+    /// Terms/Privacy present in-app (WP-44 S6) instead of ejecting to Safari.
+    enum LegalDocument: String, Identifiable {
+        case terms, privacy
+
+        var id: String { rawValue }
+
+        var url: URL {
+            switch self {
+            case .terms: ExternalURLs.terms
+            case .privacy: ExternalURLs.privacy
+            }
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -37,9 +62,9 @@ struct SignInView: View {
                     }
 
                     VStack(spacing: 12) {
-                        FeaturePill(symbol: "waveform", text: "Run guidance and cue previews")
-                        FeaturePill(symbol: "calendar", text: "Personalized training plans")
-                        FeaturePill(symbol: "heart.fill", text: "HealthKit reads approved data and can save completed GPS runs")
+                        ForEach(Self.featurePills, id: \.text) { pill in
+                            FeaturePill(symbol: pill.symbol, text: pill.text)
+                        }
                     }
                 }
 
@@ -79,10 +104,10 @@ struct SignInView: View {
                             .foregroundStyle(Color.mutedText)
 
                         HStack(spacing: 4) {
-                            Link("Terms of Service", destination: ExternalURLs.terms)
+                            Button("Terms of Service") { legalDocument = .terms }
                             Text("and")
                                 .foregroundStyle(Color.mutedText)
-                            Link("Privacy Policy", destination: ExternalURLs.privacy)
+                            Button("Privacy Policy") { legalDocument = .privacy }
                         }
                         .fontWeight(.semibold)
                     }
@@ -96,6 +121,10 @@ struct SignInView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(item: $legalDocument) { document in
+            SafariView(url: document.url)
+                .ignoresSafeArea()
+        }
     }
 
     @MainActor
