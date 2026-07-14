@@ -788,7 +788,10 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(display.workoutType, "TEMPO RUN · OUTDOOR")
         XCTAssertEqual(display.targetPace, "5:44 /km")
         XCTAssertEqual(display.duration, "~50 min")
-        XCTAssertEqual(display.intensity, "Zone 3")
+        // WP-44 S3: intensity now comes from TrainingMetrics.effortLabel — one
+        // vocabulary (effort words) on card and sheet, not "Easy" here and
+        // "Zone 3" there.
+        XCTAssertEqual(display.intensity, TrainingMetrics.effortLabel(for: .tempo))
         XCTAssertEqual(display.weekLabel, "Week 2")
         XCTAssertFalse(display.steps.isEmpty)
     }
@@ -4005,6 +4008,54 @@ final class RunSmartReadinessTests: XCTestCase {
     func testOnboardingCoachingStepCopyMatchesContent() {
         XCTAssertEqual(OnboardingView.coachingStepTitle, "Coaching", "step title must describe its content (tone + reminders), not claim to be a privacy step")
         XCTAssertEqual(OnboardingView.coachingStepCTA, "Continue", "the CTA must not ask the user to 'confirm privacy' they never reviewed")
+    }
+
+    // WP-44 S3: weekly distance must be one summation (TrainingMetrics), not a
+    // per-surface computation — the audit found Plan claiming 86.20 km while the
+    // summed workouts were ~36 km because surfaces summed independently.
+    func testWeeklyDistanceMatchesSummedWorkouts() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone.current
+        let now = makeDate("2026-05-20").addingTimeInterval(12 * 3600)
+        let thisWeekA = makeRun(source: .runSmart, startedAt: now.addingTimeInterval(-3600), distanceMeters: 5_000, movingTimeSeconds: 1800)
+        let thisWeekB = makeRun(source: .runSmart, startedAt: now.addingTimeInterval(-24 * 3600), distanceMeters: 7_500, movingTimeSeconds: 2700)
+        let lastMonth = makeRun(source: .runSmart, startedAt: now.addingTimeInterval(-30 * 24 * 3600), distanceMeters: 10_000, movingTimeSeconds: 3600)
+
+        let weekly = TrainingMetrics.weeklyDistanceKm(runs: [thisWeekA, thisWeekB, lastMonth], now: now, calendar: calendar)
+        XCTAssertEqual(weekly, 12.5, accuracy: 0.001, "weekly distance must equal the sum of this week's runs only")
+    }
+
+    // WP-44 S3: streak labels must carry one unit everywhere. Backends send
+    // "12 days", "12 day streak", or "3x/week"; re-rendering the raw value with
+    // " day streak" appended produced "12 days day streak" and turned a weekly
+    // cadence into a fake day streak (Profile "11-week" vs Today "11 day").
+    func testStreakUnitConsistentAcrossSurfaces() {
+        XCTAssertEqual(TrainingMetrics.canonicalStreakLabel(fromLabel: "12 days"), "12 day streak")
+        XCTAssertEqual(TrainingMetrics.canonicalStreakLabel(fromLabel: "12 day streak"), "12 day streak")
+        XCTAssertEqual(TrainingMetrics.canonicalStreakLabel(fromLabel: "12"), "12 day streak")
+        XCTAssertEqual(TrainingMetrics.canonicalStreakLabel(fromLabel: "1 day"), "1 day streak")
+        XCTAssertNil(TrainingMetrics.canonicalStreakLabel(fromLabel: "3x/week"), "a weekly cadence must never be re-rendered as a day streak")
+        XCTAssertNil(TrainingMetrics.canonicalStreakLabel(fromLabel: "--"))
+    }
+
+    // WP-44 S3: the plan week number is clamped to plan bounds and computed in
+    // exactly one place.
+    func testCurrentWeekNumberClampsToPlanBounds() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone.current
+        let start = makeDate("2026-05-04")
+
+        XCTAssertEqual(TrainingMetrics.currentWeekNumber(planStartDate: start, totalWeeks: 8, now: start.addingTimeInterval(3 * 24 * 3600), calendar: calendar), 1)
+        XCTAssertEqual(TrainingMetrics.currentWeekNumber(planStartDate: start, totalWeeks: 8, now: start.addingTimeInterval(10 * 24 * 3600), calendar: calendar), 2)
+        XCTAssertEqual(TrainingMetrics.currentWeekNumber(planStartDate: start, totalWeeks: 8, now: start.addingTimeInterval(200 * 24 * 3600), calendar: calendar), 8, "week number must clamp to the plan's final week")
+        XCTAssertEqual(TrainingMetrics.currentWeekNumber(planStartDate: start, totalWeeks: 8, now: start.addingTimeInterval(-7 * 24 * 3600), calendar: calendar), 1, "dates before the plan start must clamp to week 1")
+    }
+
+    // WP-44 S3: a stable or improving HRV must never map to the alarm color.
+    func testHRVTrendGoodnessNeverAlarmsOnPositive() {
+        XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: "Stable"), .positive)
+        XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: "Lower"), .caution)
+        XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: "--"), .neutral)
     }
 
     // WP-44 S2: a failed HealthKit connect in onboarding used to silently reset

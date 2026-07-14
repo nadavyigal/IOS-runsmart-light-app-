@@ -55,17 +55,16 @@ struct Beginner5KHabitTrack {
         let plannedThisWeek = runningWorkouts.count
 
         let totalWeeks = activePlan?.totalWeeks ?? 8
-        let currentWeek: Int
-        if let plan = activePlan {
-            let components = calendar.dateComponents(
-                [.weekOfYear],
-                from: calendar.startOfDay(for: plan.startDate),
-                to: calendar.startOfDay(for: now)
+        // WP-44 S3: week number comes from the single accessor so this card can
+        // never disagree with other surfaces about which plan week it is.
+        let currentWeek = activePlan.map {
+            TrainingMetrics.currentWeekNumber(
+                planStartDate: $0.startDate,
+                totalWeeks: totalWeeks,
+                now: now,
+                calendar: calendar
             )
-            currentWeek = max(1, min((components.weekOfYear ?? 0) + 1, totalWeeks))
-        } else {
-            currentWeek = 1
-        }
+        } ?? 1
 
         let state = resolveState(
             runningWorkouts: runningWorkouts,

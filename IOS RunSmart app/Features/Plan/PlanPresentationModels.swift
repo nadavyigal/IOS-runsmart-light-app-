@@ -187,14 +187,10 @@ struct TodayWorkoutDisplayModel {
         return minutes * 60 + seconds
     }
 
+    // WP-44 S3: intensity vocabulary is single-sourced — this mapper used to say
+    // "Zone 2" while the workout card said "Easy" for the same workout.
     private static func fallbackIntensity(for kind: WorkoutKind) -> String {
-        switch kind {
-        case .recovery: return "Zone 1"
-        case .easy, .long, .parkrun: return "Zone 2"
-        case .tempo, .hills: return "Zone 3"
-        case .intervals, .race: return "Zone 4"
-        case .strength: return "Strength"
-        }
+        TrainingMetrics.effortLabel(for: kind)
     }
 
     private static func weekLabel(for workout: WorkoutSummary, calendar: Calendar) -> String {

@@ -16,6 +16,16 @@ struct ReadinessHeroView: View {
         }
     }
 
+    // WP-44 S3: HRV was hard-tinted .accentHeart (the alarm color) regardless of
+    // direction — a stable/improving HRV must never render as an alarm.
+    private var hrvTint: Color {
+        switch TrainingMetrics.hrvTrendGoodness(forLabel: recommendation.hrv) {
+        case .positive: .accentSuccess
+        case .caution: .accentEnergy
+        case .neutral: .accentRecovery
+        }
+    }
+
     var body: some View {
         Button(action: onTap) {
             HeroCard(accent: readinessTint, padding: 18) {
@@ -40,7 +50,7 @@ struct ReadinessHeroView: View {
                     }
 
                     HStack(spacing: 10) {
-                        readinessMetric("HRV", recommendation.hrv, "waveform.path.ecg", .accentHeart)
+                        readinessMetric("HRV", recommendation.hrv, "waveform.path.ecg", hrvTint)
                         readinessMetric("Sleep", recommendation.recovery, "moon.fill", .accentRecovery)
                         readinessMetric("Recovery", recommendation.readinessLabel, "heart.circle.fill", readinessTint)
                     }

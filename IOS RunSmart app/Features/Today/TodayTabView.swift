@@ -256,8 +256,11 @@ struct TodayTabView: View {
                     .foregroundStyle(Color.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-                if recommendation.streak != "--" {
-                    Text("🔥 \(recommendation.streak) day streak")
+                // WP-44 S3: backends send "12 days", "12 day streak", or even
+                // "3x/week" — bolting " day streak" onto the raw value produced
+                // "12 days day streak" and mislabeled non-streak cadences.
+                if let days = TrainingMetrics.streakDays(fromLabel: recommendation.streak), days > 0 {
+                    Text("🔥 \(TrainingMetrics.streakLabel(days: days))")
                         .font(.bodyLG)
                         .foregroundStyle(Color.textSecondary)
                 }

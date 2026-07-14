@@ -41,7 +41,10 @@ struct PostRunSummaryView: View {
 
                         HStack(spacing: 8) {
                             PostRunStatPill(title: "Moving time", value: timeLabel, tint: .accentPrimary)
-                            PostRunStatPill(title: "Pace", value: paceLabel, tint: .accentEnergy)
+                            // WP-44 S3: "Avg Pace", not "Pace" — the live HUD shows
+                            // current pace, and both were labeled identically (the
+                            // audit's unexplained 5:13 vs 7:24).
+                            PostRunStatPill(title: "Avg Pace", value: paceLabel, tint: .accentEnergy)
                             PostRunStatPill(title: "Route", value: routeLabel, tint: .accentRecovery)
                         }
 

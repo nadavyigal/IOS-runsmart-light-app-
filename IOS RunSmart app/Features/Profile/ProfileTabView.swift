@@ -94,7 +94,7 @@ struct ProfileTabView: View {
                         Circle()
                             .fill(Color.accentPrimary)
                             .frame(width: 6, height: 6)
-                        Text(runner.streak)
+                        Text(streakDisplay)
                     }
                     .font(.bodyLG.weight(.medium))
                         .foregroundStyle(Color.textSecondary)
@@ -291,7 +291,7 @@ struct ProfileTabView: View {
                     ProgressShareButton(payload: .milestone(
                         title: achievement.title,
                         subtitle: achievement.subtitle,
-                        value: runner.streak,
+                        value: streakDisplay,
                         insight: "A private RunSmart milestone worth keeping."
                     ))
                 }
@@ -343,6 +343,13 @@ struct ProfileTabView: View {
     private var estimatedTrainingDataSourceLabel: String {
         guard TrainingDataBaseline.averageWeeklyDistanceKm(from: recentRuns) != nil else { return "Manual setup needed" }
         return TrainingDataBaseline.inferredSource(from: recentRuns)?.displayName ?? "Recent runs"
+    }
+
+    // WP-44 S3: render streaks through the single accessor so Profile can never
+    // disagree with Today about the unit ("11-week" vs "11 day"). Labels that
+    // are not day streaks (production's "3x/week" cadence) pass through as-is.
+    private var streakDisplay: String {
+        TrainingMetrics.canonicalStreakLabel(fromLabel: runner.streak) ?? runner.streak
     }
 
     private var weeklyDistanceLabel: String {

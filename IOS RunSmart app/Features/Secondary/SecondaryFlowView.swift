@@ -513,12 +513,10 @@ private struct WorkoutDetailScaffold: View {
         }
     }
 
+    // WP-44 S3: single-sourced effort vocabulary (was a second, drifting
+    // kind→zone mapper).
     private var targetZone: String {
-        switch workout.kind {
-        case .tempo, .intervals, .hills, .race: "Zone 3-4"
-        case .recovery: "Zone 1"
-        default: "Zone 2"
-        }
+        TrainingMetrics.effortLabel(for: workout.kind)
     }
 
     private func removeWorkout() async {
