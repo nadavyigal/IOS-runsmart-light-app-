@@ -838,6 +838,47 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(state.headline, "Run complete today")
     }
 
+    // WP-44 S5: "what should I do today?" must always have an answer (audit §7).
+    // A rest day used to render only the plan row's thin detail; the resolved
+    // state must now expose explicit recovery guidance, and only for rest days.
+    func testTodayRendersRestDayGuidanceWhenNoWorkout() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone.current
+        let now = makeDate("2026-05-20").addingTimeInterval(9 * 3600)
+        let rest = makeWorkout(
+            date: "2026-05-20",
+            kind: .easy,
+            title: "Rest",
+            distance: "Rest"
+        )
+        let recommendation = TodayRecommendation(readiness: 82, readinessLabel: "Ready", workoutTitle: "Rest", distance: "Rest", pace: "--", elevation: "--", coachMessage: "Recovery day.")
+
+        let state = TodayResolvedState.make(
+            recommendation: recommendation,
+            weekWorkouts: [rest],
+            nextWorkouts: [],
+            recentRuns: [],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(state.kind, .restDay)
+        let guidance = state.restDayGuidance
+        XCTAssertNotNil(guidance, "a rest day must answer the daily question with recovery guidance, not render nothing")
+        XCTAssertFalse(guidance!.isEmpty, "guidance must contain at least one concrete recovery action")
+
+        let planned = TodayResolvedState.make(
+            recommendation: recommendation,
+            weekWorkouts: [makeWorkout(date: "2026-05-20", kind: .easy, title: "Easy Run", distance: "5.0 km")],
+            nextWorkouts: [],
+            recentRuns: [],
+            now: now,
+            calendar: calendar
+        )
+        XCTAssertEqual(planned.kind, .plannedToday)
+        XCTAssertNil(planned.restDayGuidance, "recovery guidance must not appear on a workout day")
+    }
+
     func testTodayResolvedStateTreatsSameDayGarminImportAsCompletedWithoutWorkoutMatch() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

@@ -802,6 +802,29 @@ private struct TodayWorkoutRecommendationCard: View {
                             .padding(.top, 2)
                     }
 
+                    if let guidance = state.restDayGuidance {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("HOW TO RECOVER")
+                                .font(.labelSM)
+                                .tracking(1.1)
+                                .foregroundStyle(Color.textSecondary)
+                            ForEach(guidance, id: \.self) { line in
+                                HStack(alignment: .top, spacing: 10) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.accentRecovery)
+                                    Text(line)
+                                        .font(.bodyMD)
+                                        .foregroundStyle(Color.textPrimary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.accentRecovery.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+
                     Button {
                         withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
                             isExpanded.toggle()

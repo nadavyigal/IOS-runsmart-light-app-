@@ -246,6 +246,20 @@ struct TodayResolvedState: Hashable {
         }
     }
 
+    /// WP-44 S5: "what should I do today?" must always have an answer (audit §7).
+    /// A rest day used to render only whatever thin detail the plan row carried;
+    /// now it answers with explicit recovery guidance.
+    static let restDayRecoveryGuidance = [
+        "10 minutes of easy mobility or stretching",
+        "An easy 20 to 30 minute walk keeps blood flowing",
+        "Prioritize sleep and hydration. Recovery is where training lands",
+    ]
+
+    var restDayGuidance: [String]? {
+        guard kind == .restDay else { return nil }
+        return Self.restDayRecoveryGuidance
+    }
+
     static func make(
         recommendation: TodayRecommendation,
         weekWorkouts: [WorkoutSummary],
