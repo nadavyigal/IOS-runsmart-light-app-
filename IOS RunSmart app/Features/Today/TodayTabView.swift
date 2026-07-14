@@ -4,6 +4,7 @@ struct TodayTabView: View {
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
+    @EnvironmentObject private var planGeneration: PlanGenerationStore
 
     @State private var recommendation = TodayRecommendation.placeholder
     @State private var routes: [RouteSuggestion] = []
@@ -42,6 +43,15 @@ struct TodayTabView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 14) {
                 header
+
+                // Never leave Today blank while the coach builds the plan, and
+                // keep the retry here rather than behind a vanished banner.
+                if planGeneration.state.showsGeneratingCard || planGeneration.state.showsInlineRetry {
+                    PlanGenerationStatusCard(
+                        state: planGeneration.state,
+                        onRetry: retryPlanGeneration
+                    )
+                }
 
                 if !weekWorkouts.isEmpty {
                     TodayWeekStripSection(workouts: weekWorkouts, weekRange: weekRangeLabel) { workout in
@@ -323,6 +333,16 @@ struct TodayTabView: View {
         router.openCoach(context: .today)
     }
 
+    /// Rebuilds the plan from the saved profile without leaving Today
+    /// (WP-43 S1). Uses the same request the onboarding completion builds.
+    private func retryPlanGeneration() {
+        planGeneration.markGenerating()
+        Task {
+            let request = TrainingGoalRequest.onboardingDefault(from: session.onboardingProfile)
+            _ = await services.saveTrainingGoal(request)
+        }
+    }
+
     private func openWorkoutDetail(_ workout: WorkoutSummary) {
         router.open(.workoutDetail(workout))
     }
@@ -410,7 +430,7 @@ struct SafetyExplanationCard: View {
                         Text(explanation.headline)
                             .font(.bodyLG.weight(.semibold))
                             .foregroundStyle(Color.textPrimary)
-                        Text("Coach safety · Heuristic")
+                        Text("Coach safety check")
                             .font(.labelSM)
                             .foregroundStyle(Color.textSecondary)
                             .lineLimit(1)

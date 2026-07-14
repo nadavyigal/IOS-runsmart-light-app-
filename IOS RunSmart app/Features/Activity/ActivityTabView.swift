@@ -53,7 +53,6 @@ struct ReportTabView: View {
                         HStack(spacing: 10) {
                             ActivityMetricPill(title: "Runs", value: "\(runs.count)", tint: .accentSuccess)
                             ActivityMetricPill(title: "Moving time", value: totalMovingTime.activityDurationLabel, tint: .accentRecovery)
-                            ActivityMetricPill(title: "Source", value: "Real", tint: .accentPrimary)
                         }
                     }
                 }

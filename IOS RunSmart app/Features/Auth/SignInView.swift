@@ -123,8 +123,22 @@ struct SignInView: View {
                && error.code == ASAuthorizationError.canceled.rawValue {
             // User dismissed the sheet — not an error
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = Self.humanReadableAppleSignInError(for: error)
+            Analytics.trackSignInFailed(error: error)
         }
+    }
+
+    /// Maps Apple sign-in failures to user-facing copy. Never forwards
+    /// `NSError.localizedDescription` — that surfaces raw strings like
+    /// "com.apple.AuthenticationServices.AuthorizationError error 1000" to a
+    /// first-time user. `.canceled` returns nil (user backed out silently).
+    static func humanReadableAppleSignInError(for error: Error) -> String? {
+        let nsError = error as NSError
+        if nsError.domain == ASAuthorizationError.errorDomain,
+           nsError.code == ASAuthorizationError.canceled.rawValue {
+            return nil
+        }
+        return "Apple sign-in didn't finish. Nothing was created — tap to try again."
     }
 
     private func appleDisplayName(from fullName: PersonNameComponents?) -> String? {

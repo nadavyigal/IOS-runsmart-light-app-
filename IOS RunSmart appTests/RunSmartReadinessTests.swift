@@ -1,5 +1,6 @@
 import XCTest
 import CoreLocation
+import AuthenticationServices
 @testable import IOS_RunSmart_app
 
 final class RunSmartReadinessTests: XCTestCase {
@@ -3908,6 +3909,243 @@ final class RunSmartReadinessTests: XCTestCase {
             planAdjustmentConfirmationsEnabled: true
         )
         XCTAssertFalse(Beginner5KHabitTrack.isBeginnerFirst5K(profile: advancedProfile))
+    }
+
+    // WP-43 S2: SignInView used to set `errorMessage = error.localizedDescription`,
+    // which surfaced raw strings like "com.apple.AuthenticationServices.AuthorizationError
+    // error 1000" straight to a first-time user. humanReadableAppleSignInError(for:) maps
+    // ASAuthorizationError cases to human copy and must never forward NSError.localizedDescription.
+    func testSignInErrorMappingHidesRawNSError() {
+        let canceled = NSError(
+            domain: ASAuthorizationError.errorDomain,
+            code: ASAuthorizationError.canceled.rawValue
+        )
+        XCTAssertNil(SignInView.humanReadableAppleSignInError(for: canceled), "user backed out — no error should show")
+
+        let failed = NSError(
+            domain: ASAuthorizationError.errorDomain,
+            code: ASAuthorizationError.failed.rawValue,
+            userInfo: [NSLocalizedDescriptionKey: "com.apple.AuthenticationServices.AuthorizationError error 1000"]
+        )
+        let mapped = SignInView.humanReadableAppleSignInError(for: failed)
+        XCTAssertNotNil(mapped)
+        XCTAssertFalse(mapped!.contains("com.apple"), "raw NSError domain string must never reach the screen")
+        XCTAssertFalse(mapped!.contains("1000"), "raw NSError code must never reach the screen")
+
+        let otherError = AppleSignInError.invalidCredential
+        let mappedOther = SignInView.humanReadableAppleSignInError(for: otherError)
+        XCTAssertNotNil(mappedOther)
+        XCTAssertFalse(mappedOther!.contains("credential type"), "generic fallback copy must not leak the raw error's wording")
+    }
+
+    // WP-43 S4: StructuredWorkoutFactory.intervalSteps used to derive the rep
+    // count from `distanceKm(from: workout.distance)`, which digit-strips
+    // "8 x 400m" into "8400" → 8400 km → reps = max(4, Int(8400/0.4)) = 21000,
+    // rendering "21000 × 400 m" in the breakdown sheet while the card honestly
+    // shows "8 x 400m". The rep count must be parsed from the structured
+    // interval notation instead.
+    private func makeIntervalSummary(distance: String) -> WorkoutSummary {
+        WorkoutSummary(
+            id: UUID(),
+            scheduledDate: Date(timeIntervalSince1970: 0),
+            planID: nil,
+            weekday: "TUE",
+            date: "29",
+            kind: .intervals,
+            title: "Intervals",
+            distance: distance,
+            detail: "",
+            isToday: true,
+            isComplete: false,
+            durationMinutes: nil,
+            targetPaceSecondsPerKm: nil,
+            intensity: nil,
+            trainingPhase: nil,
+            workoutStructure: nil,
+            adjustedAt: nil,
+            adjustedReason: nil
+        )
+    }
+
+    private func repsStepDuration(for distance: String) -> String? {
+        let steps = StructuredWorkoutFactory.makeSteps(for: makeIntervalSummary(distance: distance))
+        return steps?.first { $0.title == "Repeats" }?.duration
+    }
+
+    func testIntervalBreakdownParsesRepsFromStructure() {
+        XCTAssertEqual(
+            repsStepDuration(for: "8 x 400m"),
+            "8 × 400 m",
+            "an '8 x 400m' interval must render 8 reps parsed from the notation, not a digit-stripped 21000"
+        )
+        XCTAssertEqual(repsStepDuration(for: "6 × 800m"), "6 × 800 m")
+        XCTAssertEqual(repsStepDuration(for: "10x200m"), "10 × 200 m")
+    }
+
+    func testBreakdownNeverExceedsPlausibleReps() {
+        for distance in ["8 x 400m", "6 × 800m", "10x200m", "5 x 1000m"] {
+            let duration = repsStepDuration(for: distance) ?? ""
+            let leadingReps = Int(duration.prefix { $0.isNumber }) ?? -1
+            XCTAssertGreaterThan(leadingReps, 0, "\(distance) must yield a positive rep count")
+            XCTAssertLessThanOrEqual(leadingReps, 40, "\(distance) must never render an implausible rep count (was 21000)")
+        }
+    }
+
+    // WP-43 S3: GoalTimelineMomentView hardcoded "Six weeks from now..." for
+    // any 5K goal while the timeline graphic rendered "in \(timeline.weeks)
+    // weeks". For an 8-week persona the headline said six weeks and the graphic
+    // said eight — a trust-eroding contradiction. The headline must single-source
+    // its duration from timeline.weeks.
+    private func makeTimeline(weeks: Int, goalLabel: String, category: GoalTimelineCategory) -> GoalTimelineProjection {
+        GoalTimelineProjection(
+            weeks: weeks,
+            milestoneWeek: max(1, weeks / 2),
+            milestoneLabel: "Milestone",
+            goalLabel: goalLabel,
+            projectedDate: Date(timeIntervalSince1970: 0),
+            normalizedGoal: category
+        )
+    }
+
+    func testGoalTimelineHeadlineMatchesMilestoneWeeks() {
+        let cases: [(goalLabel: String, category: GoalTimelineCategory)] = [
+            ("First 5K", .distance),
+            ("10K", .distance),
+            ("Half Marathon", .distance),
+            ("Marathon", .distance),
+            ("Faster 5K", .speed),
+            ("Run 3x a week", .habit)
+        ]
+        for weeks in [6, 8, 12] {
+            for goalCase in cases {
+                let timeline = makeTimeline(weeks: weeks, goalLabel: goalCase.goalLabel, category: goalCase.category)
+                let headline = GoalTimelineMomentView.headlineText(for: timeline)
+                XCTAssertTrue(
+                    headline.contains("\(weeks) weeks"),
+                    "headline must state the timeline's own \(weeks)-week duration for \(goalCase.goalLabel); got: \(headline)"
+                )
+                XCTAssertFalse(
+                    headline.lowercased().contains("six weeks"),
+                    "headline must not hardcode 'Six weeks' — it contradicts the \(weeks)-week graphic; got: \(headline)"
+                )
+            }
+        }
+    }
+
+    func testGoalTimelineSublineHasNoGuaranteeLanguage() {
+        let subline = GoalTimelineMomentView.sublineText.lowercased()
+        XCTAssertFalse(subline.contains("we know you'll finish"), "must not guarantee the runner will finish")
+        XCTAssertFalse(subline.contains("guarantee"), "must not use guarantee language")
+    }
+
+    // WP-43 S5: PostRunLearningSource raw values ("AI"/"Fallback"/"Report"/
+    // "Heuristic") were rendered directly as trust-surface badges. displayLabel
+    // maps each tier to user language; the raw enum stays for internal
+    // logic/analytics (audit §4 Risk 10 / §10 B12).
+    func testPostRunSourceDisplayLabelsAreUserFacing() {
+        for source in [PostRunLearningSource.ai, .fallback, .report, .heuristic] {
+            let label = source.displayLabel
+            XCTAssertFalse(label.isEmpty, "\(source) needs a display label")
+            XCTAssertNotEqual(
+                label, source.rawValue,
+                "\(source) must not render its raw enum value (\(source.rawValue)) to users"
+            )
+            let lowered = label.lowercased()
+            XCTAssertFalse(lowered.contains("heuristic"), "\(source) label leaks 'Heuristic': \(label)")
+            XCTAssertFalse(lowered.contains("fallback"), "\(source) label leaks 'Fallback': \(label)")
+        }
+    }
+
+    // The audit's actual §10 B12 evidence string ("Imported activity ·
+    // Heuristic") comes from PlanExplanationSource.displayName, rendered on
+    // Today next to the trigger — a separate enum from PostRunLearningSource.
+    func testPlanExplanationSourceDisplayNamesAreUserFacing() {
+        for source in [PlanExplanationSource.heuristic, .ai, .fallback] {
+            let label = source.displayName
+            XCTAssertFalse(label.isEmpty, "\(source) needs a display label")
+            let lowered = label.lowercased()
+            XCTAssertFalse(lowered.contains("heuristic"), "\(source) label leaks 'Heuristic': \(label)")
+            XCTAssertFalse(lowered.contains("fallback"), "\(source) label leaks 'Fallback': \(label)")
+            XCTAssertNotEqual(label, "AI", "the AI source must render as coach language, not the raw tier name")
+        }
+    }
+
+    // WP-43 S6: OnboardingProfile.empty.goal defaulted to "10K improvement" —
+    // a value not among the five visible goal options, so a user who never
+    // picked a goal had a plan silently built around it (audit §4 Risk 9 /
+    // §10 B15). The default must force an explicit visible choice, and the
+    // Goal step must not advance until one is made.
+    func testOnboardingRequiresVisibleGoalSelection() {
+        var profile = OnboardingProfile.empty
+        XCTAssertFalse(OnboardingView.canAdvanceFromGoal(profile), "the empty default goal must not allow advancing")
+
+        profile.goal = "10K improvement" // the old hidden value, not a visible option
+        XCTAssertFalse(OnboardingView.canAdvanceFromGoal(profile), "a non-visible goal must not allow advancing")
+
+        profile.goal = "First 5K"
+        XCTAssertTrue(OnboardingView.canAdvanceFromGoal(profile), "an explicit visible goal must allow advancing")
+    }
+
+    func testOnboardingDefaultGoalIsNotHiddenValue() {
+        let defaultGoal = OnboardingProfile.empty.goal
+        XCTAssertNotEqual(defaultGoal, "10K improvement", "the default goal must not be a hidden value never shown to the user")
+        XCTAssertTrue(
+            defaultGoal.isEmpty || OnboardingView.goalOptions.contains(defaultGoal),
+            "the default goal must be empty (forcing a choice) or a visible option; got '\(defaultGoal)'"
+        )
+    }
+
+    // WP-43 S1: after onboarding there was no explicit plan-generation state —
+    // Today/Plan rendered a blank body for ~30-45s while generation ran, and the
+    // only signal was a transient banner that vanished (audit §4 Risk 1).
+    // PlanGenerationStore maps the existing notification to an explicit state so
+    // Today/Plan always show the generating card, the plan, or an inline retry.
+    private func postPlanGeneration(_ status: RunSmartPlanGenerationStatus, on center: NotificationCenter) {
+        center.post(name: .runSmartPlanGenerationStatusDidChange, object: status)
+    }
+
+    func testPlanGenerationStateTransitionsGeneratingToReady() {
+        let center = NotificationCenter()
+        let store = PlanGenerationStore(notificationCenter: center)
+
+        XCTAssertEqual(store.state, .idle, "no plan activity yet")
+        XCTAssertFalse(store.state.showsGeneratingCard)
+
+        postPlanGeneration(.generating, on: center)
+        XCTAssertEqual(store.state, .generating, "the generating notification must surface the waiting state")
+        XCTAssertTrue(store.state.showsGeneratingCard, "Today/Plan must show the generating card, never a blank body")
+        XCTAssertFalse(store.state.showsInlineRetry)
+
+        postPlanGeneration(.amended, on: center)
+        XCTAssertEqual(store.state, .ready, "a successful regeneration must resolve to ready")
+        XCTAssertFalse(store.state.showsGeneratingCard, "the generating card must disappear once the plan is ready")
+        XCTAssertFalse(store.state.showsInlineRetry)
+    }
+
+    func testPlanGenerationFailureExposesInlineRetry() {
+        let center = NotificationCenter()
+        let store = PlanGenerationStore(notificationCenter: center)
+
+        postPlanGeneration(.generating, on: center)
+        postPlanGeneration(.failed, on: center)
+
+        XCTAssertEqual(store.state, .failed)
+        XCTAssertTrue(store.state.showsInlineRetry, "a failed generation must expose an inline retry on Today/Plan")
+        XCTAssertFalse(store.state.showsGeneratingCard, "a failed generation must not keep showing the generating card")
+
+        // Retrying returns to the generating card without leaving Today/Plan.
+        store.markGenerating()
+        XCTAssertEqual(store.state, .generating)
+        XCTAssertTrue(store.state.showsGeneratingCard)
+        XCTAssertFalse(store.state.showsInlineRetry)
+    }
+
+    func testPlanGenerationFailedNoticeDoesNotPointAtBuriedScreen() {
+        let message = RunSmartPlanNotice(status: .failed).message
+        XCTAssertFalse(
+            message.contains("Training Data"),
+            "the failure notice must not send a first-time user to a Profile-buried screen; got: \(message)"
+        )
     }
 }
 

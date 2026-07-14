@@ -8,11 +8,19 @@ struct GoalTimelineMomentView: View {
 
     @State private var lineProgress: CGFloat = 0
 
-    private var headline: String {
+    private var headline: String { Self.headlineText(for: timeline) }
+
+    private var subline: String { Self.sublineText }
+
+    /// Headline copy for the goal-timeline aha moment. Single-sources the
+    /// duration from `timeline.weeks` so the headline can never disagree with
+    /// the timeline graphic's own week count (audit §4 Risk 6 / §10 B2 — a 5K
+    /// headline hardcoded "Six weeks" while the graphic showed "in 8 weeks").
+    static func headlineText(for timeline: GoalTimelineProjection) -> String {
         switch timeline.normalizedGoal {
         case .distance:
             if timeline.goalLabel.lowercased().contains("5k") {
-                return "Six weeks from now, you could be lining up at your first 5K."
+                return "In \(timeline.weeks) weeks, you could be lining up at your first 5K."
             }
             return "In \(timeline.weeks) weeks, you could be ready for \(timeline.goalLabel.lowercased())."
         case .speed:
@@ -22,9 +30,9 @@ struct GoalTimelineMomentView: View {
         }
     }
 
-    private var subline: String {
-        "We don't know exactly how it goes — but we know you'll finish."
-    }
+    /// Credible framing instead of a guarantee — the old copy promised
+    /// "we know you'll finish", which the product cannot honestly assure.
+    static let sublineText = "Runners who stick with this plan usually get there."
 
     var body: some View {
         AhaMomentOverlayView(

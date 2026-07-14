@@ -30,6 +30,18 @@ enum PostRunLearningSource: String, Hashable {
     case fallback = "Fallback"
     case report = "Report"
     case heuristic = "Heuristic"
+
+    /// User-facing label for the source tier. The raw enum values
+    /// ("AI"/"Fallback"/"Report"/"Heuristic") are internal/analytics only and
+    /// must never render as a badge (audit §4 Risk 10 / §10 B12).
+    var displayLabel: String {
+        switch self {
+        case .ai: "Coach analysis"
+        case .report: "Coach report"
+        case .fallback: "Quick take"
+        case .heuristic: "Based on your plan"
+        }
+    }
 }
 
 enum PostRunLearningAction: Hashable {
@@ -227,7 +239,7 @@ struct PostRunLearningCard: View {
                         .font(.labelLG)
                         .foregroundStyle(Color.accentPrimary)
                     Spacer()
-                    StatusChip(text: model.source.rawValue, tint: sourceTint)
+                    StatusChip(text: model.source.displayLabel, tint: sourceTint)
                 }
 
                 if isProcessing {

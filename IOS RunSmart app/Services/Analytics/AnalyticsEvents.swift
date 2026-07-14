@@ -14,6 +14,14 @@ extension Analytics {
         shared.track("sign_in_completed", properties: ["method": method])
     }
 
+    static func trackSignInFailed(error: Error) {
+        let nsError = error as NSError
+        shared.track("sign_in_failed", properties: [
+            "error_domain": nsError.domain,
+            "error_code": nsError.code
+        ])
+    }
+
     static func trackOnboardingStarted() {
         shared.track("onboarding_started", properties: [:])
     }
@@ -38,6 +46,29 @@ extension Analytics {
             "plan_type": planType,
             "duration_weeks": durationWeeks
         ])
+    }
+
+    // MARK: - Plan generation lifecycle (WP-45)
+
+    static func trackPlanGenerationStarted() {
+        shared.track("plan_generation_started", properties: [:])
+    }
+
+    static func trackPlanGenerationSucceeded(durationMs: Int?) {
+        shared.track("plan_generation_succeeded", properties: durationProperties(durationMs))
+    }
+
+    static func trackPlanGenerationFailed(durationMs: Int?) {
+        shared.track("plan_generation_failed", properties: durationProperties(durationMs))
+    }
+
+    static func trackPlanGenerationTimedOut(durationMs: Int?) {
+        shared.track("plan_generation_timed_out", properties: durationProperties(durationMs))
+    }
+
+    private static func durationProperties(_ durationMs: Int?) -> [String: Any] {
+        guard let durationMs else { return [:] }
+        return ["duration_ms": durationMs]
     }
 
     // MARK: - Run Engagement
