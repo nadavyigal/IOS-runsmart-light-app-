@@ -410,7 +410,7 @@ struct SafetyExplanationCard: View {
                         Text(explanation.headline)
                             .font(.bodyLG.weight(.semibold))
                             .foregroundStyle(Color.textPrimary)
-                        Text("Coach safety · Heuristic")
+                        Text("Coach safety check")
                             .font(.labelSM)
                             .foregroundStyle(Color.textSecondary)
                             .lineLimit(1)

@@ -4037,6 +4037,24 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(subline.contains("we know you'll finish"), "must not guarantee the runner will finish")
         XCTAssertFalse(subline.contains("guarantee"), "must not use guarantee language")
     }
+
+    // WP-43 S5: PostRunLearningSource raw values ("AI"/"Fallback"/"Report"/
+    // "Heuristic") were rendered directly as trust-surface badges. displayLabel
+    // maps each tier to user language; the raw enum stays for internal
+    // logic/analytics (audit §4 Risk 10 / §10 B12).
+    func testPostRunSourceDisplayLabelsAreUserFacing() {
+        for source in [PostRunLearningSource.ai, .fallback, .report, .heuristic] {
+            let label = source.displayLabel
+            XCTAssertFalse(label.isEmpty, "\(source) needs a display label")
+            XCTAssertNotEqual(
+                label, source.rawValue,
+                "\(source) must not render its raw enum value (\(source.rawValue)) to users"
+            )
+            let lowered = label.lowercased()
+            XCTAssertFalse(lowered.contains("heuristic"), "\(source) label leaks 'Heuristic': \(label)")
+            XCTAssertFalse(lowered.contains("fallback"), "\(source) label leaks 'Fallback': \(label)")
+        }
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {
