@@ -350,6 +350,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     func requestPermission() {
         lastErrorMessage = nil
         phase = .requestingPermission
+        Analytics.trackPermissionRequested(kind: "location")
         manager.requestWhenInUseAuthorization()
     }
 
@@ -450,6 +451,20 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        // WP-45: only requests were visible before; a user who denied GPS looked
+        // identical in the funnel to one who was never asked. Only report a
+        // resolution while we're actually waiting on the prompt, not on every
+        // cold-start authorization callback.
+        if phase == .requestingPermission {
+            switch manager.authorizationStatus {
+            case .authorizedAlways, .authorizedWhenInUse:
+                Analytics.trackPermissionGranted(kind: "location")
+            case .denied, .restricted:
+                Analytics.trackPermissionDenied(kind: "location")
+            default:
+                break
+            }
+        }
         updatePhaseForAuthorization()
         if shouldStartAfterPermission,
            manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {

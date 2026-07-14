@@ -3392,6 +3392,67 @@ final class RunSmartReadinessTests: XCTestCase {
         func reset() {}
     }
 
+    // WP-45: payload-key assertions for the instrumentation added to complete
+    // the plan's event list (audit §11).
+    func testWP45EventsCarryRequiredPayloadKeys() {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        defer { Analytics.shared = saved }
+        Analytics.shared = tracker
+
+        Analytics.trackOnboardingStepAbandoned(lastStep: "goal", dwellSeconds: 12)
+        Analytics.trackPermissionRequested(kind: "location")
+        Analytics.trackPermissionGranted(kind: "notifications")
+        Analytics.trackPermissionDenied(kind: "location")
+        Analytics.trackHealthKitConnectFailed(reason: "error")
+        Analytics.trackRunReportGenerateTapped(source: "run_report_detail")
+        Analytics.trackRunReportGenerateSucceeded(source: "run_report_detail")
+        Analytics.trackRunReportGenerateFailed(source: "garmin_activity")
+        Analytics.trackInsightExpanded(surface: "workout_breakdown")
+        Analytics.trackShareProgressTapped(payloadKind: "Milestone")
+        Analytics.trackOnboardingCompleted(goal: "First 5K", experience: "Getting started", daysPerWeek: 3, completedAt: Date(timeIntervalSince1970: 1_750_000_000))
+
+        func event(_ name: String) -> [String: Any]? {
+            tracker.events.first { $0.name == name }?.properties
+        }
+
+        XCTAssertEqual(event("onboarding_step_abandoned")?["last_step"] as? String, "goal")
+        XCTAssertEqual(event("onboarding_step_abandoned")?["dwell_seconds"] as? Int, 12)
+        XCTAssertEqual(event("permission_requested")?["kind"] as? String, "location")
+        XCTAssertEqual(event("permission_granted")?["kind"] as? String, "notifications")
+        XCTAssertEqual(event("permission_denied")?["kind"] as? String, "location")
+        XCTAssertEqual(event("healthkit_connect_failed")?["reason"] as? String, "error")
+        XCTAssertEqual(event("run_report_generate_tapped")?["source"] as? String, "run_report_detail")
+        XCTAssertNotNil(event("run_report_generate_succeeded"))
+        XCTAssertNotNil(event("run_report_generate_failed"))
+        XCTAssertEqual(event("insight_expanded")?["surface"] as? String, "workout_breakdown")
+        XCTAssertEqual(event("share_progress_tapped")?["payload_kind"] as? String, "Milestone")
+
+        let completedSet = event("onboarding_completed")?["$set"] as? [String: Any]
+        XCTAssertNotNil(completedSet?["onboarding_completed_at"], "onboarding_completed must set the person property for D1/D7 cohorting")
+    }
+
+    // WP-45: first_workout_viewed must fire exactly once per install.
+    func testFirstWorkoutViewedFiresOnce() {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        let suiteName = "runsmart.analytics.first-workout.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer {
+            Analytics.shared = saved
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        Analytics.shared = tracker
+
+        Analytics.trackFirstWorkoutViewed(workoutType: "easy", defaults: defaults)
+        Analytics.trackFirstWorkoutViewed(workoutType: "tempo", defaults: defaults)
+
+        let fired = tracker.events.filter { $0.name == "first_workout_viewed" }
+        XCTAssertEqual(fired.count, 1, "first_workout_viewed is a first-time-only event")
+        XCTAssertEqual(fired.first?.properties["workout_type"] as? String, "easy")
+    }
+
     func testCompletedRunAnalyticsFiresOnceAndMarksFirstRunOnce() {
         let saved = Analytics.shared
         let tracker = CapturingAnalyticsService()

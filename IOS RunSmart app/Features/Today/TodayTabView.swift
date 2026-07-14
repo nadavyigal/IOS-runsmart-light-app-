@@ -73,6 +73,13 @@ struct TodayTabView: View {
                     onRoute: openRouteSelector
                 )
                 .runSmartStaggeredAppear(index: 1)
+                .onAppear {
+                    // WP-45: fires once, the first time a planned workout is
+                    // actually seen — complements first_run_cta_viewed.
+                    if resolvedState.kind == .plannedToday || resolvedState.kind == .upNext {
+                        Analytics.trackFirstWorkoutViewed(workoutType: primaryWorkout.kind.rawValue)
+                    }
+                }
 
                 if let safety = recommendation.safetyExplanation {
                     SafetyExplanationCard(
@@ -831,6 +838,11 @@ private struct TodayWorkoutRecommendationCard: View {
                     Button {
                         withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
                             isExpanded.toggle()
+                        }
+                        // WP-45: measures whether the coaching insight is
+                        // actually consumed, not just rendered.
+                        if isExpanded {
+                            Analytics.trackInsightExpanded(surface: "workout_breakdown")
                         }
                     } label: {
                         HStack {

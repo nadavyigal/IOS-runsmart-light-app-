@@ -33,12 +33,44 @@ extension Analytics {
         ])
     }
 
-    static func trackOnboardingCompleted(goal: String, experience: String, daysPerWeek: Int) {
+    static func trackOnboardingCompleted(goal: String, experience: String, daysPerWeek: Int, completedAt: Date = Date()) {
         shared.track("onboarding_completed", properties: [
             "goal": goal,
             "experience": experience,
-            "days_per_week": daysPerWeek
+            "days_per_week": daysPerWeek,
+            // WP-45: person property for D1/D7 cohort segmentation in PostHog.
+            "$set": ["onboarding_completed_at": ISO8601DateFormatter().string(from: completedAt)]
         ])
+    }
+
+    // WP-45: the funnel had no signal for users who left mid-onboarding — only
+    // completed steps were tracked, so an abandon at step 3 was invisible.
+    static func trackOnboardingStepAbandoned(lastStep: String, dwellSeconds: Int) {
+        shared.track("onboarding_step_abandoned", properties: [
+            "last_step": lastStep,
+            "dwell_seconds": dwellSeconds
+        ])
+    }
+
+    // MARK: - Permission outcomes (WP-45)
+
+    // Only the HealthKit *tap* was tracked before; location and notification
+    // outcomes were invisible, so a user who denied GPS at first run looked
+    // identical to one who never tried.
+    static func trackPermissionRequested(kind: String) {
+        shared.track("permission_requested", properties: ["kind": kind])
+    }
+
+    static func trackPermissionGranted(kind: String) {
+        shared.track("permission_granted", properties: ["kind": kind])
+    }
+
+    static func trackPermissionDenied(kind: String) {
+        shared.track("permission_denied", properties: ["kind": kind])
+    }
+
+    static func trackHealthKitConnectFailed(reason: String) {
+        shared.track("healthkit_connect_failed", properties: ["reason": reason])
     }
 
     static func trackPlanGenerated(planType: String, durationWeeks: Int) {
@@ -198,6 +230,47 @@ extension Analytics {
             "source": source,
             "workout_type": workoutType
         ])
+    }
+
+    // WP-45: complements first_run_cta_viewed — fires the first time the user
+    // actually sees their first planned workout rendered on Today.
+    static func trackFirstWorkoutViewed(workoutType: String, defaults: UserDefaults = .standard) {
+        let key = "analytics.hasViewedFirstWorkout"
+        guard !defaults.bool(forKey: key) else { return }
+        defaults.set(true, forKey: key)
+        shared.track("first_workout_viewed", properties: ["workout_type": workoutType])
+    }
+
+    // MARK: - Run report generation (WP-45)
+
+    static func trackRunReportGenerateTapped(source: String) {
+        shared.track("run_report_generate_tapped", properties: ["source": source])
+    }
+
+    static func trackRunReportGenerateSucceeded(source: String) {
+        shared.track("run_report_generate_succeeded", properties: ["source": source])
+    }
+
+    static func trackRunReportGenerateFailed(source: String) {
+        shared.track("run_report_generate_failed", properties: ["source": source])
+    }
+
+    // MARK: - Insight consumption (WP-45)
+
+    // Measures whether the differentiator (coaching insight) is actually
+    // consumed, not just rendered.
+    static func trackInsightExpanded(surface: String) {
+        shared.track("insight_expanded", properties: ["surface": surface])
+    }
+
+    // MARK: - Progress sharing (WP-45)
+
+    static func trackShareProgressTapped(payloadKind: String) {
+        shared.track("share_progress_tapped", properties: ["payload_kind": payloadKind])
+    }
+
+    static func trackShareProgressCompleted(payloadKind: String) {
+        shared.track("share_progress_completed", properties: ["payload_kind": payloadKind])
     }
 
     // MARK: - Routes

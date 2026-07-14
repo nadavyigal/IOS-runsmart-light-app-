@@ -18,13 +18,19 @@ enum OnboardingHealthKitStep {
 
 struct OnboardingView: View {
     @Environment(\.runSmartServices) private var services
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var profile: OnboardingProfile
     @State private var step = 0
+    @State private var stepEnteredAt = Date()
     @State private var healthKitStatus: ConnectedDeviceStatus?
     @State private var isConnectingHealthKit = false
     @State private var healthKitFailureMessage: String?
     var onComplete: (OnboardingProfile) -> Void
+
+    /// Analytics step names — "privacy" is kept for the renamed Coaching step so
+    /// existing PostHog funnels stay intact (WP-44 S4).
+    static let analyticsStepNames = ["goal", "experience", "schedule", "privacy", "healthkit", "ready"]
 
     static let goalOptions = ["First 5K", "10K PR", "Half Marathon", "Marathon", "Just Run More"]
     static let experienceOptions = ["Getting started", "Building base", "Consistent runner", "Race focused"]
@@ -87,9 +93,23 @@ struct OnboardingView: View {
             if step == 0 {
                 Analytics.trackOnboardingStarted()
             }
+            stepEnteredAt = Date()
 #if DEBUG
             applyDebugOnboardingStepIfNeeded()
 #endif
+        }
+        .onChange(of: step) {
+            stepEnteredAt = Date()
+        }
+        // WP-45: leaving the app mid-onboarding was invisible — only completed
+        // steps were tracked, so an abandon at the Goal step looked like nothing.
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .background else { return }
+            let name = step < Self.analyticsStepNames.count ? Self.analyticsStepNames[step] : "unknown"
+            Analytics.trackOnboardingStepAbandoned(
+                lastStep: name,
+                dwellSeconds: Int(Date().timeIntervalSince(stepEnteredAt))
+            )
         }
     }
 
@@ -307,20 +327,17 @@ struct OnboardingView: View {
                 advance()
             } else {
                 healthKitFailureMessage = OnboardingHealthKitStep.failureMessage(for: status)
+                Analytics.trackHealthKitConnectFailed(reason: status.state.rawValue)
             }
         }
     }
 
     private func advance() {
-        // "privacy" stays as the analytics step name even though the user-facing
-        // title is now "Coaching" (WP-44 S4) — renaming it would break existing
-        // PostHog funnels built on this value.
-        let stepNames = ["goal", "experience", "schedule", "privacy", "healthkit", "ready"]
         let completedStep = step
         withAnimation(RunSmartMotion.tabSpring) {
             step = min(stepCount - 1, step + 1)
         }
-        let name = completedStep < stepNames.count ? stepNames[completedStep] : "unknown"
+        let name = completedStep < Self.analyticsStepNames.count ? Self.analyticsStepNames[completedStep] : "unknown"
         Analytics.trackOnboardingStepCompleted(stepNumber: completedStep + 1, stepName: name)
     }
 

@@ -1185,11 +1185,14 @@ private struct RunReportScaffold: View {
         if !routePoints.isEmpty { run.routePoints = routePoints }
         isGenerating = true
         generationFailed = false
+        Analytics.trackRunReportGenerateTapped(source: "garmin_activity")
         defer { isGenerating = false }
         if let generated = await services.generateRunReportIfMissing(for: run) {
             report = generated
+            Analytics.trackRunReportGenerateSucceeded(source: "garmin_activity")
         } else {
             generationFailed = true
+            Analytics.trackRunReportGenerateFailed(source: "garmin_activity")
         }
     }
 
@@ -1308,14 +1311,17 @@ private struct RunReportDetailScaffold: View {
     private func generateReport() async {
         isGenerating = true
         generationFailed = false
+        Analytics.trackRunReportGenerateTapped(source: "run_report_detail")
         defer { isGenerating = false }
 
         if let generated = await services.generateRunReportIfMissing(forRunID: report.runID) {
             report = generated
             await loadReportRun()
             RunSmartHaptics.success()
+            Analytics.trackRunReportGenerateSucceeded(source: "run_report_detail")
         } else {
             generationFailed = true
+            Analytics.trackRunReportGenerateFailed(source: "run_report_detail")
         }
     }
 

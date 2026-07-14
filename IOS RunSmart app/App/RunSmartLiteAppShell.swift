@@ -427,7 +427,8 @@ struct RunSmartLiteAppShell: View {
     }
 
     private func firstRunnableWorkoutAfterPlanGeneration(timeoutSeconds: TimeInterval = 45) async -> WorkoutSummary? {
-        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        let started = Date()
+        let deadline = started.addingTimeInterval(timeoutSeconds)
         while Date() < deadline {
             if Task.isCancelled { return nil }
             let workouts = await services.nextWorkouts(limit: 5)
@@ -437,6 +438,10 @@ struct RunSmartLiteAppShell: View {
             }
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
+        // WP-45: the event existed but had no call site; this poll is where the
+        // WP-43 S1 report said it belongs — generation produced no runnable
+        // workout inside the activation window.
+        Analytics.trackPlanGenerationTimedOut(durationMs: Int(Date().timeIntervalSince(started) * 1000))
         return nil
     }
 
