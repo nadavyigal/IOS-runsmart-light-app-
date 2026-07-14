@@ -4055,6 +4055,31 @@ final class RunSmartReadinessTests: XCTestCase {
             XCTAssertFalse(lowered.contains("fallback"), "\(source) label leaks 'Fallback': \(label)")
         }
     }
+
+    // WP-43 S6: OnboardingProfile.empty.goal defaulted to "10K improvement" —
+    // a value not among the five visible goal options, so a user who never
+    // picked a goal had a plan silently built around it (audit §4 Risk 9 /
+    // §10 B15). The default must force an explicit visible choice, and the
+    // Goal step must not advance until one is made.
+    func testOnboardingRequiresVisibleGoalSelection() {
+        var profile = OnboardingProfile.empty
+        XCTAssertFalse(OnboardingView.canAdvanceFromGoal(profile), "the empty default goal must not allow advancing")
+
+        profile.goal = "10K improvement" // the old hidden value, not a visible option
+        XCTAssertFalse(OnboardingView.canAdvanceFromGoal(profile), "a non-visible goal must not allow advancing")
+
+        profile.goal = "First 5K"
+        XCTAssertTrue(OnboardingView.canAdvanceFromGoal(profile), "an explicit visible goal must allow advancing")
+    }
+
+    func testOnboardingDefaultGoalIsNotHiddenValue() {
+        let defaultGoal = OnboardingProfile.empty.goal
+        XCTAssertNotEqual(defaultGoal, "10K improvement", "the default goal must not be a hidden value never shown to the user")
+        XCTAssertTrue(
+            defaultGoal.isEmpty || OnboardingView.goalOptions.contains(defaultGoal),
+            "the default goal must be empty (forcing a choice) or a visible option; got '\(defaultGoal)'"
+        )
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {

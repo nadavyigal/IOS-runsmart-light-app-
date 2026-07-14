@@ -1128,7 +1128,11 @@ struct OnboardingProfile: Codable, Equatable {
 
     static let empty = OnboardingProfile(
         displayName: "",
-        goal: "10K improvement",
+        // No hidden default: "10K improvement" was not one of the visible goal
+        // options, so a user who never picked a goal had a plan silently built
+        // around it (audit §4 Risk 9 / §10 B15). Empty forces an explicit,
+        // visible selection before onboarding can advance.
+        goal: "",
         experience: "Building base",
         age: nil,
         averageWeeklyDistanceKm: nil,

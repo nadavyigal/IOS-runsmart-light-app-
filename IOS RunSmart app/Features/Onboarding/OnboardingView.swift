@@ -17,8 +17,21 @@ struct OnboardingView: View {
     @State private var isConnectingHealthKit = false
     var onComplete: (OnboardingProfile) -> Void
 
-    private let goals = ["First 5K", "10K PR", "Half Marathon", "Marathon", "Just Run More"]
-    private let experiences = ["Getting started", "Building base", "Consistent runner", "Race focused"]
+    static let goalOptions = ["First 5K", "10K PR", "Half Marathon", "Marathon", "Just Run More"]
+    static let experienceOptions = ["Getting started", "Building base", "Consistent runner", "Race focused"]
+
+    /// A goal step may only advance once the user has picked a visible option,
+    /// so a plan is never built from an empty or unseen goal (audit §4 Risk 9).
+    static func canAdvanceFromGoal(_ profile: OnboardingProfile) -> Bool {
+        goalOptions.contains(profile.goal)
+    }
+
+    static func canAdvanceFromExperience(_ profile: OnboardingProfile) -> Bool {
+        experienceOptions.contains(profile.experience)
+    }
+
+    private let goals = OnboardingView.goalOptions
+    private let experiences = OnboardingView.experienceOptions
     private let tones = ["Motivating", "Calm", "Direct"]
     private let weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     private let stepCount = 6
@@ -42,6 +55,10 @@ struct OnboardingView: View {
                     completionStep.tag(5)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                // Swallow horizontal swipes so users can't skip a required step
+                // (e.g. leave Goal without a visible selection). Steps advance
+                // only via the explicit Continue buttons.
+                .gesture(DragGesture())
             }
         }
         .foregroundStyle(Color.textPrimary)
@@ -80,14 +97,24 @@ struct OnboardingView: View {
     private var goalStep: some View {
         OnboardingStepShell(title: "Goal", subtitle: "Pick the result your RunSmart coach should build around.", symbol: "target") {
             OnboardingChoiceGrid(options: goals, selection: $profile.goal)
-            OnboardingPrimaryButton(title: "Continue", symbol: "arrow.right", action: advance)
+            OnboardingPrimaryButton(
+                title: "Continue",
+                symbol: "arrow.right",
+                isEnabled: Self.canAdvanceFromGoal(profile),
+                action: advance
+            )
         }
     }
 
     private var experienceStep: some View {
         OnboardingStepShell(title: "Runner experience", subtitle: "This controls how aggressively the plan progresses.", symbol: "figure.run") {
             OnboardingChoiceGrid(options: experiences, selection: $profile.experience)
-            OnboardingPrimaryButton(title: "Continue", symbol: "arrow.right", action: advance)
+            OnboardingPrimaryButton(
+                title: "Continue",
+                symbol: "arrow.right",
+                isEnabled: Self.canAdvanceFromExperience(profile),
+                action: advance
+            )
         }
     }
 
@@ -332,6 +359,7 @@ private struct OnboardingChoiceGrid: View {
 private struct OnboardingPrimaryButton: View {
     var title: String
     var symbol: String
+    var isEnabled: Bool = true
     var action: () -> Void
 
     var body: some View {
@@ -339,6 +367,8 @@ private struct OnboardingPrimaryButton: View {
             Label(title, systemImage: symbol)
         }
         .buttonStyle(NeonButtonStyle())
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.45)
     }
 }
 
