@@ -3990,6 +3990,53 @@ final class RunSmartReadinessTests: XCTestCase {
             XCTAssertLessThanOrEqual(leadingReps, 40, "\(distance) must never render an implausible rep count (was 21000)")
         }
     }
+
+    // WP-43 S3: GoalTimelineMomentView hardcoded "Six weeks from now..." for
+    // any 5K goal while the timeline graphic rendered "in \(timeline.weeks)
+    // weeks". For an 8-week persona the headline said six weeks and the graphic
+    // said eight — a trust-eroding contradiction. The headline must single-source
+    // its duration from timeline.weeks.
+    private func makeTimeline(weeks: Int, goalLabel: String, category: GoalTimelineCategory) -> GoalTimelineProjection {
+        GoalTimelineProjection(
+            weeks: weeks,
+            milestoneWeek: max(1, weeks / 2),
+            milestoneLabel: "Milestone",
+            goalLabel: goalLabel,
+            projectedDate: Date(timeIntervalSince1970: 0),
+            normalizedGoal: category
+        )
+    }
+
+    func testGoalTimelineHeadlineMatchesMilestoneWeeks() {
+        let cases: [(goalLabel: String, category: GoalTimelineCategory)] = [
+            ("First 5K", .distance),
+            ("10K", .distance),
+            ("Half Marathon", .distance),
+            ("Marathon", .distance),
+            ("Faster 5K", .speed),
+            ("Run 3x a week", .habit)
+        ]
+        for weeks in [6, 8, 12] {
+            for goalCase in cases {
+                let timeline = makeTimeline(weeks: weeks, goalLabel: goalCase.goalLabel, category: goalCase.category)
+                let headline = GoalTimelineMomentView.headlineText(for: timeline)
+                XCTAssertTrue(
+                    headline.contains("\(weeks) weeks"),
+                    "headline must state the timeline's own \(weeks)-week duration for \(goalCase.goalLabel); got: \(headline)"
+                )
+                XCTAssertFalse(
+                    headline.lowercased().contains("six weeks"),
+                    "headline must not hardcode 'Six weeks' — it contradicts the \(weeks)-week graphic; got: \(headline)"
+                )
+            }
+        }
+    }
+
+    func testGoalTimelineSublineHasNoGuaranteeLanguage() {
+        let subline = GoalTimelineMomentView.sublineText.lowercased()
+        XCTAssertFalse(subline.contains("we know you'll finish"), "must not guarantee the runner will finish")
+        XCTAssertFalse(subline.contains("guarantee"), "must not use guarantee language")
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {
