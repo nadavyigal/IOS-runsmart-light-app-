@@ -21,7 +21,7 @@
 ## Previous Current Task
 
 **Objective:** Ship **1.0.8 (22)** to App Store Connect (includes WP-37, WP-38, WP-40).
-**Status:** **Live on the App Store 2026-07-13.**
+**Status:** **Live 2026-07-13** — public-build smoke partially verified; true fresh-account onboarding remains unobserved.
 **Handoff:** `docs/qa/reports/release-1.0.8-build22-handoff.md`
 
 ### Checklist
@@ -31,8 +31,11 @@
 - [x] Confirm `RunSmartSecrets.xcconfig` present.
 - [x] Release archive compile + embedded validate-for-store (clean worktree).
 - [x] Founder: **Product → Archive** in Xcode (Distribution signing) — **2026-07-12**.
-- [ ] Upload to ASC confirmed + TestFlight smoke (onboarding HealthKit, Today card, short run).
-- [ ] App Review approval / release to production.
+- [x] Upload to ASC confirmed; App Review approved and 1.0.8 (22) released publicly.
+- [x] Public build install, Today Apple Health data, run entry, short run, finish dialog, and saved completion verified.
+- [x] HealthKit connected state and visible read/write disclosure verified.
+- [ ] True fresh-account HealthKit onboarding and true first-run-user CTA replay (existing account state restored after reinstall).
+- [x] Evidence report: `docs/qa/reports/release-1.0.8-build22-public-smoke-2026-07-13.md`.
 - [ ] Re-run WP-42 after real users on 1.0.8 (22).
 
 ## Previous Current Task — WP-42

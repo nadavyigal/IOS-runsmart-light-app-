@@ -53,6 +53,20 @@ Last Updated: 2026-07-14
 
 ---
 
+## 2026-07-13 — Public 1.0.8 (22) live smoke
+
+| Field | Result |
+|---|---|
+| **Install identity** | PASS — `com.runsmart.lite`, 1.0.8 (22), public App Store binary |
+| **Today Apple Health data** | PASS — Apple Health, 1.8k steps, 46 active kcal, honest missing sleep |
+| **HealthKit connection/disclosure** | PASS — connected; enabled categories and read/write explanation visible |
+| **Run entry** | PASS — GPS ready, Free Run, Start Run CTA |
+| **Short run + completion** | PASS — live recording, two-path finish alert, review-only activity saved |
+| **Fresh-account onboarding / first-run state** | NOT OBSERVED — existing signed-in account and prior history restored after reinstall |
+| **Evidence** | `docs/qa/reports/release-1.0.8-build22-public-smoke-2026-07-13.md` |
+
+---
+
 ## 2026-07-13 — RunSmart 1.0.8 (22) approved and live
 
 | Field | Value |
