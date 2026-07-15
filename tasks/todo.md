@@ -2,6 +2,21 @@
 
 ## Current Task
 
+**Objective:** Create and publish a documentation-only 1.0.9 (23) post-live activation verification package.
+**Status:** **Documentation implemented; validation and PR publication in progress.**
+**Runbook:** `docs/qa/reports/release-1.0.9-build23-post-live-activation-verification.md`
+
+### Checklist
+- [x] Preserve the four untracked duplicate QA artifacts via isolated worktree.
+- [x] Verify Portfolio HQ's founder/QA-excluded mature-D7 contract.
+- [x] Verify proposed WP-43/WP-45 events/properties against `main` code.
+- [x] Inspect PostHog project 171597 read-only.
+- [x] Document the ordered funnel, caveats, cohort floor, and E1 gate.
+- [x] Run documentation link checks and `git diff --check`.
+- [ ] Commit, push, and open a documentation-only PR.
+
+## Previous Current Task
+
 **Objective:** Complete the FTUX upgrade plan (WP-44 S1–S6 + WP-45 remainder) so a release containing WP-43+44+45 can ship.
 **Status:** **1.0.9 (23) archived and submitted to App Store Connect for review — 2026-07-15, founder-confirmed.**
 **Plan doc:** `docs/plans/2026-07-13-ftux-upgrade-plan.md` (only on branch `claude/runsmart-ftux-audit-240648`).

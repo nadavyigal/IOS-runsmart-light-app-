@@ -1,5 +1,23 @@
 # Session Log
 
+## 2026-07-15 - 1.0.9 post-live activation documentation
+
+### Task Summary
+Created an executable documentation-only post-approval verification package. No Swift, project, plist, signing, version/build, dependency, ASC, or PostHog configuration changed.
+
+### Evidence
+- Code-verified proposed WP-43/WP-45 events/properties against `main`.
+- Read-only PostHog inspection confirmed pre-live build-23 QA telemetry is mechanics-only.
+- Dashboard inspection confirmed rolling operational windows differ from mature D7.
+- Live HogQL validation established `windowFunnel` with a `DateTime` cast. The rejected `sequenceMatch` attempt became a future query rule in `tasks/lessons.md`.
+- Property-query validation caught and removed a full `$set` selection; the published query selects only nested `onboarding_completed_at` to avoid enriched system/geographic fields.
+
+### Deliverable
+- `docs/qa/reports/release-1.0.9-build23-post-live-activation-verification.md`
+
+### Not Done
+- Did not start E1, alter release/analytics state, or draw conclusions from QA rows.
+
 ## 2026-07-13 - Public 1.0.8 (22) live smoke evidence
 
 ### Task Summary

@@ -3,6 +3,8 @@
 Review this file at the start of future tasks.
 
 ## Active Rules
+- In PostHog verification queries, never select the whole `properties.$set` object; it can include enriched geographic/system data. Select only the required nested key, such as `properties.$set.onboarding_completed_at`.
+- In PostHog HogQL, do not use `sequenceMatch` for ordered funnels; use `windowFunnel` with `toDateTime(timestamp)`, and use `countIf` instead of nullable-left-join assumptions because missing joined rows can carry defaults.
 - Keep `AGENTS.md`, `CLAUDE.md`, and `CODEX.md` as routers, not manuals.
 - Load only the files needed for the current workflow.
 - Use app-repo `tasks/todo.md`, `tasks/lessons.md`, and `tasks/session-log.md` as the single source of truth; outer wrapper status files should only point here.
