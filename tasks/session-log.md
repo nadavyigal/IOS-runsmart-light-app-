@@ -1,5 +1,23 @@
 # Session Log
 
+## 2026-07-13 - Public 1.0.8 (22) live smoke evidence
+
+### Task Summary
+Installed the public App Store binary on a paired physical iPhone and recorded evidence only for HealthKit state, Today data, run entry, a short run, finish confirmation, and completion. No product code or feature was changed.
+
+### Validation
+- CoreDevice inventory confirmed `com.runsmart.lite`, version `1.0.8`, build `22`.
+- Today showed Apple Health attribution, 1.8k steps, 46 active kcal, and honest missing sleep.
+- Profile showed HealthKit connected; the detail screen named HealthKit, explained read/write behavior, and listed enabled data categories.
+- Run entry showed GPS ready / Free Run / Start Run.
+- A 1:41 short activity recorded, presented the two-path short-run finish alert, and saved as review-only with honest insufficient-analysis copy.
+- Evidence: `docs/qa/reports/release-1.0.8-build22-public-smoke-2026-07-13.md`.
+
+### Not Observed
+- True fresh-account HealthKit onboarding and true first-run-user CTA state. Reinstall restored the existing signed-in account and prior history; no destructive account reset was performed.
+
+---
+
 ## 2026-07-12 - RunSmart 1.0.8 (22) release tracking commit
 
 ### Task Summary
