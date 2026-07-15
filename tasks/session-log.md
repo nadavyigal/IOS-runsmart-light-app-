@@ -7,15 +7,16 @@ Created an executable documentation-only post-approval verification package. No 
 
 ### Evidence
 - PR review caught and corrected a headline-numerator bug: D7 activation now counts any qualifying `run_completed`, while the eight-step ordered completion remains a separate diagnostic.
+- Incremental review required explicit false production-device flags, bounded lifetime exclusions at `snapshot_end`, named `plan_generation_succeeded` as the E1 lifecycle terminal, and aligned task wording with the direct numerator.
 - Code-verified proposed WP-43/WP-45 events/properties against `main`.
 - Read-only PostHog inspection confirmed pre-live build-23 QA telemetry is mechanics-only.
 - Dashboard inspection confirmed rolling operational windows differ from mature D7.
-- Live HogQL validation established `windowFunnel` with a `DateTime` cast. The rejected `sequenceMatch` attempt became a future query rule in `tasks/lessons.md`.
+- Live HogQL validation established `windowFunnel` with a `DateTime` cast. The final corrected frozen-snapshot query executed successfully after the review fixes. The rejected `sequenceMatch` attempt became a future query rule in `tasks/lessons.md`.
 - Property-query validation caught and removed a full `$set` selection; the published query selects only nested `onboarding_completed_at` to avoid enriched system/geographic fields.
 
 ### Deliverable
 - `docs/qa/reports/release-1.0.9-build23-post-live-activation-verification.md`
-- Draft PR #95 from `codex/docs-1.0.9-activation-read` into `main`.
+- PR #95 from `codex/docs-1.0.9-activation-read` into `main`.
 
 ### Not Done
 - Did not start E1, alter release/analytics state, or draw conclusions from QA rows.

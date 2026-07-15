@@ -468,3 +468,8 @@ Trigger: Garmin connect returned to the iOS app through `ASWebAuthenticationSess
 Lesson: Native OAuth callbacks are not complete until the app hands the authorization result back to the backend that owns the client secret/token exchange.
 
 Future rule: For native OAuth flows routed through a web gateway, validate the full loop: request native redirect, receive custom-scheme callback, POST `code`/`state` to the gateway callback, persist connection/tokens, then poll or refresh UI.
+
+### 2026-07-15 — Frozen activation snapshots must freeze exclusion evidence too
+
+- For a reproducible decision snapshot, bound lifetime QA/device exclusion evidence at `snapshot_end`; later events must not rewrite an earlier cohort.
+- Treat missing production-device flags as unknown, not false. A physical-install candidate must carry explicit false values for emulator, TestFlight, and sideload flags.

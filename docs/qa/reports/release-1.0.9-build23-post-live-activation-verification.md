@@ -173,9 +173,12 @@ WITH
           AND properties.$os_name IN ('iOS', 'iPadOS')
           AND properties.$app_version = '1.0.9'
           AND toFloat(properties.$app_build) = 23
-          AND coalesce(toBool(properties.$is_emulator), false) = false
-          AND coalesce(toBool(properties.$is_testflight), false) = false
-          AND coalesce(toBool(properties.$is_sideloaded), false) = false
+          AND properties.$is_emulator IS NOT NULL
+          AND toBool(properties.$is_emulator) = false
+          AND properties.$is_testflight IS NOT NULL
+          AND toBool(properties.$is_testflight) = false
+          AND properties.$is_sideloaded IS NOT NULL
+          AND toBool(properties.$is_sideloaded) = false
           AND timestamp <= snapshot_end - INTERVAL 7 DAY
         GROUP BY person_id),
     lifetime_flags AS (
@@ -183,7 +186,9 @@ WITH
             countIf(coalesce(toBool(properties.$is_emulator), false)) > 0 AS ever_emulator,
             countIf(coalesce(toBool(properties.$is_testflight), false)) > 0 AS ever_testflight,
             countIf(coalesce(toBool(properties.$is_sideloaded), false)) > 0 AS ever_sideloaded
-        FROM events WHERE person_id IN (SELECT person_id FROM candidate)
+        FROM events
+        WHERE person_id IN (SELECT person_id FROM candidate)
+          AND timestamp <= snapshot_end
         GROUP BY person_id),
     clean_installs AS (
         SELECT c.person_id, c.install_at FROM candidate c
@@ -230,7 +235,7 @@ E1 is the deterministic coach preview while the real plan generates.
 **Start remains NO-GO** until:
 
 1. 1.0.9 (23) is publicly live.
-2. Public physical flow verifies `onboarding_completed` + `$set.onboarding_completed_at`, `plan_generation_started`, a normal lifecycle terminal, `first_workout_viewed`, `first_run_cta_viewed`, `run_started`, `run_completed`.
+2. Public physical flow verifies `onboarding_completed` + `$set.onboarding_completed_at`, `plan_generation_started`, `plan_generation_succeeded`, `first_workout_viewed`, `first_run_cta_viewed`, `run_started`, `run_completed`. `plan_generation_timed_out` remains a separate activation-poll signal and does not satisfy this lifecycle-success gate.
 3. The semantic caveats are accepted in the analysis plan.
 4. Random assignment and an E1 exposure event/variant property are defined before enrollment. `main` has no E1 exposure/variant/assignment, so E1 cannot start from current instrumentation alone.
 
