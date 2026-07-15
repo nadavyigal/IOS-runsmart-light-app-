@@ -124,7 +124,7 @@
     "+12%" : {
 
     },
-    "🔥 %@ day streak" : {
+    "🔥 %@" : {
 
     },
     "13-90 years" : {
@@ -133,13 +133,7 @@
     "20°C · 11 km/h wind · 54% humidity" : {
 
     },
-    "21-Day Rookie Challenge" : {
-
-    },
     "31.4" : {
-
-    },
-    "A lightweight starter block for confidence, consistency, and safe progression." : {
 
     },
     "A single nudge after Flex Week confirms, summarizing tomorrow's workout." : {
@@ -267,7 +261,7 @@
     "COACH REACTION" : {
 
     },
-    "Coach safety · Heuristic" : {
+    "Coach safety check" : {
 
     },
     "Coach Spark" : {
@@ -563,6 +557,9 @@
     "How ready do you feel before today’s training?" : {
 
     },
+    "HOW TO RECOVER" : {
+
+    },
     "How your training trend looks right now." : {
 
     },
@@ -639,6 +636,9 @@
       }
     },
     "Learning from this run now..." : {
+
+    },
+    "Loading activities" : {
 
     },
     "Loading Garmin route points." : {
@@ -1208,6 +1208,9 @@
 
     },
     "Training data saved." : {
+
+    },
+    "Try again" : {
 
     },
     "Unfavorite" : {
