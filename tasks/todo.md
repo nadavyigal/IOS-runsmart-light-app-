@@ -3,7 +3,7 @@
 ## Current Task
 
 **Objective:** Complete the FTUX upgrade plan (WP-44 S1–S6 + WP-45 remainder) so a release containing WP-43+44+45 can ship.
-**Status:** **Implementation complete 2026-07-14** on branch `claude/device-smoke-release-prep-50eafe` — 268 tests, 0 failures. PR pending merge.
+**Status:** **1.0.9 (23) archived and submitted to App Store Connect for review — 2026-07-15, founder-confirmed.**
 **Plan doc:** `docs/plans/2026-07-13-ftux-upgrade-plan.md` (only on branch `claude/runsmart-ftux-audit-240648`).
 
 ### Checklist
@@ -14,9 +14,12 @@
 - [x] WP-44 S5 — rest-day recovery guidance on Today.
 - [x] WP-44 S3 — `Services/TrainingMetrics.swift` single-source accessors (founder-approved design).
 - [x] WP-45 — full event remainder + `plan_generation_timed_out` wired + `onboarding_completed_at` person property. (`share_progress_completed` deliberately unwired — no ShareLink completion API.)
-- [x] Full suite green (268/268) + Debug build SUCCEEDED.
-- [ ] Founder device build + smoke (WP-43 S6/S1 gaps + new WP-44 surfaces).
-- [ ] Merge PR; then release 1.0.9 (23); then verify events in PostHog; then Experiment E1.
+- [x] Full suite green (275/275 final) + Release-config build SUCCEEDED.
+- [x] Zero-streak Profile regression found in release review, fixed, merged (PR #92).
+- [x] Founder device build + smoke — **S6 empty-goal + S1 failed-card device smoke explicitly waived by founder 2026-07-15**, not device-observed; covered by red→green unit tests only. New WP-44 surfaces (Coaching step, Back, rest-day card, Report skeleton) not separately re-verified on device.
+- [x] Archived and submitted to ASC (2026-07-15).
+- [ ] Await App Review decision.
+- [ ] After approval: verify WP-43/45 events live in PostHog, then Experiment E1.
 
 ## Previous Current Task
 
