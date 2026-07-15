@@ -23,6 +23,7 @@ struct OnboardingView: View {
     @State private var profile: OnboardingProfile
     @State private var step = 0
     @State private var stepEnteredAt = Date()
+    @State private var maxCompletedStep = -1
     @State private var healthKitStatus: ConnectedDeviceStatus?
     @State private var isConnectingHealthKit = false
     @State private var healthKitFailureMessage: String?
@@ -55,7 +56,9 @@ struct OnboardingView: View {
     private let experiences = OnboardingView.experienceOptions
     private let tones = ["Motivating", "Calm", "Direct"]
     private let weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    private let stepCount = 6
+    // Derived from the analytics names so the progress bar, the step switch,
+    // and the funnel names can't drift apart.
+    private var stepCount: Int { Self.analyticsStepNames.count }
 
     init(initialProfile: OnboardingProfile, onComplete: @escaping (OnboardingProfile) -> Void) {
         _profile = State(initialValue: initialProfile)
@@ -140,7 +143,7 @@ struct OnboardingView: View {
             }
             .buttonStyle(.plain)
             .opacity(step > 0 ? 1 : 0)
-            .disabled(step == 0)
+            .disabled(step == 0 || isConnectingHealthKit)
             .accessibilityLabel("Back")
             .accessibilityIdentifier("onboarding.back")
 
@@ -277,6 +280,7 @@ struct OnboardingView: View {
                 .foregroundStyle(Color.textSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 4)
+                .disabled(isConnectingHealthKit)
                 .accessibilityIdentifier("onboarding.healthkit.skip")
             }
         }
@@ -319,10 +323,15 @@ struct OnboardingView: View {
         Analytics.trackHealthKitConnectTapped()
         isConnectingHealthKit = true
         healthKitFailureMessage = nil
+        let initiatingStep = step
         Task {
             let status = await services.connect(provider: OnboardingHealthKitStep.providerName)
             healthKitStatus = status
             isConnectingHealthKit = false
+            // The connect runs a sync after the permission sheet, so the user
+            // can navigate (Back/Skip) before it resolves. A stale completion
+            // must not advance from — or show errors on — a different step.
+            guard step == initiatingStep else { return }
             if OnboardingHealthKitStep.didConnect(status) {
                 advance()
             } else {
@@ -337,6 +346,11 @@ struct OnboardingView: View {
         withAnimation(RunSmartMotion.tabSpring) {
             step = min(stepCount - 1, step + 1)
         }
+        // The Back button (WP-44 S4) makes steps re-enterable; only report the
+        // first completion of each step or back-then-forward would double-count
+        // in the funnel.
+        guard completedStep > maxCompletedStep else { return }
+        maxCompletedStep = completedStep
         let name = completedStep < Self.analyticsStepNames.count ? Self.analyticsStepNames[completedStep] : "unknown"
         Analytics.trackOnboardingStepCompleted(stepNumber: completedStep + 1, stepName: name)
     }

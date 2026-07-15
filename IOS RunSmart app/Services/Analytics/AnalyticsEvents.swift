@@ -269,9 +269,10 @@ extension Analytics {
         shared.track("share_progress_tapped", properties: ["payload_kind": payloadKind])
     }
 
-    static func trackShareProgressCompleted(payloadKind: String) {
-        shared.track("share_progress_completed", properties: ["payload_kind": payloadKind])
-    }
+    // share_progress_completed is deliberately NOT defined: ShareLink exposes no
+    // completion callback, so a tracker here would be dead code that reads as a
+    // wired event (the exact defect plan_generation_timed_out had). Add it only
+    // with the UIActivityViewController migration that can observe completion.
 
     // MARK: - Routes
 

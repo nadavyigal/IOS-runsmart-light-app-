@@ -64,6 +64,7 @@ struct TodayTabView: View {
                     state: resolvedState,
                     recommendation: recommendation,
                     workout: primaryWorkout,
+                    plan: activePlan,
                     route: todayRoute,
                     onStart: { startRun(with: primaryWorkout) },
                     onReviewReport: openLatestReport,
@@ -76,9 +77,13 @@ struct TodayTabView: View {
                 .onAppear {
                     // WP-45: fires once, the first time a planned workout is
                     // actually seen — complements first_run_cta_viewed.
-                    if resolvedState.kind == .plannedToday || resolvedState.kind == .upNext {
-                        Analytics.trackFirstWorkoutViewed(workoutType: primaryWorkout.kind.rawValue)
-                    }
+                    trackFirstWorkoutViewedIfNeeded(resolvedState)
+                }
+                // On cold start the card first appears as .noPlan while data
+                // loads; onAppear won't re-fire when the kind flips, so also
+                // observe the transition. trackFirstWorkoutViewed dedupes.
+                .onChange(of: resolvedState.kind) {
+                    trackFirstWorkoutViewedIfNeeded(resolvedState)
                 }
 
                 if let safety = recommendation.safetyExplanation {
@@ -341,6 +346,11 @@ struct TodayTabView: View {
 
     private func openTodayCoach() {
         router.openCoach(context: .today)
+    }
+
+    private func trackFirstWorkoutViewedIfNeeded(_ state: TodayResolvedState) {
+        guard state.kind == .plannedToday || state.kind == .upNext else { return }
+        Analytics.trackFirstWorkoutViewed(workoutType: state.primaryWorkout.kind.rawValue)
     }
 
     /// Rebuilds the plan from the saved profile without leaving Today
@@ -730,6 +740,7 @@ private struct TodayWorkoutRecommendationCard: View {
     var state: TodayResolvedState
     var recommendation: TodayRecommendation
     var workout: WorkoutSummary
+    var plan: TrainingPlanSnapshot?
     var route: RouteSuggestion?
     var onStart: () -> Void
     var onReviewReport: () -> Void
@@ -741,7 +752,7 @@ private struct TodayWorkoutRecommendationCard: View {
     @State private var isExpanded = false
 
     private var display: TodayWorkoutDisplayModel {
-        TodayWorkoutDisplayModel.make(recommendation: recommendation, workout: workout)
+        TodayWorkoutDisplayModel.make(recommendation: recommendation, workout: workout, plan: plan)
     }
 
     var body: some View {

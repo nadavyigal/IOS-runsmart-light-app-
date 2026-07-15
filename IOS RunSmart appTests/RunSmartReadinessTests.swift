@@ -4112,11 +4112,65 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(TrainingMetrics.currentWeekNumber(planStartDate: start, totalWeeks: 8, now: start.addingTimeInterval(-7 * 24 * 3600), calendar: calendar), 1, "dates before the plan start must clamp to week 1")
     }
 
-    // WP-44 S3: a stable or improving HRV must never map to the alarm color.
+    // WP-44 S3: a stable or improving HRV must never map to the alarm color,
+    // and BOTH producers' vocabularies must resolve (Supabase: Stable/Lower;
+    // Garmin: Stable/Moderate/Low — GarminMappers.swift:124).
     func testHRVTrendGoodnessNeverAlarmsOnPositive() {
-        XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: "Stable"), .positive)
-        XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: "Lower"), .caution)
+        for label in ["Stable", "Higher", "Up", "Improving", " improving "] {
+            XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: label), .positive, "\(label) is a positive trend")
+        }
+        for label in ["Lower", "Down", "Declining", "Low"] {
+            XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: label), .caution, "\(label) is a caution trend")
+        }
+        XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: "Moderate"), .neutral)
         XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: "--"), .neutral)
+    }
+
+    // Review fix (adversarial): the workout-breakdown sheet's "Week N" used a
+    // week-of-MONTH fallback (resets monthly) because the trainingPhase digit
+    // path never fires ("base" has no digits) — the exact "Week 3 vs Week 4"
+    // audit class at an unconverted call site. With a plan it must use the
+    // single accessor.
+    func testWorkoutDisplayWeekLabelUsesPlanWeekWhenPlanKnown() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone.current
+        let plan = TrainingPlanSnapshot(id: UUID(), title: "10K Build", startDate: makeDate("2026-05-04"), endDate: makeDate("2026-06-30"), totalWeeks: 8, planType: "10K")
+        let recommendation = TodayRecommendation(readiness: 82, readinessLabel: "Ready", workoutTitle: "Tempo Builder", distance: "8.0 km", pace: "5:44 /km", elevation: "--", coachMessage: "Go steady.")
+        let workout = makeWorkout(date: "2026-05-13", kind: .tempo, title: "Tempo Builder", distance: "8.0 km", durationMinutes: 50)
+
+        let display = TodayWorkoutDisplayModel.make(recommendation: recommendation, workout: workout, plan: plan, calendar: calendar)
+        XCTAssertEqual(display.weekLabel, "Week 2", "May 13 is week 2 of a plan starting May 4 — must come from TrainingMetrics, not week-of-month")
+
+        let displayNoPlan = TodayWorkoutDisplayModel.make(recommendation: recommendation, workout: workout, calendar: calendar)
+        XCTAssertEqual(displayNoPlan.weekLabel, "Week \(calendar.component(.weekOfMonth, from: workout.scheduledDate))", "without a plan the legacy fallback stays")
+    }
+
+    // Review fix: a zero-day streak is not a streak; the single accessor owns
+    // the >0 rule so Today and Profile can't diverge on the boundary.
+    func testZeroStreakNeverRendersAsAStreak() {
+        XCTAssertNil(TrainingMetrics.canonicalStreakLabel(fromLabel: "0"))
+        XCTAssertNil(TrainingMetrics.canonicalStreakLabel(fromLabel: "0 days"))
+        XCTAssertEqual(TrainingMetrics.streakDays(fromLabel: "0 days"), 0, "parsing still reports zero; only the label suppresses it")
+    }
+
+    // Review fix: pin the analytics step names so a future step reorder or
+    // rename can't silently break existing PostHog funnels ("privacy" is the
+    // Coaching step's funnel name on purpose — WP-44 S4).
+    func testOnboardingAnalyticsStepNamesStayFunnelCompatible() {
+        XCTAssertEqual(OnboardingView.analyticsStepNames.count, 6)
+        XCTAssertEqual(OnboardingView.analyticsStepNames[3], "privacy")
+    }
+
+    // WP-45 review fix: the denied path is the exact gap the permission events
+    // close — prove the resolution logic, including cold-start suppression.
+    func testLocationPermissionEventOnlyResolvesWhilePromptPending() {
+        XCTAssertEqual(RunRecorder.locationPermissionEvent(phase: .requestingPermission, status: .authorizedWhenInUse), "permission_granted")
+        XCTAssertEqual(RunRecorder.locationPermissionEvent(phase: .requestingPermission, status: .authorizedAlways), "permission_granted")
+        XCTAssertEqual(RunRecorder.locationPermissionEvent(phase: .requestingPermission, status: .denied), "permission_denied")
+        XCTAssertEqual(RunRecorder.locationPermissionEvent(phase: .requestingPermission, status: .restricted), "permission_denied")
+        XCTAssertNil(RunRecorder.locationPermissionEvent(phase: .requestingPermission, status: .notDetermined), "an unresolved prompt emits nothing")
+        XCTAssertNil(RunRecorder.locationPermissionEvent(phase: .idle, status: .authorizedWhenInUse), "the cold-start authorization callback must not fake a grant event")
+        XCTAssertNil(RunRecorder.locationPermissionEvent(phase: .recording, status: .denied), "a mid-run revocation is not a prompt resolution")
     }
 
     // WP-44 S2: a failed HealthKit connect in onboarding used to silently reset

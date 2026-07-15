@@ -137,6 +137,7 @@ struct TodayWorkoutDisplayModel {
     static func make(
         recommendation: TodayRecommendation,
         workout: WorkoutSummary,
+        plan: TrainingPlanSnapshot? = nil,
         calendar: Calendar = .current
     ) -> TodayWorkoutDisplayModel {
         let pace = StructuredWorkoutFactory.derivedPaceLabel(workout: workout)
@@ -149,7 +150,7 @@ struct TodayWorkoutDisplayModel {
             targetPace: pace,
             duration: durationLabel(workout: workout, pace: pace),
             intensity: workout.intensity?.isEmpty == false ? workout.intensity! : fallbackIntensity(for: workout.kind),
-            weekLabel: weekLabel(for: workout, calendar: calendar),
+            weekLabel: weekLabel(for: workout, plan: plan, calendar: calendar),
             steps: steps
         )
     }
@@ -193,7 +194,21 @@ struct TodayWorkoutDisplayModel {
         TrainingMetrics.effortLabel(for: kind)
     }
 
-    private static func weekLabel(for workout: WorkoutSummary, calendar: Calendar) -> String {
+    // WP-44 S3 (review fix): with a plan, the week number comes from the single
+    // accessor — the digit-extraction path never fired (the only trainingPhase
+    // value the repo assigns is "base", no digits) and the weekOfMonth fallback
+    // was a week-of-MONTH (resets monthly), so the breakdown sheet routinely
+    // disagreed with every surface that shows the real plan week.
+    private static func weekLabel(for workout: WorkoutSummary, plan: TrainingPlanSnapshot?, calendar: Calendar) -> String {
+        if let plan {
+            let week = TrainingMetrics.currentWeekNumber(
+                planStartDate: plan.startDate,
+                totalWeeks: plan.totalWeeks,
+                now: workout.scheduledDate,
+                calendar: calendar
+            )
+            return "Week \(week)"
+        }
         if let phase = workout.trainingPhase,
            let number = phase.components(separatedBy: CharacterSet.decimalDigits.inverted).first(where: { !$0.isEmpty }) {
             return "Week \(number)"

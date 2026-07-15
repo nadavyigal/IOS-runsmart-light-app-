@@ -53,9 +53,12 @@ enum TrainingMetrics {
     }
 
     /// Canonical label from any backend label, or nil when the input is not a
-    /// day streak.
+    /// day streak or the streak is zero — a "0 day streak" is not a streak, and
+    /// suppressing it here keeps Today and Profile consistent instead of each
+    /// call site re-implementing the >0 rule.
     static func canonicalStreakLabel(fromLabel label: String) -> String? {
-        streakDays(fromLabel: label).map(streakLabel(days:))
+        guard let days = streakDays(fromLabel: label), days > 0 else { return nil }
+        return streakLabel(days: days)
     }
 
     // MARK: - Weekly distance
@@ -96,11 +99,13 @@ enum TrainingMetrics {
 
     /// Colors a wellness trend by direction + goodness instead of a fixed
     /// palette — an HRV holding stable or improving must never render in the
-    /// alarm color (audit: "HRV up in red").
+    /// alarm color (audit: "HRV up in red"). Covers both producers' vocabularies:
+    /// Supabase emits "Stable"/"Lower", Garmin emits "Stable"/"Moderate"/"Low"
+    /// (GarminMappers.swift).
     static func hrvTrendGoodness(forLabel label: String) -> TrendGoodness {
         switch label.trimmingCharacters(in: .whitespaces).lowercased() {
         case "stable", "higher", "up", "improving": .positive
-        case "lower", "down", "declining": .caution
+        case "lower", "down", "declining", "low": .caution
         default: .neutral
         }
     }
