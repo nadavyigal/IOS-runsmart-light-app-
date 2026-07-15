@@ -14,6 +14,7 @@
 - [x] Document the ordered funnel, caveats, cohort floor, and E1 gate.
 - [x] Run documentation link checks and `git diff --check`.
 - [x] Commit, push, and open documentation-only draft PR #95.
+- [x] Review PR #95 and separate the direct D7 completion numerator from the ordered diagnostic path.
 
 ## Previous Current Task
 

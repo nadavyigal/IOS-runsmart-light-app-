@@ -3,6 +3,7 @@
 Review this file at the start of future tasks.
 
 ## Active Rules
+- Keep a decision metric's terminal-event numerator independent of diagnostic intermediate events; report a fully ordered funnel separately so telemetry gaps or alternate valid routes cannot erase real activation.
 - In PostHog verification queries, never select the whole `properties.$set` object; it can include enriched geographic/system data. Select only the required nested key, such as `properties.$set.onboarding_completed_at`.
 - In PostHog HogQL, do not use `sequenceMatch` for ordered funnels; use `windowFunnel` with `toDateTime(timestamp)`, and use `countIf` instead of nullable-left-join assumptions because missing joined rows can carry defaults.
 - Keep `AGENTS.md`, `CLAUDE.md`, and `CODEX.md` as routers, not manuals.

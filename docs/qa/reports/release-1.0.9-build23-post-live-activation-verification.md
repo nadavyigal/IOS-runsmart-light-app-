@@ -45,7 +45,7 @@ Apply exclusions **person-stably before every count**:
 - do not substitute the project test-account filter; it is insufficient for native RunSmart traffic;
 - do not invent a bot filter: Portfolio HQ's 2026-07-12 read says the RunSmart bot property was unavailable.
 
-The numerator is ordered `run_completed` at/after install and by `install_at + 7 days`. Count each person once. Upgrades without a qualifying install are not entrants. Freeze `snapshot_end_utc`; a moving dashboard is not a saved snapshot.
+The headline numerator is any `run_completed` at/after install and by `install_at + 7 days`, whether or not every diagnostic intermediate event was observed. Count each person once. The fully ordered eight-step path is reported separately so missing telemetry or a valid alternate route cannot silently erase a real activation. Upgrades without a qualifying install are not entrants. Freeze `snapshot_end_utc`; a moving dashboard is not a saved snapshot.
 
 ## Ordered activation funnel
 
@@ -193,6 +193,7 @@ WITH
           AND NOT startsWith(toString(c.person_id), 'aa28b5c7')),
     paths AS (
         SELECT c.person_id,
+            countIf(e.event = 'run_completed') > 0 AS activated_within_d7,
             windowFunnel(604800)(toDateTime(e.timestamp),
                 e.event = 'Application Installed', e.event = 'sign_in_completed',
                 e.event = 'onboarding_started', e.event = 'onboarding_completed',
@@ -203,17 +204,18 @@ WITH
           AND e.timestamp <= c.install_at + INTERVAL 7 DAY
         GROUP BY c.person_id)
 SELECT count() AS mature_physical_installs,
+    countIf(activated_within_d7) AS run_completed_within_d7,
     countIf(max_step >= 2) AS signed_in,
     countIf(max_step >= 3) AS onboarding_started,
     countIf(max_step >= 4) AS onboarding_completed,
     countIf(max_step >= 5) AS plan_generated,
     countIf(max_step >= 6) AS first_workout_viewed,
     countIf(max_step >= 7) AS run_started,
-    countIf(max_step >= 8) AS run_completed
+    countIf(max_step >= 8) AS ordered_run_completed
 FROM paths
 ```
 
-Report `run_completed / mature_physical_installs`, snapshot end, build, exclusions, denominator. Keep identifiers in PostHog.
+Report `run_completed_within_d7 / mature_physical_installs` as the decision metric. Report `ordered_run_completed` only as the end of the diagnostic path. A difference between them is an instrumentation/alternate-path investigation, not permission to discard the direct completion. Include snapshot end, build, exclusions, and denominator. Keep identifiers in PostHog.
 
 ## Minimum interpretation cohort
 

@@ -6,6 +6,7 @@
 Created an executable documentation-only post-approval verification package. No Swift, project, plist, signing, version/build, dependency, ASC, or PostHog configuration changed.
 
 ### Evidence
+- PR review caught and corrected a headline-numerator bug: D7 activation now counts any qualifying `run_completed`, while the eight-step ordered completion remains a separate diagnostic.
 - Code-verified proposed WP-43/WP-45 events/properties against `main`.
 - Read-only PostHog inspection confirmed pre-live build-23 QA telemetry is mechanics-only.
 - Dashboard inspection confirmed rolling operational windows differ from mature D7.
