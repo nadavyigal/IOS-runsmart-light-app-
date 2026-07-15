@@ -5,8 +5,7 @@ struct MomentumSnapshotCard: View {
     var plannedWorkouts: [WorkoutSummary]
 
     private var weeklyDistanceKm: Double {
-        runs.filter { Calendar.current.isDate($0.startedAt, equalTo: Date(), toGranularity: .weekOfYear) }
-            .reduce(0.0) { $0 + $1.distanceMeters / 1_000 }
+        TrainingMetrics.weeklyDistanceKm(runs: runs)
     }
 
     private var weeklyRuns: Int {

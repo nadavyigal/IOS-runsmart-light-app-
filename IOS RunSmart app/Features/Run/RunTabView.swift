@@ -151,7 +151,7 @@ struct RunTabView: View {
     private var liveMetrics: [MetricTile] {
         [
             MetricTile(title: "Distance", value: recorder.distanceLabel, unit: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up", tint: .accentPrimary),
-            MetricTile(title: "Pace", value: recorder.currentPaceLabel, unit: "/km", symbol: "timer", tint: .accentEnergy),
+            MetricTile(title: "Current Pace", value: recorder.currentPaceLabel, unit: "/km", symbol: "timer", tint: .accentEnergy),
             MetricTile(title: "Moving time", value: recorder.movingLabel, unit: "", symbol: "stopwatch", tint: .textPrimary),
             MetricTile(title: "GPS", value: recorder.horizontalAccuracy.map { "\(Int($0))" } ?? "--", unit: "m", symbol: "location.fill", tint: .accentRecovery)
         ]

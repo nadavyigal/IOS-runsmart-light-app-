@@ -197,8 +197,8 @@ enum StructuredWorkoutFactory {
 
     private static func recoverySteps(note: String) -> [WorkoutStep] {
         [
-            WorkoutStep(title: "Easy Walk", duration: "5:00", target: "Zone 1", note: "Just move", tint: .green),
-            WorkoutStep(title: "Recovery Jog", duration: "15:00", target: "Zone 1", note: note.isEmpty ? "Breathe easy, no effort" : note, tint: .blue),
+            WorkoutStep(title: "Easy Walk", duration: "5:00", target: "Very easy", note: "Just move", tint: .green),
+            WorkoutStep(title: "Recovery Jog", duration: "15:00", target: "Very easy", note: note.isEmpty ? "Breathe easy, no effort" : note, tint: .blue),
             WorkoutStep(title: "Stretch", duration: "5:00", target: "Static holds", note: "Hips, calves, glutes", tint: .green)
         ]
     }

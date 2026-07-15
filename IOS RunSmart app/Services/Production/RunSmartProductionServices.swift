@@ -350,6 +350,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     func requestPermission() {
         lastErrorMessage = nil
         phase = .requestingPermission
+        Analytics.trackPermissionRequested(kind: "location")
         manager.requestWhenInUseAuthorization()
     }
 
@@ -449,7 +450,33 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         return run
     }
 
+    /// WP-45: which permission event (if any) a location-authorization callback
+    /// should emit. Pure so the denied path — the exact gap WP-45 closes — is
+    /// unit-testable. Only resolves while a prompt is actually pending, never on
+    /// the cold-start authorization callback.
+    static func locationPermissionEvent(
+        phase: RunRecordingPhase,
+        status: CLAuthorizationStatus
+    ) -> String? {
+        guard phase == .requestingPermission else { return nil }
+        switch status {
+        case .authorizedAlways, .authorizedWhenInUse:
+            return "permission_granted"
+        case .denied, .restricted:
+            return "permission_denied"
+        default:
+            return nil
+        }
+    }
+
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        // WP-45: only requests were visible before; a user who denied GPS looked
+        // identical in the funnel to one who was never asked.
+        switch Self.locationPermissionEvent(phase: phase, status: manager.authorizationStatus) {
+        case "permission_granted": Analytics.trackPermissionGranted(kind: "location")
+        case "permission_denied": Analytics.trackPermissionDenied(kind: "location")
+        default: break
+        }
         updatePhaseForAuthorization()
         if shouldStartAfterPermission,
            manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {

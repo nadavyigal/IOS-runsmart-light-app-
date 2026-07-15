@@ -6,19 +6,41 @@ enum OnboardingHealthKitStep {
     static func didConnect(_ status: ConnectedDeviceStatus) -> Bool {
         status.provider == providerName && status.state == .connected
     }
+
+    /// WP-44 S2: a failed connect used to silently reset the button (audit §4
+    /// Risk 7, §10 B5) — the user tapped, nothing visibly happened, and there
+    /// was no hint the action failed or where to retry. Nil means connected.
+    static func failureMessage(for status: ConnectedDeviceStatus) -> String? {
+        guard !didConnect(status) else { return nil }
+        return "Couldn't connect Apple Health. You can try again now, or later from Profile."
+    }
 }
 
 struct OnboardingView: View {
     @Environment(\.runSmartServices) private var services
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var profile: OnboardingProfile
     @State private var step = 0
+    @State private var stepEnteredAt = Date()
+    @State private var maxCompletedStep = -1
     @State private var healthKitStatus: ConnectedDeviceStatus?
     @State private var isConnectingHealthKit = false
+    @State private var healthKitFailureMessage: String?
     var onComplete: (OnboardingProfile) -> Void
+
+    /// Analytics step names — "privacy" is kept for the renamed Coaching step so
+    /// existing PostHog funnels stay intact (WP-44 S4).
+    static let analyticsStepNames = ["goal", "experience", "schedule", "privacy", "healthkit", "ready"]
 
     static let goalOptions = ["First 5K", "10K PR", "Half Marathon", "Marathon", "Just Run More"]
     static let experienceOptions = ["Getting started", "Building base", "Consistent runner", "Race focused"]
+
+    /// WP-44 S4: the step was titled "Privacy" with a "Confirm Privacy" CTA, but
+    /// its content is coaching tone + reminders (audit §7/§9 — title didn't match
+    /// content). Static so the copy is testable.
+    static let coachingStepTitle = "Coaching"
+    static let coachingStepCTA = "Continue"
 
     /// A goal step may only advance once the user has picked a visible option,
     /// so a plan is never built from an empty or unseen goal (audit §4 Risk 9).
@@ -34,7 +56,9 @@ struct OnboardingView: View {
     private let experiences = OnboardingView.experienceOptions
     private let tones = ["Motivating", "Calm", "Direct"]
     private let weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    private let stepCount = 6
+    // Derived from the analytics names so the progress bar, the step switch,
+    // and the funnel names can't drift apart.
+    private var stepCount: Int { Self.analyticsStepNames.count }
 
     init(initialProfile: OnboardingProfile, onComplete: @escaping (OnboardingProfile) -> Void) {
         _profile = State(initialValue: initialProfile)
@@ -57,7 +81,7 @@ struct OnboardingView: View {
                     case 0: goalStep
                     case 1: experienceStep
                     case 2: scheduleStep
-                    case 3: privacyStep
+                    case 3: coachingStep
                     case 4: healthKitStep
                     default: completionStep
                     }
@@ -72,9 +96,23 @@ struct OnboardingView: View {
             if step == 0 {
                 Analytics.trackOnboardingStarted()
             }
+            stepEnteredAt = Date()
 #if DEBUG
             applyDebugOnboardingStepIfNeeded()
 #endif
+        }
+        .onChange(of: step) {
+            stepEnteredAt = Date()
+        }
+        // WP-45: leaving the app mid-onboarding was invisible — only completed
+        // steps were tracked, so an abandon at the Goal step looked like nothing.
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .background else { return }
+            let name = step < Self.analyticsStepNames.count ? Self.analyticsStepNames[step] : "unknown"
+            Analytics.trackOnboardingStepAbandoned(
+                lastStep: name,
+                dwellSeconds: Int(Date().timeIntervalSince(stepEnteredAt))
+            )
         }
     }
 
@@ -90,6 +128,25 @@ struct OnboardingView: View {
 
     private var progress: some View {
         HStack(spacing: 6) {
+            // WP-44 S4: onboarding had no back affordance — a mis-tapped Continue
+            // was unrecoverable. Steps still only advance via Continue.
+            Button {
+                withAnimation(RunSmartMotion.tabSpring) {
+                    step = max(0, step - 1)
+                }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(Color.textSecondary)
+                    .frame(width: 28, height: 28)
+                    .background(Color.surfaceElevated, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .opacity(step > 0 ? 1 : 0)
+            .disabled(step == 0 || isConnectingHealthKit)
+            .accessibilityLabel("Back")
+            .accessibilityIdentifier("onboarding.back")
+
             ForEach(0..<stepCount, id: \.self) { index in
                 Capsule()
                     .fill(index <= step ? Color.accentPrimary : Color.border)
@@ -154,17 +211,19 @@ struct OnboardingView: View {
         }
     }
 
-    private var privacyStep: some View {
-        OnboardingStepShell(title: "Privacy", subtitle: "Choose coaching tone and data signals. You can connect devices later.", symbol: "lock.shield.fill") {
+    // WP-44 S4: Garmin's DevicePreviewRow and the 21-Day Rookie Challenge callout
+    // moved out of onboarding — both already exist post-activation (Garmin connect
+    // in Profile, the challenge card on Today), so onboarding no longer front-loads
+    // marketing before the user has seen the product.
+    private var coachingStep: some View {
+        OnboardingStepShell(title: Self.coachingStepTitle, subtitle: "Choose coaching tone and reminders. You can connect devices later.", symbol: "person.wave.2.fill") {
             OnboardingChoiceGrid(options: tones, selection: $profile.coachingTone)
             Toggle("Smart return reminders", isOn: $profile.notificationsEnabled)
                 .tint(Color.accentPrimary)
             Text("Reminders are local, low-frequency, and can be turned off from Profile.")
                 .font(.caption)
                 .foregroundStyle(Color.textSecondary)
-            DevicePreviewRow(title: "Garmin Connect", detail: "Import supported runs and wellness signals after you connect Garmin.", symbol: "link.circle.fill")
-            RookieChallengeCallout()
-            OnboardingPrimaryButton(title: "Confirm Privacy", symbol: "arrow.right", action: advance)
+            OnboardingPrimaryButton(title: Self.coachingStepCTA, symbol: "arrow.right", action: advance)
         }
     }
 
@@ -203,6 +262,14 @@ struct OnboardingView: View {
                 }
                 .disabled(isConnectingHealthKit)
                 .accessibilityIdentifier("onboarding.healthkit.connect")
+
+                if let healthKitFailureMessage {
+                    Text(healthKitFailureMessage)
+                        .font(.caption)
+                        .foregroundStyle(Color.accentHeart)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("onboarding.healthkit.failure")
+                }
             }
 
             if !isHealthKitConnected {
@@ -213,6 +280,7 @@ struct OnboardingView: View {
                 .foregroundStyle(Color.textSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 4)
+                .disabled(isConnectingHealthKit)
                 .accessibilityIdentifier("onboarding.healthkit.skip")
             }
         }
@@ -254,23 +322,36 @@ struct OnboardingView: View {
         guard !isConnectingHealthKit else { return }
         Analytics.trackHealthKitConnectTapped()
         isConnectingHealthKit = true
+        healthKitFailureMessage = nil
+        let initiatingStep = step
         Task {
             let status = await services.connect(provider: OnboardingHealthKitStep.providerName)
             healthKitStatus = status
             isConnectingHealthKit = false
+            // The connect runs a sync after the permission sheet, so the user
+            // can navigate (Back/Skip) before it resolves. A stale completion
+            // must not advance from — or show errors on — a different step.
+            guard step == initiatingStep else { return }
             if OnboardingHealthKitStep.didConnect(status) {
                 advance()
+            } else {
+                healthKitFailureMessage = OnboardingHealthKitStep.failureMessage(for: status)
+                Analytics.trackHealthKitConnectFailed(reason: status.state.rawValue)
             }
         }
     }
 
     private func advance() {
-        let stepNames = ["goal", "experience", "schedule", "privacy", "healthkit", "ready"]
         let completedStep = step
         withAnimation(RunSmartMotion.tabSpring) {
             step = min(stepCount - 1, step + 1)
         }
-        let name = completedStep < stepNames.count ? stepNames[completedStep] : "unknown"
+        // The Back button (WP-44 S4) makes steps re-enterable; only report the
+        // first completion of each step or back-then-forward would double-count
+        // in the funnel.
+        guard completedStep > maxCompletedStep else { return }
+        maxCompletedStep = completedStep
+        let name = completedStep < Self.analyticsStepNames.count ? Self.analyticsStepNames[completedStep] : "unknown"
         Analytics.trackOnboardingStepCompleted(stepNumber: completedStep + 1, stepName: name)
     }
 
@@ -322,24 +403,6 @@ private struct OnboardingStepShell<Content: View>: View {
     }
 }
 
-private struct RookieChallengeCallout: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            RunSmartLogoMark(size: 42, filled: false, glow: false)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("21-Day Rookie Challenge")
-                    .font(.bodyMD.weight(.semibold))
-                Text("A lightweight starter block for confidence, consistency, and safe progression.")
-                    .font(.caption)
-                    .foregroundStyle(Color.textSecondary)
-            }
-        }
-        .padding(12)
-        .background(Color.accentPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.accentPrimary.opacity(0.24), lineWidth: 1))
-    }
-}
-
 private struct OnboardingChoiceGrid: View {
     var options: [String]
     @Binding var selection: String
@@ -378,24 +441,3 @@ private struct OnboardingPrimaryButton: View {
     }
 }
 
-private struct DevicePreviewRow: View {
-    var title: String
-    var detail: String
-    var symbol: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .foregroundStyle(Color.accentPrimary)
-                .frame(width: 40, height: 40)
-                .background(Color.accentPrimary.opacity(0.10), in: Circle())
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.bodyMD.weight(.semibold))
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(Color.textSecondary)
-            }
-        }
-    }
-}

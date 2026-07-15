@@ -788,7 +788,10 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(display.workoutType, "TEMPO RUN · OUTDOOR")
         XCTAssertEqual(display.targetPace, "5:44 /km")
         XCTAssertEqual(display.duration, "~50 min")
-        XCTAssertEqual(display.intensity, "Zone 3")
+        // WP-44 S3: intensity now comes from TrainingMetrics.effortLabel — one
+        // vocabulary (effort words) on card and sheet, not "Easy" here and
+        // "Zone 3" there.
+        XCTAssertEqual(display.intensity, TrainingMetrics.effortLabel(for: .tempo))
         XCTAssertEqual(display.weekLabel, "Week 2")
         XCTAssertFalse(display.steps.isEmpty)
     }
@@ -836,6 +839,47 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(state.showsStartAction)
         XCTAssertFalse(state.showsTodayRoute)
         XCTAssertEqual(state.headline, "Run complete today")
+    }
+
+    // WP-44 S5: "what should I do today?" must always have an answer (audit §7).
+    // A rest day used to render only the plan row's thin detail; the resolved
+    // state must now expose explicit recovery guidance, and only for rest days.
+    func testTodayRendersRestDayGuidanceWhenNoWorkout() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone.current
+        let now = makeDate("2026-05-20").addingTimeInterval(9 * 3600)
+        let rest = makeWorkout(
+            date: "2026-05-20",
+            kind: .easy,
+            title: "Rest",
+            distance: "Rest"
+        )
+        let recommendation = TodayRecommendation(readiness: 82, readinessLabel: "Ready", workoutTitle: "Rest", distance: "Rest", pace: "--", elevation: "--", coachMessage: "Recovery day.")
+
+        let state = TodayResolvedState.make(
+            recommendation: recommendation,
+            weekWorkouts: [rest],
+            nextWorkouts: [],
+            recentRuns: [],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(state.kind, .restDay)
+        let guidance = state.restDayGuidance
+        XCTAssertNotNil(guidance, "a rest day must answer the daily question with recovery guidance, not render nothing")
+        XCTAssertFalse(guidance!.isEmpty, "guidance must contain at least one concrete recovery action")
+
+        let planned = TodayResolvedState.make(
+            recommendation: recommendation,
+            weekWorkouts: [makeWorkout(date: "2026-05-20", kind: .easy, title: "Easy Run", distance: "5.0 km")],
+            nextWorkouts: [],
+            recentRuns: [],
+            now: now,
+            calendar: calendar
+        )
+        XCTAssertEqual(planned.kind, .plannedToday)
+        XCTAssertNil(planned.restDayGuidance, "recovery guidance must not appear on a workout day")
     }
 
     func testTodayResolvedStateTreatsSameDayGarminImportAsCompletedWithoutWorkoutMatch() {
@@ -3348,6 +3392,67 @@ final class RunSmartReadinessTests: XCTestCase {
         func reset() {}
     }
 
+    // WP-45: payload-key assertions for the instrumentation added to complete
+    // the plan's event list (audit §11).
+    func testWP45EventsCarryRequiredPayloadKeys() {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        defer { Analytics.shared = saved }
+        Analytics.shared = tracker
+
+        Analytics.trackOnboardingStepAbandoned(lastStep: "goal", dwellSeconds: 12)
+        Analytics.trackPermissionRequested(kind: "location")
+        Analytics.trackPermissionGranted(kind: "notifications")
+        Analytics.trackPermissionDenied(kind: "location")
+        Analytics.trackHealthKitConnectFailed(reason: "error")
+        Analytics.trackRunReportGenerateTapped(source: "run_report_detail")
+        Analytics.trackRunReportGenerateSucceeded(source: "run_report_detail")
+        Analytics.trackRunReportGenerateFailed(source: "garmin_activity")
+        Analytics.trackInsightExpanded(surface: "workout_breakdown")
+        Analytics.trackShareProgressTapped(payloadKind: "Milestone")
+        Analytics.trackOnboardingCompleted(goal: "First 5K", experience: "Getting started", daysPerWeek: 3, completedAt: Date(timeIntervalSince1970: 1_750_000_000))
+
+        func event(_ name: String) -> [String: Any]? {
+            tracker.events.first { $0.name == name }?.properties
+        }
+
+        XCTAssertEqual(event("onboarding_step_abandoned")?["last_step"] as? String, "goal")
+        XCTAssertEqual(event("onboarding_step_abandoned")?["dwell_seconds"] as? Int, 12)
+        XCTAssertEqual(event("permission_requested")?["kind"] as? String, "location")
+        XCTAssertEqual(event("permission_granted")?["kind"] as? String, "notifications")
+        XCTAssertEqual(event("permission_denied")?["kind"] as? String, "location")
+        XCTAssertEqual(event("healthkit_connect_failed")?["reason"] as? String, "error")
+        XCTAssertEqual(event("run_report_generate_tapped")?["source"] as? String, "run_report_detail")
+        XCTAssertNotNil(event("run_report_generate_succeeded"))
+        XCTAssertNotNil(event("run_report_generate_failed"))
+        XCTAssertEqual(event("insight_expanded")?["surface"] as? String, "workout_breakdown")
+        XCTAssertEqual(event("share_progress_tapped")?["payload_kind"] as? String, "Milestone")
+
+        let completedSet = event("onboarding_completed")?["$set"] as? [String: Any]
+        XCTAssertNotNil(completedSet?["onboarding_completed_at"], "onboarding_completed must set the person property for D1/D7 cohorting")
+    }
+
+    // WP-45: first_workout_viewed must fire exactly once per install.
+    func testFirstWorkoutViewedFiresOnce() {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        let suiteName = "runsmart.analytics.first-workout.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer {
+            Analytics.shared = saved
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        Analytics.shared = tracker
+
+        Analytics.trackFirstWorkoutViewed(workoutType: "easy", defaults: defaults)
+        Analytics.trackFirstWorkoutViewed(workoutType: "tempo", defaults: defaults)
+
+        let fired = tracker.events.filter { $0.name == "first_workout_viewed" }
+        XCTAssertEqual(fired.count, 1, "first_workout_viewed is a first-time-only event")
+        XCTAssertEqual(fired.first?.properties["workout_type"] as? String, "easy")
+    }
+
     func testCompletedRunAnalyticsFiresOnceAndMarksFirstRunOnce() {
         let saved = Analytics.shared
         let tracker = CapturingAnalyticsService()
@@ -3936,6 +4041,161 @@ final class RunSmartReadinessTests: XCTestCase {
         let mappedOther = SignInView.humanReadableAppleSignInError(for: otherError)
         XCTAssertNotNil(mappedOther)
         XCTAssertFalse(mappedOther!.contains("credential type"), "generic fallback copy must not leak the raw error's wording")
+    }
+
+    // WP-44 S1: the first screen's pills said "Run guidance and cue previews"
+    // (feature-speak) and "HealthKit reads approved data..." (compliance-speak).
+    // The audit's daily-answer promise must lead, and neither old bullet may return.
+    func testSignInFeaturePillsLeadWithDailyAnswerPromise() {
+        let texts = SignInView.featurePills.map(\.text)
+        XCTAssertEqual(texts.first, "Know exactly what to run today", "the daily-answer promise must be the first thing a skeptical user reads")
+        for text in texts {
+            XCTAssertFalse(text.contains("cue previews"), "feature-speak bullet must not return")
+            XCTAssertFalse(text.contains("approved data"), "compliance-speak bullet must not return")
+        }
+    }
+
+    // WP-44 S6: Terms/Privacy used to be `Link`s that ejected a pre-auth user to
+    // external Safari. They now present in-app; the document URLs must still be
+    // the canonical ExternalURLs so the in-app move never changes the destination.
+    func testSignInLegalDocumentsUseCanonicalURLs() {
+        XCTAssertEqual(SignInView.LegalDocument.terms.url, ExternalURLs.terms)
+        XCTAssertEqual(SignInView.LegalDocument.privacy.url, ExternalURLs.privacy)
+    }
+
+    // WP-44 S4: the fourth onboarding step was titled "Privacy" with a
+    // "Confirm Privacy" CTA while its content is coaching tone + reminders —
+    // the title must match the content (audit §7/§9).
+    func testOnboardingCoachingStepCopyMatchesContent() {
+        XCTAssertEqual(OnboardingView.coachingStepTitle, "Coaching", "step title must describe its content (tone + reminders), not claim to be a privacy step")
+        XCTAssertEqual(OnboardingView.coachingStepCTA, "Continue", "the CTA must not ask the user to 'confirm privacy' they never reviewed")
+    }
+
+    // WP-44 S3: weekly distance must be one summation (TrainingMetrics), not a
+    // per-surface computation — the audit found Plan claiming 86.20 km while the
+    // summed workouts were ~36 km because surfaces summed independently.
+    func testWeeklyDistanceMatchesSummedWorkouts() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone.current
+        let now = makeDate("2026-05-20").addingTimeInterval(12 * 3600)
+        let thisWeekA = makeRun(source: .runSmart, startedAt: now.addingTimeInterval(-3600), distanceMeters: 5_000, movingTimeSeconds: 1800)
+        let thisWeekB = makeRun(source: .runSmart, startedAt: now.addingTimeInterval(-24 * 3600), distanceMeters: 7_500, movingTimeSeconds: 2700)
+        let lastMonth = makeRun(source: .runSmart, startedAt: now.addingTimeInterval(-30 * 24 * 3600), distanceMeters: 10_000, movingTimeSeconds: 3600)
+
+        let weekly = TrainingMetrics.weeklyDistanceKm(runs: [thisWeekA, thisWeekB, lastMonth], now: now, calendar: calendar)
+        XCTAssertEqual(weekly, 12.5, accuracy: 0.001, "weekly distance must equal the sum of this week's runs only")
+    }
+
+    // WP-44 S3: streak labels must carry one unit everywhere. Backends send
+    // "12 days", "12 day streak", or "3x/week"; re-rendering the raw value with
+    // " day streak" appended produced "12 days day streak" and turned a weekly
+    // cadence into a fake day streak (Profile "11-week" vs Today "11 day").
+    func testStreakUnitConsistentAcrossSurfaces() {
+        XCTAssertEqual(TrainingMetrics.canonicalStreakLabel(fromLabel: "12 days"), "12 day streak")
+        XCTAssertEqual(TrainingMetrics.canonicalStreakLabel(fromLabel: "12 day streak"), "12 day streak")
+        XCTAssertEqual(TrainingMetrics.canonicalStreakLabel(fromLabel: "12"), "12 day streak")
+        XCTAssertEqual(TrainingMetrics.canonicalStreakLabel(fromLabel: "1 day"), "1 day streak")
+        XCTAssertNil(TrainingMetrics.canonicalStreakLabel(fromLabel: "3x/week"), "a weekly cadence must never be re-rendered as a day streak")
+        XCTAssertNil(TrainingMetrics.canonicalStreakLabel(fromLabel: "--"))
+    }
+
+    // WP-44 S3: the plan week number is clamped to plan bounds and computed in
+    // exactly one place.
+    func testCurrentWeekNumberClampsToPlanBounds() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone.current
+        let start = makeDate("2026-05-04")
+
+        XCTAssertEqual(TrainingMetrics.currentWeekNumber(planStartDate: start, totalWeeks: 8, now: start.addingTimeInterval(3 * 24 * 3600), calendar: calendar), 1)
+        XCTAssertEqual(TrainingMetrics.currentWeekNumber(planStartDate: start, totalWeeks: 8, now: start.addingTimeInterval(10 * 24 * 3600), calendar: calendar), 2)
+        XCTAssertEqual(TrainingMetrics.currentWeekNumber(planStartDate: start, totalWeeks: 8, now: start.addingTimeInterval(200 * 24 * 3600), calendar: calendar), 8, "week number must clamp to the plan's final week")
+        XCTAssertEqual(TrainingMetrics.currentWeekNumber(planStartDate: start, totalWeeks: 8, now: start.addingTimeInterval(-7 * 24 * 3600), calendar: calendar), 1, "dates before the plan start must clamp to week 1")
+    }
+
+    // WP-44 S3: a stable or improving HRV must never map to the alarm color,
+    // and BOTH producers' vocabularies must resolve (Supabase: Stable/Lower;
+    // Garmin: Stable/Moderate/Low — GarminMappers.swift:124).
+    func testHRVTrendGoodnessNeverAlarmsOnPositive() {
+        for label in ["Stable", "Higher", "Up", "Improving", " improving "] {
+            XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: label), .positive, "\(label) is a positive trend")
+        }
+        for label in ["Lower", "Down", "Declining", "Low"] {
+            XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: label), .caution, "\(label) is a caution trend")
+        }
+        XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: "Moderate"), .neutral)
+        XCTAssertEqual(TrainingMetrics.hrvTrendGoodness(forLabel: "--"), .neutral)
+    }
+
+    // Review fix (adversarial): the workout-breakdown sheet's "Week N" used a
+    // week-of-MONTH fallback (resets monthly) because the trainingPhase digit
+    // path never fires ("base" has no digits) — the exact "Week 3 vs Week 4"
+    // audit class at an unconverted call site. With a plan it must use the
+    // single accessor.
+    func testWorkoutDisplayWeekLabelUsesPlanWeekWhenPlanKnown() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone.current
+        let plan = TrainingPlanSnapshot(id: UUID(), title: "10K Build", startDate: makeDate("2026-05-04"), endDate: makeDate("2026-06-30"), totalWeeks: 8, planType: "10K")
+        let recommendation = TodayRecommendation(readiness: 82, readinessLabel: "Ready", workoutTitle: "Tempo Builder", distance: "8.0 km", pace: "5:44 /km", elevation: "--", coachMessage: "Go steady.")
+        let workout = makeWorkout(date: "2026-05-13", kind: .tempo, title: "Tempo Builder", distance: "8.0 km", durationMinutes: 50)
+
+        let display = TodayWorkoutDisplayModel.make(recommendation: recommendation, workout: workout, plan: plan, calendar: calendar)
+        XCTAssertEqual(display.weekLabel, "Week 2", "May 13 is week 2 of a plan starting May 4 — must come from TrainingMetrics, not week-of-month")
+
+        let displayNoPlan = TodayWorkoutDisplayModel.make(recommendation: recommendation, workout: workout, calendar: calendar)
+        XCTAssertEqual(displayNoPlan.weekLabel, "Week \(calendar.component(.weekOfMonth, from: workout.scheduledDate))", "without a plan the legacy fallback stays")
+    }
+
+    // Review fix: a zero-day streak is not a streak; the single accessor owns
+    // the >0 rule so Today and Profile can't diverge on the boundary.
+    func testZeroStreakNeverRendersAsAStreak() {
+        XCTAssertNil(TrainingMetrics.canonicalStreakLabel(fromLabel: "0"))
+        XCTAssertNil(TrainingMetrics.canonicalStreakLabel(fromLabel: "0 days"))
+        XCTAssertEqual(TrainingMetrics.streakDays(fromLabel: "0 days"), 0, "parsing still reports zero; only the label suppresses it")
+    }
+
+    // Review fix: pin the analytics step names so a future step reorder or
+    // rename can't silently break existing PostHog funnels ("privacy" is the
+    // Coaching step's funnel name on purpose — WP-44 S4).
+    func testOnboardingAnalyticsStepNamesStayFunnelCompatible() {
+        XCTAssertEqual(OnboardingView.analyticsStepNames.count, 6)
+        XCTAssertEqual(OnboardingView.analyticsStepNames[3], "privacy")
+    }
+
+    // WP-45 review fix: the denied path is the exact gap the permission events
+    // close — prove the resolution logic, including cold-start suppression.
+    func testLocationPermissionEventOnlyResolvesWhilePromptPending() {
+        XCTAssertEqual(RunRecorder.locationPermissionEvent(phase: .requestingPermission, status: .authorizedWhenInUse), "permission_granted")
+        XCTAssertEqual(RunRecorder.locationPermissionEvent(phase: .requestingPermission, status: .authorizedAlways), "permission_granted")
+        XCTAssertEqual(RunRecorder.locationPermissionEvent(phase: .requestingPermission, status: .denied), "permission_denied")
+        XCTAssertEqual(RunRecorder.locationPermissionEvent(phase: .requestingPermission, status: .restricted), "permission_denied")
+        XCTAssertNil(RunRecorder.locationPermissionEvent(phase: .requestingPermission, status: .notDetermined), "an unresolved prompt emits nothing")
+        XCTAssertNil(RunRecorder.locationPermissionEvent(phase: .idle, status: .authorizedWhenInUse), "the cold-start authorization callback must not fake a grant event")
+        XCTAssertNil(RunRecorder.locationPermissionEvent(phase: .recording, status: .denied), "a mid-run revocation is not a prompt resolution")
+    }
+
+    // WP-44 S2: a failed HealthKit connect in onboarding used to silently reset
+    // the button (audit §4 Risk 7) — no error, no retry hint. A non-connected
+    // result must surface user-facing failure copy; a connected one must not.
+    func testHealthKitConnectSurfacesFailureState() {
+        let failed = ConnectedDeviceStatus(
+            provider: OnboardingHealthKitStep.providerName,
+            state: .error,
+            lastSuccessfulSync: nil,
+            permissions: [],
+            message: nil
+        )
+        let message = OnboardingHealthKitStep.failureMessage(for: failed)
+        XCTAssertNotNil(message, "a failed connect must tell the user it failed")
+        XCTAssertTrue(message!.contains("Profile"), "failure copy must say where to retry later")
+
+        let connected = ConnectedDeviceStatus(
+            provider: OnboardingHealthKitStep.providerName,
+            state: .connected,
+            lastSuccessfulSync: nil,
+            permissions: [],
+            message: nil
+        )
+        XCTAssertNil(OnboardingHealthKitStep.failureMessage(for: connected), "a successful connect must not show failure copy")
     }
 
     // WP-43 S4: StructuredWorkoutFactory.intervalSteps used to derive the rep

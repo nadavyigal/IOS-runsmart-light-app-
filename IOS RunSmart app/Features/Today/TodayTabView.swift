@@ -64,6 +64,7 @@ struct TodayTabView: View {
                     state: resolvedState,
                     recommendation: recommendation,
                     workout: primaryWorkout,
+                    plan: activePlan,
                     route: todayRoute,
                     onStart: { startRun(with: primaryWorkout) },
                     onReviewReport: openLatestReport,
@@ -73,6 +74,17 @@ struct TodayTabView: View {
                     onRoute: openRouteSelector
                 )
                 .runSmartStaggeredAppear(index: 1)
+                .onAppear {
+                    // WP-45: fires once, the first time a planned workout is
+                    // actually seen — complements first_run_cta_viewed.
+                    trackFirstWorkoutViewedIfNeeded(resolvedState)
+                }
+                // On cold start the card first appears as .noPlan while data
+                // loads; onAppear won't re-fire when the kind flips, so also
+                // observe the transition. trackFirstWorkoutViewed dedupes.
+                .onChange(of: resolvedState.kind) {
+                    trackFirstWorkoutViewedIfNeeded(resolvedState)
+                }
 
                 if let safety = recommendation.safetyExplanation {
                     SafetyExplanationCard(
@@ -256,8 +268,11 @@ struct TodayTabView: View {
                     .foregroundStyle(Color.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-                if recommendation.streak != "--" {
-                    Text("🔥 \(recommendation.streak) day streak")
+                // WP-44 S3: backends send "12 days", "12 day streak", or even
+                // "3x/week" — bolting " day streak" onto the raw value produced
+                // "12 days day streak" and mislabeled non-streak cadences.
+                if let days = TrainingMetrics.streakDays(fromLabel: recommendation.streak), days > 0 {
+                    Text("🔥 \(TrainingMetrics.streakLabel(days: days))")
                         .font(.bodyLG)
                         .foregroundStyle(Color.textSecondary)
                 }
@@ -331,6 +346,11 @@ struct TodayTabView: View {
 
     private func openTodayCoach() {
         router.openCoach(context: .today)
+    }
+
+    private func trackFirstWorkoutViewedIfNeeded(_ state: TodayResolvedState) {
+        guard state.kind == .plannedToday || state.kind == .upNext else { return }
+        Analytics.trackFirstWorkoutViewed(workoutType: state.primaryWorkout.kind.rawValue)
     }
 
     /// Rebuilds the plan from the saved profile without leaving Today
@@ -720,6 +740,7 @@ private struct TodayWorkoutRecommendationCard: View {
     var state: TodayResolvedState
     var recommendation: TodayRecommendation
     var workout: WorkoutSummary
+    var plan: TrainingPlanSnapshot?
     var route: RouteSuggestion?
     var onStart: () -> Void
     var onReviewReport: () -> Void
@@ -731,7 +752,7 @@ private struct TodayWorkoutRecommendationCard: View {
     @State private var isExpanded = false
 
     private var display: TodayWorkoutDisplayModel {
-        TodayWorkoutDisplayModel.make(recommendation: recommendation, workout: workout)
+        TodayWorkoutDisplayModel.make(recommendation: recommendation, workout: workout, plan: plan)
     }
 
     var body: some View {
@@ -802,9 +823,37 @@ private struct TodayWorkoutRecommendationCard: View {
                             .padding(.top, 2)
                     }
 
+                    if let guidance = state.restDayGuidance {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("HOW TO RECOVER")
+                                .font(.labelSM)
+                                .tracking(1.1)
+                                .foregroundStyle(Color.textSecondary)
+                            ForEach(guidance, id: \.self) { line in
+                                HStack(alignment: .top, spacing: 10) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.accentRecovery)
+                                    Text(line)
+                                        .font(.bodyMD)
+                                        .foregroundStyle(Color.textPrimary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.accentRecovery.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+
                     Button {
                         withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
                             isExpanded.toggle()
+                        }
+                        // WP-45: measures whether the coaching insight is
+                        // actually consumed, not just rendered.
+                        if isExpanded {
+                            Analytics.trackInsightExpanded(surface: "workout_breakdown")
                         }
                     } label: {
                         HStack {

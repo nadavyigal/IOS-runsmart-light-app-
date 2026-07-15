@@ -207,7 +207,32 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func requestAuthorization() async throws -> Bool {
-        try await center.requestAuthorization(options: [.alert, .badge, .sound])
+        // WP-45: request + outcome were both invisible for notifications.
+        // Only report the prompt's resolution when iOS will actually show one
+        // (not on re-requests that resolve instantly from a prior choice).
+        let settings = await center.notificationSettings()
+        let isFirstPrompt = settings.authorizationStatus == .notDetermined
+        if isFirstPrompt {
+            Analytics.trackPermissionRequested(kind: "notifications")
+        }
+        do {
+            let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+            if isFirstPrompt {
+                if granted {
+                    Analytics.trackPermissionGranted(kind: "notifications")
+                } else {
+                    Analytics.trackPermissionDenied(kind: "notifications")
+                }
+            }
+            return granted
+        } catch {
+            // A thrown request is a not-granted outcome; resolve the funnel
+            // instead of leaving permission_requested dangling forever.
+            if isFirstPrompt {
+                Analytics.trackPermissionDenied(kind: "notifications")
+            }
+            throw error
+        }
     }
 
     @discardableResult

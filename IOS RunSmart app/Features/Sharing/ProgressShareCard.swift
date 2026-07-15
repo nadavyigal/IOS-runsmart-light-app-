@@ -143,6 +143,13 @@ struct ProgressShareButton: View {
                 .background(Color.accentPrimary.opacity(0.10), in: Capsule())
                 .overlay(Capsule().stroke(Color.accentPrimary.opacity(0.50), lineWidth: 1))
         }
+        // WP-45: ShareLink exposes no tap or completion callback, so the tap is
+        // observed via a simultaneous gesture. share_progress_completed stays
+        // unwired until sharing moves to UIActivityViewController with a
+        // completionWithItemsHandler — not worth that migration for the event.
+        .simultaneousGesture(TapGesture().onEnded {
+            Analytics.trackShareProgressTapped(payloadKind: payload.kind.rawValue)
+        })
         .accessibilityHint("Shares a private progress summary without raw coordinates or a route map.")
     }
 }

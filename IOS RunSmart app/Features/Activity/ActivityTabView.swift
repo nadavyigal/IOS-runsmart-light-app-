@@ -12,6 +12,10 @@ struct ReportTabView: View {
     @State private var runPendingRemoval: RecordedRun?
     @State private var removalFailed = false
     @State private var refreshDebounceTask: Task<Void, Never>?
+    // WP-44 S2: the tab rendered "No verified runs yet" (a false empty state)
+    // for the ~10s the initial load takes (audit §4 Risk 8, §10 B13). While
+    // loading, show skeleton rows instead of claiming there is no data.
+    @State private var isInitialLoad = true
 
     private enum ReportSegment: String, CaseIterable, Hashable, Identifiable {
         case runs = "Runs"
@@ -87,6 +91,7 @@ struct ReportTabView: View {
             trainingLoad = load
             recovery = rec
             garminDeviceName = statuses.first { $0.provider == "Garmin Connect" && $0.state == .connected }?.deviceName
+            isInitialLoad = false
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
             scheduleDebouncedRefresh()
@@ -131,8 +136,10 @@ struct ReportTabView: View {
     private var runsContent: some View {
         ContentCard {
             VStack(alignment: .leading, spacing: 12) {
-                SectionLabel(title: "Running activities", trailing: "\(runs.count)")
-                if runs.isEmpty {
+                SectionLabel(title: "Running activities", trailing: isInitialLoad ? nil : "\(runs.count)")
+                if isInitialLoad && runs.isEmpty {
+                    ReportLoadingSkeletonRows()
+                } else if runs.isEmpty {
                     Text("No verified runs yet. Start a GPS run, add a manual run, or connect Garmin to import real activity.")
                         .font(.bodyMD)
                         .foregroundStyle(Color.textSecondary)
@@ -164,8 +171,10 @@ struct ReportTabView: View {
     private var reportsContent: some View {
         ContentCard {
             VStack(alignment: .leading, spacing: 12) {
-                SectionLabel(title: "Run Reports", trailing: "\(runReports.count)")
-                if runReports.isEmpty {
+                SectionLabel(title: "Run Reports", trailing: isInitialLoad ? nil : "\(runReports.count)")
+                if isInitialLoad && runReports.isEmpty {
+                    ReportLoadingSkeletonRows()
+                } else if runReports.isEmpty {
                     Text("Complete a run and tap Generate to get your first AI coach report.")
                         .font(.bodyMD)
                         .foregroundStyle(Color.textSecondary)
@@ -303,6 +312,36 @@ struct ReportTabView: View {
         }
     }
 
+}
+
+/// Placeholder rows shown during the Report tab's initial load (WP-44 S2) so
+/// the ~10s fetch never renders as a false "no data" state.
+private struct ReportLoadingSkeletonRows: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(0..<3, id: \.self) { index in
+                HStack(spacing: 12) {
+                    Circle()
+                        .fill(Color.surfaceElevated)
+                        .frame(width: 32, height: 32)
+                    VStack(alignment: .leading, spacing: 6) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.surfaceElevated)
+                            .frame(width: 140, height: 12)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.surfaceElevated.opacity(0.7))
+                            .frame(width: 200, height: 10)
+                    }
+                    Spacer()
+                }
+                if index < 2 {
+                    Divider().background(Color.border)
+                }
+            }
+        }
+        .redacted(reason: .placeholder)
+        .accessibilityLabel("Loading activities")
+    }
 }
 
 private struct ActivityMetricPill: View {
