@@ -4176,6 +4176,53 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(TrainingMetrics.streakDays(fromLabel: "0 days"), 0, "parsing still reports zero; only the label suppresses it")
     }
 
+    // Release-review fix: a brand-new runner's backend streak label is literally
+    // "0 day streak" (SupabaseRunSmartServices runnerProfile) while Today's is
+    // "0 days". Both surfaces must resolve to "show nothing" — Profile used to
+    // fall back to the raw label and rendered "0 day streak" to every new user.
+    func testNewRunnerSeesNoStreakOnEitherSurface() {
+        // Exactly what the live backend sends a user with no streak record.
+        let profileLabel = "0 day streak"   // RunnerProfile.streak
+        let todayLabel = "0 days"           // TodayRecommendation.streak
+
+        XCTAssertNil(
+            TrainingMetrics.canonicalStreakLabel(fromLabel: profileLabel),
+            "Profile must render nothing for a new runner, not the raw '0 day streak'"
+        )
+        XCTAssertNil(
+            TrainingMetrics.canonicalStreakLabel(fromLabel: todayLabel),
+            "Today must render nothing for a new runner"
+        )
+
+        // And the placeholder the profile fetch falls back to.
+        XCTAssertNil(TrainingMetrics.canonicalStreakLabel(fromLabel: "--"))
+
+        // Once the runner has a streak, both surfaces agree on one label.
+        XCTAssertEqual(TrainingMetrics.canonicalStreakLabel(fromLabel: "1 day streak"), "1 day streak")
+        XCTAssertEqual(TrainingMetrics.canonicalStreakLabel(fromLabel: "11 days"), "11 day streak")
+    }
+
+    // A milestone share for a runner with no streak must not emit a dangling
+    // "Progress: " line.
+    func testMilestoneShareOmitsMissingProgressValue() {
+        let withoutStreak = ProgressSharePayload.milestone(
+            title: "First week done",
+            subtitle: "Consistency",
+            value: nil,
+            insight: "A private RunSmart milestone worth keeping."
+        )
+        XCTAssertTrue(withoutStreak.metrics.isEmpty)
+        XCTAssertFalse(withoutStreak.shareText.contains("Progress:"), "no streak → no empty Progress metric in the shared text")
+
+        let withStreak = ProgressSharePayload.milestone(
+            title: "First week done",
+            subtitle: "Consistency",
+            value: "11 day streak",
+            insight: "A private RunSmart milestone worth keeping."
+        )
+        XCTAssertTrue(withStreak.shareText.contains("Progress: 11 day streak"))
+    }
+
     // Review fix: pin the analytics step names so a future step reorder or
     // rename can't silently break existing PostHog funnels ("privacy" is the
     // Coaching step's funnel name on purpose — WP-44 S4).

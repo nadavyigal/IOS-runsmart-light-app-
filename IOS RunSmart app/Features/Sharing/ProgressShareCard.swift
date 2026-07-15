@@ -59,12 +59,14 @@ struct ProgressSharePayload: Hashable {
         )
     }
 
-    static func milestone(title: String, subtitle: String, value: String, insight: String) -> ProgressSharePayload {
+    /// `value` is optional: a runner with no streak yet has no progress figure
+    /// to share, and an empty metric would share as a dangling "Progress: ".
+    static func milestone(title: String, subtitle: String, value: String?, insight: String) -> ProgressSharePayload {
         ProgressSharePayload(
             kind: .milestone,
             title: title,
             subtitle: subtitle,
-            metrics: [ProgressShareMetric(title: "Progress", value: value)],
+            metrics: value.map { [ProgressShareMetric(title: "Progress", value: $0)] } ?? [],
             insight: insight,
             privacyNote: "Private share: no location data is included."
         )
