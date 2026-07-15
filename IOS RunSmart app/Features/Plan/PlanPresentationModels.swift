@@ -23,8 +23,12 @@ struct PlanWeekSummary: Identifiable, Hashable {
         visibleWorkouts.count
     }
 
+    // WP-44 S3 (review fix): the weekly total naive-parsed every distance label,
+    // so "8 x 400m" counted as 8 km and Strength's "45 min" counted as 45 km —
+    // the audit's literal "86.20 km vs summed ~36 km" (§10 B10). Interval
+    // notation now uses the WP-43 S4 parser and non-distance labels count as 0.
     var totalDistanceKm: Double {
-        visibleWorkouts.reduce(0) { $0 + PlanPresentationModels.distanceKm(from: $1.distance) }
+        visibleWorkouts.reduce(0) { $0 + PlanPresentationModels.plannedDistanceKm(from: $1.distance) }
     }
 
     var totalDistanceLabel: String {
@@ -117,6 +121,24 @@ enum PlanPresentationModels {
             .components(separatedBy: allowed.inverted)
             .first { !$0.isEmpty } ?? ""
         return Double(token) ?? 0
+    }
+
+    /// Planned distance a workout actually contributes to a weekly total.
+    /// Interval notation ("8 x 400m") is expanded via the WP-43 S4 parser
+    /// instead of counting its leading digit as kilometers; labels that carry
+    /// no distance at all ("45 min", "Rest") contribute zero.
+    static func plannedDistanceKm(from label: String) -> Double {
+        if let parsed = StructuredWorkoutFactory.parseIntervalReps(from: label) {
+            let parts = parsed.repDistance.split(separator: " ")
+            if let value = parts.first.flatMap({ Double($0) }) {
+                let unit = parts.count > 1 ? String(parts[1]) : "m"
+                let repKm = unit == "km" ? value : value / 1_000
+                return Double(parsed.reps) * repKm
+            }
+            return 0
+        }
+        guard label.localizedCaseInsensitiveContains("km") else { return 0 }
+        return distanceKm(from: label)
     }
 
     static func isWorkout(_ workout: WorkoutSummary) -> Bool {

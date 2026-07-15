@@ -4145,6 +4145,29 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(displayNoPlan.weekLabel, "Week \(calendar.component(.weekOfMonth, from: workout.scheduledDate))", "without a plan the legacy fallback stays")
     }
 
+    // Review fix (v1.0.9 smoke): the Plan week total naive-parsed every label,
+    // counting "8 x 400m" as 8 km and "45 min" as 45 km — the audit's literal
+    // "86.20 km vs summed ~36 km" (§10 B10), reproduced live in the smoke run.
+    func testPlanWeekTotalDistanceMatchesRealWorkoutDistances() {
+        let week = PlanWeekSummary(
+            id: "w1",
+            weekNumber: 1,
+            startDate: makeDate("2026-07-12"),
+            endDate: makeDate("2026-07-18"),
+            workouts: [
+                makeWorkout(date: "2026-07-12", kind: .easy, title: "Easy Run", distance: "5.0 km"),
+                makeWorkout(date: "2026-07-13", kind: .intervals, title: "Intervals", distance: "8 x 400m"),
+                makeWorkout(date: "2026-07-14", kind: .tempo, title: "Tempo Run", distance: "8.2 km"),
+                makeWorkout(date: "2026-07-15", kind: .strength, title: "Strength", distance: "45 min"),
+                makeWorkout(date: "2026-07-17", kind: .easy, title: "Easy Run", distance: "6.0 km"),
+                makeWorkout(date: "2026-07-18", kind: .long, title: "Long Run", distance: "14.0 km"),
+            ],
+            isCurrentWeek: true
+        )
+        // 5.0 + (8 × 0.4) + 8.2 + 0 (duration, not distance) + 6.0 + 14.0
+        XCTAssertEqual(week.totalDistanceKm, 36.4, accuracy: 0.001, "intervals expand via the S4 parser; durations contribute zero — never 86.2")
+    }
+
     // Review fix: a zero-day streak is not a streak; the single accessor owns
     // the >0 rule so Today and Profile can't diverge on the boundary.
     func testZeroStreakNeverRendersAsAStreak() {
