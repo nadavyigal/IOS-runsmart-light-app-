@@ -1,8 +1,9 @@
-RunSmart 1.0.8 improves run recording reliability, adds live kilometer splits and lock-screen run status, and makes Apple Health part of onboarding with automatic workout import.
+RunSmart 1.0.9 makes your first days with the app clearer and more trustworthy, from sign-in through your first plan.
 
 What's new:
-- Connect Apple Health during onboarding; workouts import right after you connect
-- Today's activity card shows steps and calories from Apple Health
-- More reliable GPS recording, finish/discard flows, and run controls on all iPhone sizes
-- Live per-km splits while you run; moving time labels; better post-run summaries
-- Lock-screen and Dynamic Island run status while recording (supported devices)
+- Your plan builds in front of you: Today and Plan show progress while your coach works, with a clear retry if anything fails
+- Onboarding polish: a Back button, clearer steps, and your goal is always your explicit choice
+- Rest days now answer "what should I do today?" with concrete recovery guidance
+- Week numbers, streaks, distances, and workout intensity now match everywhere they appear
+- Terms and Privacy open inside the app; clearer messages when sign-in or Apple Health connection fails
+- Accurate workout breakdowns (interval counts parsed from your actual workout)

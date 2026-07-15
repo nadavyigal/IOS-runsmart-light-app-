@@ -22,7 +22,7 @@ enum RunSmartDemoData {
     static let runner = RunnerProfile(
         name: "Alex Morgan",
         goal: "10K focused",
-        streak: "11-week streak",
+        streak: "11 days",
         level: "Peak Performer",
         totalRuns: 128,
         totalDistance: 842,
