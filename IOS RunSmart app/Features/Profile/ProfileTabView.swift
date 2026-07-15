@@ -91,10 +91,14 @@ struct ProfileTabView: View {
                         .minimumScaleFactor(0.75)
                     HStack(spacing: 7) {
                         Text(runner.goal)
-                        Circle()
-                            .fill(Color.accentPrimary)
-                            .frame(width: 6, height: 6)
-                        Text(streakDisplay)
+                        // No streak yet → no separator dot either, so a new
+                        // runner doesn't get a dangling bullet.
+                        if let streakDisplay {
+                            Circle()
+                                .fill(Color.accentPrimary)
+                                .frame(width: 6, height: 6)
+                            Text(streakDisplay)
+                        }
                     }
                     .font(.bodyLG.weight(.medium))
                         .foregroundStyle(Color.textSecondary)
@@ -346,10 +350,12 @@ struct ProfileTabView: View {
     }
 
     // WP-44 S3: render streaks through the single accessor so Profile can never
-    // disagree with Today about the unit ("11-week" vs "11 day"). Labels that
-    // are not day streaks (production's "3x/week" cadence) pass through as-is.
-    private var streakDisplay: String {
-        TrainingMetrics.canonicalStreakLabel(fromLabel: runner.streak) ?? runner.streak
+    // disagree with Today about the unit ("11-week" vs "11 day") — or about
+    // whether there is a streak at all. nil means "show nothing": a brand-new
+    // runner's backend label is "0 day streak", and the old `?? runner.streak`
+    // fallback re-rendered that raw value here while Today correctly hid it.
+    private var streakDisplay: String? {
+        TrainingMetrics.canonicalStreakLabel(fromLabel: runner.streak)
     }
 
     private var weeklyDistanceLabel: String {
