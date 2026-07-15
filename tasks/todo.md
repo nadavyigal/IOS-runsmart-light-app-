@@ -3,7 +3,7 @@
 ## Current Task
 
 **Objective:** Create and publish a documentation-only 1.0.9 (23) post-live activation verification package.
-**Status:** **Documentation implemented; validation and PR publication in progress.**
+**Status:** **Complete — committed, pushed, and open as draft PR #95.**
 **Runbook:** `docs/qa/reports/release-1.0.9-build23-post-live-activation-verification.md`
 
 ### Checklist
@@ -13,7 +13,7 @@
 - [x] Inspect PostHog project 171597 read-only.
 - [x] Document the ordered funnel, caveats, cohort floor, and E1 gate.
 - [x] Run documentation link checks and `git diff --check`.
-- [ ] Commit, push, and open a documentation-only PR.
+- [x] Commit, push, and open documentation-only draft PR #95.
 
 ## Previous Current Task
 

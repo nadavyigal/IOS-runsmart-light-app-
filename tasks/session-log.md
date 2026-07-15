@@ -14,6 +14,7 @@ Created an executable documentation-only post-approval verification package. No 
 
 ### Deliverable
 - `docs/qa/reports/release-1.0.9-build23-post-live-activation-verification.md`
+- Draft PR #95 from `codex/docs-1.0.9-activation-read` into `main`.
 
 ### Not Done
 - Did not start E1, alter release/analytics state, or draw conclusions from QA rows.
