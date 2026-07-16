@@ -473,3 +473,8 @@ Future rule: For native OAuth flows routed through a web gateway, validate the f
 
 - For a reproducible decision snapshot, bound lifetime QA/device exclusion evidence at `snapshot_end`; later events must not rewrite an earlier cohort.
 - Treat missing production-device flags as unknown, not false. A physical-install candidate must carry explicit false values for emulator, TestFlight, and sideload flags.
+## 2026-07-16 — Preview variants and moved-workout identity
+
+- A side-by-side strategy prototype is safest as a Debug-only build configuration with a distinct bundle ID and forced local service boundary; this preserves one codebase without creating a production-capable fork.
+- When a schedule engine moves an item into another calendar slot, preserving the moved item's original ID while leaving a rest placeholder with that same ID creates duplicate-key failures in diff/presentation layers. Reuse the destination slot ID for the moved copy and retain `originalWorkoutID` for provenance.
+- Simulator build success and manual end-to-end UI QA can expose defects that compile-only tests miss. Keep runtime test-worker stalls explicit rather than treating `build-for-testing` as an executed test pass.

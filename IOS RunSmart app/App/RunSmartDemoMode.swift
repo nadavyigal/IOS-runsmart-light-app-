@@ -8,6 +8,9 @@ enum RunSmartDemoMode {
     /// Garmin auth, HealthKit, production analytics, and destructive backend work.
     static var isEnabled: Bool {
 #if DEBUG
+        if RunSmartBuildFlavor.requiresLocalDemoIsolation(for: RunSmartBuildFlavor.current) {
+            return true
+        }
         let args = ProcessInfo.processInfo.arguments
         let env = ProcessInfo.processInfo.environment
         return args.contains("-RUNSMART_DEMO_MODE")

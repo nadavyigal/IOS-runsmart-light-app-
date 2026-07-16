@@ -152,7 +152,7 @@ enum DeterministicFlexWeekBuilder {
             guard !blocked.contains(day), isRestDay(week[index]) || isEasyWorkout(week[index]) else { continue }
             guard !wouldCreateBackToBackHard(in: week, moving: candidate.workout, to: index, calendar: calendar) else { continue }
 
-            var moved = candidate.workout
+            var moved = reidentified(candidate.workout, id: week[index].id)
             moved.scheduledDate = week[index].scheduledDate
             moved.weekday = weekdayLabel(for: moved.scheduledDate, calendar: calendar).uppercased()
             moved.date = String(calendar.component(.day, from: moved.scheduledDate))
@@ -224,7 +224,7 @@ enum DeterministicFlexWeekBuilder {
         }
 
         week[missedIndex] = restDay(from: missed)
-        var rescheduled = missed
+        var rescheduled = reidentified(missed, id: tomorrowWorkout.id)
         rescheduled.scheduledDate = tomorrowWorkout.scheduledDate
         rescheduled.weekday = tomorrowWorkout.weekday
         rescheduled.date = tomorrowWorkout.date
@@ -244,6 +244,29 @@ enum DeterministicFlexWeekBuilder {
                 rationale: "Moved \(missed.title) to tomorrow because that slot was easy enough to absorb it safely.",
                 originalWorkoutID: missed.id
             )
+        )
+    }
+
+    private static func reidentified(_ workout: PlannedWorkout, id: UUID) -> PlannedWorkout {
+        PlannedWorkout(
+            id: id,
+            scheduledDate: workout.scheduledDate,
+            planID: workout.planID,
+            weekday: workout.weekday,
+            date: workout.date,
+            kind: workout.kind,
+            title: workout.title,
+            distance: workout.distance,
+            detail: workout.detail,
+            isToday: workout.isToday,
+            isComplete: workout.isComplete,
+            durationMinutes: workout.durationMinutes,
+            targetPaceSecondsPerKm: workout.targetPaceSecondsPerKm,
+            intensity: workout.intensity,
+            trainingPhase: workout.trainingPhase,
+            workoutStructure: workout.workoutStructure,
+            adjustedAt: workout.adjustedAt,
+            adjustedReason: workout.adjustedReason
         )
     }
 

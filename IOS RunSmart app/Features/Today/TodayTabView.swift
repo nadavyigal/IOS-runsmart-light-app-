@@ -44,6 +44,17 @@ struct TodayTabView: View {
             LazyVStack(alignment: .leading, spacing: 14) {
                 header
 
+#if DEBUG
+                if AdaptivePreviewPresentation.shouldShowCard(for: RunSmartBuildFlavor.current),
+                   let missedWorkout = adaptiveMissedWorkout {
+                    AdaptivePreviewCard(
+                        missedWorkout: missedWorkout,
+                        onReview: openAdaptivePreview
+                    )
+                    .runSmartStaggeredAppear(index: 0)
+                }
+#endif
+
                 // Never leave Today blank while the coach builds the plan, and
                 // keep the retry here rather than behind a vanished banner.
                 if planGeneration.state.showsGeneratingCard || planGeneration.state.showsInlineRetry {
@@ -302,6 +313,13 @@ struct TodayTabView: View {
         nextWorkouts.first(where: { $0.isToday }) ?? weekWorkouts.first(where: { Calendar.current.isDateInToday($0.scheduledDate) })
     }
 
+#if DEBUG
+    private var adaptiveMissedWorkout: WorkoutSummary? {
+        guard RunSmartBuildFlavor.isAdaptivePreview else { return nil }
+        return FlexWeekPresentation.mostRecentMissedWorkout(in: weekWorkouts)
+    }
+#endif
+
     private var todayExplanation: PlanExplanation {
         PlanExplanation.make(
             activePlan: activePlan,
@@ -370,6 +388,15 @@ struct TodayTabView: View {
     private func openPlanAdjustment() {
         router.openFlexWeek(entryPoint: .todayLink)
     }
+
+#if DEBUG
+    private func openAdaptivePreview() {
+        router.openFlexWeek(
+            preselectedReason: AdaptivePreviewPresentation.preselectedReason(in: weekWorkouts),
+            entryPoint: .missedWorkoutReschedule
+        )
+    }
+#endif
 
     private func openRouteSelector() {
         router.open(.routeSelector)

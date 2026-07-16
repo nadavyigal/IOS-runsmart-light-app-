@@ -330,6 +330,41 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		AD0000012FA0B36D006C1A3C /* Adaptive Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COMPILATION_CACHE_ENABLE_CACHING = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 8VC4R5M425;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG RUNSMART_ADAPTIVE $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = "Adaptive Debug";
+		};
 		33F1D5C72FA0B36D006C1A3C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -490,6 +525,8 @@
 				MARKETING_VERSION = 1.0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.runsmart.lite;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUNSMART_APP_VARIANT = production;
+				RUNSMART_DISPLAY_NAME = RunSmart;
 				RUNSMART_GARMIN_GATEWAY_URL = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -533,6 +570,8 @@
 				MARKETING_VERSION = 1.0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.runsmart.lite;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUNSMART_APP_VARIANT = production;
+				RUNSMART_DISPLAY_NAME = RunSmart;
 				RUNSMART_GARMIN_GATEWAY_URL = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -543,6 +582,40 @@
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
+		};
+		AD0000022FA0B36D006C1A3C /* Adaptive Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = AASECRETS012FA0FFFF00001 /* RunSmartConfig.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 23;
+				DEVELOPMENT_TEAM = 8VC4R5M425;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RunSmartInfo.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.9;
+				PRODUCT_BUNDLE_IDENTIFIER = com.runsmart.lite.adaptive;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUNSMART_APP_VARIANT = adaptive;
+				RUNSMART_DISPLAY_NAME = "RunSmart Adaptive";
+				RUNSMART_GARMIN_GATEWAY_URL = "";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG RUNSMART_ADAPTIVE $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = "Adaptive Debug";
 		};
 		33F1D5DA2FA0B36A006C1A3C /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -649,6 +722,33 @@
 			};
 			name = Release;
 		};
+		AD0000032FA0B36A006C1A3C /* Adaptive Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 23;
+				DEVELOPMENT_TEAM = 8VC4R5M425;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = RunSmartRunLiveActivityExtension-Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "RunSmart Adaptive Run";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.9;
+				PRODUCT_BUNDLE_IDENTIFIER = com.runsmart.lite.adaptive.runliveactivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG RUNSMART_ADAPTIVE $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = "Adaptive Debug";
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -656,6 +756,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				33F1D5C72FA0B36D006C1A3C /* Debug */,
+				AD0000012FA0B36D006C1A3C /* Adaptive Debug */,
 				33F1D5C82FA0B36D006C1A3C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
@@ -665,6 +766,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				33F1D5CA2FA0B36D006C1A3C /* Debug */,
+				AD0000022FA0B36D006C1A3C /* Adaptive Debug */,
 				33F1D5CB2FA0B36D006C1A3C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
@@ -683,6 +785,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				WW38140C2FA0B36A006C1A3C /* Debug */,
+				AD0000032FA0B36A006C1A3C /* Adaptive Debug */,
 				WW38140D2FA0B36A006C1A3C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;

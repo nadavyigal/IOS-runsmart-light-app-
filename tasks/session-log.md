@@ -2535,3 +2535,11 @@ D7 App Store readout showed 0/12 users with `run_completed` within 7 days despit
 - Frozen exclusion/readiness HogQL returned `1 production-looking / 1 excluded / 0 clean` twice; TestFlight and sideloaded exclusions fully overlap.
 - Added `docs/qa/reports/runsmart-wp40-healthkit-raw-hogql-funnel-autopsy-2026-07-11.md` with exact HogQL, exclusion audit, privacy-safe appendix, and re-read condition.
 - No PostHog objects/configuration, app code, instrumentation, backend, release, HealthKit behavior, or sensitive user/health data changed.
+## 2026-07-16 — Adaptive preview implementation and QA
+
+- Founder approved a parallel, non-destructive RunSmart strategy preview.
+- Created `codex/runsmart-adaptive-preview` in an isolated worktree.
+- Implemented a Debug-only `RunSmart Adaptive` bundle with forced local data and the missed-run adaptation walkthrough.
+- Verified both current and adaptive apps installed side by side; captured Today and proposed-week evidence.
+- Fixed the duplicate workout identity failure exposed during manual diff QA.
+- Prepared review documentation; no merge, production rollout, or release action performed.

@@ -409,23 +409,29 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     private let store = RunSmartLocalStore.shared
 
     func todayRecommendation() async -> TodayRecommendation {
+#if DEBUG
+        RunSmartBuildFlavor.isAdaptivePreview
+            ? RunSmartAdaptivePreviewData.todayRecommendation
+            : RunSmartPreviewData.today
+#else
         RunSmartPreviewData.today
+#endif
     }
 
     func weeklyPlan() async -> [WorkoutSummary] {
-        RunSmartPreviewData.workouts
+        previewWorkouts
     }
 
     func activeTrainingPlan() async -> TrainingPlanSnapshot? { RunSmartDemoData.activePlan }
 
     func planWorkouts(from startDate: Date, to endDate: Date) async -> [WorkoutSummary] {
-        RunSmartPreviewData.workouts.filter {
+        previewWorkouts.filter {
             $0.scheduledDate >= startDate && $0.scheduledDate <= endDate
         }
     }
 
     func nextWorkouts(limit: Int) async -> [WorkoutSummary] {
-        Array(RunSmartPreviewData.workouts.prefix(limit))
+        Array(previewWorkouts.prefix(limit))
     }
 
     func saveTrainingGoal(_ request: TrainingGoalRequest) async -> Bool { true }
@@ -451,6 +457,16 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
 
     func achievements() async -> [Achievement] {
         RunSmartPreviewData.achievements
+    }
+
+    private var previewWorkouts: [WorkoutSummary] {
+#if DEBUG
+        RunSmartBuildFlavor.isAdaptivePreview
+            ? RunSmartAdaptivePreviewData.workouts()
+            : RunSmartPreviewData.workouts
+#else
+        RunSmartPreviewData.workouts
+#endif
     }
 
     func currentRunMetrics() async -> [MetricTile] {

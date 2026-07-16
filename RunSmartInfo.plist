@@ -9,11 +9,11 @@
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleDisplayName</key>
-	<string>RunSmart</string>
+	<string>$(RUNSMART_DISPLAY_NAME)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>RunSmart</string>
+	<string>$(RUNSMART_DISPLAY_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
@@ -47,6 +47,8 @@
 	<true/>
 	<key>RUNSMART_GARMIN_GATEWAY_URL</key>
 	<string>https://www.runsmart-ai.com/api/devices/garmin/connect</string>
+	<key>RUNSMART_APP_VARIANT</key>
+	<string>$(RUNSMART_APP_VARIANT)</string>
 	<key>RunSmartAPIBaseURL</key>
 	<string>https://runsmart-ai.com</string>
 	<key>POSTHOG_API_KEY</key>

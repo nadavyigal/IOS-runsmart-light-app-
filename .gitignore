@@ -1,4 +1,5 @@
 DerivedData/
+.derivedData*/
 build/
 env.local
 local.env
