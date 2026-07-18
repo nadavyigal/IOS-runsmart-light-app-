@@ -31,9 +31,9 @@
 **Interfaces:**
 - Consumes: `RecordedRun` (RunSmartModels.swift:878 — `startedAt: Date`, `movingTimeSeconds: TimeInterval`, `averageHeartRateBPM: Int?`, `rpe: Int?`).
 - Produces:
-  - `struct TrainingLoadSnapshot: Hashable { let acuteLoad: Double; let chronicLoad: Double; let acwr: Double?; let status: TrainingLoadStatus }`
+  - `struct TrainingLoadMetrics: Hashable { let acuteLoad: Double; let chronicLoad: Double; let acwr: Double?; let status: TrainingLoadStatus }`
   - `enum TrainingLoadStatus: String { case insufficientData, detraining, optimal, elevated, highRisk }`
-  - `TrainingLoadCalculator.snapshot(runs: [RecordedRun], now: Date, calendar: Calendar) -> TrainingLoadSnapshot`
+  - `TrainingLoadCalculator.snapshot(runs: [RecordedRun], now: Date, calendar: Calendar) -> TrainingLoadMetrics`
   - `TrainingLoadCalculator.sessionLoad(for run: RecordedRun) -> Double`
 
 - [ ] **Step 1: Write the failing tests**
@@ -143,7 +143,7 @@ enum TrainingLoadStatus: String, Hashable {
     case highRisk
 }
 
-struct TrainingLoadSnapshot: Hashable {
+struct TrainingLoadMetrics: Hashable {
     let acuteLoad: Double      // summed session load, last 7 days
     let chronicLoad: Double    // average weekly load, last 28 days
     let acwr: Double?          // acute / chronic; nil when chronic == 0 or insufficient data
@@ -162,24 +162,24 @@ enum TrainingLoadCalculator {
         runs: [RecordedRun],
         now: Date = Date(),
         calendar: Calendar = .current
-    ) -> TrainingLoadSnapshot {
+    ) -> TrainingLoadMetrics {
         let windowStart = calendar.date(byAdding: .day, value: -28, to: now) ?? now
         let acuteStart = calendar.date(byAdding: .day, value: -7, to: now) ?? now
         let recent = runs.filter { $0.startedAt >= windowStart && $0.startedAt <= now }
 
         guard recent.count >= 4 else {
-            return TrainingLoadSnapshot(acuteLoad: 0, chronicLoad: 0, acwr: nil, status: .insufficientData)
+            return TrainingLoadMetrics(acuteLoad: 0, chronicLoad: 0, acwr: nil, status: .insufficientData)
         }
 
         let acute = recent.filter { $0.startedAt >= acuteStart }.map(sessionLoad(for:)).reduce(0, +)
         let chronic = recent.map(sessionLoad(for:)).reduce(0, +) / 4.0
 
         guard chronic > 0 else {
-            return TrainingLoadSnapshot(acuteLoad: acute, chronicLoad: 0, acwr: nil, status: .insufficientData)
+            return TrainingLoadMetrics(acuteLoad: acute, chronicLoad: 0, acwr: nil, status: .insufficientData)
         }
 
         let acwr = acute / chronic
-        return TrainingLoadSnapshot(acuteLoad: acute, chronicLoad: chronic, acwr: acwr, status: status(for: acwr))
+        return TrainingLoadMetrics(acuteLoad: acute, chronicLoad: chronic, acwr: acwr, status: status(for: acwr))
     }
 
     private static func status(for acwr: Double) -> TrainingLoadStatus {
@@ -304,7 +304,7 @@ Info.plist addition (inside the top-level dict, next to the other RUNSMART_ keys
 - Test: `IOS RunSmart appTests/AdaptiveCoachPolicyTests.swift`
 
 **Interfaces:**
-- Consumes: `TrainingLoadSnapshot`/`TrainingLoadStatus` (Task 1), `FlexWeekPresentation.mostRecentMissedWorkout` (FlexWeek.swift:244), `FlexWeekReason` (`.missedWorkout(workoutID:)`, `.tired`), `PlannedWorkout`.
+- Consumes: `TrainingLoadMetrics`/`TrainingLoadStatus` (Task 1), `FlexWeekPresentation.mostRecentMissedWorkout` (FlexWeek.swift:244), `FlexWeekReason` (`.missedWorkout(workoutID:)`, `.tired`), `PlannedWorkout`.
 - Produces:
   - `struct AdaptiveCoachPrompt: Hashable { let trigger: AdaptiveCoachTrigger; let headline: String; let detail: String; let reason: FlexWeekReason }`
   - `enum AdaptiveCoachTrigger: String { case missedWorkout, lowRecovery, loadSpike }`
@@ -329,8 +329,8 @@ final class AdaptiveCoachPolicyTests: XCTestCase {
         )
     }
 
-    private let optimalLoad = TrainingLoadSnapshot(acuteLoad: 900, chronicLoad: 900, acwr: 1.0, status: .optimal)
-    private let spikedLoad = TrainingLoadSnapshot(acuteLoad: 1800, chronicLoad: 1000, acwr: 1.8, status: .highRisk)
+    private let optimalLoad = TrainingLoadMetrics(acuteLoad: 900, chronicLoad: 900, acwr: 1.0, status: .optimal)
+    private let spikedLoad = TrainingLoadMetrics(acuteLoad: 1800, chronicLoad: 1000, acwr: 1.8, status: .highRisk)
 
     func testMissedWorkoutWins() {
         let missed = workout(daysAgo: 1, complete: false)
@@ -399,7 +399,7 @@ final class AdaptiveCoachPolicyTests: XCTestCase {
     }
 
     func testInsufficientLoadDataNeverTriggersLoadSpike() {
-        let insufficient = TrainingLoadSnapshot(acuteLoad: 0, chronicLoad: 0, acwr: nil, status: .insufficientData)
+        let insufficient = TrainingLoadMetrics(acuteLoad: 0, chronicLoad: 0, acwr: nil, status: .insufficientData)
         XCTAssertNil(AdaptiveCoachPolicy.prompt(
             weekWorkouts: [workout(daysAgo: 0, complete: false)],
             readiness: 80, loadSnapshot: insufficient, lastDismissedAt: nil,
@@ -441,7 +441,7 @@ enum AdaptiveCoachPolicy {
     static func prompt(
         weekWorkouts: [PlannedWorkout],
         readiness: Int,
-        loadSnapshot: TrainingLoadSnapshot,
+        loadSnapshot: TrainingLoadMetrics,
         lastDismissedAt: Date?,
         now: Date = Date(),
         calendar: Calendar = .current
@@ -644,7 +644,7 @@ Implementation notes for the wiring (resolve against the real file, do not guess
 - Test: `IOS RunSmart appTests/FlexWeekTests.swift` (DTO encoding), `supabase/functions/coach_message/index_test.ts` (sanitize)
 
 **Interfaces:**
-- Consumes: `TrainingLoadSnapshot` (Task 1), existing `ReadinessContext` (FlexWeek.swift:50), `FlexWeekReadinessContextDTO` (flex_week.ts:26).
+- Consumes: `TrainingLoadMetrics` (Task 1), existing `ReadinessContext` (FlexWeek.swift:50), `FlexWeekReadinessContextDTO` (flex_week.ts:26).
 - Produces: readiness payload carrying `acwr: Double?`, `acuteLoad: Double?`, `chronicLoad: Double?`, `loadStatus: String?` end to end; edge-function prompt includes a "Training load" line when present.
 
 - [ ] **Step 1: Write the failing Swift test** (append to FlexWeekTests.swift)
@@ -689,7 +689,7 @@ Implementation notes for the wiring (resolve against the real file, do not guess
     static func make(
         recovery: RecoverySnapshot,
         recommendation: TodayRecommendation,
-        load: TrainingLoadSnapshot? = nil
+        load: TrainingLoadMetrics? = nil
     ) -> ReadinessContext {
         var context = ReadinessContext(
             readiness: recommendation.readiness > 0 ? recommendation.readiness : recovery.readiness,
@@ -771,3 +771,7 @@ Run `deno test` → PASS.
 - Garmin training-status ingestion as a load source (Garmin work is paused per 2026-07-02 decision; ACWR from RecordedRun covers both HealthKit and Garmin-synced runs already).
 - Push notifications for proactive prompts (card-on-Today only in Phase 1).
 - Server-side load computation (client-side is sufficient and offline-friendly).
+
+## Implementation deviations log
+
+- **Task 1 (2026-07-18):** the engine's result type is `TrainingLoadMetrics`, not `TrainingLoadSnapshot` — that name was already taken by the backend-fed Activity-tab display model (`RunSmartModels.swift:1724`, string-typed ACWR + recap copy). All later tasks' references updated accordingly. The display model and the engine stay separate types on purpose: one is presentation from the server, the other is client-computed signal for the coach policy.
