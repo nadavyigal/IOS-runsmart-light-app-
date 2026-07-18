@@ -87,10 +87,15 @@ struct FlexWeekEntryView: View {
         async let weekTask = services.weeklyPlan()
         async let todayTask = services.todayRecommendation()
         async let recoveryTask = services.recoverySnapshot()
-        let (week, today, recovery) = await (weekTask, todayTask, recoveryTask)
+        async let runsTask = services.recentRuns()
+        let (week, today, recovery, runs) = await (weekTask, todayTask, recoveryTask, runsTask)
 
         currentWeek = week
-        readinessContext = ReadinessContext.make(recovery: recovery, recommendation: today)
+        readinessContext = ReadinessContext.make(
+            recovery: recovery,
+            recommendation: today,
+            load: TrainingLoadCalculator.snapshot(runs: runs)
+        )
         loadFailed = week.isEmpty
         isLoading = false
     }

@@ -662,6 +662,11 @@ enum RunSmartDTO {
         let hrv: String
         let sleep: String
         let recommendation: String
+        // Training-load context; synthesized Codable omits nil keys.
+        let acwr: Double?
+        let acuteLoad: Double?
+        let chronicLoad: Double?
+        let loadStatus: String?
     }
 
     struct FlexWeekRequestDTO: Encodable {

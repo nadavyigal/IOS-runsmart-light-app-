@@ -133,7 +133,11 @@ enum FlexWeekServiceSupport {
             bodyBattery: context.bodyBattery,
             hrv: context.hrv,
             sleep: context.sleep,
-            recommendation: context.recommendation
+            recommendation: context.recommendation,
+            acwr: context.acwr,
+            acuteLoad: context.acuteLoad,
+            chronicLoad: context.chronicLoad,
+            loadStatus: context.loadStatus
         )
     }
 

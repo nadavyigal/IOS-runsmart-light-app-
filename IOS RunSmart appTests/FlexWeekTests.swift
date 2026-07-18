@@ -355,6 +355,66 @@ final class FlexWeekTests: XCTestCase {
         XCTAssertEqual(dto.currentWeek.count, week.count)
     }
 
+    func testFlexWeekRequestDTOEncodesTrainingLoadFields() throws {
+        var context = ReadinessContext(
+            readiness: 42,
+            readinessLabel: "Low",
+            bodyBattery: 30,
+            hrv: "38 ms",
+            sleep: "6h 10m",
+            recommendation: "Take it easy"
+        )
+        context.acwr = 1.62
+        context.acuteLoad = 1780
+        context.chronicLoad = 1100
+        context.loadStatus = "highRisk"
+
+        let request = FlexWeekRequest(reason: .tired, currentWeek: [], readinessContext: context)
+        let dto = FlexWeekServiceSupport.buildRequestDTO(from: request)
+        let data = try JSONEncoder().encode(dto)
+        let json = String(decoding: data, as: UTF8.self)
+
+        XCTAssertTrue(json.contains("\"acwr\":1.62"), "missing acwr: \(json)")
+        XCTAssertTrue(json.contains("\"acuteLoad\":1780"), "missing acuteLoad: \(json)")
+        XCTAssertTrue(json.contains("\"chronicLoad\":1100"), "missing chronicLoad: \(json)")
+        XCTAssertTrue(json.contains("\"loadStatus\":\"highRisk\""), "missing loadStatus: \(json)")
+    }
+
+    func testFlexWeekRequestDTOOmitsLoadFieldsWhenAbsent() throws {
+        let context = ReadinessContext(
+            readiness: 42,
+            readinessLabel: "Low",
+            bodyBattery: 30,
+            hrv: "38 ms",
+            sleep: "6h 10m",
+            recommendation: "Take it easy"
+        )
+        let request = FlexWeekRequest(reason: .tired, currentWeek: [], readinessContext: context)
+        let dto = FlexWeekServiceSupport.buildRequestDTO(from: request)
+        let data = try JSONEncoder().encode(dto)
+        let json = String(decoding: data, as: UTF8.self)
+
+        XCTAssertFalse(json.contains("acwr"), "nil load fields must be omitted, not null: \(json)")
+    }
+
+    func testReadinessContextMakeAttachesLoadOnlyWhenSufficient() {
+        let recovery = RecoverySnapshot(
+            readiness: 40, bodyBattery: 30, sleep: "6h", hrv: "38 ms",
+            stress: "Low", recommendation: "Easy day"
+        )
+        let today = TodayRecommendation.placeholder
+
+        let sufficient = TrainingLoadMetrics(acuteLoad: 900, chronicLoad: 600, acwr: 1.5, status: .highRisk)
+        let withLoad = ReadinessContext.make(recovery: recovery, recommendation: today, load: sufficient)
+        XCTAssertEqual(withLoad.acwr, 1.5)
+        XCTAssertEqual(withLoad.loadStatus, "highRisk")
+
+        let insufficient = TrainingLoadMetrics(acuteLoad: 0, chronicLoad: 0, acwr: nil, status: .insufficientData)
+        let withoutLoad = ReadinessContext.make(recovery: recovery, recommendation: today, load: insufficient)
+        XCTAssertNil(withoutLoad.acwr)
+        XCTAssertNil(withoutLoad.loadStatus)
+    }
+
     func testFlexWeekRequestDTOUsesEdgeFunctionKeySpelling() throws {
         let week = sampleWeek(hardToday: false)
         let request = FlexWeekRequest(
