@@ -473,3 +473,9 @@ Future rule: For native OAuth flows routed through a web gateway, validate the f
 
 - For a reproducible decision snapshot, bound lifetime QA/device exclusion evidence at `snapshot_end`; later events must not rewrite an earlier cohort.
 - Treat missing production-device flags as unknown, not false. A physical-install candidate must carry explicit false values for emulator, TestFlight, and sideload flags.
+
+### 2026-07-18 — Debug CodeSign "detritus" failures are iCloud file-provider xattrs, not stale caches
+
+- The repo lives under `~/Documents` (iCloud file-provider synced). Any derived-data path inside the repo gets `com.apple.FinderInfo`/`com.apple.fileprovider.fpfs#P` stamped on build outputs, and CodeSign rejects `RunSmartRunLiveActivityExtension.appex` with "resource fork, Finder information, or similar detritus not allowed" — this was the unexplained "resource-metadata signing noise" in the 2026-07-16 adaptive-preview QA report.
+- Pre-build `xattr -cr` does not help; the file provider re-stamps outputs mid-build. The "Strip Disallowed Resource Metadata" script phase covers only non-Debug configs and only the main app bundle.
+- Fix path: pass `-derivedDataPath` outside the synced volume (e.g. under `/private/tmp`) for every CLI `xcodebuild`. Also: don't pipe `xcodebuild` through `head` (SIGPIPE kills the build mid-run — redirect to a log file, grep afterwards), and prefer `-destination "platform=iOS Simulator,name=...,OS=..."` over id-parsing `-showdestinations`.
