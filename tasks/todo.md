@@ -17,10 +17,13 @@
 - [x] Merge PR #99 to `main` (`8eef381`).
 - [x] Complete Claude cross-vendor review of the GPT-authored device-QA fixes (PR #101): approved. Verified QA injection is production-isolated, `downgradedEasy` clears pace/structure/detail, and the `\d+[x×]\d+` rep regex is bounded on both sides with positive and negative tests.
 - [x] Merge device-QA fixes: PR **#101** squashed to `main` as `e097881` (2026-07-19).
-- [x] Founder decision: release flag stays **OFF** for the next build. Verified `RUNSMART_ADAPTIVE_COACH_ENABLED = NO` in `RunSmartInfo.plist`.
-- [ ] Founder: approve deploying `coach_message`. **Staged, not deployed** — Supabase CLI 2.109.1 reachable via `npx supabase`, project `dxqglotcyirxzyqaxqln`. Deploy command staged below; requires an explicit second approval.
-- [ ] Deploy and smoke-test the live `coach_message` AI path; physical QA currently proves only the safe deterministic fallback path.
-- [ ] Bump marketing/build version past 1.0.9 (23), archive under `/private/tmp`, upload, and submit to ASC.
+- [x] ~~Founder decision: release flag stays OFF~~ **Superseded same day:** founder chose **flag ON for all users**. `RUNSMART_ADAPTIVE_COACH_ENABLED = YES` verified both in `RunSmartInfo.plist` and inside the archived app bundle's Info.plist.
+- [x] Bump to **1.1.0 (24)**, full suite re-run on the flag-ON tree: **306/306 passed** (xcresult-verified). PR **#102** merged to `main` as `c6e75c1` (CodeRabbit + GitGuardian passed).
+- [x] Archive `RunSmart-1.1.0-build24-20260719.xcarchive` under `/private/tmp/runsmart-archives/` — ARCHIVE SUCCEEDED.
+- [x] Upload to App Store Connect via `ExportOptionsAppStoreUpload.plist` — **Upload succeeded 2026-07-19 12:43** ("Uploaded IOS RunSmart app"); build processing in ASC.
+- [ ] **Founder:** in App Store Connect, create version 1.1.0, attach build 24 once processing completes, and submit for review (no ASC API key on this machine; portal step).
+- [ ] **Founder:** run `npx supabase login`, then deploy `coach_message` (command staged below). **Must land before Apple releases 1.1.0** — flag is ON, so without the deploy every user's live AI request hits the OLD deployed function; new ACWR/load fields rely on its sanitizer behavior, and any failure drops to the deterministic fallback.
+- [ ] After deploy: founder device smoke of the live AI path (Review → AI-generated week → confirm).
 
 ### Staged (NOT executed) edge deploy
 ```

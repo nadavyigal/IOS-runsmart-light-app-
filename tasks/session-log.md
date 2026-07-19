@@ -1,5 +1,24 @@
 # Session Log
 
+## 2026-07-19 - Ship 1.1.0 (24): Adaptive Coach flag ON, archive + ASC upload
+
+### Task Summary
+Closed all remaining automated Phase 1 gates and shipped the release build: Claude review + merge of PR #101, Deno sanitizer tests (9/9 after installing Deno 2.9.3), founder flag decision executed (ON for all users), version bump to 1.1.0 (24), full-suite re-verification, PR #102 merge, CLI archive, and successful App Store Connect upload.
+
+### Evidence
+- PR #101 merged `e097881`; docs commit `c48decc`; release PR #102 merged `c6e75c1`.
+- Flag-ON tree suite: 306/306 (xcresult bundle verified). Deno: 9/9.
+- `RunSmart-1.1.0-build24-20260719.xcarchive` ARCHIVE SUCCEEDED; bundle Info.plist flag = YES; ASC upload "Upload succeeded" 12:43.
+
+### Blocked / handed to founder
+- `coach_message` deploy: no `SUPABASE_ACCESS_TOKEN` / CLI login on this machine; deploy staged, needs `npx supabase login`. Must precede App Store release since flag ships ON.
+- ASC portal: create 1.1.0, attach build 24, submit for review (no ASC API key locally).
+- Live-AI device smoke after deploy.
+
+### Not done
+- No Plan 3 activation work this session (queued as separate Opus 4.8 session).
+- 4 pre-existing untracked iCloud-duplicate QA files left untouched.
+
 ## 2026-07-19 - Adaptive Coach physical-device QA and fallback fixes
 
 ### Task Summary
