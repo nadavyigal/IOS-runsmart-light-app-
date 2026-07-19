@@ -114,6 +114,47 @@ final class FlexWeekTests: XCTestCase {
         XCTAssertEqual(updated[2].title, missed.title)
     }
 
+    func testMissedWorkoutRestructureKeepsWorkoutIDsUnique() {
+        // Regression: the rescheduled copy of a missed workout kept its original
+        // UUID while the vacated slot (turned into rest) kept the same UUID,
+        // producing two rows with one identity and breaking SwiftUI diffing.
+        let week = sampleWeek(hardToday: false)
+        let missed = week[1]
+        let (updated, _) = DeterministicFlexWeekBuilder.restructure(
+            week: week,
+            reason: .missedWorkout(workoutID: missed.id),
+            now: week[1].scheduledDate,
+            calendar: calendar
+        )
+
+        let ids = updated.map(\.id)
+        XCTAssertEqual(Set(ids).count, ids.count, "Restructured week must not contain duplicate workout IDs")
+    }
+
+    func testTravelingRestructureKeepsWorkoutIDsUnique() {
+        // Same identity bug on the traveling path: a displaced hard workout
+        // moved into an open slot kept its original UUID alongside its old
+        // slot's rest-day copy.
+        var week = sampleWeek(hardToday: false)
+        week[3] = workout(
+            offset: 3,
+            kind: .tempo,
+            title: "Tempo Run",
+            distance: "8.0 km",
+            from: week[0].scheduledDate
+        )
+
+        let (updated, _) = DeterministicFlexWeekBuilder.restructure(
+            week: week,
+            reason: .traveling(blockedDays: [week[3].scheduledDate]),
+            now: week[2].scheduledDate,
+            calendar: calendar
+        )
+
+        let ids = updated.map(\.id)
+        XCTAssertEqual(Set(ids).count, ids.count, "Restructured week must not contain duplicate workout IDs")
+    }
+
     func testMissedHardWorkoutDoesNotStackOnHardTomorrow() {
         var week = sampleWeek(hardToday: true)
         week[1] = workout(
