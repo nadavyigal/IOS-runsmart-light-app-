@@ -356,10 +356,20 @@ enum DeterministicFlexWeekBuilder {
         updated.kind = .easy
         updated.title = title
         updated.intensity = "easy"
-        if updated.distance.localizedCaseInsensitiveContains("rest") {
+        updated.detail = "Easy effort"
+        updated.targetPaceSecondsPerKm = nil
+        updated.workoutStructure = nil
+        if updated.distance.localizedCaseInsensitiveContains("rest") || isRepetitionPrescription(updated.distance) {
             updated.distance = "5.0 km"
         }
         return updated
+    }
+
+    private static func isRepetitionPrescription(_ distance: String) -> Bool {
+        distance.range(
+            of: #"\d+(?:\.\d+)?\s*[x×]\s*\d+"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
     }
 
     private static func restDay(from workout: PlannedWorkout) -> PlannedWorkout {

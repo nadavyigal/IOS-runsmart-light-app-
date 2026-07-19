@@ -44,6 +44,21 @@ enum RunSmartDemoData {
         rationale: "Body battery at 82 - you're fueled for a real effort. Tempo Builder lands well today."
     )
 
+    /// Keeps Adaptive Coach QA deterministic across weekdays. The normal demo
+    /// week only contains a missed workout on some days, so the QA launch flag
+    /// supplies an honest low-recovery signal instead of fabricating a policy
+    /// result or changing production trigger logic.
+    static func todayRecommendation(adaptiveCoachQAEnabled: Bool) -> TodayRecommendation {
+        guard adaptiveCoachQAEnabled else { return today }
+        var recommendation = today
+        recommendation.readiness = 38
+        recommendation.readinessLabel = "Low"
+        recommendation.recovery = "Low"
+        recommendation.coachMessage = "Recovery is lower today. Review a gentler week before making any change."
+        recommendation.rationale = "Demo QA signal: readiness is 38 so Adaptive Coach can exercise the low-recovery review flow."
+        return recommendation
+    }
+
     static let activePlan = TrainingPlanSnapshot(
         id: UUID(uuidString: "42C3C9E6-7E37-4C1F-A1A2-E76D3B5E0312")!,
         title: "10K Speed Builder",

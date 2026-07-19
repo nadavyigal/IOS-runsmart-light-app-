@@ -1,5 +1,34 @@
 # Session Log
 
+## 2026-07-19 - Adaptive Coach physical-device QA and fallback fixes
+
+### Task Summary
+Ran the Adaptive Coach Review/confirm/dismiss flow on a physical iPhone using the Debug QA flags. Device QA found and fixed a date-sensitive QA fixture and a contradictory deterministic workout downgrade. No edge function, production flag, archive, or ASC state changed.
+
+### Findings and Fixes
+- The QA card was absent on the new local week because the demo fixture had no missed workout, healthy readiness, and no load spike. Adaptive Coach demo QA now supplies deterministic low readiness only when its QA launch flag is active.
+- The fallback changed `Intervals · 8 x 400m` to `Easy Run · 8 x 400m`. Easy downgrades now clear hard target pace/structure, use honest easy-effort detail, and map repetition prescriptions to `5.0 km`.
+
+### Device Evidence
+- Card rendered with low-recovery trigger and readiness 38.
+- Review showed one corrected change with a rationale and safety fallback disclosure.
+- Both Confirm New Week and Keep Original Plan were visible.
+- Confirm succeeded, showed the updated state, and closed normally.
+- Dismiss hid the card and remained persisted after process relaunch; Today loaded normally with the trigger still active.
+- A transient black screen occurred only when an automated relaunch met a locked device; unlocked console relaunch had no crash or console error.
+
+### Validation
+- Adaptive Coach + Flex Week focused suites: **44 passed, 0 failed**.
+- Full fixed-tree suite: **306 passed, 0 failed, 0 skipped**.
+- Physical Debug build, install, and repeated launch passed.
+- `git diff --check` and plist lint passed.
+
+### Remaining Operational Gates
+- GPT-authored fixes require Claude cross-vendor review before merge.
+- Deno sanitizer tests remain unrun locally.
+- `coach_message` remains undeployed; live AI behavior is not device-smoke-tested.
+- Founder still must approve edge deployment and choose the bundled release flag.
+
 ## 2026-07-19 - Adaptive Coach Phase 1 merge and release gates
 
 ### Task Summary
