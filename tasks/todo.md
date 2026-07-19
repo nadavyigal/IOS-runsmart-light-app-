@@ -3,7 +3,7 @@
 ## Current Task
 
 **Objective:** Ship Adaptive Coach Phase 1 through App Store Connect, stopping at founder-only deployment, release-flag, and device-QA gates.
-**Status:** **Code merged to `main`; release is founder-gated before archive.**
+**Status:** **All code merged to `main` (`e097881`); every automated gate is now closed. Remaining work is founder-only: edge deploy approval, live-AI device smoke, then version bump + archive + ASC.**
 **Spec:** `docs/specs/2026-07-18-adaptive-coach-phase1.md`
 
 ### Checklist
@@ -12,16 +12,24 @@
 - [x] Rebase and force-with-lease push `feat/adaptive-coach-phase1` on the prerequisite merge.
 - [x] Run the full iOS suite after device-QA fixes: 306 passed, 0 failed, 0 skipped on iPhone 17 Pro / iOS 26.5.
 - [x] Run `git diff --check` and plist lint.
-- [ ] Run Deno sanitizer tests (blocked locally: Deno is not installed).
+- [x] Run Deno sanitizer tests: Deno 2.9.3 installed to `~/.deno`; `deno test --allow-all supabase/functions/coach_message/index_test.ts` = **9 passed, 0 failed** (2026-07-19).
 - [x] Complete GPT-5.6 Sol cross-vendor review of Claude Opus 4.8-authored code; CodeRabbit and GitGuardian passed.
 - [x] Merge PR #99 to `main` (`8eef381`).
-- [ ] Founder: approve or decline deploying `coach_message`; no deployment has occurred.
-- [ ] Founder: choose release flag ON or OFF. Recommendation: OFF until device QA passes.
-- [x] Physical-device QA: card → Review → coherent diff → confirm, plus dismiss persistence after process relaunch.
-- [x] Fix weekday-dependent QA trigger and contradictory `Easy Run · 8 x 400m` deterministic fallback found during device QA.
-- [ ] Merge device-QA fixes after required Claude cross-vendor review (`codex/adaptive-coach-device-qa-fixture`).
-- [ ] Deploy and smoke-test the live `coach_message` AI path; physical QA currently proves the safe deterministic fallback path.
+- [x] Complete Claude cross-vendor review of the GPT-authored device-QA fixes (PR #101): approved. Verified QA injection is production-isolated, `downgradedEasy` clears pace/structure/detail, and the `\d+[x×]\d+` rep regex is bounded on both sides with positive and negative tests.
+- [x] Merge device-QA fixes: PR **#101** squashed to `main` as `e097881` (2026-07-19).
+- [x] Founder decision: release flag stays **OFF** for the next build. Verified `RUNSMART_ADAPTIVE_COACH_ENABLED = NO` in `RunSmartInfo.plist`.
+- [ ] Founder: approve deploying `coach_message`. **Staged, not deployed** — Supabase CLI 2.109.1 reachable via `npx supabase`, project `dxqglotcyirxzyqaxqln`. Deploy command staged below; requires an explicit second approval.
+- [ ] Deploy and smoke-test the live `coach_message` AI path; physical QA currently proves only the safe deterministic fallback path.
 - [ ] Bump marketing/build version past 1.0.9 (23), archive under `/private/tmp`, upload, and submit to ASC.
+
+### Staged (NOT executed) edge deploy
+```
+npx supabase functions deploy coach_message --project-ref dxqglotcyirxzyqaxqln
+```
+Pre-deploy gate: Deno sanitizer tests pass (done, 9/9). Post-deploy gate: device smoke of the live AI path before the flag is ever set to YES.
+
+### Non-blocking review note (unverified)
+`downgradedEasy` rewrites `distance` only for rest or rep-patterns. A distance string carrying intensity wording without a rep pattern (e.g. `8 km tempo`) would survive onto an easy run. No such value found in fixtures or code, so reachability is unconfirmed. Follow up only if the plan generator can emit one.
 
 ## Previous Current Task
 
