@@ -1,11 +1,15 @@
 # RunSmart iOS Activation Cliff: Evidence and Fix Plan
 
-Date: 2026-07-19
+Date: 2026-07-19 (amended same day after the 1.1.0 submission; see Status below)
 Source: live PostHog reads, project 171597 ("Running coach"), 90-day window, read 2026-07-19. All numbers below are founder/QA-excluded unless labeled RAW. Investigation only; no code changed in this session.
+
+## Status vs the submitted build (added 2026-07-19, post-submission)
+
+**1.1.0 (24) is in App Store review (public: 1.0.9 build 23) and contains NONE of this plan.** It ships Adaptive Coach Phase 1 flag-ON (`c6e75c1`, PR #102). Verified against `origin/main` (last commit `0365816`, 2026-07-19 13:49): no `sign_in_wall_*` events exist, `SignInView.swift` and `RunSmartLiteAppShell.swift` are unchanged, no guest path. Consequence: **Adaptive Coach Phase 2's own gate (2 weeks live + >=20 real `adaptive_coach_shown` users) cannot fill while ~96% of installs die on the wall before the Today tab exists for them.** S1 below should be the first content of the next build (1.1.1), not queued behind other work.
 
 ## The headline number
 
-**22 of 23 real App Store users (95.7%) quit at the sign-in wall, the first screen, without ever starting onboarding.** 1 of 23 started and completed onboarding; 0 of 23 ever started a run. D7 activation for the mature clean cohort (first seen 2026-06-19 to 2026-07-12, n=19): **0%**.
+**22 of 23 real App Store users (95.7%) produced zero events after app open and never started onboarding.** The sign-in wall is the leading explanation, not yet a directly measured one: it is provably the first screen every unauthenticated user sees (code path below) and it is uninstrumented, so "refused to sign in", "sign-in attempt failed silently", and "app hung" cannot be separated until S1 ships. 1 of 23 started and completed onboarding; 0 of 23 ever started a run. D7 activation for the mature clean cohort (first seen 2026-06-19 to 2026-07-12, n=19): **0%**.
 
 ## Cohort construction (measured)
 
@@ -62,8 +66,8 @@ We SUSPECT (inferred, needs instrumentation to confirm):
 
 Top 2 (do these, in this order):
 
-1. **S1. Instrument the black hole (S, 1 day).** Add `sign_in_wall_viewed`, `sign_in_tapped`, `sign_in_wall_abandoned` (on background with no attempt), explicit screen names, and enable PostHog iOS session replay. Also fix the failed/succeeded double-fire. Metric moved: none directly, but it converts every later fix from faith to measurement. Ship in 1.0.10 before anything else. Measurement: event presence itself.
-2. **S2. Let users see the product before the account wall (M, 2-3 days).** Options in ascending effort: (a) value-preview carousel with sample plan before the SIWA button, (b) full guest mode: run onboarding + plan preview anonymously, ask for sign-in only to save the plan (Supabase anonymous auth exists; Resumely already ships guest mode). Hypothesis: the wall, not the product, kills 95.7% of installs. Metric moved: install -> onboarding_started (4.3% now; target 30%+). Measurement: version-over-version funnel comparison in PostHog (no A/B infra needed at n~25/month; a 4x jump is visible in 2-3 weeks of installs). Rollback trigger: sign-in completion rate collapses at plan-save.
+1. **S1. Instrument the black hole (S, 1 day; target: next build, 1.1.1).** Add `sign_in_wall_viewed`, `sign_in_tapped`, and `sign_in_wall_abandoned` with defined semantics: fires at most once per session, only when the app backgrounds (or terminates) after >=5 seconds on the wall with no sign-in attempt; returning to foreground and then attempting sign-in does not retro-emit. Add explicit screen names. Fix the `plan_generation_failed`/`succeeded` double-fire. Session replay is desirable but **gated on privacy guardrails first**: documented consent/opt-out, masking of text input and any health-adjacent surfaces, retention limit, and access control; if that takes longer than a day, ship the events without replay rather than delaying. Metric moved: none directly; it converts every later fix from faith to measurement.
+2. **S2. Let users see the product before the account wall (M, 2-3 days).** Options in ascending effort: (a) value-preview carousel with sample plan before the SIWA button, (b) full guest mode: run onboarding + plan preview anonymously, ask for sign-in only to save the plan (Supabase anonymous auth exists; Resumely already ships guest mode). Hypothesis: the wall, not the product, kills ~96% of installs. Metric moved: install -> onboarding_started (currently 1/23, 4.3%). **Predeclared decision rule** (version-over-version, no A/B infra at this volume): evaluate at >=30 clean post-release App Store installs on the new build (roughly 4-6 weeks at ~25 organic installs/month); call it a win if >=6/30 (20%) fire `onboarding_started` (baseline 4.3%; at n=30 a 20% observed rate is inconsistent with the old rate at ~95% confidence); call it inconclusive below 30 installs regardless of rate; rollback triggers: sign-in completion at the plan-save gate under 50%, or any onboarding-crash signal in the new flow. The 30% figure stays the aspiration, not the success threshold.
 
 Then, only after S1+S2 data exists:
 
