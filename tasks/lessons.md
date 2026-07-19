@@ -59,8 +59,17 @@ Review this file at the start of future tasks.
 - SwiftUI Map `Annotation` titles render as visible map labels. For live runner/current-position indicators, use an unlabeled annotation and put the meaning in the surrounding UI or accessibility surface; otherwise replacing a wrong "Finish" marker with a visible "Current position" label still violates the plain-dot intent.
 - Post-run controls that ask for subjective user input must either persist that input to the saved run or start in a clearly unset state and remain non-authoritative; never preselect a fake value that is silently discarded. When validating accelerated demo-mode runs, make sure the QA service path can surface locally saved runs in history without weakening production visibility filters.
 - Pre-run previews must not claim live GPS unless they are backed by real location/map data. Decorative route sketches should be labeled as sketches, and short-screen reachability must be verified by scrolling on iPhone SE as well as checking the first viewport on larger phones.
+- QA launch modes for date-sensitive policies must inject the trigger signal explicitly; a fixture that only happens to contain a missed workout on certain weekdays makes the same launch command nondeterministic across calendar boundaries.
+- When downgrading a structured hard workout to an easy run, clear target pace and workout structure and replace repetition labels such as `8 x 400m`; changing only kind/title can produce a contradictory and unsafe prescription.
 
 ## Lesson Log
+
+### 2026-07-19 - Adaptive Coach Device QA Exposed Calendar And Prescription Drift
+Trigger: The same Adaptive Coach QA launch arguments that showed the card on July 18 showed no card on July 19 because the local week rolled over. After making the QA trigger deterministic, the physical Review screen proposed `Easy Run · 8 x 400m` because the fallback changed workout identity but retained interval prescription fields.
+
+Lesson: QA entry points must create their required policy state directly rather than borrowing incidental calendar state. Workout downgrades are semantic transformations, not label changes; every attached prescription field must agree with the new workout.
+
+Future rule: Inject an explicit QA-only signal for date-sensitive triggers, test it without any weekly workouts, and regression-test the user-visible before/after prescription when changing workout kind.
 
 ### 2026-07-10 - Branch State Is Not Work-Packet Status (WP-40 correction)
 Trigger: WP-40 was initially treated as in-progress because the checkout was on `claude/wp40-healthkit-activation` with matching dirty files and screenshots, but the canonical packet still said Not Started and the user explicitly directed execution.

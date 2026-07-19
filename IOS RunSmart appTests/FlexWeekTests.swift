@@ -21,6 +21,53 @@ final class FlexWeekTests: XCTestCase {
         XCTAssertTrue(changes.contains { $0.rationale.localizedCaseInsensitiveContains("RECOVERY") })
     }
 
+    func testTiredDowngradeRemovesIntervalPrescriptionFromEasyRun() {
+        var interval = workout(
+            offset: 0,
+            kind: .intervals,
+            title: "Intervals",
+            distance: "8 x 400m",
+            from: calendar.date(from: DateComponents(year: 2026, month: 7, day: 19))!
+        )
+        interval.targetPaceSecondsPerKm = 285
+        interval.workoutStructure = "8 x 400m hard with 200m recovery"
+
+        let (updated, changes) = DeterministicFlexWeekBuilder.restructure(
+            week: [interval],
+            reason: .tired,
+            now: interval.scheduledDate,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(updated[0].kind, .easy)
+        XCTAssertEqual(updated[0].title, "Easy Run")
+        XCTAssertEqual(updated[0].distance, "5.0 km")
+        XCTAssertEqual(updated[0].detail, "Easy effort")
+        XCTAssertNil(updated[0].targetPaceSecondsPerKm)
+        XCTAssertNil(updated[0].workoutStructure)
+        XCTAssertTrue(changes.contains { $0.changeType == .downgraded })
+    }
+
+    func testTiredDowngradePreservesOrdinaryDistanceContainingLetterX() {
+        let interval = workout(
+            offset: 0,
+            kind: .intervals,
+            title: "Intervals",
+            distance: "6 km mixed terrain",
+            from: calendar.date(from: DateComponents(year: 2026, month: 7, day: 19))!
+        )
+
+        let (updated, _) = DeterministicFlexWeekBuilder.restructure(
+            week: [interval],
+            reason: .tired,
+            now: interval.scheduledDate,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(updated[0].kind, .easy)
+        XCTAssertEqual(updated[0].distance, "6 km mixed terrain")
+    }
+
     func testTiredOnRestDayEasesNextHardWorkout() {
         let week = sampleWeek(hardToday: false, restToday: true)
         let (updated, changes) = DeterministicFlexWeekBuilder.restructure(

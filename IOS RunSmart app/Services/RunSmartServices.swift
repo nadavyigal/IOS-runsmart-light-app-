@@ -409,7 +409,9 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     private let store = RunSmartLocalStore.shared
 
     func todayRecommendation() async -> TodayRecommendation {
-        RunSmartPreviewData.today
+        RunSmartPreviewData.todayRecommendation(
+            adaptiveCoachQAEnabled: ProcessInfo.processInfo.arguments.contains("-RUNSMART_ADAPTIVE_COACH")
+        )
     }
 
     func weeklyPlan() async -> [WorkoutSummary] {

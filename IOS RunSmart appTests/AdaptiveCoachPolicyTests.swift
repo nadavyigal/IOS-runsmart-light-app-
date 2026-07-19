@@ -136,4 +136,20 @@ final class AdaptiveCoachPolicyTests: XCTestCase {
         XCTAssertTrue(AdaptiveCoachPresentation.shouldShow(flagEnabled: true, prompt: prompt))
         XCTAssertFalse(AdaptiveCoachPresentation.shouldShow(flagEnabled: true, prompt: nil))
     }
+
+    func testAdaptiveCoachDemoQAProducesLowRecoveryPromptWithoutDependingOnWeekday() {
+        let recommendation = RunSmartDemoData.todayRecommendation(adaptiveCoachQAEnabled: true)
+        let prompt = AdaptiveCoachPolicy.prompt(
+            weekWorkouts: [],
+            readiness: recommendation.readiness,
+            loadMetrics: insufficientLoad,
+            lastDismissedAt: nil,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(recommendation.readiness, 38)
+        XCTAssertEqual(prompt?.trigger, .lowRecovery)
+        XCTAssertEqual(prompt?.reason, .tired)
+    }
 }

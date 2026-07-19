@@ -10,14 +10,17 @@
 - [x] Confirm the Adaptive Coach flag is bundled in Info.plist and is not remotely flippable.
 - [x] Merge `fix/flexweek-duplicate-slot-ids` to `main` and push.
 - [x] Rebase and force-with-lease push `feat/adaptive-coach-phase1` on the prerequisite merge.
-- [x] Run the full iOS suite: 303 passed, 0 failed, 0 skipped on iPhone 17 Pro / iOS 26.5.
+- [x] Run the full iOS suite after device-QA fixes: 306 passed, 0 failed, 0 skipped on iPhone 17 Pro / iOS 26.5.
 - [x] Run `git diff --check` and plist lint.
 - [ ] Run Deno sanitizer tests (blocked locally: Deno is not installed).
 - [x] Complete GPT-5.6 Sol cross-vendor review of Claude Opus 4.8-authored code; CodeRabbit and GitGuardian passed.
 - [x] Merge PR #99 to `main` (`8eef381`).
 - [ ] Founder: approve or decline deploying `coach_message`; no deployment has occurred.
 - [ ] Founder: choose release flag ON or OFF. Recommendation: OFF until device QA passes.
-- [ ] Device QA: Review → diff → confirm, plus dismiss persistence.
+- [x] Physical-device QA: card → Review → coherent diff → confirm, plus dismiss persistence after process relaunch.
+- [x] Fix weekday-dependent QA trigger and contradictory `Easy Run · 8 x 400m` deterministic fallback found during device QA.
+- [ ] Merge device-QA fixes after required Claude cross-vendor review (`codex/adaptive-coach-device-qa-fixture`).
+- [ ] Deploy and smoke-test the live `coach_message` AI path; physical QA currently proves the safe deterministic fallback path.
 - [ ] Bump marketing/build version past 1.0.9 (23), archive under `/private/tmp`, upload, and submit to ASC.
 
 ## Previous Current Task
