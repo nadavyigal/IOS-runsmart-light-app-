@@ -2,20 +2,23 @@
 
 ## Current Task
 
-**Objective:** Create and publish a documentation-only 1.0.9 (23) post-live activation verification package.
-**Status:** **Complete — PR #95 reviewed, corrected, and ready to merge.**
-**Runbook:** `docs/qa/reports/release-1.0.9-build23-post-live-activation-verification.md`
+**Objective:** Ship Adaptive Coach Phase 1 through App Store Connect, stopping at founder-only deployment, release-flag, and device-QA gates.
+**Status:** **Code merged to `main`; release is founder-gated before archive.**
+**Spec:** `docs/specs/2026-07-18-adaptive-coach-phase1.md`
 
 ### Checklist
-- [x] Preserve the four untracked duplicate QA artifacts via isolated worktree.
-- [x] Verify Portfolio HQ's founder/QA-excluded mature-D7 contract.
-- [x] Verify proposed WP-43/WP-45 events/properties against `main` code.
-- [x] Inspect PostHog project 171597 read-only.
-- [x] Document the ordered funnel, caveats, cohort floor, and E1 gate.
-- [x] Run documentation link checks and `git diff --check`.
-- [x] Commit, push, and open documentation-only PR #95.
-- [x] Review PR #95 and separate the direct D7 completion numerator from the ordered diagnostic path.
-- [x] Address review findings: explicit production flags, snapshot-bounded exclusions, exact E1 success terminal, and aligned metric wording.
+- [x] Confirm the Adaptive Coach flag is bundled in Info.plist and is not remotely flippable.
+- [x] Merge `fix/flexweek-duplicate-slot-ids` to `main` and push.
+- [x] Rebase and force-with-lease push `feat/adaptive-coach-phase1` on the prerequisite merge.
+- [x] Run the full iOS suite: 303 passed, 0 failed, 0 skipped on iPhone 17 Pro / iOS 26.5.
+- [x] Run `git diff --check` and plist lint.
+- [ ] Run Deno sanitizer tests (blocked locally: Deno is not installed).
+- [x] Complete GPT-5.6 Sol cross-vendor review of Claude Opus 4.8-authored code; CodeRabbit and GitGuardian passed.
+- [x] Merge PR #99 to `main` (`8eef381`).
+- [ ] Founder: approve or decline deploying `coach_message`; no deployment has occurred.
+- [ ] Founder: choose release flag ON or OFF. Recommendation: OFF until device QA passes.
+- [ ] Device QA: Review → diff → confirm, plus dismiss persistence.
+- [ ] Bump marketing/build version past 1.0.9 (23), archive under `/private/tmp`, upload, and submit to ASC.
 
 ## Previous Current Task
 

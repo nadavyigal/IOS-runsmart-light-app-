@@ -1,5 +1,30 @@
 # Session Log
 
+## 2026-07-19 - Adaptive Coach Phase 1 merge and release gates
+
+### Task Summary
+Merged the FlexWeek duplicate-UUID prerequisite, rebased and verified Adaptive Coach Phase 1, completed cross-vendor review, and merged PR #99 to `main`. No edge function was deployed, no release flag was changed, and no archive or ASC upload was started.
+
+### Validation
+- Flag inspection: `RUNSMART_ADAPTIVE_COACH_ENABLED` is read from the bundled Info.plist; only the QA launch argument overrides it. It is not remotely flippable.
+- Full reviewed-tree XCTest run: **303 passed, 0 failed, 0 skipped** on iPhone 17 Pro / iOS 26.5.
+- `xcodebuild build-for-testing`: passed with DerivedData under `/private/tmp`.
+- `git diff --check`: passed.
+- `plutil -lint RunSmartInfo.plist RunSmartRunLiveActivityExtension-Info.plist`: both passed.
+- Deno sanitizer tests: not run because Deno is not installed locally.
+- GPT-5.6 Sol review of Claude Opus 4.8-authored code: no blocking findings. CodeRabbit and GitGuardian passed.
+
+### GitHub
+- FlexWeek prerequisite merged and pushed to `main` as `c967d9c`.
+- Adaptive Coach PR #99 merged to `main` as `8eef381`.
+
+### Open Gates
+- Founder approval is required before deploying `coach_message`; it remains undeployed.
+- Founder must choose release flag ON or OFF before archive. Recommendation: OFF until device QA passes.
+- Device QA is not complete for Review → diff → confirm or dismiss persistence.
+- Version/build bump, archive, ASC upload, and submission have not started.
+- Non-blocking review debt: two Swift actor-isolation warnings in `TrainingLoadCalculator` method references.
+
 ## 2026-07-15 - 1.0.9 post-live activation documentation
 
 ### Task Summary
