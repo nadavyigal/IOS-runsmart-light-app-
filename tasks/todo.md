@@ -22,8 +22,15 @@
 - [x] Archive `RunSmart-1.1.0-build24-20260719.xcarchive` under `/private/tmp/runsmart-archives/` — ARCHIVE SUCCEEDED.
 - [x] Upload to App Store Connect via `ExportOptionsAppStoreUpload.plist` — **Upload succeeded 2026-07-19 12:43** ("Uploaded IOS RunSmart app"); build processing in ASC.
 - [ ] **Founder:** in App Store Connect, create version 1.1.0, attach build 24 once processing completes, and submit for review (no ASC API key on this machine; portal step).
-- [ ] **Founder:** run `npx supabase login`, then deploy `coach_message` (command staged below). **Must land before Apple releases 1.1.0** — flag is ON, so without the deploy every user's live AI request hits the OLD deployed function; new ACWR/load fields rely on its sanitizer behavior, and any failure drops to the deterministic fallback.
-- [ ] After deploy: founder device smoke of the live AI path (Review → AI-generated week → confirm).
+- [x] **Deployed `coach_message` v9 → v10** (2026-07-19) via the Supabase MCP server, not the CLI (CLI login never persisted a token to disk or keychain). `verify_jwt: false` preserved. Uploaded 3 files: `coach_message/index.ts`, `coach_message/flex_week.ts`, `_shared/cors.ts`.
+- [x] Post-deploy boundary smoke: POST without auth → **401** `Missing bearer token` (proves boot + `../_shared/cors.ts` resolved); OPTIONS with no Origin → **200** (iOS path); OPTIONS with disallowed Origin → **403** (CORS gate active).
+- [ ] **Founder:** device smoke of the live AI path (Review → AI-generated week → confirm) once 1.1.0 (24) is live. Boundary is verified; AI response quality is not.
+- [ ] **Follow-up (see parity gap below):** decide whether to fix the edge-side `downgradedEasy` before 1.1.0 reaches users.
+
+### Client/server parity gap found during the v10 deploy (VERIFIED, pre-existing)
+`supabase/functions/coach_message/flex_week.ts` `downgradedEasy()` still has the **pre-PR-#101 behavior**: it only rewrites `distance_label` when the label contains "rest", never clears `detail_label`, and has no repetition-prescription handling. The Swift `DeterministicFlexWeekBuilder.downgradedEasy` was fixed today to clear pace/structure/detail and map `8 x 400m` → `5.0 km`.
+
+Impact: when the edge AI path fails and `fallbackFlexWeek` runs server-side, a user can still be shown `Easy Run · 8 x 400m` — the exact incoherent prescription fixed on the client. Not a regression (v9 had it too), but the flag is now ON so real users can reach this path for the first time. Fix = port the Swift rep-regex + field clearing into the edge `downgradedEasy`, extend the Deno tests, redeploy.
 
 ### Staged (NOT executed) edge deploy
 ```
