@@ -47,6 +47,8 @@
 	<true/>
 	<key>RUNSMART_GARMIN_GATEWAY_URL</key>
 	<string>https://www.runsmart-ai.com/api/devices/garmin/connect</string>
+	<key>RUNSMART_ADAPTIVE_COACH_ENABLED</key>
+	<string>NO</string>
 	<key>RunSmartAPIBaseURL</key>
 	<string>https://runsmart-ai.com</string>
 	<key>POSTHOG_API_KEY</key>

@@ -23,6 +23,10 @@ struct TodayTabView: View {
     @State private var weeklySummary: WeeklyProgressSummary? = nil
     @State private var weeklySummaryFetchedKey: String = ""    // ISO week key of last fetch attempt
     @State private var pendingLoadTask: Task<Void, Never>?
+    // Adaptive Coach: dismissal persists 24h (policy-enforced); shown-event
+    // dedupes per prompt so a scroll away and back doesn't double-count.
+    @AppStorage("runsmart.adaptiveCoach.lastDismissedAt") private var adaptiveCoachDismissedAt: Double = 0
+    @State private var adaptiveCoachShownFor: AdaptiveCoachPrompt?
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -43,6 +47,20 @@ struct TodayTabView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 14) {
                 header
+
+                if RunSmartFeatureFlags.adaptiveCoachEnabled, let prompt = adaptiveCoachPrompt {
+                    AdaptiveCoachCard(
+                        prompt: prompt,
+                        onReview: { reviewAdaptiveCoachPrompt(prompt) },
+                        onDismiss: { dismissAdaptiveCoachPrompt(prompt) }
+                    )
+                    .onAppear {
+                        if adaptiveCoachShownFor != prompt {
+                            adaptiveCoachShownFor = prompt
+                            RunSmartAnalytics.adaptiveCoachShown(trigger: prompt.trigger)
+                        }
+                    }
+                }
 
                 // Never leave Today blank while the coach builds the plan, and
                 // keep the retry here rather than behind a vanished banner.
@@ -369,6 +387,30 @@ struct TodayTabView: View {
 
     private func openPlanAdjustment() {
         router.openFlexWeek(entryPoint: .todayLink)
+    }
+
+    private var adaptiveCoachPrompt: AdaptiveCoachPrompt? {
+        AdaptiveCoachPolicy.prompt(
+            weekWorkouts: weekWorkouts,
+            readiness: recommendation.readiness > 0 ? recommendation.readiness : recovery.readiness,
+            loadMetrics: TrainingLoadCalculator.snapshot(runs: recentRuns),
+            lastDismissedAt: adaptiveCoachDismissedAt > 0
+                ? Date(timeIntervalSince1970: adaptiveCoachDismissedAt)
+                : nil
+        )
+    }
+
+    private func reviewAdaptiveCoachPrompt(_ prompt: AdaptiveCoachPrompt) {
+        RunSmartAnalytics.adaptiveCoachAction(.review, trigger: prompt.trigger)
+        let entryPoint: FlexWeekEntryPoint = prompt.trigger == .missedWorkout
+            ? .missedWorkoutReschedule
+            : .todayLink
+        router.openFlexWeek(preselectedReason: prompt.reason, entryPoint: entryPoint)
+    }
+
+    private func dismissAdaptiveCoachPrompt(_ prompt: AdaptiveCoachPrompt) {
+        RunSmartAnalytics.adaptiveCoachAction(.dismiss, trigger: prompt.trigger)
+        adaptiveCoachDismissedAt = Date().timeIntervalSince1970
     }
 
     private func openRouteSelector() {

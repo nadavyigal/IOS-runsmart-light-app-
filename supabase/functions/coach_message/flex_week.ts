@@ -26,6 +26,10 @@ export type FlexWeekChangeDTO = {
 export type FlexWeekReadinessContextDTO = {
   readiness?: number | null;
   readiness_label?: string | null;
+  acwr?: number | null;
+  acute_load?: number | null;
+  chronic_load?: number | null;
+  load_status?: string | null;
   body_battery?: number | null;
   hrv?: string | null;
   sleep?: string | null;
@@ -71,6 +75,10 @@ export function sanitizeFlexWeekRequest(body: Record<string, unknown>): FlexWeek
         hrv: limitString(readinessRaw.hrv, 40) || null,
         sleep: limitString(readinessRaw.sleep, 40) || null,
         recommendation: limitString(readinessRaw.recommendation, 160) || null,
+        acwr: numberValue(readinessRaw.acwr),
+        acute_load: numberValue(readinessRaw.acuteLoad ?? readinessRaw.acute_load),
+        chronic_load: numberValue(readinessRaw.chronicLoad ?? readinessRaw.chronic_load),
+        load_status: limitString(readinessRaw.loadStatus ?? readinessRaw.load_status, 20) || null,
       }
     : null;
 
@@ -261,7 +269,8 @@ Safety rules (mandatory):
 - Never replace rest with a hard effort.
 - For sick: no hard sessions within 48 hours after the last sick-rest day.
 - Always include at least one change with a plain-language rationale per changed workout.
-- Do not diagnose illness or injury; stay conservative.`;
+- Do not diagnose illness or injury; stay conservative.
+- If readiness_context.acwr is present it is the runner's acute:chronic workload ratio. Above 1.5 (load_status "highRisk") means elevated injury risk: bias toward easing volume, protect rest days, and mention the load spike in one rationale. Below 0.8 means detraining: avoid cutting further volume unless another rule requires it.`;
 
 function applyTiredRule(week: FlexWeekWorkoutDTO[], changes: FlexWeekChangeDTO[]) {
   const todayIndex = week.findIndex((w) => w.is_today);

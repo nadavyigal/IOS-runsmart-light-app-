@@ -54,9 +54,20 @@ struct ReadinessContext: Hashable {
     var hrv: String
     var sleep: String
     var recommendation: String
+    // Training-load context (Adaptive Coach Phase 1). Optional so existing
+    // callers and cached requests stay valid; attached only when the load
+    // engine has enough data (see ReadinessContext.make).
+    var acwr: Double?
+    var acuteLoad: Double?
+    var chronicLoad: Double?
+    var loadStatus: String?
 
-    static func make(recovery: RecoverySnapshot, recommendation: TodayRecommendation) -> ReadinessContext {
-        ReadinessContext(
+    static func make(
+        recovery: RecoverySnapshot,
+        recommendation: TodayRecommendation,
+        load: TrainingLoadMetrics? = nil
+    ) -> ReadinessContext {
+        var context = ReadinessContext(
             readiness: recommendation.readiness > 0 ? recommendation.readiness : recovery.readiness,
             readinessLabel: recommendation.readinessLabel,
             bodyBattery: recovery.bodyBattery,
@@ -64,6 +75,13 @@ struct ReadinessContext: Hashable {
             sleep: recovery.sleep,
             recommendation: recovery.recommendation
         )
+        if let load, load.status != .insufficientData {
+            context.acwr = load.acwr
+            context.acuteLoad = load.acuteLoad
+            context.chronicLoad = load.chronicLoad
+            context.loadStatus = load.status.rawValue
+        }
+        return context
     }
 
     var tiredEvidence: String? {

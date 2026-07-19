@@ -60,6 +60,45 @@ Deno.test("sanitizeFlexWeekRequest accepts tired payload", () => {
   assertEquals(request?.current_week.length, 5);
 });
 
+Deno.test("sanitizeFlexWeekRequest keeps training load fields", () => {
+  const request = sanitizeFlexWeekRequest({
+    intent: "flex_week",
+    reason: "tired",
+    currentWeek: sampleWeek(),
+    readinessContext: {
+      readiness: 42,
+      readinessLabel: "Low",
+      acwr: 1.62,
+      acuteLoad: 1780,
+      chronicLoad: 1100,
+      loadStatus: "highRisk",
+    },
+  });
+  assertExists(request);
+  assertEquals(request?.readiness_context?.acwr, 1.62);
+  assertEquals(request?.readiness_context?.acute_load, 1780);
+  assertEquals(request?.readiness_context?.chronic_load, 1100);
+  assertEquals(request?.readiness_context?.load_status, "highRisk");
+});
+
+Deno.test("sanitizeFlexWeekRequest accepts snake_case load fields", () => {
+  const request = sanitizeFlexWeekRequest({
+    intent: "flex_week",
+    reason: "tired",
+    currentWeek: sampleWeek(),
+    readiness_context: {
+      readiness: 42,
+      acwr: 0.7,
+      acute_load: 400,
+      chronic_load: 570,
+      load_status: "detraining",
+    },
+  });
+  assertExists(request);
+  assertEquals(request?.readiness_context?.acwr, 0.7);
+  assertEquals(request?.readiness_context?.load_status, "detraining");
+});
+
 Deno.test("fallbackFlexWeek tired downgrades hard today", () => {
   const request = sanitizeFlexWeekRequest({
     reason: "tired",

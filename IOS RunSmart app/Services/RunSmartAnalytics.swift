@@ -15,6 +15,11 @@ enum FlexWeekInterventionAction: String {
     case cancelled
 }
 
+enum AdaptiveCoachAnalyticsAction: String {
+    case review
+    case dismiss
+}
+
 // MARK: - Analytics
 
 enum RunSmartAnalytics {
@@ -91,6 +96,26 @@ enum RunSmartAnalytics {
         PostHogSDK.shared.capture(
             "flex_week_intervention_action",
             properties: ["action": action.rawValue]
+        )
+    }
+
+    static func adaptiveCoachShown(trigger: AdaptiveCoachTrigger) {
+#if DEBUG
+        guard !RunSmartDemoMode.isEnabled else { return }
+#endif
+        PostHogSDK.shared.capture(
+            "adaptive_coach_shown",
+            properties: ["trigger": trigger.rawValue]
+        )
+    }
+
+    static func adaptiveCoachAction(_ action: AdaptiveCoachAnalyticsAction, trigger: AdaptiveCoachTrigger) {
+#if DEBUG
+        guard !RunSmartDemoMode.isEnabled else { return }
+#endif
+        PostHogSDK.shared.capture(
+            "adaptive_coach_action",
+            properties: ["action": action.rawValue, "trigger": trigger.rawValue]
         )
     }
 
