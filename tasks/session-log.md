@@ -1,5 +1,26 @@
 # Session Log
 
+## 2026-07-20 - 1.1.1 (25) archived and submitted to App Store Connect
+
+### Task Summary
+Founder archived from the primary checkout (branch switched to `main` at `c7849c0`, Any iOS Device destination) and submitted build 25 to App Store Connect. Awaiting Apple App Review. Live App Store build remains 1.1.0 (24) until approval.
+
+### Release notes submitted to ASC
+"Improved analytics and stability behind the scenes to help us better understand and fix account sign-in issues. No user-facing changes."
+
+### Preconditions verified this session before submission
+- Full suite 317/317 on the PR commit, confirmed identical (no `.swift`/`.pbxproj`/`.plist`/`.entitlements` diff) to what shipped.
+- PostHog super property confirmed landing on physical hardware (see WP-51 device verification entry below).
+- Built `Info.plist` matched expected `1.1.1`/`25`/`RUNSMART_ADAPTIVE_COACH_ENABLED=YES` on the pre-archive test build.
+
+### Ordering note
+The session packet's original order gated ASC submission on S0 passing first. The founder chose to submit ahead of S0. Not a deviation to flag as a problem — just recording that the sequence differs from the packet as written, since a future session reading `tasks/progress.md` chronologically should not assume S0 passed before this submission.
+
+### Not done
+S0 (never-authorized Apple ID test), S6/S1 device evidence. Both remain the next actions once 1.1.1 is live, or sooner if the founder wants to run S0 against a still-available prior build.
+
+---
+
 ## 2026-07-20 - WP-51 device verification (packet step 2 CLOSED), 1.1.1 archive-ready
 
 ### Task Summary
