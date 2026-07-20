@@ -2,8 +2,8 @@
 
 ## Current Task
 
-**Objective:** Get 1.1.1 (25) measurable and shipped. WP-51 (build identity + `onboarding_started` dedupe) is merged; everything remaining is founder-only and device-gated.
-**Status:** **PR #105 merged to `main` as `5aafffc`. Full suite 317/317 xcresult-verified on the PR commit. Stale PR queue cleared (#96, #87, #97 closed; docs salvaged into #106). No device work performed — steps 2-5 of the 2026-07-20 session packet are all still open.**
+**Objective:** 1.1.1 (25) is submitted; get it approved, then close out S0/S6/S1 device evidence.
+**Status:** **1.1.1 (25) ARCHIVED AND SUBMITTED to App Store Connect (2026-07-20, founder-confirmed). Awaiting Apple App Review. Live App Store build remains 1.1.0 (24) until approval.**
 **Source:** `executive-os/work-packets/session-prompts/2026-07-20-runsmart-session.md` (Agentic OS)
 
 ### Checklist
@@ -16,7 +16,8 @@
 - [ ] **Environment note for any fresh worktree:** `RunSmartSecrets.xcconfig` is gitignored and does **not** exist in a new worktree, so `POSTHOG_API_KEY` resolves empty and `setupAnalyticsIfNeeded` silently bails at the `!token.isEmpty` guard. A build will succeed and emit zero analytics, which is indistinguishable from a broken instrumentation change. Copy it from the primary worktree before any analytics device test.
 - [ ] **Founder (packet step 3, S0 — gates everything below it):** physical device, live App Store build, an Apple ID that has **never authorized RunSmart** (Settings > Apple ID > Sign in with Apple; remove RunSmart if listed, or use a different Apple ID). The 2026-07-20 clean-install test does **not** close this — SIWA authorization survives account deletion and reinstall, so it exercised the already-authorized path. The 7 production `ASAuthorizationError 1000` failures came from Apple IDs that had never seen RunSmart. Record: completes, or fails with 1000. Screenshot it.
 - [ ] **Founder (packet step 4):** if sign-in succeeds, stay on the device and capture S6 empty-goal evidence and S1 plan-generation failure/retry evidence in the same session. Both are open on the FTUX track and both need a physical device.
-- [ ] **Founder (packet step 5):** fold remaining work into 1.1.1, archive, export with `ExportOptionsAppStoreUpload.plist`, upload, create the version in ASC and submit. **Verify the archived `Info.plist` before uploading.** Requires explicit approval.
+- [x] **Founder (packet step 5) — DONE 2026-07-20.** Archived from the primary checkout, exported with `ExportOptionsAppStoreUpload.plist`, uploaded, version created in ASC, submitted for review. **Awaiting Apple App Review.**
+- [ ] **Update `tasks/progress.md`/`todo.md` once Apple approves or rejects.** Founder will report back.
 - [ ] **After 1.1.1 is live:** confirm the three `sign_in_wall_*` events actually arrive in PostHog from a clean install. They cannot fire until a build carrying them ships, so they are currently unverified in production.
 - [ ] **Review note (non-blocking):** the `onboarding_started` guard is a process-lifetime static, so it dedupes once per *process*, not per user. A mid-onboarding app relaunch would still re-fire. Revisit if the funnel shows it.
 
