@@ -1,5 +1,36 @@
 # Session Log
 
+## 2026-07-20 - WP-47 S1: instrument the sign-in wall, fix the plan-generation double-fire (1.1.1)
+
+### Task Summary
+Executed S1 of the activation-cliff plan as the first content of 1.1.1: made the sign-in wall measurable (`sign_in_wall_viewed` / `_tapped` / `_abandoned` with explicit screen names and error metadata) and fixed the `plan_generation_failed`/`succeeded` double-fire. Analysis-to-code only; no device, archive, ASC, or edge-function state changed.
+
+### Files changed
+- `IOS RunSmart app/Services/Analytics/SignInWallTracker.swift` (new) - session-scoped viewed/tapped/abandoned state machine, injectable clock.
+- `IOS RunSmart app/Services/Analytics/AnalyticsEvents.swift` - three wall events; `screen` on `sign_in_completed`/`sign_in_failed`.
+- `IOS RunSmart app/Features/Auth/SignInView.swift` - `onAppear`, tap, and `scenePhase == .background` wiring.
+- `IOS RunSmart app/Services/PlanGenerationStore.swift` - terminal analytics events now matched to an observed start.
+- `IOS RunSmart appTests/RunSmartReadinessTests.swift` - 7 new tests.
+- `IOS RunSmart app.xcodeproj/project.pbxproj` - 1.1.0 (24) -> 1.1.1 (25).
+
+### Evidence
+- Full suite: **313 passed / 0 failed / 0 skipped**, iPhone 17 / iOS 26.5, `-derivedDataPath /private/tmp/rs-dd-wp47`. Count read from the xcresult bundle (`xcrun xcresulttool get test-results summary --path /private/tmp/rs-wp47.xcresult`), not pipe output. 306 baseline + 7 new.
+- Non-vacuous check: both double-fire tests were re-run against a temporarily reverted `PlanGenerationStore` and **failed** (exit 65), then passed once the fix was restored.
+
+### Root cause recorded (double-fire)
+`PlanGenerationStore` is a UI-state observer that was also the analytics emitter for the generation lifecycle, so every terminal state transition emitted a funnel event. Two terminal notifications arriving back to back (`saveTrainingGoal` posts one per call and is reachable from six call sites) each flipped state and each emitted - hence six failed/succeeded pairs 19ms apart on `0efa0d1b`. Fix: terminal events consume an observed `startedAt`, so the second post of a pair is silent and an unmatched terminal status emits nothing.
+
+### Blocked / handed to founder
+- **S0 device test (~20 min, highest value in the portfolio):** reproduce ASAuthorizationError 1000 on a physical iCloud-signed device against the **live App Store build**, not a simulator or local build. Not possible from this environment. Prior attempt is documented as blocked in `docs/qa/reports/release-1.0.9-build23-siwa-device-test-2026-07-19.md`. Until it runs, "unwilling" and "unable" both remain live hypotheses.
+- Archive, ASC upload, and submission of 1.1.1: not performed (constraint required explicit approval; none given).
+
+### Not done
+- No S2 (value-before-account / guest mode) work - explicitly out of packet scope.
+- No Adaptive Coach Phase 2 work - explicitly excluded by the packet.
+- No session replay - the plan gates it on privacy guardrails and allows shipping events without it.
+- The new events are **unverified in PostHog**: they cannot fire until a build carrying them runs.
+
+
 ## 2026-07-19 - Ship 1.1.0 (24): Adaptive Coach flag ON, archive + ASC upload
 
 ### Task Summary

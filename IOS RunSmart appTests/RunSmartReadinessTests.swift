@@ -4477,6 +4477,155 @@ final class RunSmartReadinessTests: XCTestCase {
             "the failure notice must not send a first-time user to a Profile-buried screen; got: \(message)"
         )
     }
+
+    // MARK: - Activation cliff S1: sign-in wall instrumentation
+
+    // The wall is the first screen every unauthenticated user sees and fired no
+    // event at all, so the 22-of-23 organic drop-off could not be attributed:
+    // "refused to sign in", "sign-in failed silently", and "app hung" were
+    // indistinguishable. These tests pin the semantics the funnel depends on.
+
+    /// Runs `body` with a capturing analytics sink installed, and hands back the
+    /// events it saw. Restores the previous sink even if an assertion throws.
+    private func captureAnalytics(_ body: (CapturingAnalyticsService) -> Void) -> [(name: String, properties: [String: Any])] {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        defer { Analytics.shared = saved }
+        Analytics.shared = tracker
+        body(tracker)
+        return tracker.events
+    }
+
+    func testSignInWallViewedFiresAtMostOncePerSession() {
+        let events = captureAnalytics { _ in
+            let wall = SignInWallTracker(now: { Date(timeIntervalSince1970: 0) })
+            wall.wallAppeared()
+            wall.wallAppeared()
+            wall.wallAppeared()
+        }
+
+        XCTAssertEqual(
+            events.filter { $0.name == "sign_in_wall_viewed" }.count, 1,
+            "SwiftUI re-runs onAppear on every rebuild; a repeated viewed event would inflate the funnel's denominator"
+        )
+        XCTAssertEqual(
+            events.first?.properties["screen"] as? String, SignInWallTracker.screenName,
+            "$screen autocapture is a generic hosting-controller string, so the wall must name itself"
+        )
+    }
+
+    func testSignInWallAbandonedIgnoresDwellUnderThreshold() {
+        var now = Date(timeIntervalSince1970: 0)
+        let events = captureAnalytics { _ in
+            let wall = SignInWallTracker(now: { now })
+            wall.wallAppeared()
+            now = now.addingTimeInterval(SignInWallTracker.abandonThresholdSeconds - 1)
+            wall.appDidEnterBackground()
+        }
+
+        XCTAssertTrue(
+            events.allSatisfy { $0.name != "sign_in_wall_abandoned" },
+            "a user who backgrounds in under \(Int(SignInWallTracker.abandonThresholdSeconds))s never read the screen; counting them inflates the very signal we are measuring"
+        )
+    }
+
+    func testSignInWallAbandonedFiresOnceWithDwellAfterThreshold() {
+        var now = Date(timeIntervalSince1970: 0)
+        let events = captureAnalytics { _ in
+            let wall = SignInWallTracker(now: { now })
+            wall.wallAppeared()
+            now = now.addingTimeInterval(42)
+            wall.appDidEnterBackground()
+            // Foreground, then background again — still one abandonment.
+            now = now.addingTimeInterval(60)
+            wall.appDidEnterBackground()
+        }
+
+        let abandons = events.filter { $0.name == "sign_in_wall_abandoned" }
+        XCTAssertEqual(abandons.count, 1, "abandonment is once per session, not once per background")
+        XCTAssertEqual(abandons.first?.properties["dwell_seconds"] as? Int, 42)
+        XCTAssertEqual(abandons.first?.properties["screen"] as? String, SignInWallTracker.screenName)
+    }
+
+    func testSignInWallTapPermanentlyDisarmsAbandonment() {
+        var now = Date(timeIntervalSince1970: 0)
+        let events = captureAnalytics { _ in
+            let wall = SignInWallTracker(now: { now })
+            wall.wallAppeared()
+            now = now.addingTimeInterval(10)
+            wall.signInTapped()
+            // Apple's sheet backgrounds the app; returning and leaving again must
+            // not retro-emit an abandonment for a user who did attempt sign-in.
+            now = now.addingTimeInterval(120)
+            wall.appDidEnterBackground()
+        }
+
+        XCTAssertEqual(events.filter { $0.name == "sign_in_wall_tapped" }.count, 1)
+        XCTAssertTrue(
+            events.allSatisfy { $0.name != "sign_in_wall_abandoned" },
+            "a user who tapped is a sign-in failure, not an abandonment; conflating them re-creates the blind spot S1 exists to remove"
+        )
+    }
+
+    func testSignInFailedCarriesScreenAndErrorMetadata() {
+        let error = NSError(domain: ASAuthorizationError.errorDomain, code: 1000)
+        let events = captureAnalytics { _ in
+            Analytics.trackSignInFailed(error: error)
+            Analytics.trackSignInCompleted(method: "apple")
+        }
+
+        let failed = events.first { $0.name == "sign_in_failed" }?.properties
+        XCTAssertEqual(failed?["error_domain"] as? String, ASAuthorizationError.errorDomain)
+        XCTAssertEqual(
+            failed?["error_code"] as? Int, 1000,
+            "code 1000 is the open P0; without it on every failure the outage-vs-environment question needs a device repro every time"
+        )
+        XCTAssertEqual(failed?["screen"] as? String, SignInWallTracker.screenName)
+        XCTAssertEqual(
+            events.first { $0.name == "sign_in_completed" }?.properties["screen"] as? String,
+            SignInWallTracker.screenName
+        )
+    }
+
+    // MARK: - Activation cliff S1: plan-generation double-fire
+
+    func testPlanGenerationEmitsOneOutcomePerGeneration() {
+        let center = NotificationCenter()
+        let events = captureAnalytics { _ in
+            let store = PlanGenerationStore(notificationCenter: center)
+            postPlanGeneration(.generating, on: center)
+            // Two terminal posts back to back — the shape observed on device
+            // `0efa0d1b`, where six failed/succeeded pairs landed 19ms apart.
+            postPlanGeneration(.failed, on: center)
+            postPlanGeneration(.amended, on: center)
+            XCTAssertEqual(store.state, .ready, "UI state must still follow the latest status")
+        }
+
+        let outcomes = events.filter { $0.name.hasPrefix("plan_generation_") && $0.name != "plan_generation_started" }
+        XCTAssertEqual(
+            outcomes.count, 1,
+            "one generation must yield one outcome; a failed/succeeded pair means one of them is lying. Got: \(outcomes.map(\.name))"
+        )
+        XCTAssertEqual(outcomes.first?.name, "plan_generation_failed", "the first terminal status owns the outcome")
+        XCTAssertNotNil(
+            outcomes.first?.properties["duration_ms"],
+            "an outcome matched to its start always has a duration"
+        )
+    }
+
+    func testPlanGenerationIgnoresTerminalStatusItNeverSawStart() {
+        let center = NotificationCenter()
+        let events = captureAnalytics { _ in
+            let store = PlanGenerationStore(notificationCenter: center)
+            postPlanGeneration(.amended, on: center)
+            XCTAssertEqual(store.state, .ready, "UI state is independent of whether the funnel counts this")
+        }
+
+        XCTAssertTrue(
+            events.isEmpty,
+            "an outcome with no observed start would let the funnel's numerator exceed its denominator; got: \(events.map(\.name))"
+        )
+    }
 }
 
 final class RunSmartAPIStubProtocol: URLProtocol {

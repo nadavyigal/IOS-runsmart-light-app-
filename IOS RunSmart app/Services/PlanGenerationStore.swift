@@ -85,14 +85,37 @@ final class PlanGenerationStore: ObservableObject {
             startedAt = Date()
             Analytics.trackPlanGenerationStarted()
         case .ready:
-            Analytics.trackPlanGenerationSucceeded(durationMs: elapsedMs())
-            startedAt = nil
+            trackOutcome(Analytics.trackPlanGenerationSucceeded)
         case .failed:
-            Analytics.trackPlanGenerationFailed(durationMs: elapsedMs())
-            startedAt = nil
+            trackOutcome(Analytics.trackPlanGenerationFailed)
         case .idle:
             startedAt = nil
         }
+    }
+
+    /// Emits a terminal plan-generation event at most once per observed
+    /// generation, and only for generations this store actually saw start.
+    ///
+    /// This store's job is UI state; it was doubling as the analytics emitter for
+    /// the generation lifecycle, so *any* terminal state transition produced a
+    /// funnel event. On founder device `0efa0d1b` (07-14/07-15) that surfaced as
+    /// six `plan_generation_failed`/`plan_generation_succeeded` pairs 19ms apart:
+    /// two terminal notifications arriving back to back — `saveTrainingGoal` posts
+    /// one per call and is reachable from six call sites — each flipped the state
+    /// and each emitted. One of every pair was lying about a generation that
+    /// never happened.
+    ///
+    /// Consuming `startedAt` fixes both halves: the second post of a pair finds no
+    /// in-flight generation and stays silent, and `duration_ms` is now always
+    /// present rather than nil-when-unmatched. Deliberate consequence: a terminal
+    /// status with no observed start (e.g. a background regeneration completing
+    /// into a fresh store) emits nothing, which keeps started -> succeeded/failed
+    /// a closed funnel instead of one whose numerator can exceed its denominator.
+    private func trackOutcome(_ track: (Int?) -> Void) {
+        guard startedAt != nil else { return }
+        let durationMs = elapsedMs()
+        startedAt = nil
+        track(durationMs)
     }
 
     private func elapsedMs() -> Int? {

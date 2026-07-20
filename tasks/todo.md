@@ -2,6 +2,24 @@
 
 ## Current Task
 
+**Objective:** WP-47 S1 — make the sign-in wall measurable and fix the plan-generation double-fire, as the first content of 1.1.1.
+**Status:** **Code complete and validated (313/313, xcresult-verified). Version bumped to 1.1.1 (25) in the project only. Remaining work is founder-only: the S0 device test, then archive + ASC.**
+**Source:** `docs/plans/2026-07-19-activation-cliff-fix-plan.md` (S1)
+
+### Checklist
+- [x] `sign_in_wall_viewed` / `sign_in_wall_tapped` / `sign_in_wall_abandoned` with defined once-per-session semantics (`SignInWallTracker`).
+- [x] Explicit `screen: "sign_in_wall"` on every wall event, including `sign_in_completed` / `sign_in_failed` — `$screen` autocapture is a generic hosting-controller string and cannot name the wall.
+- [x] `error_domain` / `error_code` confirmed present on `sign_in_failed` and now carried on a named screen.
+- [x] Fix the `plan_generation_failed` / `plan_generation_succeeded` double-fire; root cause recorded in `tasks/session-log.md`.
+- [x] Full suite: **313 passed / 0 failed / 0 skipped** on iPhone 17 / iOS 26.5, read from the xcresult bundle.
+- [x] Confirm the two double-fire tests fail against the pre-fix implementation (they do; exit 65).
+- [x] Bump `MARKETING_VERSION` 1.1.0 → **1.1.1**, `CURRENT_PROJECT_VERSION` 24 → **25**.
+- [ ] **Founder (S0, ~20 min, highest value in the portfolio):** on a device signed into iCloud, delete the app, install the **live App Store build**, tap Sign in with Apple exactly once, record the UTC time and exact on-screen text, then check PostHog for a matching `sign_in_completed` / `sign_in_failed` in that minute. If it fails on a clean iCloud-signed device this is a production outage and outranks everything else. Prior attempt blocked: `docs/qa/reports/release-1.0.9-build23-siwa-device-test-2026-07-19.md`.
+- [ ] **Founder:** archive 1.1.1 (25), upload, and submit — not performed; requires explicit approval.
+- [ ] **After 1.1.1 is live:** confirm the three `sign_in_wall_*` events actually arrive in PostHog from a clean install. They cannot fire until a build carrying them ships, so they are currently unverified in production.
+
+### Superseded — Adaptive Coach Phase 1 (shipped 1.1.0, live 2026-07-19)
+
 **Objective:** Ship Adaptive Coach Phase 1 through App Store Connect, stopping at founder-only deployment, release-flag, and device-QA gates.
 **Status:** **All code merged to `main` (`e097881`); every automated gate is now closed. Remaining work is founder-only: edge deploy approval, live-AI device smoke, then version bump + archive + ASC.**
 **Spec:** `docs/specs/2026-07-18-adaptive-coach-phase1.md`
