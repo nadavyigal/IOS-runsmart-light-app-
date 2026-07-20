@@ -56,8 +56,27 @@ extension Analytics {
         ])
     }
 
+    /// Guards `onboarding_started` against SwiftUI re-appearance.
+    ///
+    /// The emitter is `OnboardingView.onAppear` gated on `step == 0`, and `onAppear`
+    /// runs on every appearance: re-mount, tab switch, and return from background.
+    /// Observed 2026-07-20 in a single founder session — `onboarding_started` at
+    /// 09:22:11 and again at 09:23:59 (immediately after `aha_moment_cta_clicked`)
+    /// against one `onboarding_completed`, which halves the apparent completion rate.
+    ///
+    /// Cleared by ``resetUser()`` so a genuinely new user on the same install is
+    /// still counted.
+    private static var didTrackOnboardingStart = false
+
     static func trackOnboardingStarted() {
+        guard !didTrackOnboardingStart else { return }
+        didTrackOnboardingStart = true
         shared.track("onboarding_started", properties: [:])
+    }
+
+    /// Test seam for the once-per-user guard above.
+    static func resetOnboardingStartGuardForTesting() {
+        didTrackOnboardingStart = false
     }
 
     static func trackOnboardingStepCompleted(stepNumber: Int, stepName: String) {
@@ -365,6 +384,7 @@ extension Analytics {
     }
 
     static func resetUser() {
+        didTrackOnboardingStart = false
         shared.reset()
     }
 
