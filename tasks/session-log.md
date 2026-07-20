@@ -1,5 +1,39 @@
 # Session Log
 
+## 2026-07-20 - WP-51 device verification (packet step 2 CLOSED), 1.1.1 archive-ready
+
+### Task Summary
+Founder connected a physical device mid-session, which made packet step 2 executable. Built `origin/main` (`9bc2e29`) to an iPhone 13 / iOS 26.5.2 and confirmed the WP-51 super properties land on real hardware. Steps 3, 4, 5 remain founder-only.
+
+### Evidence
+Launched 11:36:39 UTC. PostHog 171597, events 11:36:47-53 UTC, `os_version=26.5.2` / `iPhone14,5` (distinguishes device traffic from the three pre-existing simulator runs at 09:58-10:03 on OS 26.5):
+
+| event | app_version | app_build | source path |
+|---|---|---|---|
+| `$screen` | 1.1.1 | 25 | autocapture |
+| `app_launched` | 1.1.1 | 25 | `track()` wrapper |
+| `Application Opened` | 1.1.1 | 25 | autocapture |
+| `adaptive_coach_shown` | 1.1.1 | 25 | direct `PostHogSDK.capture` |
+
+12 of 13 events tagged. This is stronger than the unit tests: it exercises all three event sources the PR's design note argued super properties were required for, which no host-app-free test could reach.
+
+### New finding: install/update events cannot carry build identity
+`Application Installed` (7/7 untagged over 2 days) and `Application Updated` (5/5 untagged, including this session) fire inside `PostHogSDK.shared.setup(config)`, which returns before the `register()` call on the following lines. Not a WP-51 regression and not a release blocker, but **install counts cannot be split by build** — which matters to the activation-cliff work, whose whole subject is new installs producing zero events. `register()` before `setup()` is a documented no-op, so the fix is either capturing those events manually after registration or splitting installs by first-seen `app_launched`. Logged as a follow-up, not fixed.
+
+### Environment trap (cost a build, would have caused a false negative)
+The first device build produced an app with an **empty** `POSTHOG_API_KEY`. `RunSmartConfig.xcconfig` commits it empty and pulls the real value from `#include? "RunSmartSecrets.xcconfig"`, which is gitignored and therefore absent from this fresh worktree. That build would have initialized no analytics at all and emitted nothing — indistinguishable from "the super property does not work." Caught by inspecting the built `Info.plist` for a resolved key before launching, rather than launching and trusting an empty PostHog result. Build was killed, the secrets file copied from the primary checkout, and the build redone.
+
+### Release readiness for step 5
+`git diff 5d3942e origin/main` touches no `.swift`, `.pbxproj`, `.plist`, or `.entitlements` file — docs and task memory only. The **317/317** suite result therefore applies to `main`'s binary unchanged. Built `Info.plist` verified: `CFBundleShortVersionString=1.1.1`, `CFBundleVersion=25`, `RUNSMART_ADAPTIVE_COACH_ENABLED=YES`.
+
+### Also noted
+The auto Stop hook date-stamped a **historical** 1.0.9-era entry in `tasks/progress.md` (`Last Updated: 2026-07-15` → `2026-07-20`) rather than the current one. Reverted. The hook appears to stamp the last matching line in the file, which lands in an archived section now that entries are prepended.
+
+### Not done
+Packet steps 3 (S0), 4 (S6/S1 device evidence), 5 (archive + ASC submit). The device now carries a **Debug** build, so S0 requires deleting it and reinstalling the live App Store build first.
+
+---
+
 ## 2026-07-20 - WP-51 merge + stale PR triage (consolidated session packet)
 
 ### Task Summary
