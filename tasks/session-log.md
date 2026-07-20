@@ -1,5 +1,44 @@
 # Session Log
 
+## 2026-07-20 - WP-51 merge + stale PR triage (consolidated session packet)
+
+### Task Summary
+Executed the Agentic OS session packet `2026-07-20-runsmart-session.md`. Completed step 1 (review + merge PR #105) and step 6 (triage three stale PRs). Steps 2-5 are device- and founder-gated and were not performed: no physical device, no never-authorized Apple ID, no ASC access from this environment.
+
+### What was verified, not assumed
+- **Store version:** Apple lookup API returns `1.1.0`, released `2026-07-19T21:48:08Z`. Matches the packet. Per ERRORS.md, never stated from memory.
+- **Release-blocker rationale:** queried PostHog 171597 directly rather than trusting the PR body. **8 of 3,828 events (0.2%)** carried `app_version` over 60 days; the PR cited 2 of 3,813. Same conclusion, drift explained by the moving window.
+- **Test evidence:** ran both sides. `main` = 313/313. PR commit `5d3942e` = **317/317**, with all four new WP-51 tests confirmed present *by name* in the xcresult bundle.
+
+### The false green (important)
+The first suite run reported a clean 313/313 and looked like a pass. It was not testing the PR. `git checkout claude/wp51-app-version-super-property` had failed silently inside the worktree — that branch was already checked out in the primary worktree at `/Users/nadavyigal/Documents/Projects /IOS RunSmart light /IOS RunSmart app` — so the run tested `main` at `18b8764`. The `&&`/`||` chain swallowed it and the build proceeded normally.
+
+It was caught only because the xcresult total (313) contradicted the PR's claimed 317, and because grepping the bundle for the four new test names returned nothing. Re-run on a detached checkout of `5d3942e` gave the real 317/317.
+
+Silver lining: the accidental run independently corroborates the PR's "313 baseline" figure, so both sides of `313 + 4 = 317` are now verified rather than asserted.
+
+### Files changed
+- Merged via PR #105 (`5aafffc`): `AnalyticsService.swift` (`buildIdentityProperties`, `PostHogSDK.register` after `setup`), `AnalyticsEvents.swift` (`didTrackOnboardingStart` guard, cleared by `resetUser()`), `RunSmartReadinessTests.swift` (+4 tests).
+- PR #106 (new, docs only): 15 files salvaged from #96 and #87.
+- `tasks/progress.md`, `tasks/todo.md`, `tasks/session-log.md`, `tasks/lessons.md`.
+
+### Code review notes on #105
+- `didTrackOnboardingStart` is an unsynchronized `static var`, but the project is Swift 5 language mode and both call sites (`OnboardingView.onAppear`, `RunSmartLiteAppShell.onChange`) are SwiftUI modifiers on the main thread. Safe in practice.
+- The guard is process-lifetime, not persisted, so `testOnboardingStartedFiresOncePerUser` proves once-per-*process*. A mid-onboarding relaunch would still re-fire. Fixes the observed bug (two fires 108s apart in one session); logged as non-blocking follow-up.
+- `register()` correctly placed after `setup(config)` — it is a no-op before the SDK is configured.
+
+### Stale PR triage
+All three carried a snapshot of `tasks/progress.md` frozen at 1.0.9-era state (2026-07-16). #87's *only* merge conflict against `main` was that file. Merging #96 or #87 as-is would have silently reverted the live 1.1.0/1.1.1 state file — a hazard the packet did not flag.
+
+- **#96** closed, evidence report salvaged into #106. Version superseded, but the report records the E1 BLOCKED verdict and the `run_completed`-without-`run_started` HealthKit finding.
+- **#87** closed, audit + 12 screenshots + upgrade plan salvaged into #106. FTUX track is still live (S6/S1 open), so it remains the reference doc.
+- **#97** closed as parked. Adaptive Phase 2 is deferred by the packet's own constraints; the draft was 24 commits behind and touched `project.pbxproj`. Branch `codex/runsmart-adaptive-preview` is intact.
+
+### Not done
+Packet steps 2, 3, 4, 5 in full — no device verification that `app_version` lands on a live event, no S0 with a never-authorized Apple ID, no S6/S1 device evidence, no archive, no ASC upload or submission. No edge-function deploy. No new SPM dependencies.
+
+---
+
 ## 2026-07-20 - WP-47 S1: instrument the sign-in wall, fix the plan-generation double-fire (1.1.1)
 
 ### Task Summary

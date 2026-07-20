@@ -2,6 +2,24 @@
 
 ## Current Task
 
+**Objective:** Get 1.1.1 (25) measurable and shipped. WP-51 (build identity + `onboarding_started` dedupe) is merged; everything remaining is founder-only and device-gated.
+**Status:** **PR #105 merged to `main` as `5aafffc`. Full suite 317/317 xcresult-verified on the PR commit. Stale PR queue cleared (#96, #87, #97 closed; docs salvaged into #106). No device work performed — steps 2-5 of the 2026-07-20 session packet are all still open.**
+**Source:** `executive-os/work-packets/session-prompts/2026-07-20-runsmart-session.md` (Agentic OS)
+
+### Checklist
+- [x] Review and merge PR #105 — `app_version`/`app_build` super properties + `onboarding_started` dedupe. Merged `5aafffc`.
+- [x] Re-verify the release-blocker rationale directly against PostHog 171597 — **8 of 3,828 events (0.2%)** carried `app_version` over 60 days.
+- [x] Full suite on the PR commit `5d3942e`: **317 passed / 0 failed / 0 skipped**, all four new tests confirmed by name in the xcresult bundle.
+- [x] Triage the three stale PRs — #96, #87, #97 closed with reasons; docs salvaged into #106 without their stale `tasks/progress.md` hunks.
+- [ ] **Founder (packet step 2, ~5 min):** build 1.1.1 (25) to a physical device, trigger any event, and confirm in PostHog **171597** that it carries `app_version=1.1.1` and `app_build=25`. The unit tests prove the mapping, not that the SDK `register()` call works. Skipping this risks a second blind release.
+- [ ] **Founder (packet step 3, S0 — gates everything below it):** physical device, live App Store build, an Apple ID that has **never authorized RunSmart** (Settings > Apple ID > Sign in with Apple; remove RunSmart if listed, or use a different Apple ID). The 2026-07-20 clean-install test does **not** close this — SIWA authorization survives account deletion and reinstall, so it exercised the already-authorized path. The 7 production `ASAuthorizationError 1000` failures came from Apple IDs that had never seen RunSmart. Record: completes, or fails with 1000. Screenshot it.
+- [ ] **Founder (packet step 4):** if sign-in succeeds, stay on the device and capture S6 empty-goal evidence and S1 plan-generation failure/retry evidence in the same session. Both are open on the FTUX track and both need a physical device.
+- [ ] **Founder (packet step 5):** fold remaining work into 1.1.1, archive, export with `ExportOptionsAppStoreUpload.plist`, upload, create the version in ASC and submit. **Verify the archived `Info.plist` before uploading.** Requires explicit approval.
+- [ ] **After 1.1.1 is live:** confirm the three `sign_in_wall_*` events actually arrive in PostHog from a clean install. They cannot fire until a build carrying them ships, so they are currently unverified in production.
+- [ ] **Review note (non-blocking):** the `onboarding_started` guard is a process-lifetime static, so it dedupes once per *process*, not per user. A mid-onboarding app relaunch would still re-fire. Revisit if the funnel shows it.
+
+### Superseded — WP-47 S1 (merged, shipped into 1.1.1)
+
 **Objective:** WP-47 S1 — make the sign-in wall measurable and fix the plan-generation double-fire, as the first content of 1.1.1.
 **Status:** **Code complete and validated (313/313, xcresult-verified). Version bumped to 1.1.1 (25) in the project only. Remaining work is founder-only: the S0 device test, then archive + ASC.**
 **Source:** `docs/plans/2026-07-19-activation-cliff-fix-plan.md` (S1)
