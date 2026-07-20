@@ -3392,6 +3392,88 @@ final class RunSmartReadinessTests: XCTestCase {
         func reset() {}
     }
 
+    // MARK: - WP-51 build identity + onboarding_started dedupe
+
+    /// Measured 2026-07-20: app_version was set on 2 of 3,813 events over 60 days,
+    /// so RunSmart funnels could not be split by build at all.
+    func testBuildIdentityPropertiesMapVersionAndBuild() {
+        let bundle = StubInfoBundle(values: [
+            "CFBundleShortVersionString": "1.1.1",
+            "CFBundleVersion": "25"
+        ])
+        let props = Analytics.buildIdentityProperties(bundle: bundle)
+        XCTAssertEqual(props["app_version"], "1.1.1",
+            "app_version must come from CFBundleShortVersionString")
+        XCTAssertEqual(props["app_build"], "25",
+            "app_build must come from CFBundleVersion")
+    }
+
+    func testBuildIdentityPropertiesOmitsMissingAndEmptyValues() {
+        XCTAssertTrue(Analytics.buildIdentityProperties(bundle: StubInfoBundle(values: [:])).isEmpty,
+            "a bundle with no version keys must register nothing rather than empty strings")
+
+        let blank = Analytics.buildIdentityProperties(bundle: StubInfoBundle(values: [
+            "CFBundleShortVersionString": "",
+            "CFBundleVersion": "25"
+        ]))
+        XCTAssertNil(blank["app_version"], "an empty version string must be omitted, not registered as \"\"")
+        XCTAssertEqual(blank["app_build"], "25", "a present build must still register when version is blank")
+    }
+
+    /// OnboardingView emits from .onAppear, which SwiftUI runs again on re-mount and
+    /// on return from background. Observed twice in one founder session (2026-07-20
+    /// 09:22:11 and 09:23:59) against a single onboarding_completed.
+    func testOnboardingStartedFiresOncePerUser() {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.shared = saved
+            Analytics.resetOnboardingStartGuardForTesting()
+        }
+        Analytics.shared = tracker
+        Analytics.resetOnboardingStartGuardForTesting()
+
+        Analytics.trackOnboardingStarted()
+        Analytics.trackOnboardingStarted()
+        Analytics.trackOnboardingStarted()
+
+        XCTAssertEqual(tracker.events.filter { $0.name == "onboarding_started" }.count, 1,
+            "repeated onAppear must emit onboarding_started exactly once")
+    }
+
+    func testResetUserAllowsOnboardingStartedAgainForANewUser() {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.shared = saved
+            Analytics.resetOnboardingStartGuardForTesting()
+        }
+        Analytics.shared = tracker
+        Analytics.resetOnboardingStartGuardForTesting()
+
+        Analytics.trackOnboardingStarted()
+        Analytics.resetUser()
+        Analytics.trackOnboardingStarted()
+
+        XCTAssertEqual(tracker.events.filter { $0.name == "onboarding_started" }.count, 2,
+            "a genuinely new user after sign-out must still be counted")
+    }
+
+    private final class StubInfoBundle: Bundle, @unchecked Sendable {
+        private let values: [String: String]
+
+        init(values: [String: String]) {
+            self.values = values
+            super.init()
+        }
+
+        required init?(coder: NSCoder) { fatalError("unused") }
+
+        override func object(forInfoDictionaryKey key: String) -> Any? {
+            values[key]
+        }
+    }
+
     // WP-45: payload-key assertions for the instrumentation added to complete
     // the plan's event list (audit §11).
     func testWP45EventsCarryRequiredPayloadKeys() {
