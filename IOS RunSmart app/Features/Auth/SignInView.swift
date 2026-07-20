@@ -3,6 +3,10 @@ import AuthenticationServices
 
 struct SignInView: View {
     @EnvironmentObject private var session: SupabaseSession
+    @Environment(\.scenePhase) private var scenePhase
+    /// Session-scoped, not view-scoped: SwiftUI rebuilds this view whenever the
+    /// shell's auth state changes, and the wall events must stay once-per-session.
+    private let wallTracker = SignInWallTracker.shared
     @State private var isSigningIn = false
     @State private var errorMessage: String?
     @State private var currentNonce = AppleSignInHelper.randomNonce()
@@ -85,6 +89,10 @@ struct SignInView: View {
                             .scaleEffect(1.2)
                     } else {
                         SignInWithAppleButton(.signIn) { request in
+                            // The request closure runs on tap, before Apple's sheet
+                            // appears — so this records the attempt even when the
+                            // system sheet itself is what fails.
+                            wallTracker.signInTapped()
                             // Fresh nonce per attempt — store raw, send hashed to Apple
                             currentNonce = AppleSignInHelper.randomNonce()
                             request.requestedScopes = [.fullName, .email]
@@ -121,6 +129,13 @@ struct SignInView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear { wallTracker.wallAppeared() }
+        .onChange(of: scenePhase) { _, phase in
+            // `.background` is the last phase the app reliably observes before
+            // termination, so it doubles as the terminate signal.
+            guard phase == .background else { return }
+            wallTracker.appDidEnterBackground()
+        }
         .sheet(item: $legalDocument) { document in
             SafariView(url: document.url)
                 .ignoresSafeArea()

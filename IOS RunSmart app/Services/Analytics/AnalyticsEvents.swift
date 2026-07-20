@@ -10,13 +10,47 @@ extension Analytics {
         shared.track("app_launched", properties: ["session_id": UUID().uuidString])
     }
 
-    static func trackSignInCompleted(method: String = "apple") {
-        shared.track("sign_in_completed", properties: ["method": method])
+    // MARK: - Sign-in wall (activation cliff plan, S1)
+
+    // Every event on this screen carries an explicit `screen` name: SwiftUI
+    // `$screen` autocapture emits the same generic `UIHostingController<...>`
+    // string for every screen, so it cannot distinguish the wall from anything
+    // else. See `SignInWallTracker` for the viewed/tapped/abandoned semantics.
+
+    static func trackSignInWallViewed() {
+        shared.track("sign_in_wall_viewed", properties: [
+            "screen": SignInWallTracker.screenName
+        ])
     }
 
+    static func trackSignInWallTapped() {
+        shared.track("sign_in_wall_tapped", properties: [
+            "screen": SignInWallTracker.screenName
+        ])
+    }
+
+    static func trackSignInWallAbandoned(dwellSeconds: Int) {
+        shared.track("sign_in_wall_abandoned", properties: [
+            "screen": SignInWallTracker.screenName,
+            "dwell_seconds": dwellSeconds
+        ])
+    }
+
+    static func trackSignInCompleted(method: String = "apple") {
+        shared.track("sign_in_completed", properties: [
+            "method": method,
+            "screen": SignInWallTracker.screenName
+        ])
+    }
+
+    // `error_domain`/`error_code` are the whole point of this event: the open P0
+    // is whether the seven observed `ASAuthorizationError` code-1000 failures are
+    // a production outage or environment noise. Carrying them on every wall
+    // failure makes that answer itself for future users without a device repro.
     static func trackSignInFailed(error: Error) {
         let nsError = error as NSError
         shared.track("sign_in_failed", properties: [
+            "screen": SignInWallTracker.screenName,
             "error_domain": nsError.domain,
             "error_code": nsError.code
         ])
