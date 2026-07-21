@@ -4,6 +4,7 @@ import PostHog
 protocol AnalyticsTracking {
     nonisolated func track(_ event: String, properties: [String: Any])
     nonisolated func identify(userId: String, traits: [String: Any])
+    nonisolated func register(properties: [String: Any])
     nonisolated func reset()
 }
 
@@ -14,6 +15,9 @@ nonisolated final class PostHogAnalyticsService: AnalyticsTracking {
     func identify(userId: String, traits: [String: Any]) {
         PostHogSDK.shared.identify(userId, userProperties: traits)
     }
+    func register(properties: [String: Any]) {
+        PostHogSDK.shared.register(properties)
+    }
     func reset() {
         PostHogSDK.shared.reset()
     }
@@ -22,6 +26,7 @@ nonisolated final class PostHogAnalyticsService: AnalyticsTracking {
 nonisolated final class NullAnalyticsService: AnalyticsTracking {
     func track(_ event: String, properties: [String: Any]) {}
     func identify(userId: String, traits: [String: Any]) {}
+    func register(properties: [String: Any]) {}
     func reset() {}
 }
 
@@ -68,12 +73,15 @@ enum Analytics {
         config.personProfiles = .identifiedOnly
         PostHogSDK.shared.setup(config)
 
-        // Must follow setup: register() is a no-op before the SDK is configured.
-        let identity = buildIdentityProperties()
-        if !identity.isEmpty {
-            PostHogSDK.shared.register(identity)
-        }
-
         shared = PostHogAnalyticsService()
+        registerBuildIdentity()
+    }
+
+    /// Restores release attribution after PostHog clears user and super-property
+    /// state. This intentionally registers only build metadata, never identity.
+    static func registerBuildIdentity(bundle: Bundle = .main) {
+        let identity = buildIdentityProperties(bundle: bundle)
+        guard !identity.isEmpty else { return }
+        shared.register(properties: identity)
     }
 }

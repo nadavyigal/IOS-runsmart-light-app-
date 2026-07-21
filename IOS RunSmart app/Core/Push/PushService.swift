@@ -194,10 +194,23 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
     static let shared = PushService()
 
     private let center: UNUserNotificationCenter
+    private let authorizationStatusProvider: @MainActor () async -> UNAuthorizationStatus
+    private let authorizationRequester: @MainActor (UNAuthorizationOptions) async throws -> Bool
+    private var authorizationTask: Task<Bool, Error>?
     private var navigationHandler: ((RunSmartNotificationDestination) -> Void)?
 
-    init(center: UNUserNotificationCenter = .current()) {
+    init(
+        center: UNUserNotificationCenter = .current(),
+        authorizationStatusProvider: (@MainActor () async -> UNAuthorizationStatus)? = nil,
+        authorizationRequester: (@MainActor (UNAuthorizationOptions) async throws -> Bool)? = nil
+    ) {
         self.center = center
+        self.authorizationStatusProvider = authorizationStatusProvider ?? {
+            await center.notificationSettings().authorizationStatus
+        }
+        self.authorizationRequester = authorizationRequester ?? { options in
+            try await center.requestAuthorization(options: options)
+        }
         super.init()
     }
 
@@ -207,16 +220,34 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func requestAuthorization() async throws -> Bool {
+        if let authorizationTask {
+            return try await authorizationTask.value
+        }
+
+        let task = Task { @MainActor in
+            try await self.performAuthorizationRequest()
+        }
+        authorizationTask = task
+        do {
+            let granted = try await task.value
+            authorizationTask = nil
+            return granted
+        } catch {
+            authorizationTask = nil
+            throw error
+        }
+    }
+
+    private func performAuthorizationRequest() async throws -> Bool {
         // WP-45: request + outcome were both invisible for notifications.
         // Only report the prompt's resolution when iOS will actually show one
         // (not on re-requests that resolve instantly from a prior choice).
-        let settings = await center.notificationSettings()
-        let isFirstPrompt = settings.authorizationStatus == .notDetermined
+        let isFirstPrompt = await authorizationStatusProvider() == .notDetermined
         if isFirstPrompt {
             Analytics.trackPermissionRequested(kind: "notifications")
         }
         do {
-            let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+            let granted = try await authorizationRequester([.alert, .badge, .sound])
             if isFirstPrompt {
                 if granted {
                     Analytics.trackPermissionGranted(kind: "notifications")
