@@ -35,7 +35,7 @@ Last Completed Story: 2026-07-13 — First-time-user journey audit report + evid
 Next Recommended Story: Triage the audit's 'Fix before acquiring more users' list (plan-generation state, SIWA error copy, aha-timeline contradiction, breakdown parser) into the next work packet.
 Blockers: None.
 Last Validation: 2026-07-13 — Audit walkthrough on fresh iPhone 17 Pro sim (Debug build SUCCEEDED, live GPS run recorded and saved); no code changes to validate.
-Last Updated: 2026-07-13
+Last Updated: 2026-07-14
 
 ---
 
