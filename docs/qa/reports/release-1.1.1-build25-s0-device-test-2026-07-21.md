@@ -77,4 +77,6 @@ The S0 verification and bounded repair changed no production configuration, auth
 
 ## 1.1.2 release status
 
-The repair was merged in PR #110 (`d72aa6d`), archived as 1.1.2 (26), and uploaded successfully to App Store Connect at `2026-07-21T08:59:13Z`. Submission is blocked on App Store Connect web authentication; post-live physical verification remains pending Apple processing, review, and public release.
+The repair was merged in PR #110 (`d72aa6d`), archived as 1.1.2 (26), and uploaded successfully to App Store Connect at `2026-07-21T08:59:13Z`. App Store Connect lists Version 1.1.2 under TestFlight, while public 1.1.1 is Ready for Distribution.
+
+The founder set a one-release-per-week cadence and explicitly chose not to submit another App Store version one day after 1.1.1. Build 26 is therefore held as the next weekly candidate, not abandoned and not under App Review. The excluded physical App Store verification of the three corrected telemetry shapes remains legitimately gated until a binary containing the repair is public; TestFlight or sideload evidence will not be substituted.

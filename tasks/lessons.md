@@ -498,3 +498,10 @@ Future rule: For native OAuth flows routed through a web gateway, validate the f
 - The repo lives under `~/Documents` (iCloud file-provider synced). Any derived-data path inside the repo gets `com.apple.FinderInfo`/`com.apple.fileprovider.fpfs#P` stamped on build outputs, and CodeSign rejects `RunSmartRunLiveActivityExtension.appex` with "resource fork, Finder information, or similar detritus not allowed" — this was the unexplained "resource-metadata signing noise" in the 2026-07-16 adaptive-preview QA report.
 - Pre-build `xattr -cr` does not help; the file provider re-stamps outputs mid-build. The "Strip Disallowed Resource Metadata" script phase covers only non-Debug configs and only the main app bundle.
 - Fix path: pass `-derivedDataPath` outside the synced volume (e.g. under `/private/tmp`) for every CLI `xcodebuild`. Also: don't pipe `xcodebuild` through `head` (SIGPIPE kills the build mid-run — redirect to a log file, grep afterwards), and prefer `-destination "platform=iOS Simulator,name=...,OS=..."` over id-parsing `-showdestinations`.
+### 2026-07-21 — Upload readiness is not release authorization
+
+Trigger: A telemetry-only repair was merged, archived, and uploaded the day after the prior App Store release, and the workflow advanced toward another submission before confirming the founder's desired weekly cadence.
+
+Lesson: A technically release-ready build can remain a candidate. Uploading a build and needing production verification do not by themselves justify an immediate App Store submission.
+
+Future rule: Before creating or submitting an App Store version, check the last public-release date and the founder's release cadence. If the cadence window is not open, hold the processed build and state that public-only verification remains gated; never convert telemetry urgency into an unapproved daily release.

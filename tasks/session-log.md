@@ -1,5 +1,20 @@
 # Session Log
 
+## 2026-07-21 - 1.1.2 held for weekly release cadence
+
+### Decision
+- Founder set a one-App-Store-submission-per-week cadence; 1.1.1 became Ready for Distribution on 2026-07-20.
+- Do not submit 1.1.2 on 2026-07-21 solely to accelerate telemetry verification.
+
+### App Store Connect evidence
+- Public RunSmart 1.1.1 is `Ready for Distribution`.
+- TestFlight lists `Version 1.1.2`, confirming build 26 finished upload/processing sufficiently to appear.
+- No 1.1.2 App Store version was created, attached, or submitted in this session.
+
+### Next
+- Keep build 26 as the next weekly candidate, subject to deliberate scope review.
+- Once the weekly release is public, run an excluded physical App Store session and verify the three repaired event shapes in PostHog.
+
 ## 2026-07-21 - 1.1.2 (26) merged, archived, and uploaded
 
 ### Review and merge
@@ -15,7 +30,7 @@
 - App Store Connect upload succeeded at `2026-07-21T08:59:13Z`; package processing began.
 
 ### Blocked / next
-The App Store Connect portal is not authenticated. Founder must sign in before 1.1.2 can be created, build 26 attached, and the version submitted for review. Post-live excluded physical verification remains blocked on processing, review, and public release.
+Superseded later the same day: the founder authenticated, confirmed 1.1.1 is Ready for Distribution, and chose to hold 1.1.2 for the next weekly release rather than submit daily. Post-live excluded physical verification remains gated on a public binary containing the repair.
 
 
 ## 2026-07-21 - S0 passed; bounded clean-install telemetry repair
