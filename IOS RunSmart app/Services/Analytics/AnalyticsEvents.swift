@@ -24,6 +24,10 @@ extension Analytics {
     }
 
     static func trackSignInWallTapped() {
+        // A wall tap is the explicit boundary for a new onboarding lifecycle.
+        // Do not use resetUser() for this: authentication itself may reset the
+        // anonymous PostHog identity before the same onboarding view remounts.
+        didTrackOnboardingStart = false
         shared.track("sign_in_wall_tapped", properties: [
             "screen": SignInWallTracker.screenName
         ])
@@ -64,8 +68,8 @@ extension Analytics {
     /// 09:22:11 and again at 09:23:59 (immediately after `aha_moment_cta_clicked`)
     /// against one `onboarding_completed`, which halves the apparent completion rate.
     ///
-    /// Cleared by ``resetUser()`` so a genuinely new user on the same install is
-    /// still counted.
+    /// Cleared when a distinct sign-in-wall attempt begins so a genuinely new
+    /// onboarding lifecycle on the same install is still counted.
     private static var didTrackOnboardingStart = false
 
     static func trackOnboardingStarted() {
@@ -383,9 +387,9 @@ extension Analytics {
         shared.identify(userId: userId, traits: [:])
     }
 
-    static func resetUser() {
-        didTrackOnboardingStart = false
+    static func resetUser(bundle: Bundle = .main) {
         shared.reset()
+        registerBuildIdentity(bundle: bundle)
     }
 
     // MARK: - Aha Moments

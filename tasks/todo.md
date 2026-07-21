@@ -2,9 +2,25 @@
 
 ## Current Task
 
-**Objective:** 1.1.1 (25) is submitted; get it approved, then close out S0/S6/S1 device evidence.
-**Status:** **1.1.1 (25) ARCHIVED AND SUBMITTED to App Store Connect (2026-07-20, founder-confirmed). Awaiting Apple App Review. Live App Store build remains 1.1.0 (24) until approval.**
-**Source:** `executive-os/work-packets/session-prompts/2026-07-20-runsmart-session.md` (Agentic OS)
+**Objective:** Repair clean-install telemetry integrity after the public 1.1.1 (25) S0 session.
+**Status:** **RELEASE IN PROGRESS — S0 PASS; repair verified; 1.1.2 (26) candidate.**
+**Source:** `docs/specs/2026-07-21-clean-install-telemetry-integrity.md`
+
+### Checklist
+- [x] Correlate public physical S0 session in PostHog 171597 and confirm one successful sign-in, onboarding/HealthKit completion, one plan terminal, and first-run visibility.
+- [x] Founder confirms the Apple ID had never authorized RunSmart; mark S0 PASS. Founder/test traffic remains excluded from activation cohorts.
+- [x] Preserve unprefixed `app_version` / `app_build` through analytics reset.
+- [x] Dedupe `onboarding_started` across the integrated completion/remount lifecycle.
+- [x] Serialize concurrent notification authorization and emit one request + one terminal.
+- [x] Add regression tests that reproduce all three public-session defects.
+- [x] Focused telemetry suite 4/4 and full iOS suite 320/320; zero failures/skips, xcresult-verified. `build-for-testing` passed.
+- [x] Update QA report, progress, and session log. No new reusable product failure pattern warranted a lesson.
+- [x] Bump all targets to 1.1.2 (26) and update release notes.
+- [ ] Commit, push, open PR, complete review/checks, and merge.
+- [ ] Archive and upload 1.1.2 (26) to App Store Connect.
+- [ ] Wait for processing/review/public release, then run excluded physical App Store verification and query PostHog.
+
+### Superseded — 1.1.1 submission packet
 
 ### Checklist
 - [x] Review and merge PR #105 — `app_version`/`app_build` super properties + `onboarding_started` dedupe. Merged `5aafffc`.

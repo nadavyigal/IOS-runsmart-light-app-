@@ -1,6 +1,7 @@
 import XCTest
 import CoreLocation
 import AuthenticationServices
+import UserNotifications
 @testable import IOS_RunSmart_app
 
 final class RunSmartReadinessTests: XCTestCase {
@@ -3383,13 +3384,20 @@ final class RunSmartReadinessTests: XCTestCase {
 
     private nonisolated final class CapturingAnalyticsService: AnalyticsTracking {
         private(set) var events: [(name: String, properties: [String: Any])] = []
+        private(set) var registrations: [[String: Any]] = []
+        private(set) var resetCount = 0
 
         func track(_ event: String, properties: [String: Any]) {
             events.append((event, properties))
         }
 
         func identify(userId: String, traits: [String: Any]) {}
-        func reset() {}
+        func register(properties: [String: Any]) {
+            registrations.append(properties)
+        }
+        func reset() {
+            resetCount += 1
+        }
     }
 
     // MARK: - WP-51 build identity + onboarding_started dedupe
@@ -3420,6 +3428,23 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(blank["app_build"], "25", "a present build must still register when version is blank")
     }
 
+    func testAnalyticsResetReRegistersBuildIdentityForAnonymousEvents() {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        defer { Analytics.shared = saved }
+        Analytics.shared = tracker
+
+        Analytics.resetUser(bundle: StubInfoBundle(values: [
+            "CFBundleShortVersionString": "1.1.1",
+            "CFBundleVersion": "25"
+        ]))
+
+        XCTAssertEqual(tracker.resetCount, 1, "reset must still clear the prior user identity")
+        XCTAssertEqual(tracker.registrations.count, 1, "build identity must be restored immediately after reset")
+        XCTAssertEqual(tracker.registrations.first?["app_version"] as? String, "1.1.1")
+        XCTAssertEqual(tracker.registrations.first?["app_build"] as? String, "25")
+    }
+
     /// OnboardingView emits from .onAppear, which SwiftUI runs again on re-mount and
     /// on return from background. Observed twice in one founder session (2026-07-20
     /// 09:22:11 and 09:23:59) against a single onboarding_completed.
@@ -3441,7 +3466,7 @@ final class RunSmartReadinessTests: XCTestCase {
             "repeated onAppear must emit onboarding_started exactly once")
     }
 
-    func testResetUserAllowsOnboardingStartedAgainForANewUser() {
+    func testIdentityResetDoesNotRestartAnActiveOnboardingLifecycle() {
         let saved = Analytics.shared
         let tracker = CapturingAnalyticsService()
         defer {
@@ -3455,8 +3480,57 @@ final class RunSmartReadinessTests: XCTestCase {
         Analytics.resetUser()
         Analytics.trackOnboardingStarted()
 
+        XCTAssertEqual(tracker.events.filter { $0.name == "onboarding_started" }.count, 1,
+            "an analytics identity reset during authentication must not duplicate onboarding_started")
+    }
+
+    func testNewSignInAttemptStartsANewOnboardingLifecycle() {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.shared = saved
+            Analytics.resetOnboardingStartGuardForTesting()
+        }
+        Analytics.shared = tracker
+        Analytics.resetOnboardingStartGuardForTesting()
+
+        Analytics.trackSignInWallTapped()
+        Analytics.trackOnboardingStarted()
+        Analytics.resetUser()
+        Analytics.trackSignInWallTapped()
+        Analytics.trackOnboardingStarted()
+
         XCTAssertEqual(tracker.events.filter { $0.name == "onboarding_started" }.count, 2,
-            "a genuinely new user after sign-out must still be counted")
+            "a distinct sign-in attempt must permit one new onboarding lifecycle")
+    }
+
+    @MainActor
+    func testConcurrentNotificationAuthorizationSharesOnePromptAndTerminalEvent() async throws {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        defer { Analytics.shared = saved }
+        Analytics.shared = tracker
+        var promptCount = 0
+
+        let service = PushService(
+            authorizationStatusProvider: { .notDetermined },
+            authorizationRequester: { _ in
+                promptCount += 1
+                try await Task.sleep(nanoseconds: 50_000_000)
+                return true
+            }
+        )
+
+        async let first = service.requestAuthorization()
+        async let second = service.requestAuthorization()
+        let results = try await (first, second)
+
+        XCTAssertTrue(results.0)
+        XCTAssertTrue(results.1)
+        XCTAssertEqual(promptCount, 1, "concurrent callers must share one system authorization request")
+        XCTAssertEqual(tracker.events.filter { $0.name == "permission_requested" }.count, 1)
+        XCTAssertEqual(tracker.events.filter { $0.name == "permission_granted" }.count, 1)
+        XCTAssertEqual(tracker.events.filter { $0.name == "permission_denied" }.count, 0)
     }
 
     private final class StubInfoBundle: Bundle, @unchecked Sendable {

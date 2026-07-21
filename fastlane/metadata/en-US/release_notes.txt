@@ -1,9 +1,6 @@
-RunSmart 1.0.9 makes your first days with the app clearer and more trustworthy, from sign-in through your first plan.
+RunSmart 1.1.2 improves first-time setup reliability and the diagnostics that help us catch sign-in, onboarding, and notification issues quickly.
 
 What's new:
-- Your plan builds in front of you: Today and Plan show progress while your coach works, with a clear retry if anything fails
-- Onboarding polish: a Back button, clearer steps, and your goal is always your explicit choice
-- Rest days now answer "what should I do today?" with concrete recovery guidance
-- Week numbers, streaks, distances, and workout intensity now match everywhere they appear
-- Terms and Privacy open inside the app; clearer messages when sign-in or Apple Health connection fails
-- Accurate workout breakdowns (interval counts parsed from your actual workout)
+- More reliable first-time onboarding tracking after Sign in with Apple
+- Consistent notification-permission handling when several setup tasks finish together
+- Correct release attribution on diagnostic events after account changes

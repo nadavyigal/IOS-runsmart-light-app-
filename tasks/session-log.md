@@ -1,5 +1,28 @@
 # Session Log
 
+## 2026-07-21 - S0 passed; bounded clean-install telemetry repair
+
+### Outcome
+Founder confirmed the Apple ID used for the public 1.1.1 (25) attempt had never authorized RunSmart. The matching physical App Store session has one successful sign-in and no failure, so S0 is PASS. Founder traffic remains excluded from activation cohorts, and no screenshot was supplied.
+
+### Repair
+- Re-register build-only super properties immediately after analytics identity reset.
+- Keep `onboarding_started` dedupe intact across authentication resets; a distinct sign-in-wall tap begins a new onboarding lifecycle.
+- Serialize notification authorization through one in-flight task so concurrent callers share one prompt result and analytics terminal.
+- Added four regression tests covering the three public-session defects.
+
+### Validation
+- Red phase: new tests failed to compile against the old interfaces at the intended reset and notification seams.
+- Post-fix `build-for-testing`: passed.
+- Focused telemetry regressions: **4 passed / 0 failed**.
+- Full iOS suite: **320 passed / 0 failed / 0 skipped**, xcresult-verified on iPhone SE (3rd generation) / iOS 26.5 Simulator.
+- `git diff --check`: passed.
+- Release candidate bumped across all targets to **1.1.2 (26)**; release notes updated.
+- Fresh 1.1.2 release-tree rerun: **320 passed / 0 failed / 0 skipped**, xcresult `/tmp/runsmart-112-telemetry-tests-20260721.xcresult`.
+
+### Not done
+No production configuration, event names, backend, dependency, App Store metadata, deployment, upload, submission, S2, or E1 work. S6 empty-goal and S1 plan-failure/retry physical evidence remain open.
+
 ## 2026-07-20 - 1.1.1 (25) archived and submitted to App Store Connect
 
 ### Task Summary
