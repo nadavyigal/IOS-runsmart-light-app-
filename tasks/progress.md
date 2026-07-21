@@ -77,7 +77,7 @@ Last Completed Story: 2026-07-15 — 1.0.9 (23) archived and submitted to ASC; z
 Next Recommended Story: Once 1.0.9 (23) is approved and live: verify WP-43/45 events firing in PostHog for real users, then Experiment E1 (coach preview). If App Review flags S6 or S1 (the waived items), they are the first place to look. Known analytics semantics to remember when reading funnels: onboarding_step_abandoned fires on any backgrounding; plan_generation_timed_out duration inflates if backgrounded mid-poll.
 Blockers: None — waiting on Apple App Review turnaround.
 Last Validation: 2026-07-15 — full suite 275 tests, 0 failures; Release-config build SUCCEEDED at `3186343`. S6/S1 device smoke explicitly waived, not observed — see entry above.
-Last Updated: 2026-07-15
+Last Updated: 2026-07-20
 
 ---
 
