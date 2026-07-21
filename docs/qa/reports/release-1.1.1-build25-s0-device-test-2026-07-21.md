@@ -73,4 +73,8 @@ Four regression tests reproduce the clean-install reset, onboarding remount/life
 4. Keep S6 empty-goal and S1 failure/retry physical evidence open because neither was exercised in this successful session.
 5. Do not start Experiment E1 until at least **10 clean, founder/QA-excluded physical installs are D7-mature**. Founder verification traffic does not count.
 
-No production configuration, App Store metadata, authentication architecture, analytics names, backend services, dependencies, deployment, upload, or Apple submission changed.
+The S0 verification and bounded repair changed no production configuration, authentication architecture, analytics names, backend services, or dependencies.
+
+## 1.1.2 release status
+
+The repair was merged in PR #110 (`d72aa6d`), archived as 1.1.2 (26), and uploaded successfully to App Store Connect at `2026-07-21T08:59:13Z`. Submission is blocked on App Store Connect web authentication; post-live physical verification remains pending Apple processing, review, and public release.
