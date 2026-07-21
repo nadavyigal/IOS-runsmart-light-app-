@@ -16,8 +16,9 @@
 - [x] Focused telemetry suite 4/4 and full iOS suite 320/320; zero failures/skips, xcresult-verified. `build-for-testing` passed.
 - [x] Update QA report, progress, and session log. No new reusable product failure pattern warranted a lesson.
 - [x] Bump all targets to 1.1.2 (26) and update release notes.
-- [ ] Commit, push, open PR, complete review/checks, and merge.
-- [ ] Archive and upload 1.1.2 (26) to App Store Connect.
+- [x] Commit, push, open PR #110, complete available review/checks, and merge as `d72aa6d`.
+- [x] Archive and upload 1.1.2 (26) to App Store Connect; upload succeeded and is processing.
+- [ ] Founder signs in to App Store Connect; create/attach build 26 and submit 1.1.2 for review.
 - [ ] Wait for processing/review/public release, then run excluded physical App Store verification and query PostHog.
 
 ### Superseded — 1.1.1 submission packet

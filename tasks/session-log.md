@@ -1,5 +1,23 @@
 # Session Log
 
+## 2026-07-21 - 1.1.2 (26) merged, archived, and uploaded
+
+### Review and merge
+- PR #110 merged to `main` as `d72aa6d`.
+- Local code review: no blocking finding.
+- GitGuardian passed. CodeRabbit was rate-limited and supplied no review.
+- Fresh release-tree suite: 320 passed, 0 failed, 0 skipped.
+
+### Archive and upload
+- Exact merged commit asserted before archive.
+- Archive: `/tmp/runsmart-archives/RunSmart-1.1.2-build26-20260721.xcarchive` — succeeded.
+- App and extension both 1.1.2 (26); bundle identifier correct; analytics configuration present; signatures and dSYMs verified.
+- App Store Connect upload succeeded at `2026-07-21T08:59:13Z`; package processing began.
+
+### Blocked / next
+The App Store Connect portal is not authenticated. Founder must sign in before 1.1.2 can be created, build 26 attached, and the version submitted for review. Post-live excluded physical verification remains blocked on processing, review, and public release.
+
+
 ## 2026-07-21 - S0 passed; bounded clean-install telemetry repair
 
 ### Outcome
