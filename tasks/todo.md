@@ -3,7 +3,7 @@
 ## Current Task
 
 **Objective:** Repair clean-install telemetry integrity after the public 1.1.1 (25) S0 session.
-**Status:** **RELEASE IN PROGRESS — S0 PASS; repair verified; 1.1.2 (26) candidate.**
+**Status:** **WEEKLY RELEASE CANDIDATE — S0 PASS; repair verified; 1.1.2 (26) uploaded but intentionally not submitted.**
 **Source:** `docs/specs/2026-07-21-clean-install-telemetry-integrity.md`
 
 ### Checklist
@@ -17,9 +17,11 @@
 - [x] Update QA report, progress, and session log. No new reusable product failure pattern warranted a lesson.
 - [x] Bump all targets to 1.1.2 (26) and update release notes.
 - [x] Commit, push, open PR #110, complete available review/checks, and merge as `d72aa6d`.
-- [x] Archive and upload 1.1.2 (26) to App Store Connect; upload succeeded and is processing.
-- [ ] Founder signs in to App Store Connect; create/attach build 26 and submit 1.1.2 for review.
-- [ ] Wait for processing/review/public release, then run excluded physical App Store verification and query PostHog.
+- [x] Archive and upload 1.1.2 (26) to App Store Connect; upload succeeded and TestFlight lists Version 1.1.2.
+- [x] Confirm in App Store Connect that public 1.1.1 is Ready for Distribution and build 26 has not been submitted.
+- [ ] Hold 1.1.2 (26) for the next weekly release slot; do not create/submit an App Store version early solely to verify telemetry.
+- [ ] At the weekly release decision, re-check candidate scope, attach build 26 (or the approved superseding build), and submit once.
+- [ ] After that weekly release is public, run the excluded physical App Store verification and query PostHog for the three corrected shapes.
 
 ### Superseded — 1.1.1 submission packet
 
