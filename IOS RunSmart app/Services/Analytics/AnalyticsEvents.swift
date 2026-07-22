@@ -51,13 +51,65 @@ extension Analytics {
     // is whether the seven observed `ASAuthorizationError` code-1000 failures are
     // a production outage or environment noise. Carrying them on every wall
     // failure makes that answer itself for future users without a device repro.
+    //
+    // WP-52a adds the unwrapped `NSUnderlyingErrorKey`. WP-52 cleared all five
+    // Apple configuration links with artifacts, so code 1000 (`.unknown`) is a
+    // wrapper around the only remaining lead. `has_underlying_error` is emitted
+    // unconditionally and deliberately: a genuinely bare 1000 escalates to the
+    // guest path, while a 1000 we merely failed to unwrap is an instrumentation
+    // bug, and those two were indistinguishable in the data before this.
     static func trackSignInFailed(error: Error) {
         let nsError = error as NSError
-        shared.track("sign_in_failed", properties: [
+        var properties: [String: Any] = [
             "screen": SignInWallTracker.screenName,
             "error_domain": nsError.domain,
             "error_code": nsError.code
-        ])
+        ]
+
+        let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError
+        properties["has_underlying_error"] = underlying != nil
+
+        if let underlying {
+            properties["underlying_error_domain"] = underlying.domain
+            properties["underlying_error_code"] = underlying.code
+            properties["underlying_error_description"] =
+                redactedForAnalytics(underlying.localizedDescription)
+        }
+
+        shared.track("sign_in_failed", properties: properties)
+    }
+
+    /// Strips user identifiers from an error description before it leaves the device.
+    ///
+    /// `trackSignInFailed` fires from the sign-in wall's catch-all, so it also sees
+    /// Supabase and URL-loading errors whose descriptions can embed the runner's
+    /// email or a bearer token. Redacting in the emitter rather than at the call
+    /// site means a future `catch` cannot reintroduce the leak by forgetting.
+    /// Exposed for tests.
+    static func redactedForAnalytics(_ text: String) -> String {
+        let patterns = [
+            // Email, before the generic run rule — the local part alone would
+            // otherwise survive as a short token.
+            ("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}", "[redacted-email]"),
+            // JWT: three base64url segments. Matched ahead of the run rule so the
+            // whole token collapses to one marker instead of three.
+            ("eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+", "[redacted-token]"),
+            // Any remaining opaque run — session ids, raw tokens, UUIDs without
+            // hyphens. Real words in Apple's error copy do not reach 20 characters.
+            ("[A-Za-z0-9_-]{20,}", "[redacted]")
+        ]
+
+        var redacted = text
+        for (pattern, replacement) in patterns {
+            redacted = redacted.replacingOccurrences(
+                of: pattern,
+                with: replacement,
+                options: [.regularExpression]
+            )
+        }
+        // Descriptions are diagnostic, not payloads; cap so a pathological error
+        // cannot bloat every event on the wall.
+        return String(redacted.prefix(300))
     }
 
     /// Guards `onboarding_started` against SwiftUI re-appearance.

@@ -4743,6 +4743,93 @@ final class RunSmartReadinessTests: XCTestCase {
         )
     }
 
+    // WP-52a step 1. `ASAuthorizationError` 1000 is `.unknown` — a wrapper that
+    // names nothing. WP-52 cleared all five configuration links, so the only
+    // remaining lead is whatever AuthKit put in `NSUnderlyingErrorKey`, and the
+    // event discarded it. Without these properties every hypothesis about the
+    // first-time-authorization failure is unfalsifiable.
+    func testSignInFailedCapturesUnderlyingError() {
+        let underlying = NSError(
+            domain: "AKAuthenticationError",
+            code: -7003,
+            userInfo: [NSLocalizedDescriptionKey: "Authentication failed"]
+        )
+        let error = NSError(
+            domain: ASAuthorizationError.errorDomain,
+            code: 1000,
+            userInfo: [NSUnderlyingErrorKey: underlying]
+        )
+
+        let events = captureAnalytics { _ in
+            Analytics.trackSignInFailed(error: error)
+        }
+        let failed = events.first { $0.name == "sign_in_failed" }?.properties
+
+        XCTAssertEqual(failed?["has_underlying_error"] as? Bool, true)
+        XCTAssertEqual(failed?["underlying_error_domain"] as? String, "AKAuthenticationError")
+        XCTAssertEqual(failed?["underlying_error_code"] as? Int, -7003)
+        XCTAssertEqual(failed?["underlying_error_description"] as? String, "Authentication failed")
+        // The wrapper's own values must survive alongside the unwrapped ones.
+        XCTAssertEqual(failed?["error_code"] as? Int, 1000)
+    }
+
+    // A genuinely bare 1000 and a 1000 we simply failed to unwrap look identical
+    // in the data, and they imply opposite next steps: the first escalates to the
+    // guest path (WP-53), the second is an instrumentation bug. `has_underlying_error`
+    // is what separates them, so it must be present and false, never absent.
+    func testSignInFailedMarksGenuinelyBareErrorAsBare() {
+        let error = NSError(domain: ASAuthorizationError.errorDomain, code: 1000)
+
+        let events = captureAnalytics { _ in
+            Analytics.trackSignInFailed(error: error)
+        }
+        let failed = events.first { $0.name == "sign_in_failed" }?.properties
+
+        XCTAssertEqual(
+            failed?["has_underlying_error"] as? Bool, false,
+            "a bare 1000 must be explicitly marked bare, not left to an absent key"
+        )
+        XCTAssertNil(failed?["underlying_error_domain"])
+        XCTAssertNil(failed?["underlying_error_code"])
+        XCTAssertNil(failed?["underlying_error_description"])
+    }
+
+    // `trackSignInFailed` fires for every error in the wall's catch block, which
+    // includes Supabase and network errors — and those descriptions can embed the
+    // user's email or a bearer token. Analytics must never carry either.
+    func testSignInFailedRedactsIdentifiersFromUnderlyingDescription() {
+        // The token below is a zero-entropy placeholder that satisfies the JWT
+        // shape (`eyJ` + three dot-separated base64url runs) without being a
+        // credential. Do not "improve" it into a realistic token: secret
+        // scanners flag valid-structure JWTs, and a real one has no business in
+        // the repo even as a fixture.
+        let fakeJWT = "eyJEXAMPLEEXAMPLEEXAMPLE.PAYLOADPAYLOADPAYLOAD.SIGNATURESIGNATURE"
+        let underlying = NSError(
+            domain: "NSURLErrorDomain",
+            code: -1011,
+            userInfo: [NSLocalizedDescriptionKey:
+                "Rejected for runner@example.com with token \(fakeJWT)"]
+        )
+        let error = NSError(
+            domain: ASAuthorizationError.errorDomain,
+            code: 1000,
+            userInfo: [NSUnderlyingErrorKey: underlying]
+        )
+
+        let events = captureAnalytics { _ in
+            Analytics.trackSignInFailed(error: error)
+        }
+        let description = events.first { $0.name == "sign_in_failed" }?
+            .properties["underlying_error_description"] as? String ?? ""
+
+        XCTAssertFalse(description.contains("runner@example.com"), "an email must never reach analytics")
+        XCTAssertFalse(description.contains("eyJEXAMPLE"), "a token must never reach analytics")
+        XCTAssertTrue(
+            description.contains("Rejected for"),
+            "redaction must preserve the diagnostic text around the identifiers, or the property is worthless"
+        )
+    }
+
     // MARK: - Activation cliff S1: plan-generation double-fire
 
     func testPlanGenerationEmitsOneOutcomePerGeneration() {
