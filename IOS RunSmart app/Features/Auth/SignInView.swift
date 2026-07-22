@@ -11,6 +11,11 @@ struct SignInView: View {
     @State private var errorMessage: String?
     @State private var currentNonce = AppleSignInHelper.randomNonce()
     @State private var legalDocument: LegalDocument?
+    /// Set on tap, cleared when Apple reports back or the app returns to the
+    /// foreground. Guards against a second authorization being started while the
+    /// first is still presenting; the foreground reset is the safety net so a
+    /// missing callback can never leave the button permanently dead.
+    @State private var isAwaitingAppleSheet = false
 
     /// First-screen promise pills (WP-44 S1). The audit (§4 Risk 2, §9) flagged
     /// "Run guidance and cue previews" as feature-speak and the HealthKit bullet
@@ -93,6 +98,7 @@ struct SignInView: View {
                             // appears — so this records the attempt even when the
                             // system sheet itself is what fails.
                             wallTracker.signInTapped()
+                            isAwaitingAppleSheet = true
                             // Fresh nonce per attempt — store raw, send hashed to Apple
                             currentNonce = AppleSignInHelper.randomNonce()
                             request.requestedScopes = [.fullName, .email]
@@ -105,6 +111,18 @@ struct SignInView: View {
                         .signInWithAppleButtonStyle(.white)
                         .frame(height: 54)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        // Apple's sheet takes a moment to appear and nothing on
+                        // screen changes meanwhile, so a user who sees no response
+                        // taps again — observed in the 2026-07-22 device session,
+                        // which logged two taps 12s apart before one completion.
+                        // A second tap starts a second authorization against the
+                        // same view, so suppress it rather than let two run.
+                        //
+                        // Hit-testing is disabled instead of swapping the button
+                        // for a spinner on purpose: replacing it would unmount the
+                        // view that Apple is presenting from, mid-authorization.
+                        .allowsHitTesting(!isAwaitingAppleSheet)
+                        .opacity(isAwaitingAppleSheet ? 0.6 : 1)
                     }
 
                     VStack(spacing: 4) {
@@ -131,6 +149,12 @@ struct SignInView: View {
         .preferredColorScheme(.dark)
         .onAppear { wallTracker.wallAppeared() }
         .onChange(of: scenePhase) { _, phase in
+            // Returning to the foreground always re-arms the button. If Apple's
+            // sheet is dismissed in a way that never calls back, this is what
+            // stops the wall from becoming a dead end.
+            if phase == .active {
+                isAwaitingAppleSheet = false
+            }
             // `.background` is the last phase the app reliably observes before
             // termination, so it doubles as the terminate signal.
             guard phase == .background else { return }
@@ -146,7 +170,10 @@ struct SignInView: View {
     private func handleAppleResult(_ result: Result<ASAuthorization, Error>) async {
         isSigningIn = true
         errorMessage = nil
-        defer { isSigningIn = false }
+        defer {
+            isSigningIn = false
+            isAwaitingAppleSheet = false
+        }
 
         do {
             let authorization = try result.get()
@@ -176,13 +203,21 @@ struct SignInView: View {
     /// `NSError.localizedDescription` — that surfaces raw strings like
     /// "com.apple.AuthenticationServices.AuthorizationError error 1000" to a
     /// first-time user. `.canceled` returns nil (user backed out silently).
+    ///
+    /// The copy names iCloud deliberately. The 2026-07-22 revoke-and-retry test
+    /// showed first-time Sign in with Apple succeeds, so the devices stuck on a
+    /// bare code 1000 are blocked by something the app cannot see — and Sign in
+    /// with Apple simply cannot complete unless the device has an iCloud session.
+    /// "Tap to try again" loops such a user forever; naming the one precondition
+    /// they can check is the difference between a retry and an abandonment.
     static func humanReadableAppleSignInError(for error: Error) -> String? {
         let nsError = error as NSError
         if nsError.domain == ASAuthorizationError.errorDomain,
            nsError.code == ASAuthorizationError.canceled.rawValue {
             return nil
         }
-        return "Apple sign-in didn't finish. Nothing was created — tap to try again."
+        return "Apple sign-in didn't finish and nothing was created. "
+             + "Check that you're signed in to iCloud in Settings, then tap to try again."
     }
 
     private func appleDisplayName(from fullName: PersonNameComponents?) -> String? {

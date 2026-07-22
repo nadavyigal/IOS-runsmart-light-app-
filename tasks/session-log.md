@@ -1,5 +1,62 @@
 # Session Log
 
+## 2026-07-22 - Build 27 prepared; first-time Apple sign-in proven working
+
+### Outcome
+The revoke-and-retry test (Stop Using Apple ID -> delete -> reinstall public 1.1.1 (25)) completed a genuine first-time Sign in with Apple at 10:34:21Z with zero sign_in_failed. This refutes the earlier "first-time sign-in has been broken since 2026-06-18" conclusion. Sign-in is broken for some users, not all.
+
+### Prepared for archive: 1.1.2 (27)
+- has_underlying_error / underlying_error_* on sign_in_failed (merged as 853953d via PR #113).
+- Sign-in failure copy now names iCloud so a blocked user has something to act on.
+- Sign in with Apple button ignores a second tap while Apple is presenting; re-arms on completion or foreground return.
+- CURRENT_PROJECT_VERSION 26 -> 27 across all six configurations; MARKETING_VERSION stays 1.1.2.
+- Release notes rewritten to cover build 26 and 27 content together.
+
+### Validation
+- Full suite 324 passed / 0 failed / 0 skipped, xcresult-verified.
+- Release build for generic/platform=iOS succeeded; built Info.plist confirms 1.1.2 (27) with a non-empty POSTHOG_API_KEY.
+- Instrumentation strings confirmed present in the compiled binary; short event names are absent from `strings` output only because of Swift small-string optimization, not because they are missing.
+
+### Open
+- Device smoke of the sign-in button guard before submitting (only change on the critical auth path).
+- No email/guest fallback in this build; users who cannot complete Sign in with Apple still have no alternative route.
+
+## 2026-07-21 - Public 1.1.1 founder journey correlated in PostHog
+
+### Outcome
+The App Store reinstall journey succeeded mechanically: one Sign in with Apple tap completed, onboarding and HealthKit completed, plan generation emitted one start and one success, and the first-run CTA/workout became visible. Standard SDK version/build properties are correct and no app-supplied PII was found.
+
+S0 remains blocked because the attempt occurred on the existing founder iPhone and there is no confirmation that the Apple ID had never authorized RunSmart, plus no screenshot. Founder traffic remains excluded from activation cohorts.
+
+### Production evidence
+- Public physical session: `2026-07-21T07:27:24Z` to `07:29:10Z`, 1.1.1 (25), non-emulator/non-TestFlight/non-sideloaded.
+- `sign_in_completed` at `07:27:35.933Z`, method Apple, screen sign-in wall; zero failures.
+- `onboarding_completed` once; HealthKit sync completed.
+- `plan_generation_started` once; `plan_generated` once; `plan_generation_succeeded` once in 8294 ms; zero failed terminals.
+- `first_run_cta_viewed` and `first_workout_viewed` present.
+
+### Findings / bounded follow-up
+- Unprefixed `app_version/app_build` are absent on the public unauthenticated path while SDK `$app_version/$app_build` remain correct. Earlier authenticated sideload traffic carried both; re-register after reset is the leading repair boundary.
+- `onboarding_started` fired twice in one session/person despite the release guard.
+- Notification permission emitted request x2 and both denied/granted 39 ms apart. Static inspection found concurrent `PushService.requestAuthorization()` callers can both observe `.notDetermined`; serialize one in-flight request and emit one terminal outcome.
+- No code or production state changed in this diagnostic session.
+
+## 2026-07-21 - Public 1.1.1 (25) S0 verification blocked at Apple ID eligibility
+
+### Task Summary
+Prepared the controlled first-time Sign in with Apple S0 observation against the public App Store build. Confirmed public 1.1.1, physical bundle version 25, two reachable physical devices, and PostHog project 171597. Stopped before install or sign-in because the clean candidate's Apple Account authorization list could not be inspected from this environment.
+
+### Evidence
+- Apple US and IL public lookup: version 1.1.1, release `2026-07-20T20:38:19Z`.
+- Physical device inventory: iPhone 13 / iOS 26.5.2 has 1.1.1 (25); iPhone 13 Pro / iOS 18.6 has no RunSmart app.
+- PostHog privacy-minimized query: no RunSmart 1.1.1 (25) `sign_in_completed`, `sign_in_failed`, or target activation rows after release. Other-product rows in the shared project were excluded.
+- Report: `docs/qa/reports/release-1.1.1-build25-s0-device-test-2026-07-21.md`.
+
+### Blocked / not done
+- Apple ID never-authorized eligibility was not confirmed; sign-in taps = 0.
+- No screenshot, onboarding, HealthKit, plan generation, S6, S1 retry, or first-run evidence.
+- No production, ASC, backend, analytics, dependency, deploy, upload, or submission changes.
+
 ## 2026-07-21 - 1.1.2 held for weekly release cadence
 
 ### Decision

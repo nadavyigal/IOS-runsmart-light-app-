@@ -2,9 +2,29 @@
 
 ## Current Task
 
-**Objective:** Repair clean-install telemetry integrity after the public 1.1.1 (25) S0 session.
-**Status:** **WEEKLY RELEASE CANDIDATE — S0 PASS; repair verified; 1.1.2 (26) uploaded but intentionally not submitted.**
-**Source:** `docs/specs/2026-07-21-clean-install-telemetry-integrity.md`
+**Objective:** Ship **1.1.2 (27)** — the sign-in diagnosis build. Supersedes build 26 (uploaded, never submitted).
+**Status:** **READY FOR ARCHIVE.** Code complete, 324/324 green, Release build verified at 1.1.2 (27) with live analytics key. Archive + upload + submit are founder-only and were not performed.
+**Source:** WP-52a; `docs/specs/2026-07-21-clean-install-telemetry-integrity.md`
+
+### Build 27 checklist
+- [x] `has_underlying_error` + `underlying_error_domain/code/description` on `sign_in_failed`, with email/JWT redaction in the emitter (PR #113, `853953d`).
+- [x] Sign-in failure copy names iCloud so a blocked user has an action; raw-NSError guarantee preserved. Test confirmed failing pre-fix.
+- [x] Sign in with Apple button ignores a second tap while Apple is presenting; re-arms on completion **and** on foreground return so it can never dead-end.
+- [x] `CURRENT_PROJECT_VERSION` 26 → **27** across all 6 configurations; `MARKETING_VERSION` stays 1.1.2.
+- [x] Release notes rewritten to cover build 26 **and** 27 content together (build 26 never reached users).
+- [x] Full suite **324 passed / 0 failed / 0 skipped**, xcresult-verified.
+- [x] Release build for `generic/platform=iOS` succeeded; built `Info.plist` = 1.1.2 (27) with non-empty `POSTHOG_API_KEY`; SIWA entitlement present; instrumentation strings confirmed in the compiled binary.
+- [ ] **Founder — device smoke before submitting (~5 min):** launch on a physical device, tap Sign in with Apple once, confirm the button dims and ignores a second tap, and that the sheet still appears and completes. This is the only change on the critical auth path.
+- [ ] **Founder:** archive 1.1.2 (27), upload, attach in ASC, submit.
+- [ ] After public release: read `has_underlying_error` on the next real `sign_in_failed`, and verify the three corrected telemetry shapes from build 26's repair.
+
+### Known NOT in build 27 (decide separately, do not expect them)
+- **No email or guest sign-in fallback.** A user who genuinely cannot complete Sign in with Apple still has no way into the app. That is WP-53 and it is a materially larger piece of work.
+- **No fix for the 3 real failing devices** — build 27 diagnoses them, it does not repair them. A follow-up build is expected once the underlying error names the cause.
+- `onboarding_started` dedupe remains process-lifetime, so a mid-onboarding relaunch can still re-fire.
+- `Application Installed`/`Updated` still cannot carry build identity (fires inside `setup()`).
+
+### Superseded — build 26 release-hold checklist
 
 ### Checklist
 - [x] Correlate public physical S0 session in PostHog 171597 and confirm one successful sign-in, onboarding/HealthKit completion, one plan terminal, and first-run visibility.
