@@ -4199,6 +4199,68 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(mappedOther!.contains("credential type"), "generic fallback copy must not leak the raw error's wording")
     }
 
+    // 1.1.2 (27). The 2026-07-22 revoke-and-retry test proved first-time Sign in
+    // with Apple works, so the three real devices stuck on code 1000 are failing
+    // for a device- or account-side reason. Sign in with Apple cannot work unless
+    // the device is signed in to iCloud, and that is invisible from inside the
+    // app. "Tap to try again" gives a blocked user nothing to act on, so the copy
+    // must name the one precondition they can actually check and fix.
+    func testSignInErrorCopyTellsBlockedUserWhatToCheck() {
+        let failed = NSError(
+            domain: ASAuthorizationError.errorDomain,
+            code: ASAuthorizationError.unknown.rawValue
+        )
+        let mapped = SignInView.humanReadableAppleSignInError(for: failed)
+
+        XCTAssertNotNil(mapped)
+        XCTAssertTrue(
+            mapped!.localizedCaseInsensitiveContains("iCloud"),
+            "a user blocked by a missing iCloud session must be told to check it; 'try again' alone loops them forever"
+        )
+        XCTAssertTrue(
+            mapped!.localizedCaseInsensitiveContains("nothing was created")
+                || mapped!.localizedCaseInsensitiveContains("no account"),
+            "the reassurance that no partial account exists is load-bearing trust copy from WP-43 S2 — do not drop it"
+        )
+        // The raw-NSError guarantee from the test above must survive the rewrite.
+        XCTAssertFalse(mapped!.contains("com.apple"))
+        XCTAssertFalse(mapped!.contains("1000"))
+    }
+
+    // The iCloud advice is only true for failures Apple itself reported.
+    // `handleAppleResult`'s catch-all also covers `session.signInWithApple(...)`,
+    // so a Supabase outage or a dropped connection reaches the same mapper —
+    // and telling a user with no network to go check iCloud sends them to fix
+    // something that is not broken. Scope the advice to ASAuthorizationError.
+    func testSignInErrorCopyDoesNotBlameICloudForNonAppleFailures() {
+        let network = NSError(
+            domain: NSURLErrorDomain,
+            code: NSURLErrorNotConnectedToInternet,
+            userInfo: [NSLocalizedDescriptionKey: "The Internet connection appears to be offline."]
+        )
+        let mappedNetwork = SignInView.humanReadableAppleSignInError(for: network)
+        XCTAssertNotNil(mappedNetwork)
+        XCTAssertFalse(
+            mappedNetwork!.localizedCaseInsensitiveContains("iCloud"),
+            "a network failure is not an iCloud problem; misdirecting the user wastes the one retry they will give us"
+        )
+
+        let credential = AppleSignInError.invalidCredential
+        let mappedCredential = SignInView.humanReadableAppleSignInError(for: credential)
+        XCTAssertNotNil(mappedCredential)
+        XCTAssertFalse(mappedCredential!.localizedCaseInsensitiveContains("iCloud"))
+
+        // Apple-reported failures still get the actionable advice.
+        let appleFailure = NSError(
+            domain: ASAuthorizationError.errorDomain,
+            code: ASAuthorizationError.unknown.rawValue
+        )
+        XCTAssertTrue(
+            SignInView.humanReadableAppleSignInError(for: appleFailure)!
+                .localizedCaseInsensitiveContains("iCloud")
+        )
+    }
+
     // WP-44 S1: the first screen's pills said "Run guidance and cue previews"
     // (feature-speak) and "HealthKit reads approved data..." (compliance-speak).
     // The audit's daily-answer promise must lead, and neither old bullet may return.

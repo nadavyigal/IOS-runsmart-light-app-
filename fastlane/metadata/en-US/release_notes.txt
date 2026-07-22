@@ -1,6 +1,8 @@
-RunSmart 1.1.2 improves first-time setup reliability and the diagnostics that help us catch sign-in, onboarding, and notification issues quickly.
+RunSmart 1.1.2 improves first-time setup reliability and makes sign-in problems easier to resolve.
 
 What's new:
+- Clearer guidance when Sign in with Apple can't finish, including what to check on your device
+- The Sign in with Apple button no longer reacts to a second tap while Apple is still working
 - More reliable first-time onboarding tracking after Sign in with Apple
 - Consistent notification-permission handling when several setup tasks finish together
 - Correct release attribution on diagnostic events after account changes
