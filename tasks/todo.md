@@ -13,7 +13,8 @@
 - [x] `CURRENT_PROJECT_VERSION` 26 → **27** across all 6 configurations; `MARKETING_VERSION` stays 1.1.2.
 - [x] Release notes rewritten to cover build 26 **and** 27 content together (build 26 never reached users).
 - [x] Full suite **324 passed / 0 failed / 0 skipped**, xcresult-verified.
-- [x] Release build for `generic/platform=iOS` succeeded; built `Info.plist` = 1.1.2 (27) with non-empty `POSTHOG_API_KEY`; SIWA entitlement present; instrumentation strings confirmed in the compiled binary.
+- [x] Release build for `generic/platform=iOS` succeeded; built `Info.plist` = 1.1.2 (27) with non-empty `POSTHOG_API_KEY`; SIWA entitlement present.
+- [x] Binary check (long keys only): `has_underlying_error`, `underlying_error_domain`, `underlying_error_code` present in the compiled binary. **Short event names cannot be checked this way** — Swift inlines literals ≤15 UTF-8 bytes, so `sign_in_failed` (14) is absent from `strings` by design. Its emission is verified at **runtime** by `testSignInFailedCapturesUnderlyingError`, which asserts on the emitted event name.
 - [ ] **Founder — device smoke before submitting (~5 min):** launch on a physical device, tap Sign in with Apple once, confirm the button dims and ignores a second tap, and that the sheet still appears and completes. This is the only change on the critical auth path.
 - [ ] **Founder:** archive 1.1.2 (27), upload, attach in ASC, submit.
 - [ ] After public release: read `has_underlying_error` on the next real `sign_in_failed`, and verify the three corrected telemetry shapes from build 26's repair.
