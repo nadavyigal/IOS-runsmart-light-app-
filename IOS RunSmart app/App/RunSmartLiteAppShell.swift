@@ -277,7 +277,7 @@ struct RunSmartLiteAppShell: View {
                     .environment(\.runRecorder, recorder)
             case .secondary(let destination):
                 SecondaryFlowView(destination: destination)
-                    .presentationDetents(destination == .goalWizard ? [.large] : [.medium, .large])
+                    .presentationDetents(fullHeightSecondaryDestinations.contains(destination) ? [.large] : [.medium, .large])
                     .presentationDragIndicator(.visible)
                     .environmentObject(router)
                     .environmentObject(session)
@@ -472,6 +472,13 @@ struct RunSmartLiteAppShell: View {
             }
             await refreshReturnLoopReminders()
         }
+    }
+
+    /// Destinations that need the full sheet height: the goal wizard's stepper
+    /// flow, and the route screens, whose map-card lists sat below the fold at
+    /// the medium detent (route-feature QA, 2026-07-23).
+    private var fullHeightSecondaryDestinations: Set<SecondaryDestination> {
+        [.goalWizard, .routeCreator, .routeSelector]
     }
 
 #if DEBUG

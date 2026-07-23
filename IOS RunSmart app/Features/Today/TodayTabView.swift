@@ -436,6 +436,7 @@ struct TodayTabView: View {
     }
 
     private func startRun(with workout: WorkoutSummary, route: RouteSuggestion) {
+        Analytics.trackRouteUsedForRun(routeKind: route.kind.rawValue, source: "today_card")
         router.startRun(with: workout, route: route)
     }
 

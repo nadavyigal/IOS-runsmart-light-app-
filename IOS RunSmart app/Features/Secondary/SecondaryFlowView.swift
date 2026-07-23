@@ -906,6 +906,7 @@ private struct RouteSelectorScaffold: View {
 
             Button {
                 guard let selectedRoute else { return }
+                Analytics.trackRouteUsedForRun(routeKind: selectedRoute.kind.rawValue, source: "route_selector")
                 router.startRun(with: router.plannedWorkout, route: selectedRoute)
             } label: {
                 Text(selectedRoute == nil ? "No Route Available" : "Use This Route")
@@ -948,18 +949,24 @@ private struct RouteSelectorScaffold: View {
             if !benchmarks.isEmpty {
                 RouteDiscoverySectionHeader(title: "Benchmarks", count: benchmarks.count)
                 ForEach(benchmarks) { r in
-                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
-                        selectedRouteID = r.id
-                    }
+                    FullBleedRouteCard(
+                        suggestion: r,
+                        isSelected: r.id == selectedRouteID,
+                        onTap: { selectedRouteID = r.id },
+                        onDetail: r.savedRouteID == nil ? nil : { openRouteDetail(r) }
+                    )
                 }
             }
 
             if !myRoutes.isEmpty {
                 RouteDiscoverySectionHeader(title: "My Routes", count: myRoutes.count)
                 ForEach(myRoutes) { r in
-                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
-                        selectedRouteID = r.id
-                    }
+                    FullBleedRouteCard(
+                        suggestion: r,
+                        isSelected: r.id == selectedRouteID,
+                        onTap: { selectedRouteID = r.id },
+                        onDetail: r.savedRouteID == nil ? nil : { openRouteDetail(r) }
+                    )
                 }
             }
 
@@ -976,6 +983,17 @@ private struct RouteSelectorScaffold: View {
 
     private var selectedRoute: RouteSuggestion? {
         allSuggestions.first(where: { $0.id == selectedRouteID }) ?? allSuggestions.first
+    }
+
+    private func openRouteDetail(_ suggestion: RouteSuggestion) {
+        guard let savedRouteID = suggestion.savedRouteID else { return }
+        Task {
+            let routes = await services.savedRoutes()
+            guard let route = routes.first(where: { $0.id == savedRouteID }) else { return }
+            await MainActor.run {
+                router.open(.routeDetail(route))
+            }
+        }
     }
 
     private func load() async {

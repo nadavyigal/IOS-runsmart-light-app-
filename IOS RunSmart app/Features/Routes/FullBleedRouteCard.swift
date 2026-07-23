@@ -6,6 +6,7 @@ struct FullBleedRouteCard: View {
     var suggestion: RouteSuggestion
     var isSelected: Bool
     var onTap: () -> Void
+    var onDetail: (() -> Void)? = nil
 
     private var isBenchmark: Bool { suggestion.kind == .benchmark }
 
@@ -72,6 +73,27 @@ struct FullBleedRouteCard: View {
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+
+                // Detail affordance — bottom-right, only for routes with a saved library entry
+                if let onDetail {
+                    Button(action: onDetail) {
+                        HStack(spacing: 4) {
+                            Text("Details")
+                                .font(.system(size: 11, weight: .bold))
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .foregroundStyle(Color.white.opacity(0.85))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.45), in: Capsule())
+                        .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .accessibilityLabel("Route details for \(suggestion.name)")
+                }
             }
             .frame(height: isBenchmark ? 180 : 155)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))

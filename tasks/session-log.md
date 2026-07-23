@@ -1,5 +1,29 @@
 # Session Log
 
+## 2026-07-23 - Route feature review: root cause found (missing Supabase tables), creator/benchmark loop repaired
+
+### Outcome
+Founder asked why the Route Creator and Route Benchmark feature "designed a while ago disappeared." Root cause: `user_saved_routes` / `user_benchmark_routes` were never created in the Supabase project (the SQL only existed as a code comment), so cloud sync silently no-ops, saved routes/benchmarks live only in UserDefaults, and a delete/reinstall wipes them. On top of that, three UX breaks made the surviving local feature near-unusable: the Route Creator had no "use this route" action (dead end), the Route Detail screen (Make Benchmark / Favorite / Delete / benchmark stats) was unreachable from any surface, and the demo/QA services hardcoded the save/match/comparison loop dead.
+
+### Changes (branch claude/route-feature-review-d15198)
+- Route Creator: primary "Use This Route" CTA -> starts a run with the selected route; Generate demoted to secondary.
+- "Details" chip on saved/benchmark route cards (creator + selector) -> opens the previously unreachable RouteDetailScaffold.
+- Demo/QA services now seed preview fixtures into the local store once and run real production route logic; save -> benchmark -> match -> comparison is simulator-QA-able.
+- Route screens present at .large detent (route list was below the fold at .medium).
+- New `route_used_for_run` analytics event (source: route_creator | route_selector | today_card).
+- QA hook: `-OPEN_SECONDARY routeCreator|routeSelector`.
+- Staged migration `supabase/migrations/20260723120000_create_user_route_tables.sql` — NOT applied; founder decision.
+
+### Validation
+- New `RouteLibraryDemoServiceTests` (3): confirmed failing against the pre-fix implementation, passing after.
+- Full iOS suite result recorded in tasks/progress.md.
+- Simulator walk-through (iPhone 17, demo mode) with screenshots; report at `docs/qa/reports/route-feature-review-2026-07-23.md`.
+
+### Open
+- Founder: approve/apply the route-tables migration (client heals automatically once tables exist).
+- Founder: device smoke — record a run, save as benchmark, re-run it, confirm the comparison card.
+- Follow-ups recorded in tasks/todo.md: Garmin past-route points, Today card only shows for planned workouts, generated "loops" are out-and-backs with elevation 0, no route polyline on LiveRunView.
+
 ## 2026-07-22 - Build 27 prepared; first-time Apple sign-in proven working
 
 ### Outcome
