@@ -101,10 +101,27 @@ struct RouteCreatorView: View {
         .task {
             await loadSuggestions()
         }
+        .onChange(of: displayedRouteIDs) { _, ids in
+            reconcileSelection(with: ids)
+        }
     }
 
+    /// Strictly the route the user can see selected — never a silent fallback.
+    /// A fallback to `displayed.first` would let the CTA start a route while
+    /// every card on screen renders unselected.
     private var selectedRoute: RouteSuggestion? {
-        displayed.first(where: { $0.id == selectedRouteID }) ?? displayed.first
+        displayed.first(where: { $0.id == selectedRouteID })
+    }
+
+    private var displayedRouteIDs: [String] {
+        displayed.map(\.id)
+    }
+
+    /// Keeps `selectedRouteID` pointing at something visible after a filter,
+    /// preference, or regeneration change removes the selected route.
+    private func reconcileSelection(with ids: [String]) {
+        if let selectedRouteID, ids.contains(selectedRouteID) { return }
+        selectedRouteID = ids.first
     }
 
     private func openRouteDetail(_ suggestion: RouteSuggestion) {
@@ -256,9 +273,10 @@ struct RouteCreatorView: View {
         locationUnavailable = location == nil
         mapKitFailed = location != nil && generated.isEmpty
         allSuggestions = mergedSuggestions(ranked + generated)
-        if selectedRouteID == nil {
-            selectedRouteID = allSuggestions.first?.id
-        }
+        // Reconcile against `displayed`, not `allSuggestions`: the latter can
+        // contain routes the active filter hides, which would select a card the
+        // user cannot see. `.onChange` does not fire for the initial load.
+        reconcileSelection(with: displayedRouteIDs)
     }
 
     private func generatedSuggestions(around location: CLLocationCoordinate2D?) async -> [RouteSuggestion] {

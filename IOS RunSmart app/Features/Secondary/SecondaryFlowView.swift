@@ -915,6 +915,9 @@ private struct RouteSelectorScaffold: View {
                 .disabled(selectedRoute == nil)
         }
         .task { await load() }
+        .onChange(of: displayedRouteIDs) { _, ids in
+            reconcileSelection(with: ids)
+        }
     }
 
     // MARK: - Buckets
@@ -981,8 +984,20 @@ private struct RouteSelectorScaffold: View {
         }
     }
 
+    /// Strictly the visible selection. The previous fallback resolved against
+    /// `allSuggestions`, so an active distance filter could start a route that
+    /// was filtered off screen and rendered nowhere as selected.
     private var selectedRoute: RouteSuggestion? {
-        allSuggestions.first(where: { $0.id == selectedRouteID }) ?? allSuggestions.first
+        displayed.first(where: { $0.id == selectedRouteID })
+    }
+
+    private var displayedRouteIDs: [String] {
+        displayed.map(\.id)
+    }
+
+    private func reconcileSelection(with ids: [String]) {
+        if let selectedRouteID, ids.contains(selectedRouteID) { return }
+        selectedRouteID = ids.first
     }
 
     private func openRouteDetail(_ suggestion: RouteSuggestion) {
@@ -1004,9 +1019,7 @@ private struct RouteSelectorScaffold: View {
         let generated = await generatedSuggestions(around: location)
         let ranked = await rankedTask
         allSuggestions = mergedSuggestions(ranked + generated)
-        if selectedRouteID == nil {
-            selectedRouteID = allSuggestions.first?.id
-        }
+        reconcileSelection(with: displayedRouteIDs)
     }
 
     private func generatedSuggestions(around location: CLLocationCoordinate2D?) async -> [RouteSuggestion] {

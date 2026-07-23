@@ -11,106 +11,122 @@ struct FullBleedRouteCard: View {
     private var isBenchmark: Bool { suggestion.kind == .benchmark }
 
     var body: some View {
-        Button(action: onTap) {
-            ZStack(alignment: .bottomLeading) {
+        ZStack {
+            Button(action: onTap) {
+                cardContent
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityAddTraits(isSelected ? [.isSelected] : [])
 
-                // Map fills the entire card
-                RouteMapView(points: suggestion.points, title: nil)
-                    .allowsHitTesting(false)
-
-                // Bottom gradient scrim
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0),
-                        .init(color: Color.black.opacity(0.50), location: 0.30),
-                        .init(color: Color.black.opacity(0.88), location: 0.65),
-                        .init(color: Color.black.opacity(0.97), location: 1)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                // Overlaid data content
-                VStack(alignment: .leading, spacing: 5) {
-                    Spacer()
-                    Text(suggestion.name)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
-                        .lineLimit(1)
-
-                    HStack(spacing: 12) {
-                        statItem(icon: "point.topleft.down.curvedto.point.bottomright.up",
-                                 value: String(format: "%.1f km", suggestion.distanceKm))
-                        statItem(icon: "arrow.up.right",
-                                 value: "\(suggestion.elevationGainMeters) m")
-                        statItem(icon: "clock",
-                                 value: "\(suggestion.estimatedDurationMinutes) min")
-                    }
-
-                    if let reason = suggestion.recommendationReason {
-                        reasonChip(reason, kind: suggestion.kind)
-                    }
+            // Sibling of the selection button, never nested inside it: a Button
+            // within a Button does not reliably receive its own taps, and the
+            // selection button's `children: .combine` would hide this action
+            // from VoiceOver entirely.
+            if let onDetail {
+                Button(action: onDetail) {
+                    detailChip
                 }
-                .padding(12)
-
-                // Select circle — top-left
-                selectCircle
-                    .padding(10)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-                // Kind badges — top-right
-                HStack(spacing: 5) {
-                    if isBenchmark {
-                        kindBadge(label: "Benchmark", icon: "chart.line.uptrend.xyaxis", color: Color.lime)
-                    }
-                    if suggestion.isFavorite {
-                        kindBadge(label: "", icon: "heart.fill", color: Color.accentHeart)
-                    }
-                    if suggestion.kind == .generated {
-                        kindBadge(label: "Generated", icon: "sparkles", color: Color.accentRecovery)
-                    }
-                }
+                .buttonStyle(.plain)
                 .padding(10)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .accessibilityLabel("Route details for \(suggestion.name)")
+            }
+        }
+        .frame(height: isBenchmark ? 180 : 155)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(
+                    isSelected ? Color.lime.opacity(0.55)
+                        : isBenchmark ? Color.lime.opacity(0.22)
+                        : Color.white.opacity(0.07),
+                    lineWidth: isSelected ? 1.5 : 1
+                )
+        )
+        .shadow(color: isSelected ? Color.lime.opacity(0.12) : .clear, radius: 10)
+    }
 
-                // Detail affordance — bottom-right, only for routes with a saved library entry
-                if let onDetail {
-                    Button(action: onDetail) {
-                        HStack(spacing: 4) {
-                            Text("Details")
-                                .font(.system(size: 11, weight: .bold))
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 9, weight: .bold))
-                        }
-                        .foregroundStyle(Color.white.opacity(0.85))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.black.opacity(0.45), in: Capsule())
-                        .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .accessibilityLabel("Route details for \(suggestion.name)")
+    private var detailChip: some View {
+        HStack(spacing: 4) {
+            Text("Details")
+                .font(.system(size: 11, weight: .bold))
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .bold))
+        }
+        .foregroundStyle(Color.white.opacity(0.85))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.black.opacity(0.45), in: Capsule())
+        .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 1))
+    }
+
+    private var cardContent: some View {
+        ZStack(alignment: .bottomLeading) {
+
+            // Map fills the entire card
+            RouteMapView(points: suggestion.points, title: nil)
+                .allowsHitTesting(false)
+
+            // Bottom gradient scrim
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: Color.black.opacity(0.50), location: 0.30),
+                    .init(color: Color.black.opacity(0.88), location: 0.65),
+                    .init(color: Color.black.opacity(0.97), location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            // Overlaid data content
+            VStack(alignment: .leading, spacing: 5) {
+                Spacer()
+                Text(suggestion.name)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+                    .lineLimit(1)
+
+                HStack(spacing: 12) {
+                    statItem(icon: "point.topleft.down.curvedto.point.bottomright.up",
+                             value: String(format: "%.1f km", suggestion.distanceKm))
+                    statItem(icon: "arrow.up.right",
+                             value: "\(suggestion.elevationGainMeters) m")
+                    statItem(icon: "clock",
+                             value: "\(suggestion.estimatedDurationMinutes) min")
+                }
+
+                if let reason = suggestion.recommendationReason {
+                    reasonChip(reason, kind: suggestion.kind)
                 }
             }
-            .frame(height: isBenchmark ? 180 : 155)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(
-                        isSelected ? Color.lime.opacity(0.55)
-                            : isBenchmark ? Color.lime.opacity(0.22)
-                            : Color.white.opacity(0.07),
-                        lineWidth: isSelected ? 1.5 : 1
-                    )
-            )
-            .shadow(color: isSelected ? Color.lime.opacity(0.12) : .clear, radius: 10)
+            .padding(12)
+
+            // Select circle — top-left
+            selectCircle
+                .padding(10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            // Kind badges — top-right
+            HStack(spacing: 5) {
+                if isBenchmark {
+                    kindBadge(label: "Benchmark", icon: "chart.line.uptrend.xyaxis", color: Color.lime)
+                }
+                if suggestion.isFavorite {
+                    kindBadge(label: "", icon: "heart.fill", color: Color.accentHeart)
+                }
+                if suggestion.kind == .generated {
+                    kindBadge(label: "Generated", icon: "sparkles", color: Color.accentRecovery)
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityLabel)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
     }
 
     // MARK: - Sub-views

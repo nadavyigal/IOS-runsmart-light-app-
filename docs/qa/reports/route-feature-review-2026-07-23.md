@@ -1,13 +1,14 @@
 # Route Feature Review — Creator, Library, Benchmarks (2026-07-23)
 
 **Scope:** user-level review of the route feature (Route Creator, route discovery, saved routes, benchmark routes, benchmark comparison), root-cause of "the feature I designed disappeared," and fixes.
+**Status:** fixes merged into PR #116; the route-tables migration was applied to production on 2026-07-23 with founder approval. Remaining gate: device smoke of the record → save → benchmark → re-run → comparison loop.
 **Method:** full code-path trace of every route surface and service implementation, plus simulator walk-through as a user (iPhone 17, iOS 26.5, demo mode) with screenshots.
 
 ## Findings (ordered by severity)
 
 ### F1 — Supabase route tables were never created (root cause of "disappeared")
 `RouteRepository.swift` reads/writes `user_saved_routes` and `user_benchmark_routes`, but the SQL to create them only ever existed as a code comment ("Run the following SQL in the Supabase dashboard"). Verified live: neither table exists in project `dxqglotcyirxzyqaxqln`. Every remote fetch throws, `remoteRouteTablesUnavailable` latches true, and the app silently falls back to `UserDefaults`-backed local storage. **Saved routes and benchmarks therefore never left the device and are wiped by delete/reinstall.**
-**Fix staged, not applied:** `supabase/migrations/20260723120000_create_user_route_tables.sql` (owner-scoped per-command RLS, FK indexes). Applying it is a founder decision; the client code already handles the tables appearing (sync heals on next fetch).
+**Fixed and applied 2026-07-23** (founder-approved): `supabase/migrations/20260723120000_create_user_route_tables.sql` — owner-scoped per-command RLS, FK indexes, a `CHECK` pinning `source` to the four `RouteSource` cases, non-negative distance/elevation guards, and an **ownership-enforcing composite FK** so a benchmark row can only reference a saved route belonging to the same user. Verified post-apply on the live project: both tables exist with RLS on and 4 policies each, and a probe confirmed the composite FK rejects a cross-user benchmark insert, the `source` CHECK rejects an unknown value, and the non-negative CHECK rejects a negative distance. Supabase security advisors report no findings on either new table. The client heals on next fetch — existing device-local routes upsert to the cloud the next time a signed-in user saves or benchmarks a route.
 
 ### F2 — Route Creator was a dead end
 `RouteCreatorView` could generate and select routes, but its only button was "Generate Route". No way to use a selection for a run, no way to open a route's details. The PreRun "Route" button led here, so the pre-run route flow ended in a cul-de-sac.
@@ -38,7 +39,7 @@ Only `route_selected` (card tap) and `route_saved` existed; attaching a route to
 
 ## Validation
 - New regression tests `RouteLibraryDemoServiceTests` (3): confirmed **failing** against the pre-fix implementation, passing after (red → green).
-- Full iOS suite: see tasks/progress.md entry for the final count (xcresult at `/private/tmp/rs-route-full.xcresult`).
+- Full iOS suite: see tasks/progress.md entry for the final count.
 - Simulator smoke: Route Creator opens full-height with Use This Route CTA and Details chips; screenshots in session scratchpad.
 
 ## Evidence

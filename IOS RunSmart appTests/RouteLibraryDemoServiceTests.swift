@@ -8,23 +8,43 @@ import XCTest
 /// could never be QA'd.
 final class RouteLibraryDemoServiceTests: XCTestCase {
 
-    private let storeKeys = [
+    // DemoRunSmartServices persists through RunSmartLocalStore, which is bound
+    // to UserDefaults.standard. Rather than wiping those production-backed keys
+    // (which would destroy a neighbouring test's route state and leave the
+    // forced-seeded flag behind), snapshot every key touched here and restore
+    // the exact prior values in tearDown.
+    private let touchedKeys = [
         "runsmart.savedRoutes",
         "runsmart.benchmarkRoutes",
+        "runsmart.demo.routesSeeded",
     ]
-    private let seededKey = "runsmart.demo.routesSeeded"
+    private var defaultsSnapshot: [String: Any] = [:]
 
     override func setUp() {
         super.setUp()
-        storeKeys.forEach { UserDefaults.standard.removeObject(forKey: $0) }
+        let defaults = UserDefaults.standard
+        defaultsSnapshot = [:]
+        for key in touchedKeys {
+            if let value = defaults.object(forKey: key) {
+                defaultsSnapshot[key] = value
+            }
+            defaults.removeObject(forKey: key)
+        }
         // Mark seeded so tests start from an empty, deterministic library
         // instead of the preview fixtures.
-        UserDefaults.standard.set(true, forKey: seededKey)
+        defaults.set(true, forKey: "runsmart.demo.routesSeeded")
     }
 
     override func tearDown() {
-        storeKeys.forEach { UserDefaults.standard.removeObject(forKey: $0) }
-        UserDefaults.standard.removeObject(forKey: seededKey)
+        let defaults = UserDefaults.standard
+        for key in touchedKeys {
+            if let value = defaultsSnapshot[key] {
+                defaults.set(value, forKey: key)
+            } else {
+                defaults.removeObject(forKey: key)
+            }
+        }
+        defaultsSnapshot = [:]
         super.tearDown()
     }
 
