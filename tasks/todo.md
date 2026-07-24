@@ -2,9 +2,15 @@
 
 ## Current Task
 
-**Objective:** Route feature review + repair — make the Route Creator and Route Benchmark loop work end to end (the differentiator for recording runs in RunSmart vs Nike Run Club et al.).
-**Status:** Code complete on branch `claude/route-feature-review-d15198`; see checklist. Root cause of "the feature disappeared": the Supabase route tables were never created, so saved routes/benchmarks were silently device-local and wiped on reinstall.
+**Objective:** Route feature review + repair — make the Route Creator and Route Benchmark loop work end to end (the differentiator for recording runs in RunSmart vs Nike Run Club et al.), and **ship it as 1.1.3 (28)**.
+**Status:** Merged to `main` (PR #116, `8cbb928`); **packaged as 1.1.3 (28) on branch `claude/release-1.1.3-routes`** — version bumped, release notes rewritten. Remaining before public: founder device-smoke, then archive → upload → submit. Root cause of "the feature disappeared": the Supabase route tables were never created, so saved routes/benchmarks were silently device-local and wiped on reinstall (tables applied to prod 2026-07-23).
 **Source:** founder request 2026-07-23; report at `docs/qa/reports/route-feature-review-2026-07-23.md`.
+
+### 1.1.3 (28) release packaging
+- [x] `MARKETING_VERSION` 1.1.2 → 1.1.3 and `CURRENT_PROJECT_VERSION` 27 → 28 across all 6 configs (grep-verified 6/6, 0 stale).
+- [x] `fastlane/metadata/en-US/release_notes.txt` rewritten for the route feature.
+- [x] Release build for `generic/platform=iOS` verifies compile + version stamp (see progress.md Last Validation).
+- [ ] **Founder:** archive 1.1.3 (28) in Xcode → upload → submit (ASC-only). No DB gate remains — route tables are already live in production.
 
 ### Checklist
 - [x] Trace every route surface + service implementation; simulator walk-through as a user (demo mode, iPhone 17).

@@ -1,5 +1,24 @@
 # Session Log
 
+## 2026-07-24 - 1.1.3 (28) release prep: package the merged route feature
+
+### Outcome
+Route feature merged to `main` (PR #116, `8cbb928`), so 1.1.3 is a release-packaging commit, not a code change. Bumped `MARKETING_VERSION` 1.1.2 → 1.1.3 and `CURRENT_PROJECT_VERSION` 27 → 28 across all 6 configurations (grep-verified 6/6, 0 stale, diff is exactly the 12 version lines), and rewrote `fastlane/metadata/en-US/release_notes.txt` to user-facing route copy. This is the first build that actually uses the `user_saved_routes` / `user_benchmark_routes` tables applied to production 2026-07-23, so cloud route persistence stops being a silent no-op for users.
+
+### Changes (branch claude/release-1.1.3-routes)
+- `IOS RunSmart app.xcodeproj/project.pbxproj`: version 1.1.2 → 1.1.3, build 27 → 28 (all 6 configs).
+- `fastlane/metadata/en-US/release_notes.txt`: rewritten for the route feature (Use This Route, reachable route/benchmark detail, cloud sync survives reinstall, full-height screens).
+- `tasks/progress.md`, `tasks/todo.md`, `tasks/session-log.md`: status updated.
+
+### Validation
+- Version bump grep-verified (6 of each new value, 0 stale; diff is the 12 version lines only).
+- Release build for `generic/platform=iOS` (Release config, CODE_SIGNING_ALLOWED=NO, derivedDataPath under /private/tmp): see progress.md Last Validation.
+- Route code unchanged from the 2026-07-23 merge validation (327 passed / 1 pre-existing Hebrew-locale flaky).
+
+### Open (founder-only)
+- Device-smoke the record → save → benchmark → re-run → comparison loop once on real hardware (the one gate the route QA report left open); now also verifies cloud persistence survives delete + reinstall.
+- Archive 1.1.3 (28) in Xcode → upload → submit. No DB gate remains.
+
 ## 2026-07-23 - Route feature review: root cause found (missing Supabase tables), creator/benchmark loop repaired
 
 ### Outcome
