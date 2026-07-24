@@ -1,8 +1,7 @@
-RunSmart 1.1.2 improves first-time setup reliability and makes sign-in problems easier to resolve.
+RunSmart 1.1.3 brings the route tools fully to life and keeps your saved routes safe.
 
 What's new:
-- Clearer guidance when Sign in with Apple can't finish, including what to check on your device
-- The Sign in with Apple button no longer reacts to a second tap while Apple is still working
-- More reliable first-time onboarding tracking after Sign in with Apple
-- Consistent notification-permission handling when several setup tasks finish together
-- Correct release attribution on diagnostic events after account changes
+- Build a route and start a run from it in one tap with the new Use This Route button
+- Open any saved or benchmark route to see its details, make it a benchmark, and track your stats over time
+- Your saved routes and benchmarks now sync to your account, so they're no longer lost when you reinstall the app
+- Route screens open full-height so you can see every route at a glance
