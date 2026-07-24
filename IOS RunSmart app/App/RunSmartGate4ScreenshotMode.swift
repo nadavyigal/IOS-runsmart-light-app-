@@ -29,6 +29,10 @@ enum RunSmartGate4ScreenshotMode {
             return .wellnessTrends
         case "addActivity":
             return .addActivity
+        case "routeCreator":
+            return .routeCreator
+        case "routeSelector":
+            return .routeSelector
         default:
             return nil
         }

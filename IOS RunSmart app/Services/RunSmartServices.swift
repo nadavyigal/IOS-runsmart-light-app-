@@ -525,44 +525,165 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
         }
         return nil
     }
-    func matchRoute(for run: RecordedRun) async -> RouteMatchResult? { nil }
-    func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? { nil }
+    // Demo route matching runs the real production services against the local
+    // store so the save-route → benchmark → comparison loop is fully QA-able
+    // in the simulator. Returning nil here (the old behavior) silently killed
+    // the benchmark feature in every demo and simulator session.
+    func matchRoute(for run: RecordedRun) async -> RouteMatchResult? {
+        RouteMatchingService.match(run: run, savedRoutes: await savedRoutes())
+    }
+
+    func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? {
+        let saved = await savedRoutes()
+        var matchedRun = run
+        if matchedRun.routeMatchResult == nil {
+            matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: saved)
+        }
+        let history = (await recentRuns()).map { historyRun in
+            var candidate = historyRun
+            if candidate.routeMatchResult == nil {
+                candidate.routeMatchResult = RouteMatchingService.match(run: candidate, savedRoutes: saved)
+            }
+            return candidate
+        }
+        return BenchmarkRouteAnalyticsService.comparison(
+            for: matchedRun,
+            runs: history,
+            savedRoutes: saved,
+            benchmarkRoutes: await benchmarkRoutes()
+        )
+    }
+
     func trainingLoadSnapshot() async -> TrainingLoadSnapshot { RunSmartPreviewData.trainingLoad }
     func shareableAchievements() async -> [ShareableAchievement] { RunSmartPreviewData.shareableAchievements }
     func approveGarminMorningCheckin() async -> Bool { true }
 
     func routeSuggestions() async -> [RouteSuggestion] {
-        RunSmartDemoData.routeSuggestions
+        await rankedRouteSuggestions(targetDistanceKm: nil)
     }
 
+    // Built from the seeded local route library (same shape as the production
+    // Supabase implementation) so cards carry real map points and a working
+    // savedRouteID, instead of static fixtures with empty maps and dangling IDs.
     func rankedRouteSuggestions(targetDistanceKm: Double?) async -> [RouteSuggestion] {
-        let routes = RunSmartDemoData.routeSuggestions
-        guard let targetDistanceKm else { return routes }
-        return routes.sorted { lhs, rhs in
-            abs(lhs.distanceKm - targetDistanceKm) < abs(rhs.distanceKm - targetDistanceKm)
+        let saved = await savedRoutes()
+        let benchmarkRouteIDs = Set((await benchmarkRoutes()).map(\.savedRouteID))
+        var suggestions: [RouteSuggestion] = saved.map { route in
+            let kind: RouteKind = benchmarkRouteIDs.contains(route.id) ? .benchmark : .saved
+            return RouteSuggestion(
+                id: route.id.uuidString,
+                name: route.name,
+                distanceKm: route.distanceKm,
+                elevationGainMeters: route.elevationGainMeters,
+                estimatedDurationMinutes: max(1, Int((route.distanceKm * 360.0).rounded()) / 60),
+                points: route.points,
+                kind: kind,
+                recommendationReason: RouteSuggestionRanker.reason(
+                    kind: kind,
+                    distanceKm: route.distanceKm,
+                    targetDistanceKm: targetDistanceKm,
+                    isFavorite: route.isFavorite,
+                    daysSinceLastRun: nil
+                ),
+                savedRouteID: route.id,
+                isFavorite: route.isFavorite
+            )
         }
+        suggestions += RunSmartDemoData.routeSuggestions.filter { $0.kind == .past }
+        let filtered = RouteSuggestionRanker.filter(suggestions, targetDistanceKm: targetDistanceKm)
+        return RouteSuggestionRanker.rank(filtered, targetDistanceKm: targetDistanceKm)
     }
 
     func nearbyLoopRoutes(around coordinate: CLLocationCoordinate2D, distancesKm: [Double]) async -> [RouteSuggestion] {
         RunSmartDemoData.routeSuggestions.filter { route in
-            distancesKm.isEmpty || distancesKm.contains { abs($0 - route.distanceKm) <= 1.0 }
+            route.kind == .generated
+                && (distancesKm.isEmpty || distancesKm.contains { abs($0 - route.distanceKm) <= 1.0 })
+        }
+    }
+
+    // Preview fixtures are seeded into the local store once, then the store is
+    // the single source of truth — so save/favorite/benchmark/delete behave
+    // exactly like production local persistence and survive relaunches.
+    private static let demoRoutesSeededKey = "runsmart.demo.routesSeeded"
+
+    private func seedDemoRoutesIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: Self.demoRoutesSeededKey) else { return }
+        defaults.set(true, forKey: Self.demoRoutesSeededKey)
+        if store.loadSavedRoutes().isEmpty {
+            for route in RunSmartPreviewData.savedRoutes { store.saveSavedRoute(route) }
+            for benchmark in RunSmartPreviewData.benchmarkRoutes { store.saveBenchmarkRoute(benchmark) }
         }
     }
 
     func savedRoutes() async -> [SavedRoute] {
-        RunSmartPreviewData.savedRoutes
+        seedDemoRoutesIfNeeded()
+        return store.loadSavedRoutes()
     }
 
-    func saveRoute(_ route: SavedRoute) async -> Bool { false }
-    func deleteRoute(_ routeID: UUID) async -> Bool { false }
-    func updateRoute(_ route: SavedRoute) async -> Bool { false }
+    func saveRoute(_ route: SavedRoute) async -> Bool {
+        seedDemoRoutesIfNeeded()
+        store.saveSavedRoute(route)
+        postRouteChange()
+        return true
+    }
+
+    func deleteRoute(_ routeID: UUID) async -> Bool {
+        seedDemoRoutesIfNeeded()
+        let removed = store.removeSavedRoute(routeID)
+        if removed {
+            store.refreshBenchmarkStats()
+            postRouteChange()
+        }
+        return removed
+    }
+
+    func updateRoute(_ route: SavedRoute) async -> Bool {
+        seedDemoRoutesIfNeeded()
+        var updated = route
+        updated.updatedAt = Date()
+        store.saveSavedRoute(updated)
+        postRouteChange()
+        return true
+    }
 
     func benchmarkRoutes() async -> [BenchmarkRoute] {
-        RunSmartPreviewData.benchmarkRoutes
+        seedDemoRoutesIfNeeded()
+        return store.loadBenchmarkRoutes()
     }
 
-    func enableBenchmark(for routeID: UUID) async -> Bool { true }
-    func disableBenchmark(for routeID: UUID) async -> Bool { true }
+    func enableBenchmark(for routeID: UUID) async -> Bool {
+        seedDemoRoutesIfNeeded()
+        guard store.loadSavedRoutes().contains(where: { $0.id == routeID }) else { return false }
+        store.saveBenchmarkRoute(
+            BenchmarkRoute(
+                id: UUID(),
+                savedRouteID: routeID,
+                enabledAt: Date(),
+                historicalRunCount: 0,
+                personalBestSeconds: nil,
+                personalBestDate: nil,
+                averagePaceSecondsPerKm: nil,
+                averageDurationSeconds: nil
+            )
+        )
+        store.refreshBenchmarkStats()
+        postRouteChange()
+        return true
+    }
+
+    func disableBenchmark(for routeID: UUID) async -> Bool {
+        seedDemoRoutesIfNeeded()
+        let removed = store.removeBenchmarkRoute(routeID)
+        if removed { postRouteChange() }
+        return removed
+    }
+
+    private func postRouteChange() {
+        Task { @MainActor in
+            NotificationCenter.default.post(name: .runSmartRoutesDidChange, object: nil)
+        }
+    }
 
     func deviceStatuses() async -> [ConnectedDeviceStatus] {
 #if DEBUG

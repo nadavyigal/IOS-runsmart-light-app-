@@ -3,6 +3,7 @@ import SwiftUI
 
 struct RouteCreatorView: View {
     @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var router: AppRouter
     @State private var targetDistance = 8.0
     @State private var elevation = "Rolling"
     @State private var surface = "Road"
@@ -64,20 +65,73 @@ struct RouteCreatorView: View {
             }
             .padding(.horizontal, 16)
 
-            // Generate button
+            // Primary action: hand the selected route to the run flow.
+            // Without this the creator was a dead end — routes could be
+            // generated and selected but never used.
+            Button {
+                guard let selectedRoute else { return }
+                Analytics.trackRouteUsedForRun(routeKind: selectedRoute.kind.rawValue, source: "route_creator")
+                router.startRun(with: router.plannedWorkout, route: selectedRoute)
+            } label: {
+                Text(selectedRoute == nil ? "No Route Selected" : "Use This Route")
+            }
+            .buttonStyle(NeonButtonStyle())
+            .disabled(selectedRoute == nil || isLoading)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+
+            // Secondary: regenerate nearby loops for the current shape controls
             Button {
                 Task { await loadSuggestions() }
             } label: {
                 Label("Generate Route", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                    .font(.buttonLabel)
+                    .foregroundStyle(Color.accentPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(Color.accentPrimary.opacity(0.10), in: Capsule())
+                    .overlay(Capsule().stroke(Color.accentPrimary.opacity(0.55), lineWidth: 1))
             }
-            .buttonStyle(NeonButtonStyle())
+            .buttonStyle(.plain)
             .disabled(isLoading)
             .padding(.horizontal, 16)
-            .padding(.top, 16)
+            .padding(.top, 10)
             .padding(.bottom, 8)
         }
         .task {
             await loadSuggestions()
+        }
+        .onChange(of: displayedRouteIDs) { _, ids in
+            reconcileSelection(with: ids)
+        }
+    }
+
+    /// Strictly the route the user can see selected — never a silent fallback.
+    /// A fallback to `displayed.first` would let the CTA start a route while
+    /// every card on screen renders unselected.
+    private var selectedRoute: RouteSuggestion? {
+        displayed.first(where: { $0.id == selectedRouteID })
+    }
+
+    private var displayedRouteIDs: [String] {
+        displayed.map(\.id)
+    }
+
+    /// Keeps `selectedRouteID` pointing at something visible after a filter,
+    /// preference, or regeneration change removes the selected route.
+    private func reconcileSelection(with ids: [String]) {
+        if let selectedRouteID, ids.contains(selectedRouteID) { return }
+        selectedRouteID = ids.first
+    }
+
+    private func openRouteDetail(_ suggestion: RouteSuggestion) {
+        guard let savedRouteID = suggestion.savedRouteID else { return }
+        Task {
+            let routes = await services.savedRoutes()
+            guard let route = routes.first(where: { $0.id == savedRouteID }) else { return }
+            await MainActor.run {
+                router.open(.routeDetail(route))
+            }
         }
     }
 
@@ -119,20 +173,30 @@ struct RouteCreatorView: View {
             if !benchmarks.isEmpty {
                 RouteDiscoverySectionHeader(title: "Benchmarks", count: benchmarks.count)
                 ForEach(benchmarks) { r in
-                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
-                        selectedRouteID = r.id
-                        Analytics.trackRouteSelected(routeKind: r.kind.rawValue)
-                    }
+                    FullBleedRouteCard(
+                        suggestion: r,
+                        isSelected: r.id == selectedRouteID,
+                        onTap: {
+                            selectedRouteID = r.id
+                            Analytics.trackRouteSelected(routeKind: r.kind.rawValue)
+                        },
+                        onDetail: r.savedRouteID == nil ? nil : { openRouteDetail(r) }
+                    )
                 }
             }
 
             if !myRoutes.isEmpty {
                 RouteDiscoverySectionHeader(title: "My Routes", count: myRoutes.count)
                 ForEach(myRoutes) { r in
-                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
-                        selectedRouteID = r.id
-                        Analytics.trackRouteSelected(routeKind: r.kind.rawValue)
-                    }
+                    FullBleedRouteCard(
+                        suggestion: r,
+                        isSelected: r.id == selectedRouteID,
+                        onTap: {
+                            selectedRouteID = r.id
+                            Analytics.trackRouteSelected(routeKind: r.kind.rawValue)
+                        },
+                        onDetail: r.savedRouteID == nil ? nil : { openRouteDetail(r) }
+                    )
                 }
             }
 
@@ -209,9 +273,10 @@ struct RouteCreatorView: View {
         locationUnavailable = location == nil
         mapKitFailed = location != nil && generated.isEmpty
         allSuggestions = mergedSuggestions(ranked + generated)
-        if selectedRouteID == nil {
-            selectedRouteID = allSuggestions.first?.id
-        }
+        // Reconcile against `displayed`, not `allSuggestions`: the latter can
+        // contain routes the active filter hides, which would select a card the
+        // user cannot see. `.onChange` does not fire for the initial load.
+        reconcileSelection(with: displayedRouteIDs)
     }
 
     private func generatedSuggestions(around location: CLLocationCoordinate2D?) async -> [RouteSuggestion] {

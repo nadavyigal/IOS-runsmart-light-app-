@@ -2,6 +2,32 @@
 
 ## Current Task
 
+**Objective:** Route feature review + repair — make the Route Creator and Route Benchmark loop work end to end (the differentiator for recording runs in RunSmart vs Nike Run Club et al.).
+**Status:** Code complete on branch `claude/route-feature-review-d15198`; see checklist. Root cause of "the feature disappeared": the Supabase route tables were never created, so saved routes/benchmarks were silently device-local and wiped on reinstall.
+**Source:** founder request 2026-07-23; report at `docs/qa/reports/route-feature-review-2026-07-23.md`.
+
+### Checklist
+- [x] Trace every route surface + service implementation; simulator walk-through as a user (demo mode, iPhone 17).
+- [x] Verify live Supabase: `user_saved_routes` / `user_benchmark_routes` do NOT exist → cloud route sync has been a silent no-op since the feature shipped.
+- [x] **Migration APPLIED to production 2026-07-23** (founder-approved): `supabase/migrations/20260723120000_create_user_route_tables.sql` — owner-scoped per-command RLS, ownership composite FK, `source`/non-negative CHECKs. Verified functionally (cross-user benchmark insert rejected, bad `source` rejected, negative distance rejected); no new security advisories.
+- [x] Address CodeRabbit review on PR #116: ownership FK + CHECKs, nested-Button/VoiceOver fix on the route card, silent selection fallback (creator **and** selector), test `UserDefaults` snapshot/restore, absolute path redacted from QA evidence.
+- [x] Route Creator: add "Use This Route" primary CTA (was a dead end with only "Generate Route").
+- [x] Make `RouteDetailScaffold` reachable: "Details" chip on saved/benchmark cards in Route Creator + Route Selector (was dead code — Favorite/Make Benchmark/Delete/benchmark stats were unreachable).
+- [x] Demo/QA services: seed fixtures once into the local store, then run real production logic — `saveRoute` persists (was hardcoded false), `matchRoute`/`benchmarkComparison` real (were nil), suggestions carry map points + savedRouteID (were blank cards).
+- [x] Route screens present at `.large` detent (route list was below the fold at `.medium`).
+- [x] New `route_used_for_run` analytics event with `source` (route_creator | route_selector | today_card).
+- [x] QA hook: `-OPEN_SECONDARY routeCreator|routeSelector`.
+- [x] Tests: `RouteLibraryDemoServiceTests` (3) — confirmed failing pre-fix, passing post-fix.
+- [ ] **Founder:** device smoke — record a short GPS run, Save Route with Benchmark on, re-run it, confirm the benchmark comparison card appears in the post-run summary. Now also verifies cloud persistence: after saving, the route should survive a delete + reinstall (it could not before the migration).
+
+### Route follow-ups (found, deliberately not done)
+- Garmin "past" route suggestions ship `points: []` → blank map cards and no route matching for Garmin-imported routes; needs the Garmin route-point loader wired into suggestion building.
+- Today route recommendation card renders only when a workout is `plannedToday`; free-run users never see the working route path.
+- Generated loops are MKDirections out-and-back walking routes labeled "loop" with elevation 0, so the Hilly/Flat preference cannot differentiate them.
+- LiveRunView does not draw the planned route polyline during a run.
+
+## Previous Current Task
+
 **Objective:** Ship **1.1.2 (27)** — the sign-in diagnosis build. Supersedes build 26 (uploaded, never submitted).
 **Status:** **READY FOR ARCHIVE.** Code complete, 324/324 green, Release build verified at 1.1.2 (27) with live analytics key. Archive + upload + submit are founder-only and were not performed.
 **Source:** WP-52a; `docs/specs/2026-07-21-clean-install-telemetry-integrity.md`

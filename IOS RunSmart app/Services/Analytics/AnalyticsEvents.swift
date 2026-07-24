@@ -400,6 +400,16 @@ extension Analytics {
         shared.track("route_saved", properties: ["point_count": pointCount])
     }
 
+    /// A route was attached to a run. `source` names the surface that did it
+    /// (route_creator | route_selector | today_card) so route adoption is a
+    /// measurable funnel per entry point.
+    static func trackRouteUsedForRun(routeKind: String, source: String) {
+        shared.track("route_used_for_run", properties: [
+            "route_kind": routeKind,
+            "source": source
+        ])
+    }
+
     // MARK: - Feature Adoption
 
     static func trackTabViewed(tabName: String) {

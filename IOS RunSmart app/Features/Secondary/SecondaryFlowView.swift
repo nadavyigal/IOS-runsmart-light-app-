@@ -906,6 +906,7 @@ private struct RouteSelectorScaffold: View {
 
             Button {
                 guard let selectedRoute else { return }
+                Analytics.trackRouteUsedForRun(routeKind: selectedRoute.kind.rawValue, source: "route_selector")
                 router.startRun(with: router.plannedWorkout, route: selectedRoute)
             } label: {
                 Text(selectedRoute == nil ? "No Route Available" : "Use This Route")
@@ -914,6 +915,9 @@ private struct RouteSelectorScaffold: View {
                 .disabled(selectedRoute == nil)
         }
         .task { await load() }
+        .onChange(of: displayedRouteIDs) { _, ids in
+            reconcileSelection(with: ids)
+        }
     }
 
     // MARK: - Buckets
@@ -948,18 +952,24 @@ private struct RouteSelectorScaffold: View {
             if !benchmarks.isEmpty {
                 RouteDiscoverySectionHeader(title: "Benchmarks", count: benchmarks.count)
                 ForEach(benchmarks) { r in
-                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
-                        selectedRouteID = r.id
-                    }
+                    FullBleedRouteCard(
+                        suggestion: r,
+                        isSelected: r.id == selectedRouteID,
+                        onTap: { selectedRouteID = r.id },
+                        onDetail: r.savedRouteID == nil ? nil : { openRouteDetail(r) }
+                    )
                 }
             }
 
             if !myRoutes.isEmpty {
                 RouteDiscoverySectionHeader(title: "My Routes", count: myRoutes.count)
                 ForEach(myRoutes) { r in
-                    FullBleedRouteCard(suggestion: r, isSelected: r.id == selectedRouteID) {
-                        selectedRouteID = r.id
-                    }
+                    FullBleedRouteCard(
+                        suggestion: r,
+                        isSelected: r.id == selectedRouteID,
+                        onTap: { selectedRouteID = r.id },
+                        onDetail: r.savedRouteID == nil ? nil : { openRouteDetail(r) }
+                    )
                 }
             }
 
@@ -974,8 +984,31 @@ private struct RouteSelectorScaffold: View {
         }
     }
 
+    /// Strictly the visible selection. The previous fallback resolved against
+    /// `allSuggestions`, so an active distance filter could start a route that
+    /// was filtered off screen and rendered nowhere as selected.
     private var selectedRoute: RouteSuggestion? {
-        allSuggestions.first(where: { $0.id == selectedRouteID }) ?? allSuggestions.first
+        displayed.first(where: { $0.id == selectedRouteID })
+    }
+
+    private var displayedRouteIDs: [String] {
+        displayed.map(\.id)
+    }
+
+    private func reconcileSelection(with ids: [String]) {
+        if let selectedRouteID, ids.contains(selectedRouteID) { return }
+        selectedRouteID = ids.first
+    }
+
+    private func openRouteDetail(_ suggestion: RouteSuggestion) {
+        guard let savedRouteID = suggestion.savedRouteID else { return }
+        Task {
+            let routes = await services.savedRoutes()
+            guard let route = routes.first(where: { $0.id == savedRouteID }) else { return }
+            await MainActor.run {
+                router.open(.routeDetail(route))
+            }
+        }
     }
 
     private func load() async {
@@ -986,9 +1019,7 @@ private struct RouteSelectorScaffold: View {
         let generated = await generatedSuggestions(around: location)
         let ranked = await rankedTask
         allSuggestions = mergedSuggestions(ranked + generated)
-        if selectedRouteID == nil {
-            selectedRouteID = allSuggestions.first?.id
-        }
+        reconcileSelection(with: displayedRouteIDs)
     }
 
     private func generatedSuggestions(around location: CLLocationCoordinate2D?) async -> [RouteSuggestion] {
