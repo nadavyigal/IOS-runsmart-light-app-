@@ -2,7 +2,7 @@
 
 **Status:** The merged email/password sign-in fallback is packaged as `1.1.4 (29)` on `codex/release-1.1.4-build29`. The optimized arm64 Release build succeeded with zero warnings/errors, and the built app verifies the intended bundle/version/build plus non-empty production Supabase and PostHog configuration. Release notes now describe the fallback. Remaining founder action after the release PR merge: Archive in Xcode, then upload/submit in App Store Connect.
 
-**Validation:** `com.runsmart.lite`; `CFBundleShortVersionString=1.1.4`; `CFBundleVersion=29`; non-exempt encryption false; dSYM present; source entitlements contain Sign in with Apple, HealthKit, and associated domains; zero untracked Swift source under the app root. The live email sign-in path and focused tests were verified before the packaging-only version bump in PR #119.
+**Validation:** `com.runsmart.lite`; `CFBundleShortVersionString=1.1.4`; `CFBundleVersion=29`; non-exempt encryption false; dSYM present; source entitlements contain Sign in with Apple, HealthKit, and associated domains; zero untracked Swift files across all synchronized roots (`IOS RunSmart app`, `IOS RunSmart appTests`, `RunSmartRunLiveActivityExtension`, and `RunSmartShared`). The live email sign-in path and focused tests were verified before the packaging-only version bump in PR #119.
 
 ---
 

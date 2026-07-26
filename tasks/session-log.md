@@ -19,7 +19,7 @@ Package merged PR #119 as the next App Store binary so the remaining founder ste
 - Built production configuration: Supabase URL, Supabase publishable key, PostHog key, and PostHog host are all non-empty; values were not printed.
 - Release dSYM exists.
 - Source release entitlements include Sign in with Apple, HealthKit, and associated domains; the project uses automatic signing with a configured development team. The simulator's ad-hoc signature does not embed the distribution capability entitlements, so final archive entitlement inspection remains an Organizer/ASC step.
-- Zero untracked Swift files exist under the folder-synchronized app source root.
+- Zero untracked Swift files exist across the complete synchronized source graph: `IOS RunSmart app`, `IOS RunSmart appTests`, `RunSmartRunLiveActivityExtension`, and `RunSmartShared`.
 - The first cold Release build tool call timed out while `xcodebuild` remained active. It was stopped before retrying; the arm64-only rerun completed and an immediate incremental rerun returned the explicit successful result.
 
 ## 2026-07-26 - PR #118/#119 review and live email sign-in verification
