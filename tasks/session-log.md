@@ -7,12 +7,12 @@ S1 closed: the analytics pipe is healthy and the post-release silence is low tra
 
 ### Evidence — S1 (secrets and artifact)
 Value never printed; compared programmatically against project 171597's own token.
-```
+```text
 MATCH: shipped 1.1.3(28) key == project 171597 token (exact, 47 chars)
 MATCH: local RunSmartSecrets.xcconfig key == project 171597 token
 ```
 Archive `~/Library/Developer/Xcode/Archives/2026-07-24/IOS RunSmart app 24-07-2026, 9.14.xcarchive`:
-```
+```text
 CFBundleShortVersionString 1.1.3   CFBundleVersion 28
 POSTHOG_HOST  https://us.i.posthog.com
 POSTHOG_API_KEY  present, len=47
@@ -20,7 +20,7 @@ POSTHOG_API_KEY  present, len=47
 
 ### Evidence — PostHog project 171597, read 2026-07-26
 Daily volume (last event of any kind is 2026-07-24T15:50:00.044Z; 0 events after the 18:37:55Z release):
-```
+```text
 day        | events | persons
 2026-07-24 |   45   |    2
 2026-07-23 |   88   |    3
@@ -28,27 +28,27 @@ day        | events | persons
 2026-07-21 |   62   |    3
 2026-07-20 |  211   |    6
 ```
-Build 28 did emit, before release, from Apple's review device:
-```
+Build 28 did emit before release from two sessions attributed to App Store Review using the combined timing, build/session, TestFlight, submission-history, and geography evidence:
+```text
 app_version | app_build | events | persons | last_seen
 1.1.3       | 28        |   43   |    2    | 2026-07-24T15:50:00.044Z
 1.1.2       | 27        |  160   |    5    | 2026-07-23T15:07:42.407Z
 1.1.1       | 25        |   57   |    2    | 2026-07-21T07:26:33.183Z
 ```
 `$is_testflight` is a working discriminator, so False is meaningful:
-```
+```text
 tf    | events | persons
 True  |  2504  |   10
 False |  1901  |   90
 ```
-Geography — the Cupertino cluster is 21 persons, one short session per submitted build, ascending build numbers 7 → 28, rotating devices, zero completions ever:
-```
+Geography — the Cupertino cluster is 21 persons across a sequence of short sessions, with ascending but repeated build numbers 7 → 28, rotating devices, and zero completions ever. Build numbers can repeat and build 28 has two persons:
+```text
 city      | country | events | persons | first_seen           | last_seen
 Tel Aviv  | IL      |  3539  |   55    | 2026-05-27T08:30:01Z | 2026-07-23T15:07:42Z
 Cupertino | US      |   212  |   21    | 2026-05-31T12:10:56Z | 2026-07-24T15:50:00Z
 ```
 All 11 `sign_in_failed` since 2026-07-20, all three persons inside the Cupertino cluster:
-```
+```text
 timestamp             | person   | device     | ver   | build | tf    | has_ue
 2026-07-20T12:22:06Z  | a7b5d91c | iPhone17,1 | None  | None  | False | None   (x5 to 12:25)
 2026-07-22T13:05:39Z  | 82f82936 | iPhone12,8 | 1.1.2 | 27    | False | False  (x3 to 13:07)
@@ -57,7 +57,7 @@ timestamp             | person   | device     | ver   | build | tf    | has_ue
 Build 27 was public at 2026-07-22T17:04:47Z and build 28 at 2026-07-24T18:37:55Z, so the latter two sessions ran builds that did not yet exist publicly and were not TestFlight.
 
 Traffic partition (reconciles exactly to daily person totals):
-```
+```text
 day        | review | testflight | other physical
 2026-07-24 |   2    |     0      |      0
 2026-07-23 |   1    |     1      |      1
@@ -66,13 +66,13 @@ day        | review | testflight | other physical
 2026-07-20 |   1    |     1      |      4
 ```
 The only genuine organic non-founder failure, on the pre-instrumentation build 24:
-```
+```text
 2026-07-19T11:03:14Z  Application Installed  8ea67ea8  iPhone17,2  build 24  US  not-TF
 2026-07-19T11:03:52Z  sign_in_failed         code 1000  has_underlying_error = null
 2026-07-19T11:04:06Z  sign_in_failed         code 1000  has_underlying_error = null
 ```
 Last non-founder-device completion (corrects EXD-023's "since 2026-06-18"):
-```
+```text
 2026-06-20T06:14:27Z  sign_in_completed  6e6797d3  iPhone18,3  Petah Tikva  not-TF
 ```
 
