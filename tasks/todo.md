@@ -2,6 +2,25 @@
 
 ## Current Task
 
+**Objective:** Review PRs #118 and #119, address CodeRabbit feedback, merge when clean, and verify the iOS user sign-in path against the live auth backend.
+**Status:** **PR #118 merged; PR #119 corrected and runtime-verified.** PR #118's five review threads were addressed and auto-resolved before merge. PR #119 now has a non-Apple email/password path, corrected error classification, method-attributed failure telemetry, and a live simulator sign-in that reached onboarding through production Supabase. Awaiting the final PR #119 GitHub checks and merge action.
+**Source:** Founder request 2026-07-26; PRs #118 and #119.
+
+### Checklist
+- [x] Preserve pre-existing checkout changes by using the existing PR worktree plus an isolated PR #118 worktree.
+- [x] Address all five unresolved CodeRabbit threads on PR #118; verify MD040 is cleared for the ten new evidence fences.
+- [x] Merge PR #118 after CodeRabbit and GitGuardian passed and all review threads resolved.
+- [x] Review PR #119 beyond bot state; fix the overbroad `unexpected_failure` mapping and the overclaim that Apple error 1000 proves one root cause.
+- [x] Attribute `sign_in_failed` to `apple` versus `email`.
+- [x] Verify current Supabase Swift email/password behavior against current documentation and confirm live email identities exist.
+- [x] Focused `EmailSignInTests`: 15 passed / 0 failed; four simulator-host aborts re-run cleanly on iOS 26.5 (4/4).
+- [x] Build and launch the rebased PR #119 app; confirm the email UI is reachable.
+- [x] Live auth smoke: disposable QA identity confirmed, app email sign-in succeeded, production auth recorded `last_sign_in_at`, and the UI transitioned to onboarding.
+- [x] Clean up the disposable QA identity and uninstall the QA simulator app.
+- [ ] Push the rebased PR #119 head, wait for GitHub checks, and merge if clean.
+
+## Previous Current Task
+
 **Objective:** WP-57 — establish whether live 1.1.3 emits telemetry at all (S1), and convert the sign-in evidence into a decision (S2).
 **Status:** **S1 closed, S2 overturned and escalated.** The pipe is healthy — the shipped 1.1.3 (28) archive carries the exact project 171597 token and that binary already emitted 39 events from Apple's review device on 2026-07-24. The silence since release is low traffic. S2 could not be recorded as framed: all 11 `sign_in_failed` events, including all 6 instrumented ones, came from App Store Review sessions, not users. EXD-023 raised for founder decision; nothing flipped.
 **Source:** WP-57 (`Agentic OS executive-os/work-packets/WP-57-runsmart-ios-live-telemetry-and-signin-verdict.md`). Full findings in `tasks/progress.md`.
