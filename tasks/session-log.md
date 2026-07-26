@@ -1,5 +1,24 @@
 # Session Log
 
+## 2026-07-26 - PR #118/#119 review and live email sign-in verification
+
+### Outcome
+PR #118's five CodeRabbit findings were corrected, auto-resolved, and merged as `5533a3a`. PR #119 was rebased onto that merge and reviewed beyond the available bot state. The review found and fixed an overbroad Supabase `unexpected_failure` mapping, an unsupported claim that a bare Apple error 1000 proves one root cause, and missing auth-method attribution on `sign_in_failed`. The email fallback then completed a live production-Supabase sign-in from the iOS simulator and transitioned from the auth wall to the first onboarding Goal screen.
+
+### Validation
+- GitHub PR #118: CodeRabbit passed, GitGuardian passed, five of five review threads resolved before merge.
+- Supabase documentation: current Swift password sign-in/sign-up behavior verified; hosted email confirmation returns a user without a session until confirmation.
+- Live production auth smoke: one disposable QA identity was created through the public signup endpoint, confirmed for the smoke because no mailbox was available, and signed in through `EmailSignInView`. Runtime logs recorded credential exchange success and profile loading; the production auth row recorded a non-null `last_sign_in_at`.
+- Cleanup: the exact disposable QA identity was deleted and the QA simulator app was uninstalled, clearing its local session data.
+- `EmailSignInTests`: 15 passed / 0 failed on iOS 26.5.
+- Combined auth regression selection: 17 assertion passes plus four zero-duration iOS 26.3 test-host aborts. Diagnostics showed `malloc: pointer being freed was not allocated`; the exact four cases re-ran 4 passed / 0 failed on iOS 26.5 without a source change.
+- Rebased PR #119 Debug build: succeeded and launched from the intended worktree.
+
+### Not claimed
+- This confirms the new email route and removes Apple as a single point of failure. It does not prove that every historical Apple error 1000 had the same cause.
+- Sign in with Apple itself was not completed with a real Apple Account in this session; the new route is the verified resolution for users who cannot use Apple sign-in.
+- No full 300+ test suite was run; verification was scoped to the auth tests, build, live backend, and simulator transition.
+
 ## 2026-07-26 - WP-57: live telemetry check and sign-in verdict
 
 ### Outcome

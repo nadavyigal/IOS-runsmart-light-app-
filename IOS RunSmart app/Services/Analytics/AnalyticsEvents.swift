@@ -58,10 +58,25 @@ extension Analytics {
     // unconditionally and deliberately: a genuinely bare 1000 escalates to the
     // guest path, while a 1000 we merely failed to unwrap is an instrumentation
     // bug, and those two were indistinguishable in the data before this.
-    static func trackSignInFailed(error: Error) {
+    /// Fires when a user picks a sign-in method other than the primary Apple
+    /// button. Keeps the email path attributable as its own funnel instead of
+    /// silently merging into the Apple numbers, so "did the fallback rescue
+    /// anyone" stays a question the data can answer.
+    static func trackSignInMethodSelected(method: String) {
+        shared.track(
+            "sign_in_method_selected",
+            properties: [
+                "screen": SignInWallTracker.screenName,
+                "method": method
+            ]
+        )
+    }
+
+    static func trackSignInFailed(error: Error, method: String = "apple") {
         let nsError = error as NSError
         var properties: [String: Any] = [
             "screen": SignInWallTracker.screenName,
+            "method": method,
             "error_domain": nsError.domain,
             "error_code": nsError.code
         ]
