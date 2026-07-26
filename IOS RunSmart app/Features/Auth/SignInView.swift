@@ -22,6 +22,14 @@ struct SignInView: View {
     /// second tap would regenerate `currentNonce` out from under the in-flight
     /// attempt — sending Supabase a nonce that does not match the credential.
     @State private var isHandlingAppleResult = false
+    /// Presents the email path. Always reachable; emphasised once Apple has
+    /// actually failed for this user.
+    @State private var isShowingEmailSignIn = false
+    /// Set when Apple returns a real failure (not a cancel). Sign in with Apple
+    /// cannot complete on a device with no Apple Account — iOS shows its own
+    /// alert and hands back a bare code 1000 — so once we have seen that, the
+    /// alternative stops being a secondary option and becomes the recommendation.
+    @State private var appleSignInHasFailed = false
 
     /// First-screen promise pills (WP-44 S1). The audit (§4 Risk 2, §9) flagged
     /// "Run guidance and cue previews" as feature-speak and the HealthKit bullet
@@ -133,6 +141,8 @@ struct SignInView: View {
                         // view that Apple is presenting from, mid-authorization.
                         .allowsHitTesting(!isAwaitingAppleSheet)
                         .opacity(isAwaitingAppleSheet ? 0.6 : 1)
+
+                        emailAlternative
                     }
 
                     VStack(spacing: 4) {
@@ -178,6 +188,55 @@ struct SignInView: View {
             SafariView(url: document.url)
                 .ignoresSafeArea()
         }
+        .sheet(isPresented: $isShowingEmailSignIn) {
+            EmailSignInView(model: EmailSignInModel(gateway: .init(
+                signIn: { email, password in
+                    try await session.signInWithEmail(email: email, password: password)
+                },
+                signUp: { email, password in
+                    try await session.signUpWithEmail(email: email, password: password)
+                }
+            )))
+        }
+    }
+
+    /// The non-Apple way in. Present at all times so no user is ever cornered,
+    /// and promoted to a filled button with an explanatory line once Apple has
+    /// failed — at that point it is the only thing left that can work.
+    @ViewBuilder
+    private var emailAlternative: some View {
+        VStack(spacing: 8) {
+            if appleSignInHasFailed {
+                Text("Can't use Sign in with Apple? Use your email instead.")
+                    .font(.caption)
+                    .foregroundStyle(Color.mutedText)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button {
+                Analytics.trackSignInMethodSelected(method: "email")
+                isShowingEmailSignIn = true
+            } label: {
+                Text("Continue with email")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 50)
+            }
+            .foregroundStyle(appleSignInHasFailed ? .black : .white)
+            .background {
+                if appleSignInHasFailed {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.lime)
+                } else {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(.white.opacity(0.08))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.hairline, lineWidth: 0.5)
+                        )
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
     }
 
     @MainActor
@@ -210,6 +269,7 @@ struct SignInView: View {
             // User dismissed the sheet — not an error
         } catch {
             errorMessage = Self.humanReadableAppleSignInError(for: error)
+            appleSignInHasFailed = true
             Analytics.trackSignInFailed(error: error)
         }
     }
@@ -219,12 +279,15 @@ struct SignInView: View {
     /// "com.apple.AuthenticationServices.AuthorizationError error 1000" to a
     /// first-time user. `.canceled` returns nil (user backed out silently).
     ///
-    /// The copy names iCloud deliberately. The 2026-07-22 revoke-and-retry test
-    /// showed first-time Sign in with Apple succeeds, so the devices stuck on a
-    /// bare code 1000 are blocked by something the app cannot see — and Sign in
-    /// with Apple simply cannot complete unless the device has an iCloud session.
-    /// "Tap to try again" loops such a user forever; naming the one precondition
-    /// they can check is the difference between a retry and an abandonment.
+    /// The copy names iCloud deliberately, and now also names the way out.
+    ///
+    /// Reproduced on a clean simulator 2026-07-26: with no Apple Account signed
+    /// in, iOS shows its own "Sign in to your Apple Account" alert and, once
+    /// dismissed, returns a bare `ASAuthorizationError` code 1000 with no
+    /// underlying error — the exact signature on every failing production
+    /// session. Retrying can never clear that, and a user who will not or
+    /// cannot add an Apple Account to the device needs a different door, not a
+    /// better-worded retry. So the copy points at email.
     static func humanReadableAppleSignInError(for error: Error) -> String? {
         let nsError = error as NSError
         guard nsError.domain == ASAuthorizationError.errorDomain else {
@@ -238,7 +301,8 @@ struct SignInView: View {
             return nil
         }
         return "Apple sign-in didn't finish and nothing was created. "
-             + "Check that you're signed in to iCloud in Settings, then tap to try again."
+             + "Check that you're signed in to iCloud in Settings, "
+             + "or continue with your email below."
     }
 
     private func appleDisplayName(from fullName: PersonNameComponents?) -> String? {
