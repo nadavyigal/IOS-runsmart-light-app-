@@ -9,9 +9,10 @@ import Supabase
 /// Apple Account signed in, tapping Sign in with Apple makes iOS show its own
 /// "Sign in to your Apple Account" alert, and dismissing it returns a bare
 /// `ASAuthorizationError` code 1000 with no underlying error — byte-identical
-/// to the signature on every failing production session. No change to the Apple
-/// request can alter that, so while Apple was the only door those users were
-/// permanently locked out of a hard-gated app.
+/// to the signature in the failing production sessions. Apple's `.unknown`
+/// code does not prove every session had the same cause, but no change to the
+/// Apple request can help a device without a usable account. While Apple was
+/// the only door, that user was permanently locked out of a hard-gated app.
 @MainActor
 final class EmailSignInTests: XCTestCase {
 
@@ -236,6 +237,21 @@ final class EmailSignInTests: XCTestCase {
                 "\(code.rawValue): point the user at the door that still works"
             )
         }
+    }
+
+    func testUnexpectedFailureIsOnlyCalledAConfirmationFailureWhenEvidenceMatches() {
+        let unrelated = AuthError.api(
+            message: "Database temporarily unavailable",
+            errorCode: .unexpectedFailure,
+            underlyingData: Data(),
+            underlyingResponse: HTTPURLResponse()
+        )
+        let signIn = EmailSignInModel.humanReadableError(for: unrelated, mode: .signIn)
+        let create = EmailSignInModel.humanReadableError(for: unrelated, mode: .createAccount)
+
+        XCTAssertFalse(signIn.localizedCaseInsensitiveContains("confirmation email"))
+        XCTAssertFalse(create.localizedCaseInsensitiveContains("confirmation email"))
+        XCTAssertTrue(create.localizedCaseInsensitiveContains("nothing was created"))
     }
 
     func testModeSpecificCopyDistinguishesTheTwoWays() {

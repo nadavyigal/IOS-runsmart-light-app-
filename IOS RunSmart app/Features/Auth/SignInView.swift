@@ -25,10 +25,10 @@ struct SignInView: View {
     /// Presents the email path. Always reachable; emphasised once Apple has
     /// actually failed for this user.
     @State private var isShowingEmailSignIn = false
-    /// Set when Apple returns a real failure (not a cancel). Sign in with Apple
-    /// cannot complete on a device with no Apple Account — iOS shows its own
-    /// alert and hands back a bare code 1000 — so once we have seen that, the
-    /// alternative stops being a secondary option and becomes the recommendation.
+    /// Set when Apple returns a real failure (not a cancel). A missing or
+    /// restricted Apple Account is one reproducible cause of a bare code 1000,
+    /// so once Apple has failed the alternative stops being a secondary option
+    /// and becomes the recommendation.
     @State private var appleSignInHasFailed = false
 
     /// First-screen promise pills (WP-44 S1). The audit (§4 Risk 2, §9) flagged
@@ -270,7 +270,7 @@ struct SignInView: View {
         } catch {
             errorMessage = Self.humanReadableAppleSignInError(for: error)
             appleSignInHasFailed = true
-            Analytics.trackSignInFailed(error: error)
+            Analytics.trackSignInFailed(error: error, method: "apple")
         }
     }
 
@@ -284,10 +284,11 @@ struct SignInView: View {
     /// Reproduced on a clean simulator 2026-07-26: with no Apple Account signed
     /// in, iOS shows its own "Sign in to your Apple Account" alert and, once
     /// dismissed, returns a bare `ASAuthorizationError` code 1000 with no
-    /// underlying error — the exact signature on every failing production
-    /// session. Retrying can never clear that, and a user who will not or
-    /// cannot add an Apple Account to the device needs a different door, not a
-    /// better-worded retry. So the copy points at email.
+    /// underlying error — the same signature seen in the failing production
+    /// sessions. Apple's `.unknown` code is not diagnostic by itself, so this
+    /// does not prove every production failure had that cause. It does prove
+    /// that retry-only copy can strand some users, which is why the copy points
+    /// at the independent email path.
     static func humanReadableAppleSignInError(for error: Error) -> String? {
         let nsError = error as NSError
         guard nsError.domain == ASAuthorizationError.errorDomain else {

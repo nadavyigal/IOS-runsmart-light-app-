@@ -134,7 +134,7 @@ final class EmailSignInModel: ObservableObject {
         } catch {
             phase = .editing
             errorMessage = Self.humanReadableError(for: error, mode: submittedMode)
-            Analytics.trackSignInFailed(error: error)
+            Analytics.trackSignInFailed(error: error, method: "email")
         }
     }
 
@@ -162,12 +162,11 @@ final class EmailSignInModel: ObservableObject {
                 return "Too many attempts just now. Wait a minute, then try again."
             case .overEmailSendRateLimit:
                 return "Too many confirmation emails just now. Wait a few minutes, then try again."
-            case .emailAddressNotAuthorized, .unexpectedFailure:
+            case .emailAddressNotAuthorized
+                where mode == .createAccount:
                 // Supabase accepted the account but the mail provider refused
                 // the address, so the signup is rolled back and retrying the
-                // same address changes nothing. It surfaces as either
-                // `email_address_not_authorized` or a bare `unexpected_failure`
-                // wrapping "Error sending confirmation email".
+                // same address changes nothing.
                 //
                 // This project sends through Resend on a verified
                 // `runsmart-ai.com` domain (confirmed delivering 2026-07-26),
@@ -178,8 +177,21 @@ final class EmailSignInModel: ObservableObject {
                 // Apple already created, so name the real state instead.
                 return "We couldn't send the confirmation email, so no account was created. "
                      + "This is on our side — please try Sign in with Apple, or contact support."
-            case .emailProviderDisabled, .signupDisabled:
+            case .unexpectedFailure
+                where mode == .createAccount
+                    && authError.message.localizedCaseInsensitiveContains("confirmation email"):
+                // GoTrue can wrap the same delivery failure in a generic 500.
+                // Match both the create-account context and the server message;
+                // `unexpected_failure` also represents unrelated backend faults
+                // and must not be mislabeled during ordinary sign-in.
+                return "We couldn't send the confirmation email, so no account was created. "
+                     + "This is on our side — please try Sign in with Apple, or contact support."
+            case .signupDisabled:
                 return "Email sign-up isn't available right now. Please try Sign in with Apple."
+            case .emailProviderDisabled:
+                return mode == .createAccount
+                    ? "Email sign-up isn't available right now. Please try Sign in with Apple."
+                    : "Email sign-in isn't available right now. Please try Sign in with Apple."
             default:
                 break
             }

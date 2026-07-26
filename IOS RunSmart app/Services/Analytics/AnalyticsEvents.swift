@@ -72,10 +72,11 @@ extension Analytics {
         )
     }
 
-    static func trackSignInFailed(error: Error) {
+    static func trackSignInFailed(error: Error, method: String = "apple") {
         let nsError = error as NSError
         var properties: [String: Any] = [
             "screen": SignInWallTracker.screenName,
+            "method": method,
             "error_domain": nsError.domain,
             "error_code": nsError.code
         ]

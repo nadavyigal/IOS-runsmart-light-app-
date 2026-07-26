@@ -80,10 +80,11 @@ extension SupabaseSession {
 /// in: iOS shows its own "Sign in to your Apple Account" alert and, once it is
 /// dismissed, hands back a bare `ASAuthorizationError` code 1000 with no
 /// underlying error. Reproduced on a clean simulator 2026-07-26, emitting the
-/// identical `sign_in_failed` signature (`error_code 1000`,
-/// `has_underlying_error false`) seen on every failing production session.
-/// Nothing the app does to the Apple request can change that outcome, so while
-/// Apple sign-in was the only door, those users were permanently locked out.
+/// same `sign_in_failed` signature (`error_code 1000`,
+/// `has_underlying_error false`) seen in the failing production sessions.
+/// Apple's `.unknown` code does not prove every session had the same cause, but
+/// no app-side Apple request change can help a device without a usable account.
+/// While Apple sign-in was the only door, that user was permanently locked out.
 ///
 /// Email is deliberately password-based rather than a one-time code or magic
 /// link: both of those depend on the Supabase email template and redirect
