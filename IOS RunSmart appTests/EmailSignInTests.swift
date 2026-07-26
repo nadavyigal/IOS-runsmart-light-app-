@@ -1,5 +1,6 @@
 import XCTest
 import AuthenticationServices
+import Supabase
 @testable import IOS_RunSmart_app
 
 /// Covers the second way into the app.
@@ -201,6 +202,36 @@ final class EmailSignInTests: XCTestCase {
 
     /// The two wrong-mode cases are the most common self-inflicted lockouts, and
     /// each is one sentence away from success.
+    /// The failure that actually bit us on 2026-07-26. Supabase's built-in
+    /// mailer refuses every address outside the project team, so with email
+    /// confirmation on and no custom SMTP, `signUp` 500s and the account is
+    /// rolled back. Retrying can never succeed, so the copy must not say "try
+    /// again" — that is the same dead end Sign in with Apple already created.
+    func testUndeliverableConfirmationEmailDoesNotTellTheUserToRetry() {
+        for code in [ErrorCode.emailAddressNotAuthorized, .unexpectedFailure] {
+            let error = AuthError.api(
+                message: "Error sending confirmation email",
+                errorCode: code,
+                underlyingData: Data(),
+                underlyingResponse: HTTPURLResponse()
+            )
+            let mapped = EmailSignInModel.humanReadableError(for: error, mode: .createAccount)
+
+            XCTAssertFalse(
+                mapped.localizedCaseInsensitiveContains("try again"),
+                "\(code.rawValue): retrying cannot fix an undeliverable confirmation email"
+            )
+            XCTAssertTrue(
+                mapped.localizedCaseInsensitiveContains("no account was created"),
+                "\(code.rawValue): the user must know nothing was half-created"
+            )
+            XCTAssertTrue(
+                mapped.localizedCaseInsensitiveContains("Apple"),
+                "\(code.rawValue): point the user at the door that still works"
+            )
+        }
+    }
+
     func testModeSpecificCopyDistinguishesTheTwoWays() {
         let signIn = EmailSignInModel.humanReadableError(for: NSError(domain: "x", code: 1), mode: .signIn)
         let create = EmailSignInModel.humanReadableError(for: NSError(domain: "x", code: 1), mode: .createAccount)

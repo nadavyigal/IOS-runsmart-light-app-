@@ -160,6 +160,21 @@ final class EmailSignInModel: ObservableObject {
                 return "Pick a password of at least \(minimumPasswordLength) characters."
             case .overRequestRateLimit, .requestTimeout:
                 return "Too many attempts just now. Wait a minute, then try again."
+            case .overEmailSendRateLimit:
+                return "Too many confirmation emails just now. Wait a few minutes, then try again."
+            case .emailAddressNotAuthorized, .unexpectedFailure:
+                // The server accepted the account but could not send the
+                // confirmation email, so nothing was created and retrying
+                // changes nothing. Supabase's built-in mailer refuses every
+                // address outside the project team, and it surfaces as either
+                // `email_address_not_authorized` or a bare `unexpected_failure`
+                // wrapping "Error sending confirmation email". Sending such a
+                // user back to "try again" is the same dead end that Sign in
+                // with Apple already put them in, so name the real state.
+                return "We couldn't send the confirmation email, so no account was created. "
+                     + "This is on our side — please try Sign in with Apple, or contact support."
+            case .emailProviderDisabled, .signupDisabled:
+                return "Email sign-up isn't available right now. Please try Sign in with Apple."
             default:
                 break
             }
