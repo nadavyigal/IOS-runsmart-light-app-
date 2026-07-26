@@ -1,5 +1,27 @@
 # Session Log
 
+## 2026-07-26 - RunSmart 1.1.4 (29) sign-in fallback release preparation
+
+### Objective
+Package merged PR #119 as the next App Store binary so the remaining founder steps are Xcode Archive and App Store Connect upload/submission.
+
+### Candidate
+- Source: merged `origin/main` commit `d181325`.
+- Version: `MARKETING_VERSION` 1.1.4.
+- Build: `CURRENT_PROJECT_VERSION` 29.
+- Bundle: `com.runsmart.lite`.
+- Release note focus: email/password account creation and sign-in as a fallback when Apple authentication is unavailable.
+
+### Validation
+- Version/build grep: six `1.1.4` values and six build `29` values, with zero stale `1.1.3`/`28` values.
+- Optimized arm64 iOS Simulator Release build: succeeded with zero warnings and zero errors.
+- Built bundle: `com.runsmart.lite`, version `1.1.4`, build `29`, and `ITSAppUsesNonExemptEncryption=false`.
+- Built production configuration: Supabase URL, Supabase publishable key, PostHog key, and PostHog host are all non-empty; values were not printed.
+- Release dSYM exists.
+- Source release entitlements include Sign in with Apple, HealthKit, and associated domains; the project uses automatic signing with a configured development team. The simulator's ad-hoc signature does not embed the distribution capability entitlements, so final archive entitlement inspection remains an Organizer/ASC step.
+- Zero untracked Swift files exist across the complete synchronized source graph: `IOS RunSmart app`, `IOS RunSmart appTests`, `RunSmartRunLiveActivityExtension`, and `RunSmartShared`.
+- The first cold Release build tool call timed out while `xcodebuild` remained active. It was stopped before retrying; the arm64-only rerun completed and an immediate incremental rerun returned the explicit successful result.
+
 ## 2026-07-26 - PR #118/#119 review and live email sign-in verification
 
 ### Outcome

@@ -2,8 +2,21 @@
 
 ## Current Task
 
+**Objective:** Package the merged sign-in fallback as RunSmart 1.1.4 (29), leaving only the founder's Xcode archive and App Store Connect submission.
+**Status:** **Release candidate validated; GitHub handoff in progress.** The candidate starts from merged `main` at `d181325`; version/build, release notes, and the optimized arm64 Release artifact are verified. Remaining work is to merge the release-packaging PR and open the archive-ready checkout.
+**Source:** Founder request 2026-07-26 after PR #119 merged.
+
+### Checklist
+- [x] Preserve the dirty primary checkout by creating an isolated release worktree from merged `origin/main`.
+- [x] Advance `MARKETING_VERSION` 1.1.3 → 1.1.4 and `CURRENT_PROJECT_VERSION` 28 → 29 across all target configurations.
+- [x] Rewrite App Store release notes for the email/password sign-in fallback.
+- [x] Verify Release compilation, built bundle identity, production configuration presence, entitlements, and dSYM output.
+- [ ] Commit and push the release candidate, merge it through a clean PR, and hand off the archive-ready checkout.
+
+## Previous Current Task
+
 **Objective:** Review PRs #118 and #119, address CodeRabbit feedback, merge when clean, and verify the iOS user sign-in path against the live auth backend.
-**Status:** **PR #118 merged; PR #119 corrected and runtime-verified.** PR #118's five review threads were addressed and auto-resolved before merge. PR #119 now has a non-Apple email/password path, corrected error classification, method-attributed failure telemetry, and a live simulator sign-in that reached onboarding through production Supabase. Awaiting the final PR #119 GitHub checks and merge action.
+**Status:** **Complete.** PR #118 merged as `5533a3a`; PR #119 merged as `d181325`. PR #119 has a non-Apple email/password path, corrected error classification, method-attributed failure telemetry, and a live simulator sign-in that reached onboarding through production Supabase.
 **Source:** Founder request 2026-07-26; PRs #118 and #119.
 
 ### Checklist
@@ -17,7 +30,7 @@
 - [x] Build and launch the rebased PR #119 app; confirm the email UI is reachable.
 - [x] Live auth smoke: disposable QA identity confirmed, app email sign-in succeeded, production auth recorded `last_sign_in_at`, and the UI transitioned to onboarding.
 - [x] Clean up the disposable QA identity and uninstall the QA simulator app.
-- [ ] Push the rebased PR #119 head, wait for GitHub checks, and merge if clean.
+- [x] Push the rebased PR #119 head, wait for GitHub checks, and merge if clean.
 
 ## Previous Current Task
 
