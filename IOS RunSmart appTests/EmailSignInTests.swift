@@ -202,11 +202,17 @@ final class EmailSignInTests: XCTestCase {
 
     /// The two wrong-mode cases are the most common self-inflicted lockouts, and
     /// each is one sentence away from success.
-    /// The failure that actually bit us on 2026-07-26. Supabase's built-in
-    /// mailer refuses every address outside the project team, so with email
-    /// confirmation on and no custom SMTP, `signUp` 500s and the account is
-    /// rolled back. Retrying can never succeed, so the copy must not say "try
-    /// again" — that is the same dead end Sign in with Apple already created.
+    /// Observed 2026-07-26 while verifying the email path: a `signUp` whose
+    /// confirmation email the provider refuses returns 500 and the account is
+    /// rolled back, so retrying the same address can never succeed and the copy
+    /// must not say "try again" — that is the same dead end Sign in with Apple
+    /// already created.
+    ///
+    /// The trigger in that session was a reserved `example.com` address, which
+    /// Resend rejects by design; this project's real sending path (Resend on a
+    /// verified `runsmart-ai.com`) was confirmed delivering the same day. The
+    /// handling stays because the same shape appears whenever the provider
+    /// rejects an address, the domain loses verification, or quota runs out.
     func testUndeliverableConfirmationEmailDoesNotTellTheUserToRetry() {
         for code in [ErrorCode.emailAddressNotAuthorized, .unexpectedFailure] {
             let error = AuthError.api(

@@ -163,14 +163,19 @@ final class EmailSignInModel: ObservableObject {
             case .overEmailSendRateLimit:
                 return "Too many confirmation emails just now. Wait a few minutes, then try again."
             case .emailAddressNotAuthorized, .unexpectedFailure:
-                // The server accepted the account but could not send the
-                // confirmation email, so nothing was created and retrying
-                // changes nothing. Supabase's built-in mailer refuses every
-                // address outside the project team, and it surfaces as either
+                // Supabase accepted the account but the mail provider refused
+                // the address, so the signup is rolled back and retrying the
+                // same address changes nothing. It surfaces as either
                 // `email_address_not_authorized` or a bare `unexpected_failure`
-                // wrapping "Error sending confirmation email". Sending such a
-                // user back to "try again" is the same dead end that Sign in
-                // with Apple already put them in, so name the real state.
+                // wrapping "Error sending confirmation email".
+                //
+                // This project sends through Resend on a verified
+                // `runsmart-ai.com` domain (confirmed delivering 2026-07-26),
+                // so this is not the normal path — it is what a user sees if
+                // the provider rejects their address, the domain falls out of
+                // verification, or the sending quota is exhausted. Sending them
+                // back to "try again" would be the same dead end Sign in with
+                // Apple already created, so name the real state instead.
                 return "We couldn't send the confirmation email, so no account was created. "
                      + "This is on our side — please try Sign in with Apple, or contact support."
             case .emailProviderDisabled, .signupDisabled:
