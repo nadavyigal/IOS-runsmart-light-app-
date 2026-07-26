@@ -2,6 +2,28 @@
 
 ## Current Task
 
+**Objective:** WP-57 — establish whether live 1.1.3 emits telemetry at all (S1), and convert the sign-in evidence into a decision (S2).
+**Status:** **S1 closed, S2 overturned and escalated.** The pipe is healthy — the shipped 1.1.3 (28) archive carries the exact project 171597 token and that binary already emitted 39 events from Apple's review device on 2026-07-24. The silence since release is low traffic. S2 could not be recorded as framed: all 11 `sign_in_failed` events, including all 6 instrumented ones, came from App Store Review sessions, not users. EXD-023 raised for founder decision; nothing flipped.
+**Source:** WP-57 (`Agentic OS executive-os/work-packets/WP-57-runsmart-ios-live-telemetry-and-signin-verdict.md`). Full findings in `tasks/progress.md`.
+
+### Checklist
+- [x] S1.1 — `RunSmartSecrets.xcconfig` present, key non-empty (47 chars), byte-identical to project 171597's token. Value never printed or moved.
+- [x] S1.2 — PostHog ingestion health taken as given from the packet's Resumely control (270848, 85 users/7d). Not re-derived.
+- [x] S1.3 — **Settled without the founder device test.** The uploaded archive is 1.1.3 (28) and carries the correct key and host; that same build emitted 39 events from Apple's review device at 2026-07-24T15:40–15:44Z, three hours before public release. Genuine non-review traffic runs 0–4 persons/day with prior zero-activity days, so two silent days is expected.
+- [ ] **Founder, optional (~5 min):** install 1.1.3 from the App Store and open it once, to close the last residual gap (the store IPA is re-signed and thinned, so not byte-identical to the archive; `Info.plist` keys survive both, so this is small).
+- [x] S2.4 — Verdict re-read and **withdrawn as framed**. All three cited persons are inside the 21-person Cupertino App Store Review cluster; two ran builds that were not yet public and were not TestFlight. Recorded in `tasks/progress.md` with the query evidence in `tasks/session-log.md`.
+- [x] S2.5 — EXD-023 revisit raised explicitly with both readings and a recommendation. **Not flipped.**
+- [ ] **Founder:** decide EXD-023 — does reviewer-only failure evidence open WP-53?
+- [x] S2.6 — WP-53 scoped as its own packet (`WP-53-runsmart-signin-fallback.md`), status Blocked pending the EXD-023 call. Not implemented.
+- [ ] S3 — physical-device route smoke. **Not attempted** this session; S1 and S2 consumed it. Restated as open.
+
+### Findings that were not in the packet
+- **App Store Review has failed Apple sign-in on every build since 23** (builds 23, 23, 25, 27, 28 — 16 failures, 0 completions, five reviewer sessions). Apple approved each submission anyway. Live rejection risk, and the most reproducible failing case we have.
+- **One genuine organic non-founder user did fail:** `8ea67ea8`, iPhone17,2, US, installed 2026-07-19, two code-1000 failures in 52 seconds, then gone — but on build 24, which predates the instrumentation, so it cannot answer the `has_underlying_error` question.
+- **EXD-023's "0 non-founder signups since 2026-06-18" is off by one.** Person `6e6797d3` (iPhone18,3, Petah Tikva, App Store, not TestFlight) completed sign-in on 2026-06-20. Correct date is 2026-06-20.
+
+## Previous Current Task
+
 **Objective:** Route feature review + repair — make the Route Creator and Route Benchmark loop work end to end (the differentiator for recording runs in RunSmart vs Nike Run Club et al.), and **ship it as 1.1.3 (28)**.
 **Status:** Merged to `main` (PR #116, `8cbb928`); **packaged as 1.1.3 (28) on branch `claude/release-1.1.3-routes`** — version bumped, release notes rewritten. Remaining before public: founder device-smoke, then archive → upload → submit. Root cause of "the feature disappeared": the Supabase route tables were never created, so saved routes/benchmarks were silently device-local and wiped on reinstall (tables applied to prod 2026-07-23).
 **Source:** founder request 2026-07-23; report at `docs/qa/reports/route-feature-review-2026-07-23.md`.

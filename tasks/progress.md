@@ -1,13 +1,80 @@
-**Status:** **1.1.2 (27) is LIVE on the App Store; 1.1.3 (28) is PREPARED for archive on branch `claude/release-1.1.3-routes`.** 1.1.2 store-verified 2026-07-22 against Apple's lookup API (`id6768297840` → `version: 1.1.2`). 1.1.3 (28) is the first build to carry the **repaired route feature** (route creator usable, route/benchmark detail reachable, and cloud route persistence now backed by the `user_saved_routes` / `user_benchmark_routes` tables that were applied to production 2026-07-23). It is a version bump + release-notes change only — the route code merged to `main` in PR #116 (`8cbb928`); no app logic changed in this release commit.
-**Current Phase:** 1.1.3 (28) release prep — route feature merged to `main`, `MARKETING_VERSION` 1.1.2 → 1.1.3 and `CURRENT_PROJECT_VERSION` 27 → 28 across all 6 configs, App Store release notes rewritten. Awaiting the founder device-smoke gate, then archive → upload → submit.
-**Active Story:** 1.1.3 (28) release on branch `claude/release-1.1.3-routes` — version bumped, `fastlane/metadata/en-US/release_notes.txt` rewritten for the route feature. Archive/upload/submit are founder-only.
-**Last Completed Story:** Route feature review + repair merged to `main` — PR **#116** (`8cbb928`); the route-tables migration was applied to production `dxqglotcyirxzyqaxqln` on 2026-07-23 with founder approval.
-**Next Recommended Story:** **Founder: device-smoke the route loop, then ship 1.1.3 (28).** Run record → save → benchmark → re-run → comparison once on a physical device (the one gate the QA report left open), then archive 1.1.3 (28) in Xcode → upload → submit. **In parallel and unchanged:** read `has_underlying_error` from the first real `sign_in_failed` on live 1.1.2 (target **2026-07-29, T+7**) — one event decides it; True → name the precondition and fix with copy + a precondition check; False → open WP-53 (email/guest fallback) on evidence. Cheap prior check still owed from T+1 (2026-07-23): confirm live events arrive carrying `app_version` 1.1.2 **and** 1.1.3 once it ships.
-**Blockers:** Device-smoke of the route loop and archive/upload/submit are founder-only (physical device + ASC access). **No DB gate remains** — the route-tables migration is already live in production. Sign-in telemetry read stays traffic-gated (~26 launchers/month).
-**Last Validation:** 2026-07-24 — `MARKETING_VERSION` 1.1.2 → 1.1.3 and `CURRENT_PROJECT_VERSION` 27 → 28 applied to all 6 configurations in `project.pbxproj` (grep-verified: 6 of each new value, 0 stale), diff is exactly the 12 version lines. Release build for `generic/platform=iOS` (unsigned, `CODE_SIGNING_ALLOWED=NO`, DerivedData under `/private/tmp`): **BUILD SUCCEEDED**, built `Info.plist` reads `CFBundleShortVersionString 1.1.3` / `CFBundleVersion 28` with a non-empty `POSTHOG_API_KEY` (47 chars); SIWA entitlement not re-verified on an unsigned build but unchanged from 1.1.2's signed-archive check (no entitlements/config touched). The route code is unchanged from the PR #116 merge validated **2026-07-23** at full suite **327 passed / 1 failed**, where the 1 failure (`testPlanWeeksGroupByCalendarWeekAndTotalDistance`) reproduces on unmodified HEAD (Hebrew-locale simulator vs English month-label assertion; pre-existing, unrelated) and 3 new route tests were confirmed red→green.
-**Last Updated:** 2026-07-24
+**Status:** **1.1.3 (28) is LIVE on the App Store, released 2026-07-24.** Store-verified 2026-07-26 against Apple's public lookup API: `bundleId=com.runsmart.lite` returns `version: 1.1.3` with `currentVersionReleaseDate: 2026-07-24T18:37:55Z` on **both** the US and IL storefronts. This supersedes the "PREPARED for archive" state this file carried from 2026-07-24: the founder archived, uploaded, and submitted, and Apple released it, and none of that was written back here, so the whole portfolio was operating on a two-day-stale picture. Apple's lookup API does not expose build numbers, so **28 is repo-derived, not store-verified** (release commit `a38d529` set `CURRENT_PROJECT_VERSION` 28 across all 6 configs and nothing else shipped in between). 1.1.3 is the first public build carrying the **repaired route feature**, backed by the `user_saved_routes` / `user_benchmark_routes` tables applied to production `dxqglotcyirxzyqaxqln` on 2026-07-23.
+**Current Phase:** Post-release watch on live 1.1.3. No release work in flight. WP-57 executed 2026-07-26: the analytics pipe is **proven healthy** (S1 closed) and the sign-in verdict is **withdrawn as framed** (S2 — the evidence base turned out to be App Store Review, not users).
+**Active Story:** None. Awaiting a founder call on EXD-023 (see the WP-57 block below).
+**Last Completed Story:** WP-57 — live telemetry check and sign-in verdict, 2026-07-26.
+**Next Recommended Story:** Founder decision on EXD-023, stated in the WP-57 block below. The T+7 read (target 2026-07-29) stands but its purpose has changed: it is no longer "read the verdict", it is "wait for the first *genuine user* `sign_in_failed` on an instrumented build", because none exists yet.
+**Blockers:** None technical. WP-53 is decision-blocked, not evidence-blocked.
+**Carried gap, stated plainly:** the physical-device route smoke (record → save → benchmark → re-run → comparison) was recorded as the gate before submit and **there is no record that it ever ran**. The build shipped past it. The route loop is therefore live and unverified on real hardware, and that is now a post-release check rather than a pre-release one.
+**Last Validation:** 2026-07-26 — App Store version confirmed 1.1.3 via Apple's lookup API on the US and IL storefronts (this is store ground truth, not an ASC-portal or repo claim). Pre-release evidence carried forward from 2026-07-24: version bump grep-verified 6 of each new value with 0 stale, diff exactly the 12 version lines; Release build for `generic/platform=iOS` (unsigned, `CODE_SIGNING_ALLOWED=NO`) **BUILD SUCCEEDED** with the built `Info.plist` reading `CFBundleShortVersionString 1.1.3` / `CFBundleVersion 28` and a non-empty `POSTHOG_API_KEY` (47 chars). Route code unchanged since the PR #116 merge validated 2026-07-23 at full suite **327 passed / 1 failed**, where the single failure (`testPlanWeeksGroupByCalendarWeekAndTotalDistance`) reproduces on unmodified HEAD (Hebrew-locale simulator against an English month-label assertion, pre-existing and unrelated) and 3 new route tests were confirmed red to green.
+**Last Updated:** 2026-07-26
 
 ---
+
+## WP-57 — 2026-07-26 — live telemetry check and sign-in verdict
+
+### S1 — CLOSED. The analytics pipe is healthy. The silence is low traffic.
+
+Three independent checks, strongest last.
+
+1. **Local secret is correct.** `RunSmartSecrets.xcconfig` is present at the repo root, carries a non-empty `POSTHOG_API_KEY` of **47 characters**, and that value is **byte-identical** to project 171597's own project token (compared programmatically; the value was never printed, echoed, moved, or committed).
+2. **The uploaded binary carries the key.** The archive the founder shipped — `~/Library/Developer/Xcode/Archives/2026-07-24/IOS RunSmart app 24-07-2026, 9.14.xcarchive` — is the only 1.1.3 archive on the machine. Its built `Info.plist` reads `CFBundleShortVersionString 1.1.3` / `CFBundleVersion 28`, `POSTHOG_HOST = https://us.i.posthog.com`, and a `POSTHOG_API_KEY` that is again byte-identical to the 171597 token. **The empty-key failure mode recorded on 2026-07-20 is ruled out by direct inspection of the shipped artifact, not by inference.**
+3. **Decisive: that exact binary has already reported.** Build **28** emitted **39 events** on 2026-07-24 between 15:40:04Z and 15:44:09Z — `app_launched`, `Application Opened`, `$screen`, `sign_in_wall_viewed`, `sign_in_wall_tapped`, `sign_in_failed` — plus a second 6-event session at 15:48–15:50Z. App Store Review runs the uploaded build, so the artifact Apple distributes is demonstrably capable of emitting to 171597.
+
+**Why the silence is unremarkable.** Splitting traffic by provenance (the partition is exact — the three buckets reconcile to the daily person totals on every day checked):
+
+| Day | App Store Review | TestFlight | Other physical devices |
+|---|---|---|---|
+| 2026-07-24 | 2 | 0 | 0 |
+| 2026-07-23 | 1 | 1 | 1 |
+| 2026-07-22 | 1 | 2 | 4 |
+| 2026-07-21 | 0 | 2 | 1 |
+| 2026-07-20 | 1 | 1 | 4 |
+
+Genuine non-review physical-device activity runs 0–4 persons/day and is itself heavily founder-device (`iPhone14,5`). There were already **zero-activity days on 2026-07-08 and 2026-07-14**. Two silent days after release is well inside normal, matching the ~18% Poisson estimate the packet supplied.
+
+**The founder device test in the packet is no longer needed to settle S1.** Residual gap, stated honestly: the store-delivered IPA is re-signed and thinned, so it is not byte-identical to the archive. `Info.plist` keys survive both, so this is a small risk, not an open question. One launch from the App Store would close it at near-zero cost if wanted.
+
+### S2 — The verdict does NOT hold as framed. WITHDRAWN, not confirmed.
+
+**Every instrumented `sign_in_failed` came from App Store Review, not from users.**
+
+PostHog 171597 contains a 21-person cluster geolocating to **Cupertino, US / America/Los_Angeles / locale `en`**, spanning 2026-05-31 → 2026-07-24. Each person is a **single short session**, each on a **different, ascending build number** (7, 12, 15, 15, 17, 17, 18, 18, 19, 19, 21, 22, 23, 23, 25, 27, 28, 28…), on rotating device models, all `$is_testflight = False`, and **not one of them has ever completed a sign-in**. One session per submitted build is the signature of App Store Review.
+
+All three persons the packet cited as real-user evidence are inside that cluster:
+
+| Person | Device | Build | Session (UTC) | Versus public release |
+|---|---|---|---|---|
+| `a7b5d91c` | iPhone17,1 | 25 | 2026-07-20 12:21–12:25 | pre-release |
+| `82f82936` | iPhone12,8 | 27 | 2026-07-22 13:04–13:08 | **~4h before** 1.1.2 went public (17:04:47Z) |
+| `ba537f53` | iPhone17,1 | 28 | 2026-07-24 15:40–15:44 | **~3h before** 1.1.3 went public (18:37:55Z) |
+
+Two of the three were running builds **that were not publicly available at that moment** and were **not TestFlight** (`$is_testflight` is a working discriminator in this project — it is True on 2504 events across 10 persons, so False is meaningful). No organic user could have held those builds then.
+
+**Consequence:** the trigger EXD-023 pre-committed — *"WP-53 opens on the first live `sign_in_failed` from 1.1.2 carrying `has_underlying_error: false`"* — **has been met only by review traffic**. Zero genuine users have produced a `sign_in_failed` on an instrumented build (1.1.2 build 27 or later). The verdict the packet expected to record cannot be recorded.
+
+**The one genuine organic non-founder failure** is person `8ea67ea8`, iPhone17,2, US, not TestFlight, not Cupertino: `Application Installed` at 2026-07-19T11:03:14Z, two `sign_in_failed` (code 1000) within 52 seconds, then gone. It ran **build 24**, which predates the instrumentation, so `has_underlying_error` is null on it. It confirms the failure is real for at least one real user; it **cannot** answer the underlying-error question.
+
+**Correction to EXD-023's record:** "0 non-founder signups since 2026-06-18" is off by one. Person `6e6797d3` (iPhone18,3, Petah Tikva, App Store, not TestFlight) **completed** sign-in on **2026-06-20T06:14:27Z**. The correct date is 2026-06-20.
+
+### New finding, independent of the above
+
+**App Store Review has failed Apple sign-in on every build since 23.** Builds 23, 23, 25, 27, 28 produced **16 `sign_in_failed` events and 0 completions** across five reviewer sessions. Apple approved each submission anyway. This is a live submission risk (any future reviewer may reject on a blocked first-run) and, separately, the most reproducible failing case available — five independent devices, 100% failure, on demand each time we submit.
+
+### EXD-023 revisit — raised, NOT flipped. Founder call required.
+
+The packet's stated basis for opening WP-53 ("3 real non-founder devices failed") is factually wrong, so WP-53 must not open on it. Two defensible readings remain, and they point opposite ways:
+
+- **Open WP-53 anyway.** Reviewers are real people on real devices with real Apple IDs, failing 100% of the time across five consecutive builds, plus one confirmed real user failing on build 24. A fallback path fixes the reviewer risk and the user risk together, and stops us buying another release cycle of instrumentation that keeps not being reached.
+- **Hold WP-53 and keep waiting.** Reviewer Apple IDs are commonly managed/sandboxed and may legitimately be unable to complete Sign in with Apple, in which case the review sessions say nothing about ordinary users. Under that reading we still have **zero** instrumented user evidence and the honest state is "not yet known" — wait for T+7 or later.
+
+**Recommendation:** open WP-53 on the *reviewer* evidence rather than the user evidence, and say so explicitly in the decision record so the justification is not later mistaken for user data. The submission risk alone justifies a path into the app that does not depend on Sign in with Apple. Founder decides; nothing was flipped.
+
+### Validation
+Live PostHog reads against project 171597 on **2026-07-26** (queries and outputs in `tasks/session-log.md`). Ingestion health control taken as given from the packet (Resumely project 270848, 85 users/7d). No Swift changed, so no test run was required.
+
+---
+
+**✅ SUPERSEDED 2026-07-26 — 1.1.3 shipped and is live (released 2026-07-24, store-verified above). The "remaining founder gate" this block names was not recorded as completed before submit; treat the route device-smoke as an open post-release check, not a passed one. Original entry follows for the record.**
 
 **1.1.3 (28) PREPARED FOR ARCHIVE — first build carrying the repaired route feature (2026-07-24):** Route feature merged to `main` earlier today via PR **#116** (`8cbb928`), so 1.1.3 is a **release-packaging commit, not a code change**: `MARKETING_VERSION` 1.1.2 → 1.1.3 and `CURRENT_PROJECT_VERSION` 27 → 28 across all 6 configurations (grep-verified 6/6, 0 stale, diff is exactly the 12 version lines), and `fastlane/metadata/en-US/release_notes.txt` rewritten to user-facing route copy (Use This Route one-tap start; route/benchmark detail reachable; saved routes + benchmarks now sync to the account and survive reinstall; full-height route screens). **What ships that wasn't in 1.1.2:** the four route fixes from PR #116 (F2 dead-end creator, F3 unreachable detail, F4 dead demo loop, F5 half-height sheets) plus the F1 root cause — the `user_saved_routes` / `user_benchmark_routes` tables, **already applied to production `dxqglotcyirxzyqaxqln` on 2026-07-23**, so cloud persistence is live server-side and 1.1.3 is the client that finally uses it without silently falling back to device-local storage. **Deliberately NOT bundled:** the sign-in `has_underlying_error` instrumentation already shipped in 1.1.2 and is unchanged; the four route follow-ups (Garmin empty points, Today card gating, generated-loop elevation 0, no LiveRunView polyline) remain in `todo.md` and are not blockers. **Validation:** version bump grep-verified; Release build for `generic/platform=iOS` (unsigned, `CODE_SIGNING_ALLOWED=NO`, DerivedData under `/private/tmp`): **BUILD SUCCEEDED**, built `Info.plist` reads `CFBundleShortVersionString 1.1.3` / `CFBundleVersion 28` with a non-empty `POSTHOG_API_KEY` (47 chars); SIWA entitlement not re-verified on an unsigned build but unchanged from 1.1.2's signed-archive check (no entitlements/config touched). Underlying route code unchanged since the 2026-07-23 merge validation (327 passed / 1 pre-existing Hebrew-locale flaky that fails on unmodified HEAD too). **Remaining founder gate before submit:** device-smoke the record → save → benchmark → re-run → comparison loop once on real hardware (the only item the QA report left open), then archive → upload → submit. **Not done:** no archive, no upload, no submission, no device smoke — all founder-only. Last Updated: 2026-07-24.
 
