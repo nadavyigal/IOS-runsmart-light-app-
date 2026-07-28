@@ -1,3 +1,32 @@
+## 2026-07-28 — T+1 check RUN: telemetry is fine, the email fallback is not
+
+**Status:** The T+1 reachability check finally ran, 5 days late, and passed: non-founder events arrive carrying `app_version` 1.1.4 (40 events, 2 persons, latest 2026-07-28T08:31Z). **Attribution works. Volume is the constraint, not the instrument.** The same check found a P0 on the live build.
+**Current Phase:** Post-release watch on live 1.1.4, with one open defect (WP-60).
+**Active Story:** WP-60 — the email sign-in fallback shipped in 1.1.4 fails on every observed attempt.
+**Last Completed Story:** T+1 reachability check on 1.1.4 (read-only, PostHog 171597), 2026-07-28.
+**Next Recommended Story:** **WP-60.** Every `sign_in_failed` on build 29 is `method: email`, `error_domain: Auth.AuthError`, `error_code: 1` — **3 attempts, 2 persons, 0 successes**. Reproduce on device against production Supabase and read the full `AuthError` locally, since the emitter redacts the description. Name the cause in one sentence before writing a fix. Leading candidates: email confirmation required on the Supabase project, password-policy rejection, or a sign-up-vs-sign-in branch calling the wrong method. Do **not** re-investigate Apple's configuration — `sign_in_completed(method=apple)` fired on build 29 on 2026-07-28, so the Apple path works on the current binary.
+**Blockers:** None. The defect is reproducible in principle; nobody has run it on a device yet.
+**What this overturns:** WP-53 was closed earlier the same day partly on the reasoning that "the fallback already shipped". It shipped and it does not work, so that reason is withdrawn (the closure itself stands; the work moved to WP-60). Two further corrections: (1) "zero genuine users have produced a `sign_in_failed` on an instrumented build" is **no longer true** — person `9062f952` (iPhone17,1, `Asia/Jerusalem`, IL, locale `he`, **not** the Cupertino reviewer cluster) produced one at 08:31:20Z; whether that is the founder on a new device or a real user is unresolved and decides how WP-53's record reads. (2) `has_underlying_error` is **polluted** as a trigger — it reads `false` on these email-layer failures exactly as on a bare Apple code-1000, so every future read must filter on `method`.
+**The reviewer risk is unchanged.** The 2026-07-26 App Store Review session (`0f7a6970`, Cupertino, `America/Los_Angeles`, locale `en`) ran build 29 **before** the 18:45:43Z public release, tried the email path twice, failed twice, and never signed in. The rejection risk running since build 23 is live on the current build.
+**Last Validation:** 2026-07-28 — read-only PostHog queries on project 171597, fingerprinted before reading (45,111 events / 435 persons over 365d).
+**Last Updated:** 2026-07-28
+
+---
+
+## 2026-07-28 — RunSmart 1.1.4 is LIVE (store-verified)
+
+**Status:** **1.1.4 is LIVE on the App Store, released 2026-07-26T18:45:43Z.** Store-verified 2026-07-28 against Apple's public lookup API (`bundleId=com.runsmart.lite`, US storefront). This supersedes the "archive-ready candidate" state below: the founder archived, uploaded and submitted, Apple released it, and **nothing wrote it back here** — the same failure as 1.1.3 two days earlier, and the third silent status failure in two weeks (2026-07-22 parser bug, unwritten 1.1.3, unwritten 1.1.4). Apple's lookup API does not expose build numbers, so **29 is repo-derived, not store-verified** (`6d8b8c8` set `CURRENT_PROJECT_VERSION` 29; `origin/main` pbxproj reads `MARKETING_VERSION 1.1.4` / `CURRENT_PROJECT_VERSION 29`). 1.1.4 is the first public build carrying the **email/password sign-in fallback** (PR #119), so users who cannot complete Sign in with Apple now have a way in.
+**Current Phase:** Post-release watch on live 1.1.4. No release work in flight.
+**Active Story:** None. Awaiting a founder call on EXD-023 / WP-53 (see the WP-57 block below).
+**Last Completed Story:** 1.1.4 released to the App Store 2026-07-26 (repo-derived build 29; build number not store-verified), carrying the PR #119 email sign-in fallback.
+**Next Recommended Story:** Two reads, in this order. (1) **The T+1 reachability check.** The obligation dates from the **1.1.2 cohort** (released 2026-07-22, so T+1 was 2026-07-23) and was never performed; it was skipped again for 1.1.3 and 1.1.4, whose own T+1 dates were 2026-07-25 and 2026-07-27. All three are past. Confirm non-founder events arrive carrying `app_version` 1.1.4 in PostHog 171597. Ten minutes, read-only, and it gates trusting every other number. (2) The T+7 sign-in read, whose purpose has changed: WP-57 established that no genuine user has produced a `sign_in_failed` on an instrumented build, so this is now "wait for the first genuine-user failure", not "read the verdict".
+**Blockers:** None technical. WP-53 is decision-blocked, not evidence-blocked. Standing risk: App Store Review has failed Apple sign-in on every build since 23 (16 failures, 0 completions, five reviewer sessions) while approving each submission anyway.
+**Carried gap, still open:** the physical-device route smoke (record → save → benchmark → re-run → comparison) was the recorded gate before the 1.1.3 submit and **there is no record that it ever ran**. Two releases have shipped past it. The route loop is live and unverified on real hardware.
+**Last Validation:** 2026-07-28 — App Store version confirmed 1.1.4 via Apple's lookup API. Local `main` was 13 commits behind `origin/main` until this session; the 1.1.4 release was produced on `codex/release-1.1.4-build29` and never pulled, so every local read of this repo since 2026-07-26 answered from a pre-release tree.
+**Last Updated:** 2026-07-28
+
+---
+
 ## 2026-07-26 — RunSmart 1.1.4 (29) archive-ready candidate
 
 **Status:** The merged email/password sign-in fallback is packaged as `1.1.4 (29)` on `codex/release-1.1.4-build29`. The optimized arm64 Release build succeeded with zero warnings/errors, and the built app verifies the intended bundle/version/build plus non-empty production Supabase and PostHog configuration. Release notes now describe the fallback. Remaining founder action after the release PR merge: Archive in Xcode, then upload/submit in App Store Connect.
