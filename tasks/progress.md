@@ -1,3 +1,18 @@
+## 2026-07-28 — T+1 check RUN: telemetry is fine, the email fallback is not
+
+**Status:** The T+1 reachability check finally ran, 5 days late, and passed: non-founder events arrive carrying `app_version` 1.1.4 (40 events, 2 persons, latest 2026-07-28T08:31Z). **Attribution works. Volume is the constraint, not the instrument.** The same check found a P0 on the live build.
+**Current Phase:** Post-release watch on live 1.1.4, with one open defect (WP-60).
+**Active Story:** WP-60 — the email sign-in fallback shipped in 1.1.4 fails on every observed attempt.
+**Last Completed Story:** T+1 reachability check on 1.1.4 (read-only, PostHog 171597), 2026-07-28.
+**Next Recommended Story:** **WP-60.** Every `sign_in_failed` on build 29 is `method: email`, `error_domain: Auth.AuthError`, `error_code: 1` — **3 attempts, 2 persons, 0 successes**. Reproduce on device against production Supabase and read the full `AuthError` locally, since the emitter redacts the description. Name the cause in one sentence before writing a fix. Leading candidates: email confirmation required on the Supabase project, password-policy rejection, or a sign-up-vs-sign-in branch calling the wrong method. Do **not** re-investigate Apple's configuration — `sign_in_completed(method=apple)` fired on build 29 on 2026-07-28, so the Apple path works on the current binary.
+**Blockers:** None. The defect is reproducible in principle; nobody has run it on a device yet.
+**What this overturns:** WP-53 was closed earlier the same day partly on the reasoning that "the fallback already shipped". It shipped and it does not work, so that reason is withdrawn (the closure itself stands; the work moved to WP-60). Two further corrections: (1) "zero genuine users have produced a `sign_in_failed` on an instrumented build" is **no longer true** — person `9062f952` (iPhone17,1, `Asia/Jerusalem`, IL, locale `he`, **not** the Cupertino reviewer cluster) produced one at 08:31:20Z; whether that is the founder on a new device or a real user is unresolved and decides how WP-53's record reads. (2) `has_underlying_error` is **polluted** as a trigger — it reads `false` on these email-layer failures exactly as on a bare Apple code-1000, so every future read must filter on `method`.
+**The reviewer risk is unchanged.** The 2026-07-26 App Store Review session (`0f7a6970`, Cupertino, `America/Los_Angeles`, locale `en`) ran build 29 **before** the 18:45:43Z public release, tried the email path twice, failed twice, and never signed in. The rejection risk running since build 23 is live on the current build.
+**Last Validation:** 2026-07-28 — read-only PostHog queries on project 171597, fingerprinted before reading (45,111 events / 435 persons over 365d).
+**Last Updated:** 2026-07-28
+
+---
+
 ## 2026-07-28 — RunSmart 1.1.4 is LIVE (store-verified)
 
 **Status:** **1.1.4 is LIVE on the App Store, released 2026-07-26T18:45:43Z.** Store-verified 2026-07-28 against Apple's public lookup API (`bundleId=com.runsmart.lite`, US storefront). This supersedes the "archive-ready candidate" state below: the founder archived, uploaded and submitted, Apple released it, and **nothing wrote it back here** — the same failure as 1.1.3 two days earlier, and the third silent status failure in two weeks (2026-07-22 parser bug, unwritten 1.1.3, unwritten 1.1.4). Apple's lookup API does not expose build numbers, so **29 is repo-derived, not store-verified** (`6d8b8c8` set `CURRENT_PROJECT_VERSION` 29; `origin/main` pbxproj reads `MARKETING_VERSION 1.1.4` / `CURRENT_PROJECT_VERSION 29`). 1.1.4 is the first public build carrying the **email/password sign-in fallback** (PR #119), so users who cannot complete Sign in with Apple now have a way in.
