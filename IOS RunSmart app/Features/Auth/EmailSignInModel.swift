@@ -120,13 +120,13 @@ final class EmailSignInModel: ObservableObject {
                 // swaps this whole surface out, so there is no success phase to
                 // set here — doing so would fight the shell for the transition.
                 phase = .editing
-                Analytics.trackSignInCompleted(method: "email")
+                Analytics.trackSignInCompleted(method: "email", mode: submittedMode.analyticsValue)
             case .createAccount:
                 let outcome = try await gateway.signUp(address, secret)
                 switch outcome {
                 case .signedIn:
                     phase = .editing
-                    Analytics.trackSignInCompleted(method: "email")
+                    Analytics.trackSignInCompleted(method: "email", mode: submittedMode.analyticsValue)
                 case .confirmationRequired:
                     phase = .confirmationRequired
                 }
@@ -134,7 +134,8 @@ final class EmailSignInModel: ObservableObject {
         } catch {
             phase = .editing
             errorMessage = Self.humanReadableError(for: error, mode: submittedMode)
-            Analytics.trackSignInFailed(error: error, method: "email")
+            Analytics.trackSignInFailed(
+                error: error, method: "email", mode: submittedMode.analyticsValue)
         }
     }
 

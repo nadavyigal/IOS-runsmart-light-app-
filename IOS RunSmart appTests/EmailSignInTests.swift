@@ -261,3 +261,110 @@ final class EmailSignInTests: XCTestCase {
         XCTAssertTrue(create.localizedCaseInsensitiveContains("nothing was created"))
     }
 }
+
+// MARK: - WP-60: the failure telemetry that could not name a cause
+
+/// Captures what actually reaches PostHog so the emitted properties can be asserted.
+private final class SpyAnalytics: AnalyticsTracking {
+    var events: [(String, [String: Any])] = []
+    func track(_ event: String, properties: [String: Any]) { events.append((event, properties)) }
+    func identify(userId: String, traits: [String: Any]) {}
+    func register(properties: [String: Any]) {}
+    func reset() {}
+
+    func properties(for event: String) -> [String: Any]? {
+        events.first(where: { $0.0 == event })?.1
+    }
+}
+
+@MainActor
+final class EmailSignInFailureTelemetryTests: XCTestCase {
+
+    /// WP-60. Three attempts, two people, zero successes on build 29 — and every
+    /// one of them reached PostHog as `error_domain: Auth.AuthError`,
+    /// `error_code: 1`, `has_underlying_error: false`, which named no cause.
+    ///
+    /// The reason is structural, not a sampling problem. `error_code` is
+    /// `(error as NSError).code`, and for a Swift enum that is the case
+    /// discriminant. Verified empirically against the real declaration order:
+    /// Swift lays payload-carrying cases out first, so **1 is `AuthError.api`** —
+    /// the single case that wraps EVERY server response. Invalid credentials,
+    /// unconfirmed email, disabled provider and rate limiting are all code 1.
+    ///
+    /// The real Supabase code lives in an associated value (`authError.errorCode`),
+    /// and `.api` puts its payload in associated values rather than
+    /// `userInfo[NSUnderlyingErrorKey]` — which is why `has_underlying_error` is
+    /// correctly `false` and permanently uninformative on this path.
+    func testApiFailureEmitsTheRealSupabaseCodeAndNotJustTheEnumDiscriminant() async {
+        let saved = Analytics.shared
+        defer { Analytics.shared = saved }
+        let spy = SpyAnalytics()
+        Analytics.shared = spy
+
+        let serverError = AuthError.api(
+            message: "Invalid login credentials",
+            errorCode: .invalidCredentials,
+            underlyingData: Data(),
+            underlyingResponse: HTTPURLResponse(
+                url: URL(string: "https://example.supabase.co")!,
+                statusCode: 400, httpVersion: nil, headerFields: nil)!
+        )
+        let model = EmailSignInModel(gateway: .init(
+            signIn: { _, _ in throw serverError },
+            signUp: { _, _ in .signedIn }
+        ))
+        model.email = "runner@example.com"
+        model.password = "correcthorse"
+        await model.submit()
+
+        let props = spy.properties(for: "sign_in_failed")
+        XCTAssertNotNil(props, "the email path must emit sign_in_failed")
+        XCTAssertEqual(props?["auth_error_code"] as? String, "invalid_credentials",
+            "the real Supabase error code must be emitted — without it every distinct "
+            + "server-side cause is indistinguishable in telemetry, which is WP-60")
+    }
+
+    /// A user who taps Create account on an address they already own and a user
+    /// who taps Sign in on one they do not are one sentence from success, and
+    /// the copy already distinguishes them. Telemetry did not: `method` was
+    /// always the literal "email", so the two branches were unseparable and it
+    /// was impossible to tell which half of the surface was failing.
+    func testFailureTelemetryDistinguishesSignInFromCreateAccount() async {
+        let saved = Analytics.shared
+        defer { Analytics.shared = saved }
+        let spy = SpyAnalytics()
+        Analytics.shared = spy
+
+        let model = EmailSignInModel(gateway: .init(
+            signIn: { _, _ in throw AuthError.sessionMissing },
+            signUp: { _, _ in throw AuthError.sessionMissing }
+        ))
+        model.switchMode(to: .createAccount)
+        model.email = "runner@example.com"
+        model.password = "correcthorse"
+        await model.submit()
+
+        XCTAssertEqual(spy.properties(for: "sign_in_failed")?["mode"] as? String, "createAccount",
+            "the failing branch must be identifiable in telemetry")
+    }
+
+    /// The success side needs the same split, or the funnel cannot be closed:
+    /// without it, sign-ins and sign-ups land in one undifferentiated bucket.
+    func testSuccessTelemetryAlsoCarriesTheMode() async {
+        let saved = Analytics.shared
+        defer { Analytics.shared = saved }
+        let spy = SpyAnalytics()
+        Analytics.shared = spy
+
+        let model = EmailSignInModel(gateway: .init(
+            signIn: { _, _ in },
+            signUp: { _, _ in .signedIn }
+        ))
+        model.email = "runner@example.com"
+        model.password = "correcthorse"
+        await model.submit()
+
+        XCTAssertEqual(spy.properties(for: "sign_in_completed")?["mode"] as? String, "signIn",
+            "sign_in_completed must record which branch produced the session")
+    }
+}
