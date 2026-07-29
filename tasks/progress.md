@@ -1,3 +1,18 @@
+## 2026-07-29 — WP-60: the failure telemetry that could not name a cause
+
+**Status:** **Diagnostics repaired and merged (PR #122). The email sign-in path itself is NOT fixed.** Both statements matter: the reason WP-60 could not be diagnosed is now removed, and the fault that caused three failed sign-ins is still unexplained.
+**Current Phase:** Post-release watch on live 1.1.4, with WP-60 partially executed.
+**Active Story:** WP-60 stories 1-3 and 5 — reproduce the email path on a device, name the cause, fix red-first, ship. Now *unblocked* rather than blocked: the next live failure will name itself.
+**Last Completed Story:** WP-60 story 4 — un-pollute the diagnostics (PR #122, merged 2026-07-29).
+**Root cause of the undiagnosability, and it was structural:** `trackSignInFailed` emitted `error_code` as `(error as NSError).code`. For a Swift enum that is the case discriminant, and **Swift lays payload-carrying cases out first** — so `1` is `AuthError.api`, the single case wrapping *every* GoTrue response. Invalid credentials, unconfirmed email, disabled provider and rate limiting all arrive as code 1. Three distinct failures were indistinguishable by construction, not by bad luck. `.api` also carries its payload in associated values rather than `userInfo[NSUnderlyingErrorKey]`, so `has_underlying_error: false` was **correct** and could never have carried the detail.
+**Method note worth keeping:** the case-index mapping was verified with a throwaway Swift probe mirroring `AuthError`'s declaration order, not read off the source. The first reading of the source said code 1 was `malformedJWT` and it was wrong — Swift's payload-first layout is not the declaration order. Do not infer an NSError code from a Swift enum by counting cases in a file.
+**Shipped:** `auth_error_code` (the real Supabase `ErrorCode`) and `mode` (`signIn` vs `createAccount`) on both `sign_in_failed` and `sign_in_completed`. Three tests written red-first and confirmed failing against the previous emitter.
+**Blockers:** None. Story 1 (device repro against production Supabase, reading the full `AuthError` locally) still beats waiting for a live failure, and remains founder-gated on a connected iPhone.
+**Last Validation:** 2026-07-29 — full suite on iPhone 17 / iOS 26.5: 1 failure, `testPlanWeeksGroupByCalendarWeekAndTotalDistance`, **confirmed failing identically on stashed-clean HEAD** (pre-existing Hebrew-locale vs English month-label assertion, unrelated). The three new tests confirmed red before the fix and green after.
+**Last Updated:** 2026-07-29
+
+---
+
 ## 2026-07-28 — T+1 check RUN: telemetry is fine, the email fallback is not
 
 **Status:** The T+1 reachability check finally ran, 5 days late, and passed: non-founder events arrive carrying `app_version` 1.1.4 (40 events, 2 persons, latest 2026-07-28T08:31Z). **Attribution works. Volume is the constraint, not the instrument.** The same check found a P0 on the live build.
