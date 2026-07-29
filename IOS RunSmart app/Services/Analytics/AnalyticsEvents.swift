@@ -1,4 +1,5 @@
 import Foundation
+import Supabase
 
 extension Analytics {
     private static let completedRunFlagKey = "analytics.hasCompletedRun"
@@ -40,11 +41,18 @@ extension Analytics {
         ])
     }
 
-    static func trackSignInCompleted(method: String = "apple") {
-        shared.track("sign_in_completed", properties: [
+    /// - Parameter mode: which branch of the email surface produced the session.
+    ///   `nil` for the Apple path. Without it, sign-ins and sign-ups land in one
+    ///   undifferentiated bucket and the funnel cannot be closed.
+    static func trackSignInCompleted(method: String = "apple", mode: String? = nil) {
+        var properties: [String: Any] = [
             "method": method,
             "screen": SignInWallTracker.screenName
-        ])
+        ]
+        if let mode {
+            properties["mode"] = mode
+        }
+        shared.track("sign_in_completed", properties: properties)
     }
 
     // `error_domain`/`error_code` are the whole point of this event: the open P0
@@ -72,7 +80,9 @@ extension Analytics {
         )
     }
 
-    static func trackSignInFailed(error: Error, method: String = "apple") {
+    /// - Parameter mode: which branch of the email surface produced this, when the
+    ///   failure came from there. `nil` for the Apple path, which has no modes.
+    static func trackSignInFailed(error: Error, method: String = "apple", mode: String? = nil) {
         let nsError = error as NSError
         var properties: [String: Any] = [
             "screen": SignInWallTracker.screenName,
@@ -80,6 +90,25 @@ extension Analytics {
             "error_domain": nsError.domain,
             "error_code": nsError.code
         ]
+        if let mode {
+            properties["mode"] = mode
+        }
+
+        // WP-60. `error_code` above is `(error as NSError).code`, which for a Swift
+        // enum is the case discriminant — NOT a meaningful server code. Swift lays
+        // payload-carrying cases out first, so for `AuthError` the value 1 is
+        // `.api`, the one case that wraps EVERY GoTrue response. Invalid
+        // credentials, unconfirmed email, disabled provider and rate limiting all
+        // arrive as code 1, which is why three failed email sign-ins on build 29
+        // were indistinguishable and no cause could be named.
+        //
+        // `.api` also carries its payload in associated values rather than
+        // `userInfo[NSUnderlyingErrorKey]`, so `has_underlying_error` is correctly
+        // `false` here and can never carry the detail either. The real code is
+        // reachable only through `AuthError.errorCode`, so read it explicitly.
+        if let authError = error as? AuthError {
+            properties["auth_error_code"] = authError.errorCode.rawValue
+        }
 
         let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError
         properties["has_underlying_error"] = underlying != nil
