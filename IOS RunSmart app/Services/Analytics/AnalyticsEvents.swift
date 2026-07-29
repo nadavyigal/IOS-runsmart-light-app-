@@ -456,6 +456,39 @@ extension Analytics {
 
     // MARK: - Feature Adoption
 
+    /// Human screen name for a tab, used for analytics attribution.
+    static func screenName(for tab: RunSmartTab) -> String {
+        switch tab {
+        case .today:   "today"
+        case .plan:    "plan"
+        case .run:     "run"
+        case .report:  "report"
+        case .profile: "profile"
+        }
+    }
+
+    /// Registers the current screen as a super property.
+    ///
+    /// WP-63 story 2. Measured on PostHog 171597 for the 30 days to 2026-07-29:
+    /// **620 of 679 `$screen` events (91%) carried one of two generic names** —
+    /// `UIHostingController<ModifiedContent<AnyView, RootModifier>>` alone
+    /// covered 376 events across 49 people. Every real screen shared one bucket,
+    /// which is why the 19 rage-clicks from 6 genuine users cannot be attributed
+    /// to anywhere, and why turning on session replay before this would produce
+    /// recordings nobody can filter.
+    ///
+    /// It has to be a registered super property rather than a `track` property:
+    /// autocaptured events (`$screen`, `$rageclick`, `Application Opened`) never
+    /// pass through ``Analytics/track(_:properties:)``. This is the same
+    /// mechanism ``registerBuildIdentity()`` already uses to attach `app_version`
+    /// to autocaptured events.
+    ///
+    /// Uses `screen` rather than PostHog's reserved `$screen_name`, matching the
+    /// convention `SignInWallTracker` already established.
+    static func registerCurrentScreen(_ name: String) {
+        shared.register(properties: ["screen": name])
+    }
+
     static func trackTabViewed(tabName: String) {
         shared.track("tab_viewed", properties: ["tab_name": tabName])
     }

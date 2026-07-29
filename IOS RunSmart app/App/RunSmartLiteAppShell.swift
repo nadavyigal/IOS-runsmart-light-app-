@@ -222,6 +222,9 @@ struct RunSmartLiteAppShell: View {
         .task {
             guard !RunSmartDemoMode.isEnabled else { return }
             setupAnalyticsIfNeeded()
+            // onChange does not fire for the tab the app opens on, so the first
+            // screen of every session would otherwise stay unattributed (WP-63).
+            Analytics.registerCurrentScreen(Analytics.screenName(for: router.selectedTab))
             PushService.shared.configureNavigation { destination in
                 router.openNotificationDestination(destination)
             }
@@ -232,6 +235,9 @@ struct RunSmartLiteAppShell: View {
         }
         .onChange(of: router.selectedTab) { _, newTab in
             guard !RunSmartDemoMode.isEnabled else { return }
+            // Register before tracking so the tab_viewed event itself, and every
+            // autocaptured event that follows, carries the screen (WP-63).
+            Analytics.registerCurrentScreen(Analytics.screenName(for: newTab))
             Analytics.trackTabViewed(tabName: newTab.rawValue)
         }
         .onChange(of: session.isAuthenticated) { _, isAuth in

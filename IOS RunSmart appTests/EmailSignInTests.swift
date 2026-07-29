@@ -368,3 +368,55 @@ final class EmailSignInFailureTelemetryTests: XCTestCase {
             "sign_in_completed must record which branch produced the session")
     }
 }
+
+// MARK: - WP-63: rage-clicks with no attributable screen
+
+private final class RegisterSpy: AnalyticsTracking {
+    var registered: [String: Any] = [:]
+    func track(_ event: String, properties: [String: Any]) {}
+    func identify(userId: String, traits: [String: Any]) {}
+    func register(properties: [String: Any]) { registered.merge(properties) { _, new in new } }
+    func reset() {}
+}
+
+@MainActor
+final class ScreenAttributionTests: XCTestCase {
+
+    /// WP-63 story 2. Measured on PostHog 171597 for the 30 days to 2026-07-29:
+    /// **620 of 679 `$screen` events (91%) resolve to just two generic names** —
+    /// `UIHostingController<ModifiedContent<AnyView, RootModifier>>` (376 events,
+    /// 49 people) and `PresentationHostingController<AnyView>`. Every real
+    /// in-app screen lands in one bucket.
+    ///
+    /// That is why the 19 rage-clicks from 6 genuine users cannot be attributed
+    /// to a screen, and why enabling session replay without this fix would
+    /// produce recordings nobody can filter. Autocaptured events never pass
+    /// through `track(_:)`, so the only thing that reaches them is a registered
+    /// super property — the same mechanism `registerBuildIdentity` already uses
+    /// for `app_version`.
+    func testRegisteringAScreenAttachesItToEveryEventIncludingAutocaptured() {
+        let saved = Analytics.shared
+        defer { Analytics.shared = saved }
+        let spy = RegisterSpy()
+        Analytics.shared = spy
+
+        Analytics.registerCurrentScreen("plan")
+
+        XCTAssertEqual(spy.registered["screen"] as? String, "plan",
+            "the screen must be registered as a super property, or autocaptured "
+            + "$screen and $rageclick events stay unattributable")
+    }
+
+    /// Every tab must resolve to a stable human name. A missing case would
+    /// silently reintroduce the generic bucket for that tab only, which is
+    /// harder to notice than the original problem.
+    func testEveryTabHasAHumanScreenName() {
+        let names = RunSmartTab.allCases.map { Analytics.screenName(for: $0) }
+        XCTAssertEqual(Set(names).count, RunSmartTab.allCases.count,
+            "each tab needs a distinct name")
+        for name in names {
+            XCTAssertFalse(name.contains("HostingController"), "names must be human, not SwiftUI types")
+            XCTAssertFalse(name.isEmpty)
+        }
+    }
+}
