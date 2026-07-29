@@ -411,12 +411,17 @@ final class ScreenAttributionTests: XCTestCase {
     /// silently reintroduce the generic bucket for that tab only, which is
     /// harder to notice than the original problem.
     func testEveryTabHasAHumanScreenName() {
-        let names = RunSmartTab.allCases.map { Analytics.screenName(for: $0) }
-        XCTAssertEqual(Set(names).count, RunSmartTab.allCases.count,
-            "each tab needs a distinct name")
-        for name in names {
-            XCTAssertFalse(name.contains("HostingController"), "names must be human, not SwiftUI types")
-            XCTAssertFalse(name.isEmpty)
+        // Pin the exact contract, not just uniqueness. These strings are the
+        // analytics bucket keys: renaming one silently splits its history into
+        // two buckets, and a uniqueness-only assertion would not notice.
+        let expected: [RunSmartTab: String] = [
+            .today: "today", .plan: "plan", .run: "run",
+            .report: "report", .profile: "profile"
+        ]
+        XCTAssertEqual(Set(expected.keys), Set(RunSmartTab.allCases),
+            "a new tab must be given an explicit screen name here")
+        for (tab, name) in expected {
+            XCTAssertEqual(Analytics.screenName(for: tab), name)
         }
     }
 }

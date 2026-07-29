@@ -222,9 +222,6 @@ struct RunSmartLiteAppShell: View {
         .task {
             guard !RunSmartDemoMode.isEnabled else { return }
             setupAnalyticsIfNeeded()
-            // onChange does not fire for the tab the app opens on, so the first
-            // screen of every session would otherwise stay unattributed (WP-63).
-            Analytics.registerCurrentScreen(Analytics.screenName(for: router.selectedTab))
             PushService.shared.configureNavigation { destination in
                 router.openNotificationDestination(destination)
             }
@@ -503,6 +500,11 @@ struct RunSmartLiteAppShell: View {
               let host = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_HOST") as? String
         else { return }
         Analytics.setup(projectToken: token, host: host)
+        // Between setup and the first event, deliberately. Registering earlier is
+        // a no-op because `Analytics.shared` is still the null service until
+        // `setup` runs; registering later would leave `app_launched` — the
+        // session-starting event — without the screen it began on.
+        Analytics.registerCurrentScreen(Analytics.screenName(for: router.selectedTab))
         Analytics.trackAppLaunched()
     }
 }
