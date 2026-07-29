@@ -232,6 +232,9 @@ struct RunSmartLiteAppShell: View {
         }
         .onChange(of: router.selectedTab) { _, newTab in
             guard !RunSmartDemoMode.isEnabled else { return }
+            // Register before tracking so the tab_viewed event itself, and every
+            // autocaptured event that follows, carries the screen (WP-63).
+            Analytics.registerCurrentScreen(Analytics.screenName(for: newTab))
             Analytics.trackTabViewed(tabName: newTab.rawValue)
         }
         .onChange(of: session.isAuthenticated) { _, isAuth in
@@ -497,6 +500,11 @@ struct RunSmartLiteAppShell: View {
               let host = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_HOST") as? String
         else { return }
         Analytics.setup(projectToken: token, host: host)
+        // Between setup and the first event, deliberately. Registering earlier is
+        // a no-op because `Analytics.shared` is still the null service until
+        // `setup` runs; registering later would leave `app_launched` — the
+        // session-starting event — without the screen it began on.
+        Analytics.registerCurrentScreen(Analytics.screenName(for: router.selectedTab))
         Analytics.trackAppLaunched()
     }
 }
