@@ -1,3 +1,18 @@
+## 2026-08-04 — `mailer_autoconfirm` flipped: WP-60 and WP-67 both closed
+
+**The entry below this one says the flag is "STILL `false`". That stopped being true later the same day.** `mailer_autoconfirm` was flipped `false → true` on the production Supabase project and verified live: signup now issues a session, and sign-in immediately after signup — the exact sequence that returned `email_not_confirmed` on 2026-07-26 and 2026-07-28 — now succeeds. A wrong password is still rejected, so the fix did not open a hole. Recorded in Agentic OS `08e361b4`, `executive-os/work-packets/WP-60-runsmart-email-fallback-fails.md`.
+
+This entry exists because the earlier one is what the Agentic OS refresh parses, and it was still driving "Awaiting the Supabase setting flip" onto every portfolio surface after the flip had happened. Same failure mode as the four unrecorded App Store releases: the work landed, the reporting layer did not move.
+
+**Status:** WP-60 and WP-67 **CLOSED 2026-08-04**. `mailer_autoconfirm = true` on production, verified with a cache-busted settings read plus a behavioural probe and a wrong-password regression check. PR #125 merged 2026-08-04T07:11:29Z (`60f1d82`); `origin/main` reads **1.1.5 / 30**. Probe user deleted.
+**Current Phase:** Post-release watch on live 1.1.4, with 1.1.5 (30) packaged and awaiting a founder archive + upload.
+**Active Story:** None.
+**Last Completed Story:** WP-60/WP-67 closed — the email sign-in fallback's cause named, reproduced against production Supabase, and repaired server-side.
+**Next Recommended Story:** (1) **Founder: archive 1.1.5 (30) from the main checkout and upload to App Store Connect.** It carries the PR #122 diagnostics, which have never been in a public build — 1.1.4 (29) went live 2026-07-26, three days before they existed. (2) Confirm `sign_in_completed(method=email)` appears in PostHog from the compiled app once 1.1.5 is public; only the server-side HTTP path is directly verified so far. (3) Run the owed physical-device route smoke (record → save → benchmark → re-run → compare) — it was the recorded gate before the 1.1.3 submit and two releases have shipped past it.
+**Blockers:** Founder archive + upload of 1.1.5 (30). No Supabase work remains.
+**Last Validation:** 2026-08-04 — production Supabase `GET /auth/v1/settings` re-read cache-busted after the flip; signup→immediate-sign-in probe succeeded; wrong-password probe still rejected. App Store lookup API (six cache-busted calls, IL and US): 1.1.4 still the public version, released 2026-07-26T18:45:43Z, now carrying its first rating (5.0 from 1).
+**Last Updated:** 2026-08-04
+
 ## 2026-08-04 — WP-67 cleanup: probe deleted, and the confirmation email is proven to work
 
 **Status:** PR #125 **merged** 2026-08-04T07:11:29Z (`60f1d82`); `origin/main` now reads **1.1.5 / 30**. Probe user deleted. **`mailer_autoconfirm` is STILL `false` as of 2026-08-04 — the email path remains 100% broken in production.**
