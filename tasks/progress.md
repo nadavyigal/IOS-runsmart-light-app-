@@ -1,3 +1,31 @@
+## 2026-08-04 — WP-67: the email fallback's cause, named and reproduced
+
+**Status:** **Cause found, reproduced against production, and written into WP-60. The repair itself is a Supabase setting change and is BLOCKED ON A FOUNDER DECISION.** WP-60 stories 1-3 are executed.
+**Current Phase:** WP-60 diagnosis closed; repair pending a founder call.
+**Active Story:** WP-67 story 5 — decide repair (`mailer_autoconfirm = true`) versus removing the email entry point. Then story 6, ship a build carrying PR #122 + this change.
+**Last Completed Story:** WP-67 stories 1-3 (reproduce, record server settings, name the cause) plus a red-first instrumentation fix.
+
+**The cause, in one sentence:** the Supabase project runs `mailer_autoconfirm = false`, so `signUp` returns HTTP 200 with a user and **no session** and the email path can never sign anyone in during the session — a person who never created an account first gets GoTrue `invalid_credentials` and a person who did gets `email_not_confirmed`, and because both are `AuthError.api` both reached PostHog as the same useless `error_code: 1`.
+
+**No device was needed, and that is the finding worth carrying.** The failure is entirely server-side. Three curl probes against production GoTrue at 2026-08-04 06:23Z reproduced both shapes: a sign-in to a non-existent account returned **400 `invalid_credentials`**; a fresh `POST /signup` returned **200 with `access_token: null` and `confirmed_at: null`**; the same credentials 2s later returned **400 `email_not_confirmed`**. All three appear in the Supabase auth logs with matching codes. The packet had this scoped as a founder-only device session for five days; the server could have been asked at any point.
+
+**`auth.users` settles which person hit which failure.** All 12 email accounts created before 2026-07-28 have `confirmation_sent_at = null` and were confirmed within ~40ms — they were made while autoconfirm was **on**. The 13th, person `9062f952` on 2026-07-28, has `confirmed_at: null`, `confirmation_sent_at: 08:31:10.33Z`, `last_sign_in_at: null`: **their sign-up succeeded** and the `sign_in_failed` ten seconds later was `email_not_confirmed` on the account they had just created. The App Store Review session on 2026-07-26 created **no row at all**, so its two failures were almost certainly `invalid_credentials` on the default Sign-in tab — favoured, not proven, because `mode` shipped after build 29 and is unrecoverable for that session.
+
+**This overturns a claim in the code.** `SupabaseAuth.swift:91-93` justified the design with "password auth is already live on this project (12 confirmed email identities predate this change) and needs no server-side change to start working." Those 12 identities were written under a *different* setting. The fallback needed a server-side change from the day it shipped.
+
+**Shipped in this session (red-first):** `sign_in_pending_confirmation`. `EmailSignInModel.submit()` handled `.confirmationRequired` by setting `phase` and emitting **nothing**, so a genuinely created account left no trace and the adjacent failure absorbed the whole story — which is why WP-60 read as "the fallback fails" rather than "the fallback creates accounts it cannot sign in". Test written first and confirmed failing; a second test pins the reproduced `email_not_confirmed` shape in both copy and telemetry (that one is a regression pin, green on arrival, and is labelled as such).
+
+**Founder decision required.** (1) Set `mailer_autoconfirm = true` — Dashboard → Authentication → Sign In / Providers → Email → uncheck "Confirm email". The fallback then works in one step and App Store Review can get in; cost is accepting unverified addresses, which for an alternate door to Apple sign-in is not security-critical. **This is the recommendation.** (2) Otherwise remove the entry point at `SignInView.swift:218`. Doing neither leaves a 100%-failing door visible to reviewers.
+
+**Cleanup owed:** the probe created one real production auth user, `nadav.yigal+wp67probe@gmail.com` (`77886d63-d459-42c1-aa77-e78558427c22`, unconfirmed). It is **not** a user — delete it, or exclude it from any email-identity count. Email identities now read 13 for this reason.
+
+**Open question still unanswered:** was person `9062f952` (iPhone17,1, `Asia/Jerusalem`, locale `he`) you on a new device, or a genuine Israeli user? It now matters more, not less: that person *successfully created an account* and was then locked out by the confirmation gate. If they are real, RunSmart has a real user sitting on an unconfirmed account right now.
+**Blockers:** Founder decision on `mailer_autoconfirm`. Story 6 (ship) also needs a version bump — `project.pbxproj` still reads 1.1.4 / 29, so PR #122's diagnostics remain inert in public.
+**Last Validation:** 2026-08-04 — new test confirmed RED before the fix, green after; focused suites `EmailSignInTests` + `EmailSignInFailureTelemetryTests` **20/20 passed** on iPhone 17. Live probes against production Supabase `dxqglotcyirxzyqaxqln` with matching auth-log entries.
+**Last Updated:** 2026-08-04
+
+---
+
 ## 2026-07-29 — WP-60: the failure telemetry that could not name a cause
 
 **Status:** **Diagnostics repaired and merged (PR #122). The email sign-in path itself is NOT fixed.** Both statements matter: the reason WP-60 could not be diagnosed is now removed, and the fault that caused three failed sign-ins is still unexplained.

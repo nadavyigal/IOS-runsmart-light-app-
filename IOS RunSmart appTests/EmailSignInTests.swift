@@ -348,6 +348,94 @@ final class EmailSignInFailureTelemetryTests: XCTestCase {
             "the failing branch must be identifiable in telemetry")
     }
 
+    /// WP-67. The outcome that was invisible, and it is the one that actually
+    /// happened to the only genuine user who ever chose this path.
+    ///
+    /// Reproduced against production Supabase 2026-08-04: the project runs with
+    /// `mailer_autoconfirm = false`, so `signUp` returns HTTP 200 with a user and
+    /// **no session**, and the app parks on `.confirmationRequired`. That branch
+    /// emitted nothing at all — not `sign_in_completed`, not `sign_in_failed` —
+    /// so a successful account creation left no trace in the funnel.
+    ///
+    /// The cost was paid in the WP-60 analysis. Person `9062f952` created a real
+    /// account at 2026-07-28 08:31:10Z (the `auth.users` row exists, unconfirmed,
+    /// `last_sign_in_at` null) and then failed a sign-in ten seconds later. From
+    /// PostHog alone that reads as a flat failure, and the whole sequence had to
+    /// be reconstructed from `auth.identities` timestamps because the app never
+    /// said the sign-up had worked. A funnel that cannot see its own successful
+    /// step cannot be debugged from telemetry, which is the entire WP-60 trap.
+    func testAccountAwaitingConfirmationIsEmittedInsteadOfVanishing() async {
+        let saved = Analytics.shared
+        defer { Analytics.shared = saved }
+        let spy = SpyAnalytics()
+        Analytics.shared = spy
+
+        let model = EmailSignInModel(gateway: .init(
+            signIn: { _, _ in },
+            signUp: { _, _ in .confirmationRequired }
+        ))
+        model.switchMode(to: .createAccount)
+        model.email = "runner@example.com"
+        model.password = "correcthorse"
+        await model.submit()
+
+        let props = spy.properties(for: "sign_in_pending_confirmation")
+        XCTAssertNotNil(props,
+            "an account that was really created but awaits confirmation must emit "
+            + "its own event — it is neither a completion nor a failure, and with "
+            + "no event at all the step is invisible in the funnel")
+        XCTAssertEqual(props?["method"] as? String, "email")
+        XCTAssertEqual(props?["mode"] as? String, "createAccount")
+
+        XCTAssertNil(spy.properties(for: "sign_in_completed"),
+            "no session was issued, so this must not be counted as a sign-in")
+        XCTAssertNil(spy.properties(for: "sign_in_failed"),
+            "the account was created — calling this a failure would be the "
+            + "opposite error and would inflate the failure rate")
+    }
+
+    /// WP-67. Pins the exact production shape reproduced on 2026-08-04: a user
+    /// who creates an account and then signs in before clicking the emailed link
+    /// gets GoTrue `email_not_confirmed` (HTTP 400), which arrives as
+    /// `AuthError.api` and therefore as the useless `NSError` code 1.
+    ///
+    /// This is a regression pin rather than a red-first test — PR #122 already
+    /// made the code emittable and the copy already existed. It is here because
+    /// nothing asserted this specific shape, and it is the shape the one real
+    /// user hit.
+    func testUnconfirmedEmailIsDistinguishableInBothCopyAndTelemetry() async {
+        let saved = Analytics.shared
+        defer { Analytics.shared = saved }
+        let spy = SpyAnalytics()
+        Analytics.shared = spy
+
+        let unconfirmed = AuthError.api(
+            message: "Email not confirmed",
+            errorCode: .emailNotConfirmed,
+            underlyingData: Data(),
+            underlyingResponse: HTTPURLResponse(
+                url: URL(string: "https://example.supabase.co")!,
+                statusCode: 400, httpVersion: nil, headerFields: nil)!
+        )
+        let model = EmailSignInModel(gateway: .init(
+            signIn: { _, _ in throw unconfirmed },
+            signUp: { _, _ in .confirmationRequired }
+        ))
+        model.email = "runner@example.com"
+        model.password = "correcthorse"
+        await model.submit()
+
+        XCTAssertEqual(
+            spy.properties(for: "sign_in_failed")?["auth_error_code"] as? String,
+            "email_not_confirmed",
+            "without this the failure is indistinguishable from invalid_credentials, "
+            + "and those two have opposite remedies")
+        XCTAssertTrue(
+            (model.errorMessage ?? "").localizedCaseInsensitiveContains("confirmation link"),
+            "the user must be told the account exists and needs confirming, not that "
+            + "their password is wrong")
+    }
+
     /// The success side needs the same split, or the funnel cannot be closed:
     /// without it, sign-ins and sign-ups land in one undifferentiated bucket.
     func testSuccessTelemetryAlsoCarriesTheMode() async {

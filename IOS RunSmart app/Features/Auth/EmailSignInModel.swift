@@ -129,6 +129,12 @@ final class EmailSignInModel: ObservableObject {
                     Analytics.trackSignInCompleted(method: "email", mode: submittedMode.analyticsValue)
                 case .confirmationRequired:
                     phase = .confirmationRequired
+                    // The account exists but no session was issued, so this is
+                    // neither a completion nor a failure. It emitted nothing at
+                    // all until WP-67, which is why a successfully created
+                    // account read in the funnel as a flat failure.
+                    Analytics.trackSignInPendingConfirmation(
+                        method: "email", mode: submittedMode.analyticsValue)
                 }
             }
         } catch {
