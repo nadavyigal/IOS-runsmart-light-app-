@@ -1,3 +1,29 @@
+## 2026-08-04 — WP-67: 1.1.5 (30) packaged; mailer_autoconfirm still needs a dashboard click
+
+**Status:** **Version bumped to 1.1.5 (30) and Release-build verified. Archive + upload remain founder actions.** The `mailer_autoconfirm` flip was authorized but **could not be executed from here** — see below.
+**Current Phase:** WP-67 story 6 packaged; awaiting founder archive/upload and one Supabase dashboard change.
+**Active Story:** Founder: (1) flip `mailer_autoconfirm`, (2) merge PR #125, (3) archive from the MAIN CHECKOUT and upload.
+**Last Completed Story:** WP-67 stories 1-4 and 6 (packaging). PR #125.
+
+**Why the setting was not flipped despite authorization.** There is no path to it from this environment: the Supabase MCP server exposes no auth-config tool, the `supabase` CLI is not installed, and no `SUPABASE_ACCESS_TOKEN` is present. It is a dashboard click: **Authentication → Sign In / Providers → Email → uncheck "Confirm email"**. Verify it took effect with one command, which must flip `mailer_autoconfirm` to `true`:
+
+    curl -s https://dxqglotcyirxzyqaxqln.supabase.co/auth/v1/settings -H "apikey: sb_publishable_PpDpqkqVaKFnOyoLR7mdyA_UNTeeoqN" | python3 -m json.tool
+
+**The build does not depend on that decision.** `EmailSignUpOutcome` branches at runtime on whether Supabase returns a session, so 1.1.5 is correct with confirmation on or off. Ship the build and flip the setting independently, in either order.
+
+**RELEASE BLOCKER, newly found and easy to repeat.** The first Release build from this worktree produced an **empty `POSTHOG_API_KEY`** and still reported BUILD SUCCEEDED — `RunSmartSecrets.xcconfig` is gitignored and exists only in the main checkout, and `#include?` fails silently. That build would have installed, run and emitted **zero events**, reading downstream as "no traffic" rather than "broken build". **Archive from the main checkout, not the worktree**, and check the built `Info.plist` carries 47 chars starting `phc_` before uploading. This is the third variant in three weeks of the same failure — merged-but-not-shipped, shipped-but-inert, present-but-keyless — and all three look identical from PostHog.
+
+**Release notes** updated for 1.1.5 (`fastlane/metadata/en-US/release_notes.txt`), scoped honestly: this build carries diagnostics and confirmation-handling clarity, not a new user-facing feature.
+
+**Cadence check** (per the 2026-07-21 lesson): last public release 1.1.4 on 2026-07-26, nine days ago. The weekly window is open, and the founder authorized the ship explicitly in-session.
+
+**Still owed:** delete the probe user `nadav.yigal+wp67probe@gmail.com` (`77886d63-...`, unconfirmed) from production auth, or exclude it from email-identity counts.
+**Blockers:** Founder archive/upload; one Supabase dashboard click.
+**Last Validation:** 2026-08-04 — Release build `generic/platform=iOS` **BUILD SUCCEEDED**; built `Info.plist` verified `com.runsmart.lite` / **1.1.5** / **30**, `POSTHOG_API_KEY` 47 chars `phc_`, production `SUPABASE_URL`, dSYMs present for app and Live Activity extension. Version bump 6 of each value, 0 stale. Full test suite 349 passed / 1 failed (pre-existing Hebrew-locale month-label assertion).
+**Last Updated:** 2026-08-04
+
+---
+
 ## 2026-08-04 — WP-67: the email fallback's cause, named and reproduced
 
 **Status:** **Cause found, reproduced against production, and written into WP-60. The repair itself is a Supabase setting change and is BLOCKED ON A FOUNDER DECISION.** WP-60 stories 1-3 are executed.
