@@ -1,3 +1,24 @@
+## 2026-08-04 — WP-67 cleanup: probe deleted, and the confirmation email is proven to work
+
+**Status:** PR #125 **merged** 2026-08-04T07:11:29Z (`60f1d82`); `origin/main` now reads **1.1.5 / 30**. Probe user deleted. **`mailer_autoconfirm` is STILL `false` as of 2026-08-04 — the email path remains 100% broken in production.**
+**Current Phase:** Awaiting the Supabase setting flip and the founder archive/upload.
+**Active Story:** Founder: flip `mailer_autoconfirm`, then archive 1.1.5 (30) from the main checkout and upload.
+**Last Completed Story:** WP-67 probe cleanup and PR #125 merge.
+
+**New evidence, and it is good news.** The probe account was created 06:23:44Z and then **confirmed at 06:24:15Z with a session issued in the same instant** — 31 seconds later. That can only happen if the emailed confirmation link was opened. So the confirmation pipeline is **fully functional end to end**: Resend delivers within ~30s, the link works, and clicking it both confirms the account and signs the user in.
+
+That sharpens the WP-60 conclusion rather than changing it. The email path is not broken because mail is broken. It is broken because with `mailer_autoconfirm = false` the only route in requires leaving the app, opening a mail client, tapping a link, and coming back — which App Store Review will not do, and which the one real user (`9062f952`) did not do either. **This is a UX-shape problem, not a delivery problem**, which is why flipping the setting is the right fix and re-investigating Resend would be wasted work.
+
+**Correction to the previous entry.** It said email identities "read 13 for this reason [the probe]". That was wrong: **13 was the pre-probe baseline**, the probe briefly made it 14, and the delete returned it to 13. No count was ever inflated in a way that would have misled a later read, but the sentence would have.
+
+**Deletion was verified both ways.** Before: no `public` schema table has a foreign key to `auth.users`, and a sweep of every uuid `user_id`/`id`/`owner_id` column in `public` found **zero** rows for the probe id. After: 0 user rows, 0 identity rows, 13 email identities, 22 total users.
+
+**Blockers:** One Supabase dashboard click, then founder archive/upload.
+**Last Validation:** 2026-08-04 — `origin/main` `60f1d82` verified at `MARKETING_VERSION 1.1.5` / `CURRENT_PROJECT_VERSION 30`, 6 of each, 0 stale. `RunSmartSecrets.xcconfig` confirmed present in the main checkout carrying a 47-char `phc_` key. `GET /auth/v1/settings` re-read live: `mailer_autoconfirm = false`.
+**Last Updated:** 2026-08-04
+
+---
+
 ## 2026-08-04 — WP-67: 1.1.5 (30) packaged; mailer_autoconfirm still needs a dashboard click
 
 **Status:** **Version bumped to 1.1.5 (30) and Release-build verified. Archive + upload remain founder actions.** The `mailer_autoconfirm` flip was authorized but **could not be executed from here** — see below.
@@ -17,7 +38,7 @@
 
 **Cadence check** (per the 2026-07-21 lesson): last public release 1.1.4 on 2026-07-26, nine days ago. The weekly window is open, and the founder authorized the ship explicitly in-session.
 
-**Still owed:** delete the probe user `nadav.yigal+wp67probe@gmail.com` (`77886d63-...`, unconfirmed) from production auth, or exclude it from email-identity counts.
+**Probe user DELETED 2026-08-04** (`77886d63-...`). Verified before deleting: no `public` table holds a row for it and no FK references `auth.users`; verified after: 0 user rows, 0 identity rows, `auth.identities(provider='email')` back to **13**, total users 22.
 **Blockers:** Founder archive/upload; one Supabase dashboard click.
 **Last Validation:** 2026-08-04 — Release build `generic/platform=iOS` **BUILD SUCCEEDED**; built `Info.plist` verified `com.runsmart.lite` / **1.1.5** / **30**, `POSTHOG_API_KEY` 47 chars `phc_`, production `SUPABASE_URL`, dSYMs present for app and Live Activity extension. Version bump 6 of each value, 0 stale. Full test suite 349 passed / 1 failed (pre-existing Hebrew-locale month-label assertion).
 **Last Updated:** 2026-08-04
