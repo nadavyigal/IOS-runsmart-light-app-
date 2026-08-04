@@ -584,3 +584,16 @@ Trigger: `EmailSignInModel.submit()` handled `signUp` returning `.confirmationRe
 Lesson: an outcome that is neither success nor failure still needs an event. Silence is not neutral in a funnel — it is indistinguishable from the step never happening, so the adjacent failure absorbs the whole story.
 
 Future rule: when a flow has a third outcome (awaiting confirmation, queued, partially applied), give it its own event at the moment it happens. Enumerate the outcomes of every `switch` in a user-facing flow and check each arm emits something.
+
+### 2026-08-04 — Archiving from a git worktree silently produces a telemetry-blind build
+
+Trigger: the WP-67 Release build from the worktree came out with `POSTHOG_API_KEY` **empty (1 char)** and still reported BUILD SUCCEEDED. `RunSmartSecrets.xcconfig` is gitignored, so it exists only in the main checkout; a worktree gets the committed `RunSmartConfig.xcconfig` default, which is the empty string. Nothing in the build warns about this — `#include?` is the optional-include form and silently does nothing when the file is absent.
+
+- The failure mode is the worst possible shape: the app installs, runs, signs in and looks completely normal, and emits **zero** events. It would read downstream as "no traffic" rather than "broken build", which is exactly the confusion WP-60 already lost a week to.
+- This is the third variant of the same family in three weeks: instrumentation merged but not shipped (2026-07-21), instrumentation shipped but inert (2026-08-04), instrumentation present but keyless. All three look identical from PostHog: silence.
+
+Future rule: **archive from the main checkout, never from a worktree** — or `cp RunSmartSecrets.xcconfig` into the worktree first. Before any archive, verify the built `Info.plist` carries a non-empty `POSTHOG_API_KEY`:
+
+    /usr/libexec/PlistBuddy -c "Print :POSTHOG_API_KEY" "<built>.app/Info.plist"
+
+Expect 47 chars starting `phc_`. Treat an empty value as a release blocker, not a warning.
