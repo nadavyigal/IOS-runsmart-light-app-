@@ -1,3 +1,32 @@
+## 2026-08-04 — WP-60/WP-67 CLOSED: mailer_autoconfirm flipped and verified end to end
+
+**Status:** **The server-side cause is fixed and proven. WP-60 and WP-67 are closed.** `mailer_autoconfirm` is confirmed `true` on production, and the exact failure shape from 2026-07-26/28 no longer reproduces. `origin/main` is `9410e80`, carrying 1.1.5 (30) and both prior write-ups (#125, #126).
+**Current Phase:** Awaiting the founder archive/upload of 1.1.5 (30) — the only remaining action.
+**Active Story:** None on the diagnosis/repair side. Archive and upload is the last step, and it is a founder action outside this session.
+**Last Completed Story:** WP-60/WP-67 in full — cause named, reproduced, fixed server-side, verified, version bumped, shipped in code.
+
+**Verification, in the order it was run:**
+
+1. `GET /auth/v1/settings` (cache-busted) → **`mailer_autoconfirm: true`**.
+2. Fresh `POST /auth/v1/signup` → HTTP 200, **`access_token` present** (session issued), `confirmation_sent_at: null` — no confirmation email, because none is needed now.
+3. **Sign-in immediately after signup** — the exact sequence that returned `email_not_confirmed` three hours earlier — → **HTTP 200, `access_token` present.**
+4. Regression check: wrong password on the same account → **`invalid_credentials`**, no token. Nothing was loosened on the reject side.
+5. `auth.users` row for the probe: `confirmation_sent_at: null`, confirmed **90ms** after creation, signed in **11s** later — byte-for-byte the shape of the 12 historical accounts that worked before the setting drifted.
+
+All three verification probe accounts (`wp67probe`, `wp67verify`, `wp67verify2`) are **deleted**. Checked before each delete: no `public` schema table holds a foreign key to `auth.users`, and a sweep of every uuid `user_id`/`id`/`owner_id` column in `public` found zero rows for any of them. After the last delete: 0 probe rows, **13 email identities** (the pre-incident baseline), 22 total users.
+
+**What is proven versus what is still inferred.** The *server* path is proven end to end by direct HTTP probes against production GoTrue. The *app* path is not yet independently observed — nobody has completed `sign_in_completed(method: email)` from the compiled app on a device. `EmailSignInModel`/`SupabaseAuth.swift` are thin, tested wrappers over exactly these calls, so there is no reason to expect a different result — but per the WP-60 lesson about instrumentation being inert until it's in a public build, **the honest status is "fixed and proven server-side, not yet observed from the app in production."** That closes when `sign_in_completed(method=email)` appears in PostHog on 1.1.5.
+
+**Consequence accepted, stated explicitly:** unverified email addresses are now accepted at signup, same as the 12 accounts created before the setting drifted. Reversible by re-checking "Confirm email" in the Supabase dashboard if the founder later wants verification back.
+
+**One correction carried from the prior entry stands:** 13 email identities is the pre-incident baseline, not a probe-inflated number, and it is confirmed the same after this session's three additional probes.
+
+**Blockers:** None on diagnosis or repair. Archive (main checkout, not the worktree) and TestFlight/App Store upload are the only remaining steps, and they need Xcode + the founder's signing identity.
+**Last Validation:** 2026-08-04 — `mailer_autoconfirm = true` read live (cache-busted); signup issues a session; immediate sign-in after signup succeeds; wrong-password sign-in still correctly rejected; `origin/main` verified at `9410e80`, 1.1.5 / 30, 6 of each, 0 stale.
+**Last Updated:** 2026-08-04
+
+---
+
 ## 2026-08-04 — WP-67 cleanup: probe deleted, and the confirmation email is proven to work
 
 **Status:** PR #125 **merged** 2026-08-04T07:11:29Z (`60f1d82`); `origin/main` now reads **1.1.5 / 30**. Probe user deleted. **`mailer_autoconfirm` is STILL `false` as of 2026-08-04 — the email path remains 100% broken in production.**
