@@ -80,6 +80,31 @@ extension Analytics {
         )
     }
 
+    /// The third outcome of a sign-in attempt, and the one that had no event.
+    ///
+    /// WP-67, reproduced against production Supabase 2026-08-04: the project runs
+    /// `mailer_autoconfirm = false`, so `signUp` returns HTTP 200 with a user and
+    /// no session. The account is genuinely created; the user simply is not
+    /// signed in yet. That is neither `sign_in_completed` nor `sign_in_failed`,
+    /// and before this it emitted nothing at all — so the step was invisible.
+    ///
+    /// It cost a real diagnosis. Person `9062f952` created an account at
+    /// 2026-07-28 08:31:10Z and the only proof is the `auth.users` row; PostHog
+    /// showed a bare failure ten seconds later and nothing before it, which is
+    /// why WP-60 read as "the fallback fails" rather than "the fallback creates
+    /// accounts it cannot sign in". Emit the step so the funnel can show where
+    /// people actually stop.
+    static func trackSignInPendingConfirmation(method: String, mode: String) {
+        shared.track(
+            "sign_in_pending_confirmation",
+            properties: [
+                "screen": SignInWallTracker.screenName,
+                "method": method,
+                "mode": mode
+            ]
+        )
+    }
+
     /// - Parameter mode: which branch of the email surface produced this, when the
     ///   failure came from there. `nil` for the Apple path, which has no modes.
     static func trackSignInFailed(error: Error, method: String = "apple", mode: String? = nil) {

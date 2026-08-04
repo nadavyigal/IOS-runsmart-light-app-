@@ -558,3 +558,42 @@ Trigger: WP-52 and WP-52a concluded that first-time Apple sign-in had been broke
 - **The correct test was always the cheap one.** Revoking via Settings → Apple ID → Sign-In & Security → Sign in with Apple → app → Stop Using Apple ID takes ~20 minutes, needs no new build or device, and directly exercised the path six weeks of inference had been arguing about. It should have been run before any statistical argument was built, not after.
 
 Future rule: When a funnel shows zero successes, state explicitly whether the data can distinguish universal from partial failure — and if it cannot, run the direct reproduction before publishing a rate-based conclusion. Never let a p-value stand in for an experiment that costs twenty minutes.
+
+### 2026-08-04 — Instrumentation is inert until a build carrying it is public (SECOND OCCURRENCE)
+
+Trigger: WP-60 story 4 shipped `auth_error_code` and `mode` to `main` on 2026-07-29 (`f58497a`), and the status line was updated to say the stories were "now *unblocked*: the next email failure will name its own cause." It was not true. `project.pbxproj` still read `MARKETING_VERSION 1.1.4` / `CURRENT_PROJECT_VERSION 29`, and 1.1.4 (29) went live 2026-07-26 — three days *before* the diagnostics existed. Five days of waiting for a self-describing failure could never have produced one.
+
+- **This is the second time on the same feature.** EXD-023 recorded it on 2026-07-21 in almost those words. The first occurrence cost a week on the Apple path; this one cost five days on the email path.
+- **The tell is always the same:** a merge to `main` gets described in the present tense ("the next failure will name itself") when what shipped is a commit, not a build. A merged diagnostic changes nothing observable until a build carrying it is in users' hands.
+- **What actually broke the deadlock was not telemetry at all.** The cause was found in ~15 minutes by reproducing directly against production GoTrue with three curl probes plus a read of `auth.users`. The server-side truth was available the whole time and did not depend on any app build.
+
+Future rule: never write "the next failure will tell us X" without first checking `CURRENT_PROJECT_VERSION` in `project.pbxproj` against the live App Store build. If the diagnostic is not in a public build, say "inert until a build ships" and state which build. And before waiting on telemetry for a server-mediated failure, ask whether the server can simply be asked — `auth.users`, `auth.identities`, the auth logs and a curl probe answer in minutes what a release cycle answers in a week.
+
+### 2026-08-04 — A feature's evidence can predate the configuration it ships into
+
+Trigger: the email/password fallback was justified in `SupabaseAuth.swift:91-93` with "password auth is already live on this project (12 confirmed email identities predate this change) and needs no server-side change to start working." Every one of those 12 accounts had `confirmation_sent_at = null` and was confirmed within ~40ms of creation — they were made while `mailer_autoconfirm` was **on**. By the time the fallback shipped the setting was **off**, so `signUp` returned a user with no session and the path could not sign anyone in during the session. The feature needed a server-side change from day one.
+
+Lesson: "it already works on this project" read from historical rows is a claim about the configuration in force *when those rows were written*, not about the configuration in force now. Auth tables record outcomes, not the settings that produced them.
+
+Future rule: before shipping anything that depends on a provider setting (`mailer_autoconfirm`, `disable_signup`, provider enablement, redirect URLs), read the setting live — `GET /auth/v1/settings` is public and takes one curl — and record the value in the PR. Never infer a current setting from the shape of old rows.
+
+### 2026-08-04 — A funnel step that emits no event reads as a failure
+
+Trigger: `EmailSignInModel.submit()` handled `signUp` returning `.confirmationRequired` by setting `phase` and emitting nothing — not `sign_in_completed`, not `sign_in_failed`. Person `9062f952` created a real account on 2026-07-28 (the `auth.users` row exists) and PostHog showed only a failure ten seconds later. WP-60 therefore read as "the fallback fails" when the truth was "the fallback creates accounts it cannot sign in", and the sequence had to be reconstructed from `auth.identities` timestamps.
+
+Lesson: an outcome that is neither success nor failure still needs an event. Silence is not neutral in a funnel — it is indistinguishable from the step never happening, so the adjacent failure absorbs the whole story.
+
+Future rule: when a flow has a third outcome (awaiting confirmation, queued, partially applied), give it its own event at the moment it happens. Enumerate the outcomes of every `switch` in a user-facing flow and check each arm emits something.
+
+### 2026-08-04 — Archiving from a git worktree silently produces a telemetry-blind build
+
+Trigger: the WP-67 Release build from the worktree came out with `POSTHOG_API_KEY` **empty (1 char)** and still reported BUILD SUCCEEDED. `RunSmartSecrets.xcconfig` is gitignored, so it exists only in the main checkout; a worktree gets the committed `RunSmartConfig.xcconfig` default, which is the empty string. Nothing in the build warns about this — `#include?` is the optional-include form and silently does nothing when the file is absent.
+
+- The failure mode is the worst possible shape: the app installs, runs, signs in and looks completely normal, and emits **zero** events. It would read downstream as "no traffic" rather than "broken build", which is exactly the confusion WP-60 already lost a week to.
+- This is the third variant of the same family in three weeks: instrumentation merged but not shipped (2026-07-21), instrumentation shipped but inert (2026-08-04), instrumentation present but keyless. All three look identical from PostHog: silence.
+
+Future rule: **archive from the main checkout, never from a worktree** — or `cp RunSmartSecrets.xcconfig` into the worktree first. Before any archive, verify the built `Info.plist` carries a non-empty `POSTHOG_API_KEY`:
+
+    /usr/libexec/PlistBuddy -c "Print :POSTHOG_API_KEY" "<built>.app/Info.plist"
+
+Expect 47 chars starting `phc_`. Treat an empty value as a release blocker, not a warning.

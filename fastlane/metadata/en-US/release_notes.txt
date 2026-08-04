@@ -1,7 +1,6 @@
-RunSmart 1.1.4 makes account access more reliable.
+RunSmart 1.1.5 improves email sign-in reliability.
 
 What's new:
-- Sign in with email and password when Sign in with Apple isn't available
-- Create an account directly in RunSmart using your email address
-- Clearer guidance when an authentication method can't complete
-- Improved sign-in reliability and diagnostics
+- Clearer handling when an account is created but still needs email confirmation
+- More precise diagnostics when sign-in can't complete, so problems get fixed faster
+- Stability and performance improvements
