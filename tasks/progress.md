@@ -1,3 +1,28 @@
+## 2026-08-06 — T+1 on 1.1.5: the instrumentation is proven, the public cohort is empty
+
+**Ran the T+1 telemetry check on PostHog project 171597**, explicitly switched and fingerprinted first (`garmin_sync_completed`, `healthkit_sync_completed`, `gps_quality_changed` confirm the served project is RunSmart, not ResumeBuilder — the MCP banner has misreported this before).
+
+**The headline result is a split verdict, and both halves matter.**
+
+**Proven: the 1.1.5 instrumentation works on a compiled binary.** `sign_in_completed` fired at `2026-08-05T12:08:33Z` on `$app_version = 1.1.5`, `$app_build = 30`, carrying **`method = email`** and **`mode = createAccount`**. Every one of the fifteen prior `sign_in_completed` events, spanning 1.0.2 through 1.1.4, has `mode: null` — `mode` shipped in PR #122/#125 and this is the first time it has ever been populated. **This is also the first `sign_in_completed(method=email)` since the `mailer_autoconfirm` flip, and it is `mode=createAccount`: signup followed by a session, the exact sequence that returned `email_not_confirmed` on 2026-07-26 and 2026-07-28.** WP-60's repair is now verified *through the compiled app*, not only against the Supabase HTTP layer. That was the open half of WP-60 and it is now closed.
+
+**Not proven: anything about real users.** That event came from **one person, in a 39-event four-minute session, at 12:07–12:11 UTC — four hours and fifteen minutes before the store released 1.1.5 at 16:26:37Z.** It is a pre-release build session, not public traffic. **Zero events of any kind have been ingested since the release timestamp**, a gap of roughly 22 hours. That is not an outage: this project had no events at all on 07-25, 07-30, 07-31, 08-01, 08-02 and 08-03, so six zero-event days in the last twenty-one is the normal shape of RunSmart's traffic at this volume.
+
+**The two new diagnostics have never fired, and that is expected rather than alarming.** `sign_in_pending_confirmation` does not appear in the project taxonomy. `auth_error_code` does not either — PostHog returns an explicit "property not found" warning for it. Both only emit on a *failing* or *unconfirmed* sign-in, and **there has been no `sign_in_failed` on any build since 2026-07-28**, which spans the 08-04 flip. At this traffic level that absence is consistent with the repair but far too thin to be evidence for it: the last three `sign_in_failed` events on 1.1.4 still show the pre-fix shape (`error_code: 1.0`, `error_domain: Auth.AuthError`), which is precisely the enum discriminant PR #122 replaced.
+
+**One thing worth fixing that the check surfaced in passing:** the pre-release session's person has `is_internal_tester = null`. Resumely fixed the equivalent gap on the person rather than only on `identify` (iOS PRs #137/#138); **RunSmart appears not to have that fix**, so the founder's own sessions are not reliably excludable at person level. Every activation number on this project inherits that.
+
+**Verdict:** T+1 **PARTIALLY PASSED**. The code path and the instrumentation are confirmed working end to end on build 30. The public-cohort half of the check **cannot be answered yet and must be re-run once any non-founder event arrives on 1.1.5** — it is not a pass, and recording it as one would repeat the mistake this check exists to prevent.
+
+**Status:** **1.1.5 (30) is LIVE, released 2026-08-05T16:26:37Z.** WP-68 story 2 run 2026-08-06: instrumentation verified on a compiled binary; public cohort empty, re-run required.
+**Current Phase:** Post-release watch on live 1.1.5, awaiting first public traffic.
+**Active Story:** None. WP-68 stories 3-5 open.
+**Last Completed Story:** WP-68 story 2 — the T+1 telemetry check on 1.1.5.
+**Next Recommended Story:** (1) **Re-run the T+1 the moment a non-founder event lands on 1.1.5** — the check is only half answered and this project can go six days without an event, so set the trigger on data arriving, not on a date. (2) Fix `is_internal_tester` so it is set on the person, not only on identify, mirroring Resumely iOS PRs #137/#138 — without it the founder's own sessions cannot be excluded at person level and every activation number here inherits the error. (3) Run the owed physical-device route smoke (record → save → benchmark → re-run → compare); three releases have now shipped past it. (4) Record the WP-53 recheck: Apple approved 1.1.5 despite failing Apple sign-in on every build since 23, so log the pattern and leave WP-53 closed.
+**Blockers:** None. The public half of the T+1 is blocked on traffic arriving, which is not an action anyone can take.
+**Last Validation:** 2026-08-06 — PostHog 171597, project fingerprinted before reading. `sign_in_completed(method=email, mode=createAccount)` on 1.1.5/30 at 2026-08-05T12:08:33Z; 0 events ingested since 2026-08-05T16:26:37Z; 0 `sign_in_failed` since 2026-07-28; `auth_error_code` and `sign_in_pending_confirmation` absent from the taxonomy.
+**Last Updated:** 2026-08-06
+
 ## 2026-08-06 — 1.1.5 (30) is LIVE, and this file was still saying it awaited an upload
 
 **Store-verified 2026-08-06.** Apple's lookup API returns `version: 1.1.5`, `currentVersionReleaseDate: 2026-08-05T16:26:37Z` for `id=6768297840`, across three cache-busted calls that all agree. **1.1.5 (30) went live 2026-08-05 at 16:26:37Z.** The app also carries its **first App Store rating: 5.0 from 1**.
