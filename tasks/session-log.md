@@ -10,7 +10,7 @@ The paired web branch corrects the AASA app identity from `8VC4R5M425.com.runsma
 ### Evidence and validation
 - Supabase plugin: project `dxqglotcyirxzyqaxqln` healthy; email signup and Apple enabled; signup enabled; live `mailer_autoconfirm=true`; recent auth logs contained token refresh but no current registration cohort proving this route.
 - Production AASA: canonical `www` served JSON with the wrong bundle; bare domain redirected to `www`, which cannot satisfy Apple's no-redirect AASA requirement.
-- Native callback tests: 3/3 passed twice.
+- Native callback tests: final 5/5 passed, including expired-link and safe generic error-copy coverage requested in review; the initial 3/3 routing suite also passed twice.
 - Combined native callback/email run: all callback tests and 13 email tests passed; two unrelated email cases had zero-duration simulator-host aborts, and Xcode stalled while saving the result bundle.
 - Web callback/AASA tests: 5/5 passed. TypeScript type-check and targeted ESLint passed.
 - No production data, auth users, database schema, Supabase settings, deployment, or App Store build changed.

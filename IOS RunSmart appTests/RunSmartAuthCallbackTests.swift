@@ -34,4 +34,32 @@ final class RunSmartAuthCallbackTests: XCTestCase {
         XCTAssertFalse(RunSmartAuthCallback.matches(spoofedHost))
         XCTAssertFalse(RunSmartAuthCallback.matches(webOnly))
     }
+
+    func testMapsExpiredCallbackToRecoveryCopy() throws {
+        let expiredLink = try XCTUnwrap(
+            URL(
+                string: "https://www.runsmart-ai.com/auth/callback?source=ios&error=access_denied&error_code=otp_expired"
+            )
+        )
+
+        XCTAssertEqual(
+            RunSmartAuthCallback.errorMessage(from: expiredLink),
+            "This confirmation link has expired. Return to sign in and request a new one."
+        )
+    }
+
+    func testMapsUnknownCallbackFailureToSafeGenericCopy() throws {
+        let failedLink = try XCTUnwrap(
+            URL(
+                string: "runsmart://auth/callback?error=server_error&error_description=raw-internal-detail"
+            )
+        )
+
+        let message = RunSmartAuthCallback.errorMessage(from: failedLink)
+        XCTAssertEqual(
+            message,
+            "RunSmart could not complete that sign-in link. Please return to sign in and try again."
+        )
+        XCTAssertFalse(message?.contains("raw-internal-detail") == true)
+    }
 }
