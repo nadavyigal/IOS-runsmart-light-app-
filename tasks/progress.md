@@ -1,3 +1,20 @@
+## 2026-08-06 — 1.1.5 (30) is LIVE, and this file was still saying it awaited an upload
+
+**Store-verified 2026-08-06.** Apple's lookup API returns `version: 1.1.5`, `currentVersionReleaseDate: 2026-08-05T16:26:37Z` for `id=6768297840`, across three cache-busted calls that all agree. **1.1.5 (30) went live 2026-08-05 at 16:26:37Z.** The app also carries its **first App Store rating: 5.0 from 1**.
+
+**This is the fifth consecutive release nobody recorded, but the first one caught the same day.** 2026-07-22 (parser bug), 2026-07-24 (1.4.6), 2026-07-26 (RunSmart 1.1.4), 2026-07-28 (Resumely 1.4.7) each went unrecorded for days; this one was caught within a day by the `build_ground_truth()` lookup added to the Agentic OS refresh on 2026-08-04. The detection layer works. **The write-back is still manual and still the weak link** — this entry exists because the refresh raised a hard contradiction, not because anyone remembered.
+
+**What 1.1.5 actually carries: nothing user-visible.** `git diff 6047bc9..origin/main -- '*.swift'` is four files and 361 insertions — `RunSmartLiteAppShell.swift` (screen naming for replay), `EmailSignInModel.swift` (emits the real Supabase `auth_error_code`, the `mode` branch, and a new `sign_in_pending_confirmation` event), `AnalyticsEvents.swift` (human screen names, WP-63), and 252 lines of tests. No `.strings` or `.xcstrings` changes. The App Store "What's New" correctly does not claim a sign-in fix: **that fix was the server-side `mailer_autoconfirm` flip on 2026-08-04 and it reached every 1.1.4 user without a build.**
+
+**Status:** **1.1.5 (30) is LIVE on the App Store, released 2026-08-05T16:26:37Z.** Store-verified 2026-08-06 with three cache-busted lookups. Build 30 is repo-derived from `origin/main` `60f1d82`, not store-verified — Apple's lookup API does not expose build numbers.
+**Current Phase:** Post-release watch on live 1.1.5. Nothing is with Apple.
+**Active Story:** WP-68 story 2 — the T+1 telemetry check on 1.1.5, due today.
+**Last Completed Story:** WP-68 story 1 — 1.1.5 (30) archived, uploaded, approved and released.
+**Next Recommended Story:** (1) **Run the T+1 telemetry check today.** This is the first public build carrying the PR #122/#125 diagnostics, so it is the first chance to confirm `sign_in_completed(method=email)` from a compiled binary rather than from the Supabase HTTP layer. Check also that `sign_in_pending_confirmation` fires or is correctly absent, and that `auth_error_code` carries real Supabase codes rather than enum discriminants. The last T+1 ran five days late and that delay is how a 100%-failing sign-in path stayed live for two days. (2) Run the owed physical-device route smoke (record → save → benchmark → re-run → compare) — it was the recorded gate before the 1.1.3 submit and **three releases have now shipped past it**. (3) Record the WP-53 recheck: App Store Review has failed Apple sign-in on every build since 23 and approved 1.1.5 anyway, so log the pattern and leave WP-53 closed.
+**Blockers:** None. The archive and upload are done.
+**Last Validation:** 2026-08-06 — Apple lookup API, three cache-busted calls, all returning 1.1.5 / 2026-08-05T16:26:37Z / 1 rating at 5.0.
+**Last Updated:** 2026-08-06
+
 ## 2026-08-04 — `mailer_autoconfirm` flipped: WP-60 and WP-67 both closed
 
 **The entry below this one says the flag is "STILL `false`". That stopped being true later the same day.** `mailer_autoconfirm` was flipped `false → true` on the production Supabase project and verified live: signup now issues a session, and sign-in immediately after signup — the exact sequence that returned `email_not_confirmed` on 2026-07-26 and 2026-07-28 — now succeeds. A wrong password is still rejected, so the fix did not open a hole. Recorded in Agentic OS `08e361b4`, `executive-os/work-packets/WP-60-runsmart-email-fallback-fails.md`.
