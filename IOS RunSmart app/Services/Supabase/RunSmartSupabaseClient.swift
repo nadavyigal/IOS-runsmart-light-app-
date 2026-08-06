@@ -26,13 +26,56 @@ enum SupabaseManager {
     static let functionsBaseURL = supabaseURL.appendingPathComponent("functions/v1")
 
     static let client: SupabaseClient = {
-        let auth = SupabaseClientOptions.AuthOptions(emitLocalSessionAsInitialSession: true)
+        let auth = SupabaseClientOptions.AuthOptions(
+            redirectToURL: RunSmartAuthCallback.redirectURL,
+            emitLocalSessionAsInitialSession: true
+        )
         return SupabaseClient(
             supabaseURL: supabaseURL,
             supabaseKey: supabasePublishableKey,
             options: SupabaseClientOptions(auth: auth)
         )
     }()
+}
+
+// MARK: - Native auth return contract
+
+enum RunSmartAuthCallback {
+    static let redirectURL = URL(
+        string: "https://www.runsmart-ai.com/auth/callback?source=ios"
+    )!
+
+    static func matches(_ url: URL) -> Bool {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return false
+        }
+
+        if components.scheme == "runsmart" {
+            return components.host == "auth" && components.path == "/callback"
+        }
+
+        return components.scheme == "https"
+            && components.host == "www.runsmart-ai.com"
+            && components.path == "/auth/callback"
+            && components.queryItems?.contains(where: {
+                $0.name == "source" && $0.value == "ios"
+            }) == true
+    }
+
+    static func errorMessage(from url: URL) -> String? {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        let items = components.queryItems ?? []
+        let error = items.first(where: { $0.name == "error" })?.value
+        let errorCode = items.first(where: { $0.name == "error_code" })?.value
+        guard error != nil || errorCode != nil else { return nil }
+
+        if errorCode == "otp_expired" {
+            return "This confirmation link has expired. Return to sign in and request a new one."
+        }
+        return "RunSmart could not complete that sign-in link. Please return to sign in and try again."
+    }
 }
 
 // MARK: - Database row types
@@ -587,4 +630,3 @@ extension WorkoutKind {
         }
     }
 }
-

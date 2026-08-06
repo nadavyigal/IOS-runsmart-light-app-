@@ -1,3 +1,20 @@
+## 2026-08-06 — iOS registration now has a return path from Supabase/web
+
+**Status:** Repair implemented on `codex/runsmart-ios-auth-return`; paired web repair lives on `codex/runsmart-web-auth-return`. Not yet merged or deployed.
+**Current Phase:** Review and deployment. The iOS change must ship in a new App Store build; the web AASA/callback repair must deploy first or alongside it.
+**Active Story:** Restore an iOS-originated Supabase registration after the email link/browser round trip.
+**Last Completed Story:** Native callback contract and focused regressions.
+
+The production auth setting is now `mailer_autoconfirm = true`, so a brand-new email registration normally receives a native session immediately and does not leave the app. The reported dead end is nevertheless real for older pending confirmation links and any future confirmation-required flow: iOS had no Supabase URL handler, its associated domains omitted canonical `www.runsmart-ai.com`, and the website's AASA named the nonexistent bundle `com.runsmart.coach` instead of shipped `com.runsmart.lite`. The web callback also attempted to exchange an iOS PKCE code even though the verifier only exists on the device, then sent success to the website home page.
+
+The repair gives native auth a canonical `https://www.runsmart-ai.com/auth/callback?source=ios` redirect, consumes both that Universal Link and a fixed `runsmart://auth/callback` fallback with `supabase.auth.session(from:)`, adds the canonical associated domain, and rejects unrelated/spoofed links. The paired web change advertises `8VC4R5M425.com.runsmart.lite`, scopes Universal Links to auth paths, and returns iOS-originated code/error fields to the fixed app callback before any server-side exchange. Ordinary web callbacks are unchanged.
+
+**Validation:** callback XCTest 3/3 passed twice; combined callback/email run recorded all 3 callback tests and 13 email tests passing, with two pre-existing zero-duration simulator-host aborts before the Xcode runner stalled saving results. Web callback/AASA tests 5/5 passed; TypeScript type-check and targeted ESLint passed; `git diff --check` passed.
+**Deployment prerequisite:** Supabase Auth redirect allowlist must contain `https://www.runsmart-ai.com/auth/callback*`. Existing web recovery links already use that callback, but the installed Supabase plugin does not expose auth redirect configuration, so the exact dashboard allowlist was not readable or changed here.
+**Last Updated:** 2026-08-06
+
+---
+
 ## 2026-08-04 — WP-67 cleanup: probe deleted, and the confirmation email is proven to work
 
 **Status:** PR #125 **merged** 2026-08-04T07:11:29Z (`60f1d82`); `origin/main` now reads **1.1.5 / 30**. Probe user deleted. **`mailer_autoconfirm` is STILL `false` as of 2026-08-04 — the email path remains 100% broken in production.**
