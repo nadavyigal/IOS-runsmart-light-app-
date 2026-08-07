@@ -91,6 +91,28 @@ final class SupabaseSession: ObservableObject {
         }
     }
 
+    func handleAuthCallback(_ url: URL) async {
+        guard RunSmartAuthCallback.matches(url) else { return }
+
+        if let message = RunSmartAuthCallback.errorMessage(from: url) {
+            lastAuthError = message
+            isLoading = false
+            return
+        }
+
+        do {
+            let returnedSession = try await supabase.auth.session(from: url)
+            isAuthenticated = true
+            lastAuthError = nil
+            isLoading = false
+            await loadProfile(userID: returnedSession.user.id)
+        } catch {
+            lastAuthError = "RunSmart could not finish signing you in. Please return to sign in and try again."
+            isLoading = false
+            print("[SupabaseSession] Auth callback failed:", type(of: error))
+        }
+    }
+
     func loadProfile(userID: UUID) async {
         do {
             let rows: [DBProfile] = try await supabase

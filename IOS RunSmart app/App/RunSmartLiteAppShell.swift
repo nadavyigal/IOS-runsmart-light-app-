@@ -215,6 +215,9 @@ struct RunSmartLiteAppShell: View {
         .environment(\.runSmartServices, services)
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
+        .onOpenURL { url in
+            Task { await session.handleAuthCallback(url) }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanGenerationStatusDidChange)) { notification in
             guard let status = notification.object as? RunSmartPlanGenerationStatus else { return }
             showPlanGenerationNotice(status)

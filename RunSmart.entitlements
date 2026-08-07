@@ -9,6 +9,7 @@
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:runsmart-ai.com</string>
+		<string>applinks:www.runsmart-ai.com</string>
 	</array>
 	<key>com.apple.developer.healthkit</key>
 	<true/>

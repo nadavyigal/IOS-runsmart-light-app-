@@ -2,16 +2,20 @@
 
 ## Current Task
 
-**Objective:** Package the merged sign-in fallback as RunSmart 1.1.4 (29), leaving only the founder's Xcode archive and App Store Connect submission.
-**Status:** **Release candidate validated; GitHub handoff in progress.** The candidate starts from merged `main` at `d181325`; version/build, release notes, and the optimized arm64 Release artifact are verified. Remaining work is to merge the release-packaging PR and open the archive-ready checkout.
-**Source:** Founder request 2026-07-26 after PR #119 merged.
+**Objective:** Make every iOS-originated Supabase registration return to RunSmart with a native session after an email/browser round trip.
+**Status:** **Implemented and focused validation complete; review/deployment pending.** Paired iOS and web branches are required.
+**Source:** Founder request 2026-08-06.
 
 ### Checklist
-- [x] Preserve the dirty primary checkout by creating an isolated release worktree from merged `origin/main`.
-- [x] Advance `MARKETING_VERSION` 1.1.3 → 1.1.4 and `CURRENT_PROJECT_VERSION` 28 → 29 across all target configurations.
-- [x] Rewrite App Store release notes for the email/password sign-in fallback.
-- [x] Verify Release compilation, built bundle identity, production configuration presence, entitlements, and dSYM output.
-- [ ] Commit and push the release candidate, merge it through a clean PR, and hand off the archive-ready checkout.
+- [x] Preserve the dirty primary checkout with an isolated worktree.
+- [x] Verify live Supabase auth settings and current native PKCE behavior.
+- [x] Add red-first callback-contract tests.
+- [x] Configure the native redirect and consume Universal Link/custom-scheme callbacks.
+- [x] Add canonical `www.runsmart-ai.com` to associated domains.
+- [x] Pair with corrected web AASA and a native callback fallback.
+- [x] Run focused callback/auth tests and static validation.
+- [ ] Confirm the Supabase redirect allowlist contains `https://www.runsmart-ai.com/auth/callback*`.
+- [ ] Merge and deploy the web branch, then merge and ship a new iOS build.
 
 ## Previous Current Task
 
