@@ -547,13 +547,24 @@ extension Analytics {
 
     // MARK: - User Identity
 
+    /// Carries `is_internal_tester` in the traits so the person property is
+    /// written the moment a profile exists, rather than waiting for the next
+    /// tracked event to deliver its `$set`.
     static func identifyUser(userId: String) {
-        shared.identify(userId: userId, traits: [:])
+        shared.identify(userId: userId, traits: [
+            internalTesterKey: registeredInternalTester ? "true" : "false"
+        ])
     }
 
     static func resetUser(bundle: Bundle = .main) {
         shared.reset()
+        // `reset()` clears super properties, so anything registered has to be
+        // restored here or it silently disappears after sign-out. Re-resolving
+        // rather than replaying the old value is deliberate: sign-out ends the
+        // identity, and the build-level signals that survive it will resolve
+        // the same way again.
         registerBuildIdentity(bundle: bundle)
+        registerInternalTester()
     }
 
     // MARK: - Aha Moments

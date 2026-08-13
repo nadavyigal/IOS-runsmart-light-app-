@@ -2,8 +2,23 @@
 
 ## Current Task
 
+**Objective:** Activation-cliff plan S5 — give RunSmart an `is_internal_tester` flag as both an event property and a person property, so founder and QA sessions are excludable at person level.
+**Status:** **Implemented and tested on `claude/analytics-internal-tester`; PR open.** Analytics only: two analytics files plus tests. No version bump and no release — it rides along in whatever ships next.
+**Source:** `docs/plans/2026-07-19-activation-cliff-fix-plan.md` line 100 (S5), re-raised by the 2026-08-06 T+1 check. Reference: Resumely iOS PRs #137/#138.
+
+### Checklist
+- [x] Register the flag as a PostHog super property, so autocaptured events and `RunSmartAnalytics`' direct captures carry it too.
+- [x] Attach the person property as a `$set` block merged on the send path, preserving WP-45's `onboarding_completed_at`.
+- [x] Re-register after `resetUser()`, which `PostHogSDK.reset()` would otherwise clear.
+- [x] Derive both halves from one stored value so they agree by construction (the #138 lesson).
+- [x] Tests — rides on autocaptured events, survives `resetUser()`, both halves agree on one payload: 7 passed / 0 failed.
+- [ ] Merge the PR.
+- [ ] **Founder decision:** whether to add `INTERNAL_TESTER_USER_IDS` to `RunSmartInfo.plist` + `RunSmartSecrets.xcconfig`. Without it, a founder on a public App Store build is still counted as a real user.
+
+## Previous Current Task
+
 **Objective:** Make every iOS-originated Supabase registration return to RunSmart with a native session after an email/browser round trip.
-**Status:** **Implemented and focused validation complete; review/deployment pending.** Paired iOS and web branches are required.
+**Status:** **iOS side merged as PR #129.** Two items below remain open and are not superseded by the S5 work.
 **Source:** Founder request 2026-08-06.
 
 ### Checklist
