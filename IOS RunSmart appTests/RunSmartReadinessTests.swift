@@ -2,6 +2,9 @@ import XCTest
 import CoreLocation
 import AuthenticationServices
 import UserNotifications
+#if canImport(HealthKit)
+import HealthKit
+#endif
 @testable import IOS_RunSmart_app
 
 final class RunSmartReadinessTests: XCTestCase {
@@ -3680,6 +3683,33 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(tracker.events.filter { $0.name == "permission_denied" }.count, 0)
     }
 
+    @MainActor
+    func testNotificationAuthorizationErrorClosesThePromptAsFailed() async {
+        let saved = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        defer { Analytics.shared = saved }
+        Analytics.shared = tracker
+
+        let service = PushService(
+            authorizationStatusProvider: { .notDetermined },
+            authorizationRequester: { _ in
+                throw NSError(domain: "notifications", code: 1)
+            }
+        )
+
+        do {
+            _ = try await service.requestAuthorization()
+            XCTFail("the injected notification request must throw")
+        } catch {
+            // Expected: the analytics terminal is the assertion target.
+        }
+
+        XCTAssertEqual(tracker.events.filter { $0.name == "permission_requested" }.count, 1)
+        XCTAssertEqual(tracker.events.filter { $0.name == "permission_failed" }.count, 1)
+        XCTAssertEqual(tracker.events.filter { $0.name == "permission_denied" }.count, 0,
+            "an OS/API error is not a user denial and must remain separately diagnosable")
+    }
+
     private final class StubInfoBundle: Bundle, @unchecked Sendable {
         private let values: [String: String]
 
@@ -4885,6 +4915,53 @@ final class RunSmartReadinessTests: XCTestCase {
         ), .mainApp)
     }
 
+    // MARK: - WP-61a Story 2: pre-auth and permission-prompt coverage
+
+    func testPreAuthScreensCarryStableViewedAndDismissedContracts() {
+        let events = captureAnalytics { _ in
+            Analytics.trackPreAuthScreenViewed(.signInWall)
+            Analytics.trackPreAuthScreenViewed(.emailSignIn)
+            Analytics.trackPreAuthScreenViewed(.terms)
+            Analytics.trackPreAuthScreenViewed(.privacy)
+            Analytics.trackPreAuthScreenDismissed(.emailSignIn)
+            Analytics.trackPreAuthScreenDismissed(.terms)
+            Analytics.trackPreAuthScreenDismissed(.privacy)
+        }
+
+        let viewed = events.filter { $0.name == "pre_auth_screen_viewed" }
+        XCTAssertEqual(viewed.compactMap { $0.properties["screen"] as? String }, [
+            "sign_in_wall", "email_sign_in", "terms", "privacy"
+        ])
+        let dismissed = events.filter { $0.name == "pre_auth_screen_dismissed" }
+        XCTAssertEqual(dismissed.compactMap { $0.properties["screen"] as? String }, [
+            "email_sign_in", "terms", "privacy"
+        ])
+    }
+
+    func testPermissionPromptOutcomesCloseGrantedDeniedDismissedAndFailedRequests() {
+        let events = captureAnalytics { _ in
+            Analytics.trackPermissionOutcome(kind: "healthkit", outcome: .granted)
+            Analytics.trackPermissionOutcome(kind: "location", outcome: .denied)
+            Analytics.trackPermissionOutcome(kind: "healthkit", outcome: .dismissed)
+            Analytics.trackPermissionOutcome(kind: "notifications", outcome: .failed)
+        }
+
+        XCTAssertEqual(events.map { $0.name }, [
+            "permission_granted", "permission_denied", "permission_dismissed", "permission_failed"
+        ])
+        XCTAssertEqual(events.compactMap { $0.properties["kind"] as? String }, [
+            "healthkit", "location", "healthkit", "notifications"
+        ])
+    }
+
+#if canImport(HealthKit)
+    func testHealthKitPermissionOutcomeDistinguishesSheetDismissalFromDenial() {
+        XCTAssertEqual(HealthKitSyncService.permissionOutcome(for: .sharingAuthorized), .granted)
+        XCTAssertEqual(HealthKitSyncService.permissionOutcome(for: .sharingDenied), .denied)
+        XCTAssertEqual(HealthKitSyncService.permissionOutcome(for: .notDetermined), .dismissed)
+    }
+#endif
+
     // MARK: - Activation cliff S1: sign-in wall instrumentation
 
     // The wall is the first screen every unauthenticated user sees and fired no
@@ -4901,6 +4978,47 @@ final class RunSmartReadinessTests: XCTestCase {
         Analytics.shared = tracker
         body(tracker)
         return tracker.events
+    }
+
+    func testSignInWallReachedCoversColdWarmAndBackgroundReturns() {
+        let events = captureAnalytics { _ in
+            let wall = SignInWallTracker(now: { Date(timeIntervalSince1970: 0) })
+            let firstFrame = ActivationFirstFrameTracker(signInWallTracker: wall)
+            wall.wallAppeared()
+            firstFrame.screenRendered(.signInWall)
+
+            wall.appBecameInactive()
+            wall.appBecameActive()
+
+            wall.appDidEnterBackground()
+            wall.appBecameActive()
+        }
+
+        let reached = events.filter { $0.name == "sign_in_wall_reached" }
+        XCTAssertEqual(reached.compactMap { $0.properties["entry"] as? String }, [
+            "cold_launch", "warm_foreground", "background_return"
+        ])
+        XCTAssertTrue(reached.allSatisfy { $0.properties["screen"] as? String == SignInWallTracker.screenName })
+    }
+
+    func testSignInWallReachedIgnoresDuplicateActiveCallbacksAndRemounts() {
+        let events = captureAnalytics { _ in
+            let wall = SignInWallTracker(now: { Date(timeIntervalSince1970: 0) })
+            let firstFrame = ActivationFirstFrameTracker(signInWallTracker: wall)
+            wall.wallAppeared()
+            wall.wallAppeared()
+            firstFrame.screenRendered(.signInWall)
+            firstFrame.screenRendered(.signInWall)
+            wall.appBecameActive()
+            wall.appBecameActive()
+            wall.appBecameInactive()
+            wall.appBecameActive()
+            wall.appBecameActive()
+        }
+
+        XCTAssertEqual(events.filter { $0.name == "sign_in_wall_viewed" }.count, 1)
+        XCTAssertEqual(events.filter { $0.name == "sign_in_wall_reached" }.count, 2,
+            "one cold reach plus one real inactive-to-active return; SwiftUI remounts and duplicate active callbacks must not inflate it")
     }
 
     func testSignInWallViewedFiresAtMostOncePerSession() {

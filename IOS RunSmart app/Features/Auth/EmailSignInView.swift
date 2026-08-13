@@ -41,6 +41,9 @@ struct EmailSignInView: View {
                 }
             }
         }
+        .onAppear {
+            Analytics.trackPreAuthScreenViewed(.emailSignIn)
+        }
     }
 
     private var formContent: some View {

@@ -140,9 +140,27 @@ struct HealthKitSyncService {
         }
 
         let store = HKHealthStore()
+        let shouldTrackPrompt: Bool
+        do {
+            shouldTrackPrompt = try await authorizationRequestStatus(for: store) == .shouldRequest
+        } catch {
+            // The authorization request still runs when the preflight lookup
+            // fails. Keep the attempt observable rather than silently dropping
+            // the only signal for a prompt that may still appear.
+            shouldTrackPrompt = true
+        }
+        if shouldTrackPrompt {
+            Analytics.trackPermissionRequested(kind: "healthkit")
+        }
         do {
             try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
             let authorization = store.authorizationStatus(for: workoutType)
+            if shouldTrackPrompt {
+                Analytics.trackPermissionOutcome(
+                    kind: "healthkit",
+                    outcome: Self.permissionOutcome(for: authorization)
+                )
+            }
             guard authorization != .notDetermined else {
                 return ConnectedDeviceStatus(
                     provider: Self.providerName,
@@ -160,12 +178,26 @@ struct HealthKitSyncService {
                 message: "Health access granted. Sync to import recent running data."
             )
         } catch {
+            if shouldTrackPrompt {
+                Analytics.trackPermissionOutcome(kind: "healthkit", outcome: .failed)
+            }
             return ConnectedDeviceStatus(provider: Self.providerName, state: .error, lastSuccessfulSync: nil, permissions: [], message: error.localizedDescription)
         }
 #else
         return unavailableStatus(message: "HealthKit is unavailable in this build.")
 #endif
     }
+
+#if canImport(HealthKit)
+    static func permissionOutcome(for status: HKAuthorizationStatus) -> PermissionPromptOutcome {
+        switch status {
+        case .sharingAuthorized: .granted
+        case .sharingDenied: .denied
+        case .notDetermined: .dismissed
+        @unknown default: .failed
+        }
+    }
+#endif
 
     func importHealthData(localStore: RunSmartLocalStore, lookbackDays: Int = 180, limit: Int = 100) async -> HealthKitImportResult {
 #if canImport(HealthKit)
@@ -269,6 +301,18 @@ private extension HealthKitSyncService {
 
     var permissionLabels: [String] {
         ["Workouts", "Routes", "Heart Rate", "Resting HR", "HRV", "Steps", "Sleep", "Active Energy"]
+    }
+
+    func authorizationRequestStatus(for store: HKHealthStore) async throws -> HKAuthorizationRequestStatus {
+        try await withCheckedThrowingContinuation { continuation in
+            store.getRequestStatusForAuthorization(toShare: shareTypes, read: readTypes) { status, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: status)
+                }
+            }
+        }
     }
 
     func optionalQuantity(_ identifier: HKQuantityTypeIdentifier) -> HKQuantityType? {

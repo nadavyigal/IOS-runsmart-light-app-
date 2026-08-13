@@ -1,5 +1,18 @@
 # Session Log
 
+## 2026-08-13 — WP-61a Stories 2–3: pre-auth/permission coverage and guaranteed wall reach
+
+### Outcome
+Added generic viewed/dismissed events for every pre-auth surface; added HealthKit request and granted/denied/dismissed/failed terminals; separated notification request failures from user denial; and added a `sign_in_wall_reached` contract covering cold launch, warm foregrounding, and return from background.
+
+Cold reach is deliberately emitted at the app shell's post-overlay visible-frame boundary rather than `SignInView.onAppear`, because the wall mounts beneath the launch overlay. The existing `sign_in_wall_viewed` contract is preserved for compatibility. Warm/background reaches are lifecycle-state transitions and ignore duplicate callbacks/remounts.
+
+### Verification
+Story 2 red tests initially failed to compile on the missing screen/outcome/HealthKit contracts. Story 3 red tests initially failed to compile on the missing lifecycle methods. The combined contract regression passed before the timing review; after the cold reach moved to the visible-frame boundary, the focused final selection passed 7/7. The final full suite recorded 368 passed / 1 failed / 0 skipped; its sole failure was the previously reproduced locale-dependent calendar-label baseline (`אפר׳ 26 - מאי 2` versus `APR 26 - MAY 2`). The signed-out iPhone 17 simulator app built, installed, launched, and visibly exposed Apple, email, Terms, and Privacy entry points.
+
+### Scope and next action
+No UI layout/copy, authentication behavior, OS permission behavior, guest mode, dependency, version, archive, App Store submission, or production data changed. PR #135 carried the implementation. The event-birthday ledger distinguishes code birthday from production first-seen, and the saved PostHog funnel now uses the post-overlay `sign_in_wall_reached` step. Wait for a carrying release and n≥10 genuine users before judging effectiveness or opening WP-61b.
+
 ## 2026-08-13 — WP-61a Story 1: first resolved activation frame
 
 ### Outcome

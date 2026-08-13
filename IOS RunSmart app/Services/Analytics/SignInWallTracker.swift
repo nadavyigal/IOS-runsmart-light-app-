@@ -37,8 +37,11 @@ final class SignInWallTracker {
 
     private let now: () -> Date
     private var viewedAt: Date?
+    private var didTrackColdReach = false
     private var didAttemptSignIn = false
     private var didTrackAbandon = false
+    private enum AppPhase { case active, inactive, background }
+    private var appPhase: AppPhase?
 
     init(now: @escaping () -> Date = Date.init) {
         self.now = now
@@ -48,6 +51,30 @@ final class SignInWallTracker {
         guard viewedAt == nil else { return }
         viewedAt = now()
         Analytics.trackSignInWallViewed()
+        Analytics.trackPreAuthScreenViewed(.signInWall)
+    }
+
+    /// Called only after the launch overlay has finished dismissing. SwiftUI
+    /// mounts the wall beneath that overlay, so `wallAppeared()` is too early to
+    /// assert that the person can actually see the wall.
+    func wallReachedAfterLaunch() {
+        guard viewedAt != nil, !didTrackColdReach else { return }
+        didTrackColdReach = true
+        appPhase = .active
+        Analytics.trackSignInWallReached(entry: .coldLaunch)
+    }
+
+    func appBecameInactive() {
+        guard viewedAt != nil, appPhase != .background else { return }
+        appPhase = .inactive
+    }
+
+    func appBecameActive() {
+        guard viewedAt != nil, let priorPhase = appPhase, priorPhase != .active else { return }
+        appPhase = .active
+        Analytics.trackSignInWallReached(
+            entry: priorPhase == .background ? .backgroundReturn : .warmForeground
+        )
     }
 
     func signInTapped() {
@@ -56,6 +83,9 @@ final class SignInWallTracker {
     }
 
     func appDidEnterBackground() {
+        defer {
+            if viewedAt != nil { appPhase = .background }
+        }
         guard let viewedAt, !didAttemptSignIn, !didTrackAbandon else { return }
         let dwell = now().timeIntervalSince(viewedAt)
         guard dwell >= Self.abandonThresholdSeconds else { return }
