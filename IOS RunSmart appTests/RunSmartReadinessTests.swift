@@ -3385,18 +3385,28 @@ final class RunSmartReadinessTests: XCTestCase {
     private nonisolated final class CapturingAnalyticsService: AnalyticsTracking {
         private(set) var events: [(name: String, properties: [String: Any])] = []
         private(set) var registrations: [[String: Any]] = []
+        private(set) var identifications: [(userId: String, traits: [String: Any])] = []
         private(set) var resetCount = 0
+        /// Ordered method names, so tests can assert that a restoration happened
+        /// *after* the reset that cleared it rather than merely alongside it.
+        private(set) var callLog: [String] = []
 
         func track(_ event: String, properties: [String: Any]) {
             events.append((event, properties))
+            callLog.append("track")
         }
 
-        func identify(userId: String, traits: [String: Any]) {}
+        func identify(userId: String, traits: [String: Any]) {
+            identifications.append((userId, traits))
+            callLog.append("identify")
+        }
         func register(properties: [String: Any]) {
             registrations.append(properties)
+            callLog.append("register")
         }
         func reset() {
             resetCount += 1
+            callLog.append("reset")
         }
     }
 
@@ -3430,8 +3440,12 @@ final class RunSmartReadinessTests: XCTestCase {
 
     func testAnalyticsResetReRegistersBuildIdentityForAnonymousEvents() {
         let saved = Analytics.shared
+        let savedTester = Analytics.registeredInternalTester
         let tracker = CapturingAnalyticsService()
-        defer { Analytics.shared = saved }
+        defer {
+            Analytics.registerInternalTester(savedTester)
+            Analytics.shared = saved
+        }
         Analytics.shared = tracker
 
         Analytics.resetUser(bundle: StubInfoBundle(values: [
@@ -3440,9 +3454,142 @@ final class RunSmartReadinessTests: XCTestCase {
         ]))
 
         XCTAssertEqual(tracker.resetCount, 1, "reset must still clear the prior user identity")
-        XCTAssertEqual(tracker.registrations.count, 1, "build identity must be restored immediately after reset")
         XCTAssertEqual(tracker.registrations.first?["app_version"] as? String, "1.1.1")
         XCTAssertEqual(tracker.registrations.first?["app_build"] as? String, "25")
+    }
+
+    // MARK: - S5 internal-tester flag (activation cliff plan)
+
+    /// The whole point of using `register()` rather than merging inside the
+    /// tracking wrapper. PostHog autocapture (`Application Opened`, `$screen`)
+    /// and the direct `PostHogSDK.shared.capture` calls in `RunSmartAnalytics`
+    /// never reach the wrapper, so a wrapper-only flag would leave exactly the
+    /// events a founder session is mostly made of unlabelled.
+    func testInternalTesterIsRegisteredAsASuperPropertySoAutocapturedEventsCarryIt() {
+        let saved = Analytics.shared
+        let savedTester = Analytics.registeredInternalTester
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.registerInternalTester(savedTester)
+            Analytics.shared = saved
+        }
+        Analytics.shared = tracker
+
+        Analytics.registerInternalTester(true)
+
+        let registered = tracker.registrations.compactMap { $0["is_internal_tester"] as? String }
+        XCTAssertEqual(registered, ["true"],
+            "is_internal_tester must be registered as a super property, which is the only mechanism that reaches autocaptured events")
+    }
+
+    /// `PostHogSDK.reset()` clears super properties along with the identity, so
+    /// a flag that is only registered at setup silently disappears at sign-out.
+    func testInternalTesterSurvivesResetUser() {
+        let saved = Analytics.shared
+        let savedTester = Analytics.registeredInternalTester
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.registerInternalTester(savedTester)
+            Analytics.shared = saved
+        }
+        Analytics.shared = tracker
+
+        Analytics.resetUser(bundle: StubInfoBundle(values: [
+            "CFBundleShortVersionString": "1.1.5",
+            "CFBundleVersion": "30"
+        ]))
+
+        XCTAssertEqual(tracker.callLog, ["reset", "register", "register"],
+            "both super-property groups must be restored after the reset that cleared them, not before it")
+        XCTAssertTrue(
+            tracker.registrations.contains { $0["is_internal_tester"] != nil },
+            "is_internal_tester must be re-registered after resetUser or the exclusion vanishes at sign-out"
+        )
+    }
+
+    /// Resumely iOS PR #138: its `$set` re-read `UserDefaults` at send time while
+    /// the event property had already been snapshotted, so a sign-in landing
+    /// between the two made one event contradict itself. Both halves here read
+    /// the same stored value, so they agree by construction rather than by timing.
+    func testEventPropertyAndPersonPropertyAgreeOnTheSamePayload() {
+        let saved = Analytics.shared
+        let savedTester = Analytics.registeredInternalTester
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.registerInternalTester(savedTester)
+            Analytics.shared = saved
+        }
+        Analytics.shared = tracker
+
+        for value in [true, false] {
+            Analytics.registerInternalTester(value)
+            let eventProperty = tracker.registrations.last?["is_internal_tester"] as? String
+            let personProperty = (Analytics.withPersonScope([:])["$set"] as? [String: Any])?["is_internal_tester"] as? String
+
+            XCTAssertEqual(eventProperty, value ? "true" : "false")
+            XCTAssertEqual(personProperty, eventProperty,
+                "the registered event property and the $set person property must be the same value on one payload")
+        }
+    }
+
+    /// WP-45 sends `onboarding_completed_at` through the same `$set` block. A
+    /// replacing write here would drop it, and the cohort segmentation with it.
+    func testPersonScopePreservesAnExistingSetBlock() {
+        let saved = Analytics.shared
+        let savedTester = Analytics.registeredInternalTester
+        defer {
+            Analytics.registerInternalTester(savedTester)
+            Analytics.shared = saved
+        }
+        Analytics.shared = CapturingAnalyticsService()
+
+        Analytics.registerInternalTester(true)
+        let scoped = Analytics.withPersonScope([
+            "goal": "5k",
+            "$set": ["onboarding_completed_at": "2026-08-13T00:00:00Z"]
+        ])
+
+        let personProperties = scoped["$set"] as? [String: Any]
+        XCTAssertEqual(personProperties?["onboarding_completed_at"] as? String, "2026-08-13T00:00:00Z",
+            "an existing $set key must survive the internal-tester merge")
+        XCTAssertEqual(personProperties?["is_internal_tester"] as? String, "true")
+        XCTAssertEqual(scoped["goal"] as? String, "5k", "event properties must pass through untouched")
+    }
+
+    func testIdentifyCarriesTheInternalTesterFlagAsAPersonProperty() {
+        let saved = Analytics.shared
+        let savedTester = Analytics.registeredInternalTester
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.registerInternalTester(savedTester)
+            Analytics.shared = saved
+        }
+        Analytics.shared = tracker
+
+        Analytics.registerInternalTester(true)
+        Analytics.identifyUser(userId: "00000000-0000-0000-0000-0000000000A1")
+
+        XCTAssertEqual(tracker.identifications.first?.userId, "00000000-0000-0000-0000-0000000000A1")
+        XCTAssertEqual(tracker.identifications.first?.traits["is_internal_tester"] as? String, "true",
+            "identify must set the person property immediately rather than waiting for the next tracked event")
+    }
+
+    func testInternalTesterSignalsMatchOnlyTeamInstalls() {
+        XCTAssertTrue(Analytics.resolveInternalTesterSignals(
+            arguments: ["app", "--internal-tester"], environment: [:], receiptName: "receipt"
+        ), "the launch argument must mark a QA session internal")
+
+        XCTAssertTrue(Analytics.resolveInternalTesterSignals(
+            arguments: [], environment: ["RUNSMART_INTERNAL_TESTER": "1"], receiptName: "receipt"
+        ), "the environment override must mark a QA session internal")
+
+        XCTAssertTrue(Analytics.resolveInternalTesterSignals(
+            arguments: [], environment: [:], receiptName: "sandboxReceipt"
+        ), "a TestFlight build carries a sandbox receipt and is never a real user")
+
+        XCTAssertFalse(Analytics.resolveInternalTesterSignals(
+            arguments: ["app"], environment: ["RUNSMART_INTERNAL_TESTER": "0"], receiptName: "receipt"
+        ), "a plain App Store install must stay in the clean cohort")
     }
 
     /// OnboardingView emits from .onAppear, which SwiftUI runs again on re-mount and
