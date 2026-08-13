@@ -1,4 +1,4 @@
-## 2026-08-14 — RunSmart 1.1.6 (31) candidate verified for archive
+## 2026-08-14 (Asia/Jerusalem) — RunSmart 1.1.6 (31) candidate verified for archive
 
 **The versioned candidate is ready to land and archive interactively in Xcode.** PR #136 is merged at `e910a5c`; the isolated release branch is 1.1.6 (31), and founder portal evidence confirms build 31 is unused and the canonical Supabase callback is covered by `https://www.runsmart-ai.com/**`.
 
@@ -13,8 +13,8 @@
 **Active Story:** RunSmart 1.1.6 (31) release packaging.
 **Next Recommended Story:** Inspect the Organizer archive, complete physical-device QA, then approve upload separately.
 **Blockers:** None for archive creation. Signed archive inspection and physical-device QA block upload/submission.
-**Last Validation:** 2026-08-14 — 377 passed / 0 failed / 0 skipped; Release simulator launch and guest preview smoke passed; unsigned generic iOS Release build passed with arm64 app/extension and both dSYMs.
-**Last Updated:** 2026-08-14
+**Last Validation:** 2026-08-14 (Asia/Jerusalem) — 377 passed / 0 failed / 0 skipped; Release simulator launch and guest preview smoke passed; unsigned generic iOS Release build passed with arm64 app/extension and both dSYMs.
+**Last Updated:** 2026-08-14 (Asia/Jerusalem)
 
 ## 2026-08-13 — RunSmart guest mode and value before authentication
 

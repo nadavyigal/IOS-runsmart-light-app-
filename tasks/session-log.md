@@ -1,6 +1,6 @@
 # Session Log
 
-## 2026-08-14 — RunSmart 1.1.6 (31) archive candidate verification
+## 2026-08-14 (Asia/Jerusalem) — RunSmart 1.1.6 (31) archive candidate verification
 
 ### Outcome
 Prepared the merged guest/value-before-auth release as 1.1.6 (31) from exact `main` commit `e910a5c` in an isolated clean worktree. Founder evidence closed the two portal gates: build 31 is unused in App Store Connect and the canonical iOS callback is covered by Supabase's `https://www.runsmart-ai.com/**` redirect rule. The dirty primary checkout and Resumely 1.4.9 were not touched.
