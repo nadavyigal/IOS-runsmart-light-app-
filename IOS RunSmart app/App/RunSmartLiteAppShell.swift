@@ -236,7 +236,19 @@ struct RunSmartLiteAppShell: View {
             }
         }
         .task(id: activationFirstFrameTrackingKey) {
-            guard isAnalyticsReady, let screen = resolvedActivationFirstFrameScreen else { return }
+            guard isAnalyticsReady, resolvedActivationFirstFrameScreen != nil else { return }
+            // `isShowingLaunch` flips at the start of the opacity transition.
+            // Wait for that 0.32-second dismissal to finish so this event names
+            // the first product frame the person can actually see.
+            do {
+                try await Task.sleep(nanoseconds: 320_000_000)
+            } catch {
+                return
+            }
+            guard isAnalyticsReady,
+                  !isShowingLaunch,
+                  let screen = resolvedActivationFirstFrameScreen
+            else { return }
             activationFirstFrameTracker.screenRendered(screen)
         }
         .onChange(of: router.selectedTab) { _, newTab in
