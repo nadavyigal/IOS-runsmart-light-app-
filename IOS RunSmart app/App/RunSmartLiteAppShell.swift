@@ -152,6 +152,8 @@ struct RunSmartLiteAppShell: View {
     @State private var pendingOnboardingCompletion: OnboardingProfile?
     @State private var recordingOnboardingFinished = false
     @State private var firstRunActivation: FirstRunActivationContext?
+    @State private var isAnalyticsReady = false
+    private let activationFirstFrameTracker = ActivationFirstFrameTracker.shared
     private let services: any RunSmartServiceProviding = RunSmartDemoMode.services
 
     var body: some View {
@@ -224,7 +226,7 @@ struct RunSmartLiteAppShell: View {
         }
         .task {
             guard !RunSmartDemoMode.isEnabled else { return }
-            setupAnalyticsIfNeeded()
+            isAnalyticsReady = setupAnalyticsIfNeeded()
             PushService.shared.configureNavigation { destination in
                 router.openNotificationDestination(destination)
             }
@@ -232,6 +234,10 @@ struct RunSmartLiteAppShell: View {
             withAnimation(.easeOut(duration: 0.32)) {
                 isShowingLaunch = false
             }
+        }
+        .task(id: activationFirstFrameTrackingKey) {
+            guard isAnalyticsReady, let screen = resolvedActivationFirstFrameScreen else { return }
+            activationFirstFrameTracker.screenRendered(screen)
         }
         .onChange(of: router.selectedTab) { _, newTab in
             guard !RunSmartDemoMode.isEnabled else { return }
@@ -496,12 +502,12 @@ struct RunSmartLiteAppShell: View {
     }
 #endif
 
-    private func setupAnalyticsIfNeeded() {
-        guard !RunSmartDemoMode.isEnabled else { return }
+    private func setupAnalyticsIfNeeded() -> Bool {
+        guard !RunSmartDemoMode.isEnabled else { return false }
         guard let token = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_API_KEY") as? String,
               !token.isEmpty,
               let host = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_HOST") as? String
-        else { return }
+        else { return false }
         Analytics.setup(projectToken: token, host: host)
         // Between setup and the first event, deliberately. Registering earlier is
         // a no-op because `Analytics.shared` is still the null service until
@@ -509,6 +515,21 @@ struct RunSmartLiteAppShell: View {
         // session-starting event — without the screen it began on.
         Analytics.registerCurrentScreen(Analytics.screenName(for: router.selectedTab))
         Analytics.trackAppLaunched()
+        return true
+    }
+
+    private var resolvedActivationFirstFrameScreen: ActivationFirstFrameScreen? {
+        guard !RunSmartDemoMode.isEnabled else { return nil }
+        return ActivationFirstFrameScreen.resolved(
+            isLaunchOverlayVisible: isShowingLaunch,
+            isLoading: session.isLoading,
+            isAuthenticated: session.isAuthenticated,
+            hasCompletedOnboarding: session.hasCompletedOnboarding
+        )
+    }
+
+    private var activationFirstFrameTrackingKey: String {
+        "\(isAnalyticsReady)-\(isShowingLaunch)-\(resolvedActivationFirstFrameScreen?.rawValue ?? "loading")"
     }
 }
 

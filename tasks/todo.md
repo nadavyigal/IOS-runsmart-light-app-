@@ -2,8 +2,23 @@
 
 ## Current Task
 
+**Objective:** WP-61a Story 1 — emit one first resolved app-frame event naming the screen that rendered after launch/session loading, so `app_launched` can be separated from reaching the sign-in wall, onboarding, or the main app.
+**Status:** Implemented and verified on `codex/runsmart-activation-entry`; PR handoff pending.
+**Source:** Agentic OS `WP-61a-runsmart-pre-wall-instrumentation.md`, Story 1. WP-61b remains blocked until n≥10 genuine users exist at every launch-to-wall step.
+
+### Checklist
+- [x] Add red tests for once-per-process first-frame tracking and explicit screen attribution.
+- [x] Emit `activation_first_frame_rendered` for sign-in wall, onboarding, and main app; do not count the transient loading splash as the resolved app screen.
+- [x] Verify focused regressions, the full suite/baseline, and an app build.
+- [ ] Record the event birthday in Agentic OS activation queries.
+- [ ] Update repo memory, push, open a PR, and land only after checks pass.
+
+**Expected implementation files:** `AnalyticsEvents.swift`, one small first-frame tracker, `RunSmartLiteAppShell.swift`, and readiness tests. No UI, auth, onboarding, permission, guest-mode, dependency, version, archive, or App Store change.
+
+## Previous Current Task
+
 **Objective:** Activation-cliff plan S5 — give RunSmart an `is_internal_tester` flag as both an event property and a person property, so founder and QA sessions are excludable at person level.
-**Status:** **Implemented and tested on `claude/analytics-internal-tester`; PR open.** Analytics only: two analytics files plus tests. No version bump and no release — it rides along in whatever ships next.
+**Status:** **Merged as PR #130 (`d49636a`).** Analytics only; no version bump and no release — it rides along in whatever ships next.
 **Source:** `docs/plans/2026-07-19-activation-cliff-fix-plan.md` line 100 (S5), re-raised by the 2026-08-06 T+1 check. Reference: Resumely iOS PRs #137/#138.
 
 ### Checklist
@@ -12,7 +27,7 @@
 - [x] Re-register after `resetUser()`, which `PostHogSDK.reset()` would otherwise clear.
 - [x] Derive both halves from one stored value so they agree by construction (the #138 lesson).
 - [x] Tests — rides on autocaptured events, survives `resetUser()`, both halves agree on one payload: 7 passed / 0 failed.
-- [ ] Merge the PR.
+- [x] Merge the PR.
 - [ ] **Founder decision:** whether to add `INTERNAL_TESTER_USER_IDS` to `RunSmartInfo.plist` + `RunSmartSecrets.xcconfig`. Without it, a founder on a public App Store build is still counted as a real user.
 
 ## Previous Current Task

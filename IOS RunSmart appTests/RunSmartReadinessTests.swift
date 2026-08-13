@@ -4843,6 +4843,48 @@ final class RunSmartReadinessTests: XCTestCase {
         )
     }
 
+    // MARK: - WP-61a Story 1: first resolved activation frame
+
+    func testActivationFirstFrameNamesTheFirstResolvedScreenOnce() {
+        let events = captureAnalytics { _ in
+            let tracker = ActivationFirstFrameTracker()
+            tracker.screenRendered(.signInWall)
+            tracker.screenRendered(.onboarding)
+            tracker.screenRendered(.mainApp)
+        }
+
+        let frames = events.filter { $0.name == "activation_first_frame_rendered" }
+        XCTAssertEqual(frames.count, 1, "SwiftUI can remount routes; one launch must have one first resolved frame")
+        XCTAssertEqual(frames.first?.properties["screen"] as? String, "sign_in_wall")
+    }
+
+    func testActivationFirstFrameScreenNamesStayStableForPostHogFunnels() {
+        XCTAssertEqual(ActivationFirstFrameScreen.signInWall.rawValue, "sign_in_wall")
+        XCTAssertEqual(ActivationFirstFrameScreen.onboarding.rawValue, "onboarding")
+        XCTAssertEqual(ActivationFirstFrameScreen.mainApp.rawValue, "main_app")
+
+        XCTAssertNil(ActivationFirstFrameScreen.resolved(
+            isLaunchOverlayVisible: true,
+            isLoading: false, isAuthenticated: false, hasCompletedOnboarding: false
+        ), "the launch overlay is the visible first frame until it has actually gone away")
+        XCTAssertNil(ActivationFirstFrameScreen.resolved(
+            isLaunchOverlayVisible: false,
+            isLoading: true, isAuthenticated: false, hasCompletedOnboarding: false
+        ), "the transient splash must stay missing so a launch stuck there remains diagnosable")
+        XCTAssertEqual(ActivationFirstFrameScreen.resolved(
+            isLaunchOverlayVisible: false,
+            isLoading: false, isAuthenticated: false, hasCompletedOnboarding: false
+        ), .signInWall)
+        XCTAssertEqual(ActivationFirstFrameScreen.resolved(
+            isLaunchOverlayVisible: false,
+            isLoading: false, isAuthenticated: true, hasCompletedOnboarding: false
+        ), .onboarding)
+        XCTAssertEqual(ActivationFirstFrameScreen.resolved(
+            isLaunchOverlayVisible: false,
+            isLoading: false, isAuthenticated: true, hasCompletedOnboarding: true
+        ), .mainApp)
+    }
+
     // MARK: - Activation cliff S1: sign-in wall instrumentation
 
     // The wall is the first screen every unauthenticated user sees and fired no

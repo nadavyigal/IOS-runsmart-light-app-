@@ -11,6 +11,15 @@ extension Analytics {
         shared.track("app_launched", properties: ["session_id": UUID().uuidString])
     }
 
+    /// First resolved product surface after session loading. This is separate
+    /// from `app_launched`: an app can launch and remain stuck on its transient
+    /// loading surface without ever reaching a usable route.
+    static func trackActivationFirstFrameRendered(screen: ActivationFirstFrameScreen) {
+        shared.track("activation_first_frame_rendered", properties: [
+            "screen": screen.rawValue
+        ])
+    }
+
     // MARK: - Sign-in wall (activation cliff plan, S1)
 
     // Every event on this screen carries an explicit `screen` name: SwiftUI
