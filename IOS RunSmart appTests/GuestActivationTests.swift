@@ -115,6 +115,17 @@ final class GuestActivationTests: XCTestCase {
         ), .guestValue)
     }
 
+    func testGuestAuthWallCopyOnlyClaimsPreviewAfterItExists() {
+        XCTAssertEqual(
+            SignInView.guestReturnMessage(hasSeenPreview: false),
+            "Your guest setup is saved. Sign in now, or return to finish your preview."
+        )
+        XCTAssertEqual(
+            SignInView.guestReturnMessage(hasSeenPreview: true),
+            "Your preview is ready. Sign in to save it and unlock the full adaptive plan."
+        )
+    }
+
     func testGuestActivationEventsKeepStableFunnelNamesAndProperties() {
         let saved = Analytics.shared
         let spy = AnalyticsSpy()

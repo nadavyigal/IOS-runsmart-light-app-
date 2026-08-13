@@ -373,10 +373,13 @@ struct RunSmartLiteAppShell: View {
                 } : nil,
                 onBackToGuest: isReturningFromGuest ? {
                         isShowingGuestAuthentication = false
-                    } : nil,
+                } : nil,
                 backToGuestLabel: guestJourney.state.hasSeenPreview
                     ? "Back to preview"
-                    : "Back to guest setup"
+                    : "Back to guest setup",
+                guestReturnMessage: SignInView.guestReturnMessage(
+                    hasSeenPreview: guestJourney.state.hasSeenPreview
+                )
             )
             .environmentObject(session)
         }

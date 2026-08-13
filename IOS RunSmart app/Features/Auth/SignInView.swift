@@ -35,15 +35,25 @@ struct SignInView: View {
     private let onContinueAsGuest: (() -> Void)?
     private let onBackToGuest: (() -> Void)?
     private let backToGuestLabel: String
+    private let guestReturnMessage: String
+
+    static func guestReturnMessage(hasSeenPreview: Bool) -> String {
+        if hasSeenPreview {
+            return "Your preview is ready. Sign in to save it and unlock the full adaptive plan."
+        }
+        return "Your guest setup is saved. Sign in now, or return to finish your preview."
+    }
 
     init(
         onContinueAsGuest: (() -> Void)? = nil,
         onBackToGuest: (() -> Void)? = nil,
-        backToGuestLabel: String = "Back to preview"
+        backToGuestLabel: String = "Back to preview",
+        guestReturnMessage: String = SignInView.guestReturnMessage(hasSeenPreview: true)
     ) {
         self.onContinueAsGuest = onContinueAsGuest
         self.onBackToGuest = onBackToGuest
         self.backToGuestLabel = backToGuestLabel
+        self.guestReturnMessage = guestReturnMessage
     }
 
     /// First-screen promise pills (WP-44 S1). The audit (§4 Risk 2, §9) flagged
@@ -113,7 +123,7 @@ struct SignInView: View {
                         VStack(spacing: 14) {
                     if onBackToGuest != nil {
                         Label(
-                            "Your preview is ready. Sign in to save it and unlock the full adaptive plan.",
+                            guestReturnMessage,
                             systemImage: "checkmark.circle.fill"
                         )
                         .font(.caption.weight(.semibold))
