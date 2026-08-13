@@ -3,15 +3,15 @@
 ## Current Task
 
 **Objective:** WP-61a Story 1 — emit one first resolved app-frame event naming the screen that rendered after launch/session loading, so `app_launched` can be separated from reaching the sign-in wall, onboarding, or the main app.
-**Status:** Implemented and verified on `codex/runsmart-activation-entry`; PR handoff pending.
+**Status:** Merged in PR #132 (`f5fb7c7`). The event's code birthday is recorded; production first-seen awaits a carrying release.
 **Source:** Agentic OS `WP-61a-runsmart-pre-wall-instrumentation.md`, Story 1. WP-61b remains blocked until n≥10 genuine users exist at every launch-to-wall step.
 
 ### Checklist
 - [x] Add red tests for once-per-process first-frame tracking and explicit screen attribution.
 - [x] Emit `activation_first_frame_rendered` for sign-in wall, onboarding, and main app; do not count the transient loading splash as the resolved app screen.
 - [x] Verify focused regressions, the full suite/baseline, and an app build.
-- [ ] Record the event birthday in Agentic OS activation queries.
-- [ ] Update repo memory, push, open a PR, and land only after checks pass.
+- [x] Record the event birthday in Agentic OS activation queries, without mislabeling the merge date as production traffic.
+- [x] Update repo memory, push, open PR #132, address review feedback, and merge after checks pass.
 
 **Expected implementation files:** `AnalyticsEvents.swift`, one small first-frame tracker, `RunSmartLiteAppShell.swift`, and readiness tests. No UI, auth, onboarding, permission, guest-mode, dependency, version, archive, or App Store change.
 
