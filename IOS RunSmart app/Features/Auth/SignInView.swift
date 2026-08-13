@@ -11,6 +11,8 @@ struct SignInView: View {
     @State private var errorMessage: String?
     @State private var currentNonce = AppleSignInHelper.randomNonce()
     @State private var legalDocument: LegalDocument?
+    @State private var lastPresentedLegalDocument: LegalDocument?
+    @State private var emailFlowCompleted = false
     /// Set on tap, cleared when Apple reports back or the app returns to the
     /// foreground. Guards against a second authorization being started while the
     /// first is still presenting; the foreground reset is the safety net so a
@@ -150,10 +152,10 @@ struct SignInView: View {
                             .foregroundStyle(Color.mutedText)
 
                         HStack(spacing: 4) {
-                            Button("Terms of Service") { legalDocument = .terms }
+                            Button("Terms of Service") { presentLegalDocument(.terms) }
                             Text("and")
                                 .foregroundStyle(Color.mutedText)
-                            Button("Privacy Policy") { legalDocument = .privacy }
+                            Button("Privacy Policy") { presentLegalDocument(.privacy) }
                         }
                         .fontWeight(.semibold)
                     }
@@ -179,16 +181,41 @@ struct SignInView: View {
             if phase == .active, !isHandlingAppleResult {
                 isAwaitingAppleSheet = false
             }
-            // `.background` is the last phase the app reliably observes before
-            // termination, so it doubles as the terminate signal.
-            guard phase == .background else { return }
-            wallTracker.appDidEnterBackground()
+            switch phase {
+            case .active:
+                wallTracker.appBecameActive()
+            case .inactive:
+                wallTracker.appBecameInactive()
+            case .background:
+                // `.background` is the last phase the app reliably observes
+                // before termination, so it also doubles as the abandon signal.
+                wallTracker.appDidEnterBackground()
+            @unknown default:
+                break
+            }
         }
-        .sheet(item: $legalDocument) { document in
+        .onChange(of: session.isAuthenticated) { _, isAuthenticated in
+            if isAuthenticated, isShowingEmailSignIn {
+                emailFlowCompleted = true
+            }
+        }
+        .sheet(item: $legalDocument, onDismiss: {
+            guard let document = lastPresentedLegalDocument else { return }
+            Analytics.trackPreAuthScreenDismissed(document.preAuthScreen)
+            lastPresentedLegalDocument = nil
+        }) { document in
             SafariView(url: document.url)
                 .ignoresSafeArea()
+                .onAppear {
+                    Analytics.trackPreAuthScreenViewed(document.preAuthScreen)
+                }
         }
-        .sheet(isPresented: $isShowingEmailSignIn) {
+        .sheet(isPresented: $isShowingEmailSignIn, onDismiss: {
+            if !emailFlowCompleted {
+                Analytics.trackPreAuthScreenDismissed(.emailSignIn)
+            }
+            emailFlowCompleted = false
+        }) {
             EmailSignInView(model: EmailSignInModel(gateway: .init(
                 signIn: { email, password in
                     try await session.signInWithEmail(email: email, password: password)
@@ -215,6 +242,7 @@ struct SignInView: View {
 
             Button {
                 Analytics.trackSignInMethodSelected(method: "email")
+                emailFlowCompleted = false
                 isShowingEmailSignIn = true
             } label: {
                 Text("Continue with email")
@@ -312,6 +340,20 @@ struct SignInView: View {
         formatter.style = .medium
         let name = formatter.string(from: fullName).trimmingCharacters(in: .whitespacesAndNewlines)
         return name.isEmpty ? nil : name
+    }
+
+    private func presentLegalDocument(_ document: LegalDocument) {
+        lastPresentedLegalDocument = document
+        legalDocument = document
+    }
+}
+
+private extension SignInView.LegalDocument {
+    var preAuthScreen: PreAuthScreen {
+        switch self {
+        case .terms: .terms
+        case .privacy: .privacy
+        }
     }
 }
 

@@ -1,6 +1,26 @@
 import Foundation
 import Supabase
 
+enum PreAuthScreen: String, CaseIterable, Sendable {
+    case signInWall = "sign_in_wall"
+    case emailSignIn = "email_sign_in"
+    case terms
+    case privacy
+}
+
+enum PermissionPromptOutcome: String, Sendable {
+    case granted
+    case denied
+    case dismissed
+    case failed
+}
+
+enum SignInWallEntry: String, Sendable {
+    case coldLaunch = "cold_launch"
+    case warmForeground = "warm_foreground"
+    case backgroundReturn = "background_return"
+}
+
 extension Analytics {
     private static let completedRunFlagKey = "analytics.hasCompletedRun"
     private static let completedRunKeyPrefix = "analytics.completedRun."
@@ -20,6 +40,14 @@ extension Analytics {
         ])
     }
 
+    static func trackPreAuthScreenViewed(_ screen: PreAuthScreen) {
+        shared.track("pre_auth_screen_viewed", properties: ["screen": screen.rawValue])
+    }
+
+    static func trackPreAuthScreenDismissed(_ screen: PreAuthScreen) {
+        shared.track("pre_auth_screen_dismissed", properties: ["screen": screen.rawValue])
+    }
+
     // MARK: - Sign-in wall (activation cliff plan, S1)
 
     // Every event on this screen carries an explicit `screen` name: SwiftUI
@@ -30,6 +58,13 @@ extension Analytics {
     static func trackSignInWallViewed() {
         shared.track("sign_in_wall_viewed", properties: [
             "screen": SignInWallTracker.screenName
+        ])
+    }
+
+    static func trackSignInWallReached(entry: SignInWallEntry) {
+        shared.track("sign_in_wall_reached", properties: [
+            "screen": SignInWallTracker.screenName,
+            "entry": entry.rawValue
         ])
     }
 
@@ -254,6 +289,23 @@ extension Analytics {
 
     static func trackPermissionDenied(kind: String) {
         shared.track("permission_denied", properties: ["kind": kind])
+    }
+
+    static func trackPermissionDismissed(kind: String) {
+        shared.track("permission_dismissed", properties: ["kind": kind])
+    }
+
+    static func trackPermissionFailed(kind: String) {
+        shared.track("permission_failed", properties: ["kind": kind])
+    }
+
+    static func trackPermissionOutcome(kind: String, outcome: PermissionPromptOutcome) {
+        switch outcome {
+        case .granted: trackPermissionGranted(kind: kind)
+        case .denied: trackPermissionDenied(kind: kind)
+        case .dismissed: trackPermissionDismissed(kind: kind)
+        case .failed: trackPermissionFailed(kind: kind)
+        }
     }
 
     static func trackHealthKitConnectFailed(reason: String) {

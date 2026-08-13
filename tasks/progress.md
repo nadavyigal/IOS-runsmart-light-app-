@@ -1,3 +1,20 @@
+## 2026-08-13 — WP-61a Stories 2–3: pre-auth coverage and a guaranteed visible-wall boundary
+
+**The activation blind spot now has named surfaces and closed prompt outcomes.** RunSmart emits stable `pre_auth_screen_viewed` and `pre_auth_screen_dismissed` events for the sign-in wall, email sign-in, Terms, and Privacy. Permission prompts share one terminal vocabulary: granted, denied, dismissed, or failed. Existing location/notification request coverage remains intact; HealthKit now adds its missing request and terminal, while notification API errors stop masquerading as user denial.
+
+**“Wall reached” now means visible, not merely mounted.** SwiftUI mounts the sign-in view underneath the launch overlay, so its `onAppear` is earlier than the user-visible boundary. Cold `sign_in_wall_reached` is emitted only after the same 0.32-second overlay dismissal that defines `activation_first_frame_rendered`. Lifecycle state then adds one `warm_foreground` or `background_return` reach per real transition; duplicate active callbacks and view remounts do not inflate the funnel.
+
+**This does not establish effectiveness yet.** The code is analytics-only and is not present in the currently public binary. Production first-seen must be tied to a future carrying build, and WP-61b remains blocked until every launch→wall step has n≥10 genuine users after internal/review traffic exclusions.
+
+**Status:** Complete in PR #135. Available checks passed; CodeRabbit reported its review quota was temporarily exhausted, so the final review was completed locally before merge. The saved PostHog funnel now uses `sign_in_wall_reached` after `activation_first_frame_rendered`, preserving its existing build split and internal/emulator/sideload/TestFlight exclusions.
+**Current Phase:** Await a carrying release and production first-seen; do not package a release in this story.
+**Active Story:** WP-61a Story 4 (event birthdays) is complete for the Story 2–3 events; Stories 5–6 remain open.
+**Last Completed Story:** Pre-auth screen/permission terminal coverage and lifecycle-aware visible-wall reach.
+**Next Recommended Story:** Complete WP-61a Stories 5–6, then measure a carrying release. Do not open WP-61b before the sample gate.
+**Blockers:** Effectiveness is release- and traffic-gated, not implementation-gated.
+**Last Validation:** 2026-08-13 — red compile failures proved the missing screen, permission-outcome, HealthKit, and lifecycle contracts. Final focused run passed 7/7 after moving cold reach to the post-overlay boundary. Full suite: 368 passed / 1 failed / 0 skipped; the sole failure was the already reproduced locale-dependent calendar-label baseline (`אפר׳ 26 - מאי 2` versus `APR 26 - MAY 2`). Signed-out iPhone 17 simulator launch rendered Apple, email, Terms, and Privacy entry points from the intended worktree with a non-empty analytics configuration.
+**Last Updated:** 2026-08-13
+
 ## 2026-08-13 — WP-61a Story 1: the first resolved activation frame is now measurable
 
 **The launch-to-wall blind spot has its first real boundary.** `app_launched` proved the process started, but nothing identified the first usable route after the launch overlay and Supabase session loading. `activation_first_frame_rendered` now emits once per app process with exactly one stable `screen`: `sign_in_wall`, `onboarding`, or `main_app`.

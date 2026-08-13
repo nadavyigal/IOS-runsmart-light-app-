@@ -249,18 +249,17 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
         do {
             let granted = try await authorizationRequester([.alert, .badge, .sound])
             if isFirstPrompt {
-                if granted {
-                    Analytics.trackPermissionGranted(kind: "notifications")
-                } else {
-                    Analytics.trackPermissionDenied(kind: "notifications")
-                }
+                Analytics.trackPermissionOutcome(
+                    kind: "notifications",
+                    outcome: granted ? .granted : .denied
+                )
             }
             return granted
         } catch {
-            // A thrown request is a not-granted outcome; resolve the funnel
-            // instead of leaving permission_requested dangling forever.
+            // An API failure is not a user denial. Close the request as failed
+            // so the funnel resolves without misclassifying user intent.
             if isFirstPrompt {
-                Analytics.trackPermissionDenied(kind: "notifications")
+                Analytics.trackPermissionOutcome(kind: "notifications", outcome: .failed)
             }
             throw error
         }

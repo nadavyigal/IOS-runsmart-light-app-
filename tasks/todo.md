@@ -2,6 +2,22 @@
 
 ## Current Task
 
+**Objective:** WP-61a Stories 2–3 — cover every pre-auth surface and permission-prompt terminal, then guarantee a correctly ordered sign-in-wall reach across cold launch, warm foregrounding, and background return.
+**Status:** Complete in PR #135; available checks passed and production effectiveness remains release- and sample-gated.
+**Source:** Agentic OS `WP-61a-runsmart-pre-wall-instrumentation.md`, Stories 2–3. WP-61b remains blocked until n≥10 genuine users exist at every launch-to-wall step.
+
+### Checklist
+- [x] Track viewed/dismissed for sign-in wall, email sign-in, Terms, and Privacy.
+- [x] Close permission requests as granted, denied, dismissed, or failed; add the missing HealthKit request/terminal coverage without relabelling API failure as user denial.
+- [x] Emit `sign_in_wall_reached` after the launch overlay is actually gone and on real inactive/background returns, without SwiftUI remount inflation.
+- [x] Add red-first contract tests and verify focused regressions, full-suite baseline, and the signed-out simulator wall.
+- [x] Record event birthdays, update the saved PostHog activation funnel, push, review, and merge PR #135.
+- [ ] After a carrying release: confirm production first-seen/build identity and measure n≥10 genuine launch cohorts before any WP-61b decision.
+
+**Expected implementation files:** analytics contracts/tracker, auth wall/email/legal surfaces, HealthKit and notification authorization boundaries, app-shell visible-frame boundary, and readiness tests. No auth behavior, UI layout/copy, permission behavior, guest mode, dependency, version, archive, or App Store change.
+
+## Previous Current Task
+
 **Objective:** WP-61a Story 1 — emit one first resolved app-frame event naming the screen that rendered after launch/session loading, so `app_launched` can be separated from reaching the sign-in wall, onboarding, or the main app.
 **Status:** Merged in PR #132 (`f5fb7c7`). The event's code birthday is recorded; production first-seen awaits a carrying release.
 **Source:** Agentic OS `WP-61a-runsmart-pre-wall-instrumentation.md`, Story 1. WP-61b remains blocked until n≥10 genuine users exist at every launch-to-wall step.

@@ -30,11 +30,23 @@ enum ActivationFirstFrameScreen: String, Sendable {
 final class ActivationFirstFrameTracker {
     static let shared = ActivationFirstFrameTracker()
 
+    private let signInWallTracker: SignInWallTracker
     private var didTrackFrame = false
+
+    init(signInWallTracker: SignInWallTracker) {
+        self.signInWallTracker = signInWallTracker
+    }
+
+    convenience init() {
+        self.init(signInWallTracker: .shared)
+    }
 
     func screenRendered(_ screen: ActivationFirstFrameScreen) {
         guard !didTrackFrame else { return }
         didTrackFrame = true
         Analytics.trackActivationFirstFrameRendered(screen: screen)
+        if screen == .signInWall {
+            signInWallTracker.wallReachedAfterLaunch()
+        }
     }
 }
