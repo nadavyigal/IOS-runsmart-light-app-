@@ -1,5 +1,16 @@
 # Session Log
 
+## 2026-08-13 — WP-61a Story 1: first resolved activation frame
+
+### Outcome
+Added one process-scoped `activation_first_frame_rendered` event naming `sign_in_wall`, `onboarding`, or `main_app` after analytics setup, launch-overlay dismissal, and session-load resolution. A launch stuck on either transient surface intentionally emits no first frame.
+
+### Verification
+The two red-first tests initially failed to compile because the tracker and screen contract did not exist; final focused run passed 2/2. Full suite produced 362 passes and one unrelated calendar-label assertion. The exact assertion failed identically on detached, untouched `origin/main` (`אפר׳ 26 - מאי 2` versus `APR 26 - MAY 2`), establishing baseline. The iPhone 17 simulator build installed and launched; runtime UI inspection confirmed the real sign-in wall with both Apple and email actions.
+
+### Scope and next action
+No user-facing surface, auth, onboarding, permission, guest mode, dependency, version, archive, or App Store state changed. Record the event birthday, open the PR, then finish the remaining WP-61a prompt/permission instrumentation. WP-61b stays blocked until n≥10 at every launch→wall step.
+
 ## 2026-08-06 - Supabase registration return-path repair
 
 ### Outcome

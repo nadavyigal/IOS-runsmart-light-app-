@@ -1,3 +1,20 @@
+## 2026-08-13 — WP-61a Story 1: the first resolved activation frame is now measurable
+
+**The launch-to-wall blind spot has its first real boundary.** `app_launched` proved the process started, but nothing identified the first usable route after the launch overlay and Supabase session loading. `activation_first_frame_rendered` now emits once per app process with exactly one stable `screen`: `sign_in_wall`, `onboarding`, or `main_app`.
+
+**A transient screen cannot create a false success.** The event waits until both the launch overlay is gone and session loading has resolved. If the app starts but stays stuck on either, PostHog shows `app_launched` with no first-frame event. Analytics setup must also succeed before the once-only tracker can be consumed.
+
+**This does not open WP-61b.** Guest/value-before-account remains blocked until the saved session-scoped launch funnel has n≥10 genuine users at every launch→wall step.
+
+**Status:** Complete locally on `codex/runsmart-activation-entry`. Analytics-only, no UI/auth/onboarding/permission/guest-mode/version/release change.
+**Current Phase:** Post-release watch on live 1.1.5 (30); build the WP-61a measurement foundation for the next release.
+**Active Story:** WP-61a Story 1 — PR handoff pending.
+**Last Completed Story:** First resolved activation-frame event and route attribution.
+**Next Recommended Story:** Land this story, then complete WP-61a permission/prompt coverage. Do not open WP-61b until n≥10 exists at every launch→wall step.
+**Blockers:** Effectiveness is data-gated on a released build carrying the event and external traffic.
+**Last Validation:** 2026-08-13 — red compile failure proved the missing tracker; focused 2/2 passed after the final overlay/analytics guards. Full suite: 362 passed / 1 failed; the sole failure, `testPlanWeeksGroupByCalendarWeekAndTotalDistance`, reproduced identically on untouched `origin/main` because the runtime formatted Hebrew while the test expected English. Build/install/launch smoke succeeded and the signed-out wall rendered with Apple and email entry points.
+**Last Updated:** 2026-08-13
+
 ## 2026-08-13 — `is_internal_tester` now exists on RunSmart, as an event property *and* a person property
 
 **S5 of the activation-cliff plan, and the item the 2026-08-06 T+1 raised in passing.** That check found the founder's own pre-release session carrying `is_internal_tester = null`: RunSmart had no such property at all, so team sessions were excludable only by behavioural heuristics and every activation number on project 171597 inherited the error. Resumely closed the equivalent gap in iOS PRs #137/#138; this is the RunSmart version, and it is deliberately **not** a copy of Resumely's code shape.
@@ -18,7 +35,7 @@
 
 **Known gap, stated rather than papered over:** the founder on a public **App Store** build is still not detected. The flag resolves from DEBUG, `--internal-tester`, `RUNSMART_INTERNAL_TESTER=1`, and the TestFlight sandbox receipt — all config-free. Closing the App Store case needs a user-id allowlist, which needs `Info.plist` and xcconfig keys RunSmart does not have; that reaches past the analytics files and was left out on purpose rather than shipped inert. Resumely's own allowlist shipped empty for months for precisely that reason.
 
-**Status:** Merged-pending on `claude/analytics-internal-tester`. **No version bump and no release** — this rides along in whatever ships next. Analytics only: two analytics files plus tests, no UI, onboarding, Garmin, HealthKit or voice-coach changes, no new dependencies.
+**Status:** Merged as PR #130 (`d49636a`). **No version bump and no release** — this rides along in whatever ships next. Analytics only: two analytics files plus tests, no UI, onboarding, Garmin, HealthKit or voice-coach changes, no new dependencies.
 **Current Phase:** Post-release watch on live 1.1.5 (30), unchanged. This is not a feature start.
 **Active Story:** None. WP-68 stories 3-5 still open.
 **Last Completed Story:** Activation-cliff plan S5 — `is_internal_tester` as event and person property.
