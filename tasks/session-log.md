@@ -1,5 +1,16 @@
 # Session Log
 
+## 2026-08-13 — RunSmart 1.1.6 release planning
+
+### Outcome
+Inventoried every merged change after public 1.1.5 (30) and drafted the executable 1.1.6 release plan. The proposed release carries native auth return, email-model stability, internal-traffic classification, first-visible-frame tracking, and WP-61a pre-auth/permission/wall coverage. Target build 31 is provisional until checked in ASC.
+
+### Evidence
+The candidate is based on clean `origin/main`, not the primary checkout's older dirty auth branch. The live canonical AASA serves the shipped bundle identity and callback paths. Recent exact-main validation remains 368 passes plus one reproduced locale-dependent baseline. A clean Release baseline build also succeeded: app and Live Activity extension resolved to 1.1.5 (30), required analytics/backend values were present without printing them, and six pre-existing warnings were recorded for cleanup or explicit acceptance before archive.
+
+### Scope and next action
+No version/build, release notes, code, archive, upload, ASC state, production setting, or Resumely state changed. Decide whether to finish WP-61a Stories 5–6, close the redirect/route-smoke/test-baseline gates, then execute the packaging checklist in the release plan.
+
 ## 2026-08-13 — WP-61a Stories 2–3: pre-auth/permission coverage and guaranteed wall reach
 
 ### Outcome

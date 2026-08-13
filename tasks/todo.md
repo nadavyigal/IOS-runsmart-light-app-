@@ -2,6 +2,26 @@
 
 ## Current Task
 
+**Objective:** Plan and prepare the next RunSmart release as 1.1.6 (expected build 31), carrying every merged improvement since public 1.1.5 while keeping the release narrow, measurable, and reversible.
+**Status:** Release plan drafted; packaging, version bump, archive, upload, and submission have not started. Target build 31 remains contingent on App Store Connect availability.
+**Source:** Founder request 2026-08-13; `docs/plans/2026-08-13-runsmart-1.1.6-release-plan.md`; Agentic OS WP-61a/WP-68.
+
+### Checklist
+- [x] Inventory merged changes since public 1.1.5 (30): PRs #129–#132 and #135.
+- [x] Verify the canonical `www` AASA is live for `8VC4R5M425.com.runsmart.lite` and the auth callback paths.
+- [x] Define the release scope, QA matrix, archive inspection, App Store handoff, and post-release measurement gates.
+- [ ] Decide whether to complete WP-61a Stories 5–6 before freeze (recommended) or explicitly defer them.
+- [ ] Confirm the Supabase redirect allowlist contains `https://www.runsmart-ai.com/auth/callback*`.
+- [ ] Complete the overdue physical-device route/benchmark persistence smoke.
+- [ ] Resolve the locale-dependent calendar-test baseline so the release suite can be fully green.
+- [ ] Confirm build 31 is unused, then bump all six configurations to 1.1.6 (31) and update release notes.
+- [ ] Run final tests, device QA, archive inspection, upload, explicit founder approval, and submission.
+- [ ] After release: validate build-31 event ordering and wait for n≥10 genuine users per launch-to-wall step before WP-61b.
+
+**Explicit exclusions:** guest/value-before-auth redesign, Garmin commercial work, route redesign, voice coach, monetization, localization, Resumely changes, and App Store submission during planning.
+
+## Previous Current Task
+
 **Objective:** WP-61a Stories 2–3 — cover every pre-auth surface and permission-prompt terminal, then guarantee a correctly ordered sign-in-wall reach across cold launch, warm foregrounding, and background return.
 **Status:** Complete in PR #135; available checks passed and production effectiveness remains release- and sample-gated.
 **Source:** Agentic OS `WP-61a-runsmart-pre-wall-instrumentation.md`, Stories 2–3. WP-61b remains blocked until n≥10 genuine users exist at every launch-to-wall step.

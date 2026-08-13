@@ -1,3 +1,21 @@
+## 2026-08-13 — RunSmart 1.1.6 release plan: reliability plus activation measurement
+
+**Recommended target:** 1.1.6 (31), contingent on ASC confirming build 31 is unused. Public baseline remains 1.1.5 (30); packaging and version changes have not started.
+
+The candidate inventory is exact: PR #129 restores native return after an iOS-originated email/browser auth round trip; #130 adds forward-only internal-traffic classification; #131 removes the isolated email-model deinit crash; #132 adds the post-overlay first resolved frame; and #135 completes pre-auth/permission coverage plus guaranteed cold/warm/background wall reach. No visible UI copy/layout changed.
+
+The recommended sequence is one small pre-freeze measurement slice—WP-61a Stories 5–6—then a hard freeze. The release does not include guest mode, value-before-auth, Garmin commercial work, route redesign, voice coach, monetization, localization, or Resumely changes.
+
+**Confirmed dependency:** the live canonical AASA returned HTTP 200 on 2026-08-13 with app ID `8VC4R5M425.com.runsmart.lite` and `/auth/callback`, `/auth/callback/*`, and `/auth/update-password`. The remaining auth gate is confirming the Supabase redirect allowlist.
+
+**Release blockers:** choose/defer WP-61a Stories 5–6; confirm redirect allowlist; complete the overdue physical-device route/benchmark persistence smoke; fix or formally baseline the locale-dependent calendar test; decide how public founder sessions are excluded; confirm ASC build availability; then version, test, archive, and inspect.
+
+**Effectiveness contract:** 1.1.6 makes activation observable; it does not claim to improve activation. Validate the ordered build-31 funnel on the first genuine event and do not infer a bottleneck or open WP-61b until n≥10 genuine users exist at every launch-to-wall step.
+
+**Plan:** `docs/plans/2026-08-13-runsmart-1.1.6-release-plan.md`.
+**Last Validation:** 2026-08-13 — clean Release simulator build from `origin/main` `4d81ceb` succeeded. Built app: `com.runsmart.lite` 1.1.5 (30); Live Activity extension matched; PostHog and Supabase configuration values were present without printing them. The build emitted six existing warnings: five main-actor isolation warnings and one deprecated `HKWorkout` initializer. These are recorded as should-fix/explicit-acceptance gates before archive.
+**Last Updated:** 2026-08-13
+
 ## 2026-08-13 — WP-61a Stories 2–3: pre-auth coverage and a guaranteed visible-wall boundary
 
 **The activation blind spot now has named surfaces and closed prompt outcomes.** RunSmart emits stable `pre_auth_screen_viewed` and `pre_auth_screen_dismissed` events for the sign-in wall, email sign-in, Terms, and Privacy. Permission prompts share one terminal vocabulary: granted, denied, dismissed, or failed. Existing location/notification request coverage remains intact; HealthKit now adds its missing request and terminal, while notification API errors stop masquerading as user denial.
