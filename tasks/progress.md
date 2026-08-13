@@ -1,3 +1,21 @@
+## 2026-08-14 (Asia/Jerusalem) — RunSmart 1.1.6 (31) candidate verified for archive
+
+**The versioned candidate is ready to land and archive interactively in Xcode.** PR #136 is merged at `e910a5c`; the isolated release branch is 1.1.6 (31), and founder portal evidence confirms build 31 is unused and the canonical Supabase callback is covered by `https://www.runsmart-ai.com/**`.
+
+**Release verification is green.** The versioned full suite passed 377/377 with no failures or skips. Optimized Release simulator and arm64 device builds succeeded. The packaged app and Live Activity extension both report 1.1.6 (31); PostHog, Supabase URL/publishable key, privacy descriptions, guest flag, dSYMs, and expected architectures are present without exposing secret values. No diagnostics, plans, local secret config, or unrelated localization changes entered the bundle.
+
+**The value-before-auth promise was exercised in the Release app.** On the small-screen simulator, the signed-out wall showed “Build my free plan preview,” and the flow completed goal → experience → schedule → a personalized “Your first week” preview without creating an account or requesting OS permissions.
+
+**Archive versus upload gate:** command-line signed compilation reached `codesign` but macOS waited for interactive Keychain access. Xcode Organizer should therefore create the signed archive and its distribution signature must be inspected there. Physical-device guest/auth/onboarding and route/benchmark persistence remain mandatory before upload/submission, not before archive creation. Six pre-existing warnings are explicitly deferred: five actor-isolation warnings and one deprecated `HKWorkout` initializer.
+
+**Status:** Archive-ready candidate; release branch still needs commit/review/merge to `main`.
+**Current Phase:** Land the version/build memory commit, then founder archives from exact `main` in Xcode.
+**Active Story:** RunSmart 1.1.6 (31) release packaging.
+**Next Recommended Story:** Inspect the Organizer archive, complete physical-device QA, then approve upload separately.
+**Blockers:** None for archive creation. Signed archive inspection and physical-device QA block upload/submission.
+**Last Validation:** 2026-08-14 (Asia/Jerusalem) — 377 passed / 0 failed / 0 skipped; Release simulator launch and guest preview smoke passed; unsigned generic iOS Release build passed with arm64 app/extension and both dSYMs.
+**Last Updated:** 2026-08-14 (Asia/Jerusalem)
+
 ## 2026-08-13 — RunSmart guest mode and value before authentication
 
 **The personalized first value now precedes account creation.** A signed-out runner can choose a goal, experience level, and real weekly schedule, then see a conservative local Week 1 preview with the first recommended run. The path creates no anonymous backend user and asks for no HealthKit, Garmin, notification, or location permission. Answers and the preview persist only in local `UserDefaults` until authentication.
@@ -6,12 +24,12 @@
 
 **The founder explicitly overrode WP-61b's prior n≥10 opening gate.** This is a product decision, not a claim that the old cohort proved causality. Effectiveness remains evidence-gated after release: measure eligible launch → guest preview, preview → authenticated upgrade, onboarding completion, first workout, and run commitment with counts and p50/p75 timing. Stable guest events are `guest_mode_started`, `guest_profile_completed`, `guest_plan_preview_viewed`, `guest_sign_in_prompted`, and `guest_authenticated_upgrade`; guest relaunches use first-frame screen `guest_value`.
 
-**Status:** Implemented in draft PR #136; release packaging remains pending. Resumely 1.4.9 and its App Store review state were not touched.
-**Current Phase:** Finish Release artifact inspection, commit/push PR #136, then close external gates before versioning/archive.
+**Status:** Merged in PR #136 (`e910a5c`) and included in the verified 1.1.6 (31) candidate. Resumely 1.4.9 and its App Store review state were not touched.
+**Current Phase:** Included in the verified 1.1.6 (31) release candidate; physical-device and signed-archive gates remain before upload.
 **Active Story:** RunSmart 1.1.6 guest/value-before-auth candidate.
 **Last Completed Story:** Guest goal → experience → schedule → preview → upgrade journey with local persistence and instrumentation.
-**Next Recommended Story:** Physical-device guest/auth/onboarding smoke and the overdue route persistence smoke; confirm ASC build 31 availability before the 1.1.6 (31) bump.
-**Blockers:** ASC build-number visibility, Supabase redirect allowlist confirmation, and physical-device release smokes. Upload/submission still require an explicit final archive approval.
+**Next Recommended Story:** Physical-device guest/auth/onboarding smoke and the overdue route persistence smoke, followed by signed archive inspection.
+**Blockers:** None for archive creation. Physical-device release smokes and signed archive inspection block upload/submission, which still require explicit approval.
 **Last Validation:** 2026-08-13 — simulator journey passed through preview, upgrade-specific auth wall, Back to preview, and terminate/relaunch persistence. Focused guest/flag/calendar run: 12/12. Full suite: 376 passed / 0 failed / 0 skipped. The old locale failure was fixed by making `PlanWeekSummary` use the calendar injected by `makeWeeks`; the English fixture now pins `en_US_POSIX` explicitly. Clean Release simulator build succeeded. Built bundle: `com.runsmart.lite`, still intentionally 1.1.5 (30), guest flag YES, required PostHog/Supabase values present, extension version/build matched, no diagnostics/plans bundled. Six pre-existing compiler warnings remain. Short-screen simulator QA confirmed the signed-out wall scrolls to email, Terms, and Privacy while keeping the guest CTA visible.
 **Last Updated:** 2026-08-13
 

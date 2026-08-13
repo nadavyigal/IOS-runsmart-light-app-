@@ -1,5 +1,18 @@
 # Session Log
 
+## 2026-08-14 (Asia/Jerusalem) — RunSmart 1.1.6 (31) archive candidate verification
+
+### Outcome
+Prepared the merged guest/value-before-auth release as 1.1.6 (31) from exact `main` commit `e910a5c` in an isolated clean worktree. Founder evidence closed the two portal gates: build 31 is unused in App Store Connect and the canonical iOS callback is covered by Supabase's `https://www.runsmart-ai.com/**` redirect rule. The dirty primary checkout and Resumely 1.4.9 were not touched.
+
+### Verification
+The versioned simulator suite passed 377/377 with no failures or skips, including all five auth-callback tests, all 15 email-sign-in tests, six guest-activation tests, and the WP-61a activation contracts. Optimized Release simulator and generic arm64 iOS builds succeeded. The Release app launched on the small-screen simulator and completed guest goal → experience → schedule → “Your first week” preview without authentication or permission prompts.
+
+Bundle inspection confirmed app `com.runsmart.lite` and Live Activity extension `com.runsmart.lite.runliveactivity` both at 1.1.6 (31), guest mode enabled, required PostHog/Supabase configuration and privacy descriptions present, app and extension dSYMs present, and no diagnostics, plans, local secrets file, or unrelated source bundled. Six unique pre-existing compiler warnings remain: five actor-isolation warnings and one deprecated `HKWorkout` initializer.
+
+### Archive handoff
+A signed command-line device build compiled successfully but paused at `codesign` for interactive macOS Keychain access. It was stopped without changing credentials; the same arm64 device target then passed unsigned. Create the signed archive in Xcode Organizer, inspect version/build, entitlements, `get-task-allow=false`, dSYMs, and bundle contents, then complete physical-device guest/auth/onboarding and route-persistence QA before any upload. No archive, upload, submission, or production mutation was performed.
+
 ## 2026-08-13 — Guest mode and value before auth added to the 1.1.6 candidate
 
 ### Outcome
