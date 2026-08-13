@@ -739,6 +739,7 @@ final class RunSmartReadinessTests: XCTestCase {
     func testPlanWeeksGroupByCalendarWeekAndTotalDistance() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.firstWeekday = 1
+        calendar.locale = Locale(identifier: "en_US_POSIX")
         let workouts = [
             makeWorkout(date: "2026-04-27", distance: "5.5 km"),
             makeWorkout(date: "2026-05-02", kind: .long, title: "Long Run", distance: "10km"),

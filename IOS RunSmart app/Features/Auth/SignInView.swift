@@ -32,6 +32,19 @@ struct SignInView: View {
     /// so once Apple has failed the alternative stops being a secondary option
     /// and becomes the recommendation.
     @State private var appleSignInHasFailed = false
+    private let onContinueAsGuest: (() -> Void)?
+    private let onBackToGuest: (() -> Void)?
+    private let backToGuestLabel: String
+
+    init(
+        onContinueAsGuest: (() -> Void)? = nil,
+        onBackToGuest: (() -> Void)? = nil,
+        backToGuestLabel: String = "Back to preview"
+    ) {
+        self.onContinueAsGuest = onContinueAsGuest
+        self.onBackToGuest = onBackToGuest
+        self.backToGuestLabel = backToGuestLabel
+    }
 
     /// First-screen promise pills (WP-44 S1). The audit (§4 Risk 2, §9) flagged
     /// "Run guidance and cue previews" as feature-speak and the HealthKit bullet
@@ -61,8 +74,10 @@ struct SignInView: View {
         ZStack {
             RunSmartBackground()
 
-            VStack(spacing: 0) {
-                Spacer()
+            GeometryReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 28)
 
                 VStack(spacing: 28) {
                     VStack(spacing: 16) {
@@ -93,9 +108,50 @@ struct SignInView: View {
                     }
                 }
 
-                Spacer()
+                        Spacer(minLength: 24)
 
-                VStack(spacing: 14) {
+                        VStack(spacing: 14) {
+                    if onBackToGuest != nil {
+                        Label(
+                            "Your preview is ready. Sign in to save it and unlock the full adaptive plan.",
+                            systemImage: "checkmark.circle.fill"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(12)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .accessibilityIdentifier("signIn.guestUpgradeMessage")
+                    }
+
+                    if let onContinueAsGuest {
+                        Button {
+                            wallTracker.guestModeTapped()
+                            Analytics.trackGuestModeStarted()
+                            onContinueAsGuest()
+                        } label: {
+                            VStack(spacing: 2) {
+                                Label("Build my free plan preview", systemImage: "sparkles")
+                                    .font(.body.weight(.bold))
+                                Text("No account · about 30 seconds")
+                                    .font(.caption2.weight(.medium))
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 54)
+                        }
+                        .foregroundStyle(Color.black)
+                        .background(Color.lime, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .accessibilityIdentifier("signIn.guestPreview")
+
+                        HStack(spacing: 10) {
+                            Rectangle().fill(Color.hairline).frame(height: 0.5)
+                            Text("or save and sync now")
+                                .font(.caption2)
+                                .foregroundStyle(Color.mutedText)
+                            Rectangle().fill(Color.hairline).frame(height: 0.5)
+                        }
+                    }
+
                     if let error = errorMessage ?? session.lastAuthError {
                         Text(error)
                             .font(.caption)
@@ -164,8 +220,33 @@ struct SignInView: View {
                     .tint(Color.lime)
                     .padding(.horizontal, 24)
                 }
-                .padding(.horizontal, 28)
-                .padding(.bottom, 48)
+                        .padding(.horizontal, 28)
+                        .padding(.bottom, 36)
+                    }
+                    .frame(minHeight: proxy.size.height)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+            }
+
+            if let onBackToGuest {
+                VStack {
+                    HStack {
+                        Button(action: onBackToGuest) {
+                            Label(backToGuestLabel, systemImage: "chevron.left")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.textSecondary)
+                                .padding(.horizontal, 12)
+                                .frame(height: 40)
+                                .background(Color.surfaceElevated, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("signIn.backToGuest")
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
             }
         }
         .preferredColorScheme(.dark)

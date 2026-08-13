@@ -53,6 +53,8 @@
 	<string>YES</string>
 	<key>RUNSMART_GARMIN_GATEWAY_URL</key>
 	<string>https://www.runsmart-ai.com/api/devices/garmin/connect</string>
+	<key>RUNSMART_GUEST_MODE_ENABLED</key>
+	<string>YES</string>
 	<key>RunSmartAPIBaseURL</key>
 	<string>https://runsmart-ai.com</string>
 	<key>SUPABASE_PUBLISHABLE_KEY</key>

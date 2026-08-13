@@ -7,12 +7,14 @@ struct PlanWeekSummary: Identifiable, Hashable {
     var endDate: Date
     var workouts: [WorkoutSummary]
     var isCurrentWeek: Bool
+    var calendar: Calendar = .current
 
     var dateRangeLabel: String {
-        let startMonth = DateFormatter.shortMonthUpper.string(from: startDate).uppercased()
-        let endMonth = DateFormatter.shortMonthUpper.string(from: endDate).uppercased()
-        let startDay = Calendar.current.component(.day, from: startDate)
-        let endDay = Calendar.current.component(.day, from: endDate)
+        let formatter = DateFormatter.shortMonthUpper(calendar: calendar)
+        let startMonth = formatter.string(from: startDate).uppercased(with: calendar.locale ?? .current)
+        let endMonth = formatter.string(from: endDate).uppercased(with: calendar.locale ?? .current)
+        let startDay = calendar.component(.day, from: startDate)
+        let endDay = calendar.component(.day, from: endDate)
         if startMonth == endMonth {
             return "\(startMonth) \(startDay) - \(endDay)"
         }
@@ -80,7 +82,8 @@ enum PlanPresentationModels {
                         startDate: weekStart,
                         endDate: weekEnd,
                         workouts: weekWorkouts,
-                        isCurrentWeek: now >= weekStart && now < weekEndExclusive
+                        isCurrentWeek: now >= weekStart && now < weekEndExclusive,
+                        calendar: calendar
                     )
                 )
             }
@@ -240,9 +243,12 @@ struct TodayWorkoutDisplayModel {
 }
 
 private extension DateFormatter {
-    static let shortMonthUpper: DateFormatter = {
+    static func shortMonthUpper(calendar: Calendar) -> DateFormatter {
         let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = calendar.locale ?? .current
+        formatter.timeZone = calendar.timeZone
         formatter.dateFormat = "MMM"
         return formatter
-    }()
+    }
 }

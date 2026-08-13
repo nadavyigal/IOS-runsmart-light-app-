@@ -2,23 +2,26 @@
 
 ## Current Task
 
-**Objective:** Plan and prepare the next RunSmart release as 1.1.6 (expected build 31), carrying every merged improvement since public 1.1.5 while keeping the release narrow, measurable, and reversible.
-**Status:** Release plan drafted; packaging, version bump, archive, upload, and submission have not started. Target build 31 remains contingent on App Store Connect availability.
-**Source:** Founder request 2026-08-13; `docs/plans/2026-08-13-runsmart-1.1.6-release-plan.md`; Agentic OS WP-61a/WP-68.
+**Objective:** Ship RunSmart 1.1.6 with guest mode/value before auth plus every merged reliability and activation-observability improvement since public 1.1.5.
+**Status:** Guest implementation and simulator verification complete in draft PR #136. Versioning, archive, upload, and submission have not started; target build 31 remains contingent on App Store Connect availability.
+**Source:** Founder execution direction 2026-08-13; `docs/plans/2026-08-13-runsmart-guest-value-before-auth-spec.md`; amended 1.1.6 release plan; Agentic OS WP-61a/WP-61b.
 
 ### Checklist
 - [x] Inventory merged changes since public 1.1.5 (30): PRs #129–#132 and #135.
 - [x] Verify the canonical `www` AASA is live for `8VC4R5M425.com.runsmart.lite` and the auth callback paths.
 - [x] Define the release scope, QA matrix, archive inspection, App Store handoff, and post-release measurement gates.
-- [ ] Decide whether to complete WP-61a Stories 5–6 before freeze (recommended) or explicitly defer them.
+- [x] Implement goal → experience → schedule → local Week 1 preview before auth, preserving answers through upgrade and relaunch.
+- [x] Add stable guest funnel events and a `guest_value` first-frame route; ship behind the plist flag.
+- [x] Explicitly defer WP-61a Stories 5–6 from 1.1.6.
 - [ ] Confirm the Supabase redirect allowlist contains `https://www.runsmart-ai.com/auth/callback*`.
 - [ ] Complete the overdue physical-device route/benchmark persistence smoke.
-- [ ] Resolve the locale-dependent calendar-test baseline so the release suite can be fully green.
+- [x] Resolve the locale-dependent calendar-test baseline; full suite is 376/376 green.
 - [ ] Confirm build 31 is unused, then bump all six configurations to 1.1.6 (31) and update release notes.
-- [ ] Run final tests, device QA, archive inspection, upload, explicit founder approval, and submission.
-- [ ] After release: validate build-31 event ordering and wait for n≥10 genuine users per launch-to-wall step before WP-61b.
+- [ ] Run physical-device guest/auth/onboarding and route-persistence QA; archive inspection follows after versioning.
+- [ ] Upload only after the final archive is explicitly approved; submit separately after metadata/build confirmation.
+- [ ] After release: validate guest event ordering and identity join, then read effectiveness only at the stated sample gates.
 
-**Explicit exclusions:** guest/value-before-auth redesign, Garmin commercial work, route redesign, voice coach, monetization, localization, Resumely changes, and App Store submission during planning.
+**Explicit exclusions:** Garmin commercial work, route redesign, voice coach, monetization, localization, Resumely changes, and unapproved App Store upload/submission.
 
 ## Previous Current Task
 

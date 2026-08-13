@@ -145,6 +145,7 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var session = SupabaseSession()
     @StateObject private var recorder = RunRecorder()
     @StateObject private var planGeneration = PlanGenerationStore()
+    @StateObject private var guestJourney = GuestJourneyStore()
     @State private var didPresentMorningCheckin = false
     @State private var isShowingLaunch = !RunSmartDemoMode.isEnabled
     @State private var planNotice: RunSmartPlanNotice?
@@ -153,6 +154,7 @@ struct RunSmartLiteAppShell: View {
     @State private var recordingOnboardingFinished = false
     @State private var firstRunActivation: FirstRunActivationContext?
     @State private var isAnalyticsReady = false
+    @State private var isShowingGuestAuthentication = false
     private let activationFirstFrameTracker = ActivationFirstFrameTracker.shared
     private let services: any RunSmartServiceProviding = RunSmartDemoMode.services
 
@@ -171,8 +173,7 @@ struct RunSmartLiteAppShell: View {
             } else if session.isLoading {
                 RunSmartLaunchView()
             } else if !session.isAuthenticated {
-                SignInView()
-                    .environmentObject(session)
+                signedOutContent
             } else if !session.hasCompletedOnboarding {
                 onboardingContent
             } else {
@@ -184,8 +185,7 @@ struct RunSmartLiteAppShell: View {
             } else if session.isLoading {
                 RunSmartLaunchView()
             } else if !session.isAuthenticated {
-                SignInView()
-                    .environmentObject(session)
+                signedOutContent
             } else if !session.hasCompletedOnboarding {
                 onboardingContent
             } else {
@@ -262,9 +262,23 @@ struct RunSmartLiteAppShell: View {
             guard !RunSmartDemoMode.isEnabled else { return }
             if isAuth, let userId = session.currentUserID {
                 Analytics.identifyUser(userId: userId.uuidString)
+                if guestJourney.state.isActive,
+                   !guestJourney.state.didTrackAuthenticatedUpgrade {
+                    guestJourney.markAuthenticatedUpgradeTracked()
+                    Analytics.trackGuestAuthenticatedUpgrade()
+                }
+                isShowingGuestAuthentication = false
+                if session.hasCompletedOnboarding {
+                    guestJourney.clear()
+                }
             } else if !isAuth {
                 Analytics.resetUser()
+                isShowingGuestAuthentication = false
             }
+        }
+        .onChange(of: session.hasCompletedOnboarding) { _, isComplete in
+            guard session.isAuthenticated, isComplete, guestJourney.state.isActive else { return }
+            guestJourney.clear()
         }
         .task(id: session.hasCompletedOnboarding) {
             guard !RunSmartDemoMode.isEnabled else { return }
@@ -335,6 +349,40 @@ struct RunSmartLiteAppShell: View {
     }
 
     @ViewBuilder
+    private var signedOutContent: some View {
+        if RunSmartFeatureFlags.guestModeEnabled,
+           guestJourney.state.isActive,
+           !isShowingGuestAuthentication {
+            GuestValueFlowView(
+                journey: guestJourney,
+                onExitGuest: {
+                    isShowingGuestAuthentication = true
+                },
+                onRequestAuthentication: {
+                    isShowingGuestAuthentication = true
+                }
+            )
+        } else {
+            let isReturningFromGuest = RunSmartFeatureFlags.guestModeEnabled
+                && guestJourney.state.isActive
+                && isShowingGuestAuthentication
+            SignInView(
+                onContinueAsGuest: RunSmartFeatureFlags.guestModeEnabled && !isReturningFromGuest ? {
+                    guestJourney.start()
+                    isShowingGuestAuthentication = false
+                } : nil,
+                onBackToGuest: isReturningFromGuest ? {
+                        isShowingGuestAuthentication = false
+                    } : nil,
+                backToGuestLabel: guestJourney.state.hasSeenPreview
+                    ? "Back to preview"
+                    : "Back to guest setup"
+            )
+            .environmentObject(session)
+        }
+    }
+
+    @ViewBuilder
     private var onboardingContent: some View {
         if let pendingProfile = pendingOnboardingCompletion {
             OnboardingAhaMomentsContainer(profile: pendingProfile) {
@@ -349,11 +397,30 @@ struct RunSmartLiteAppShell: View {
             }
             .environmentObject(session)
         } else {
-            OnboardingView(initialProfile: session.onboardingProfile) { profile in
+            OnboardingView(
+                initialProfile: onboardingInitialProfile,
+                initialStep: onboardingInitialStep
+            ) { profile in
                 pendingOnboardingCompletion = profile
             }
             .environmentObject(session)
         }
+    }
+
+    private var onboardingInitialProfile: OnboardingProfile {
+        guard guestJourney.state.isActive, guestJourney.state.hasSeenPreview else {
+            return session.onboardingProfile
+        }
+        var profile = guestJourney.state.upgradeProfile
+        if profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            profile.displayName = session.onboardingProfile.displayName
+        }
+        return profile
+    }
+
+    private var onboardingInitialStep: Int {
+        guard guestJourney.state.isActive else { return 0 }
+        return guestJourney.state.authenticatedOnboardingStartStep
     }
 
     #if DEBUG
@@ -536,7 +603,10 @@ struct RunSmartLiteAppShell: View {
             isLaunchOverlayVisible: isShowingLaunch,
             isLoading: session.isLoading,
             isAuthenticated: session.isAuthenticated,
-            hasCompletedOnboarding: session.hasCompletedOnboarding
+            hasCompletedOnboarding: session.hasCompletedOnboarding,
+            isGuestJourneyActive: RunSmartFeatureFlags.guestModeEnabled
+                && guestJourney.state.isActive
+                && !isShowingGuestAuthentication
         )
     }
 

@@ -6,6 +6,7 @@
 /// spot between launch and the sign-in wall.
 enum ActivationFirstFrameScreen: String, Sendable {
     case signInWall = "sign_in_wall"
+    case guestValue = "guest_value"
     case onboarding
     case mainApp = "main_app"
 
@@ -13,10 +14,13 @@ enum ActivationFirstFrameScreen: String, Sendable {
         isLaunchOverlayVisible: Bool,
         isLoading: Bool,
         isAuthenticated: Bool,
-        hasCompletedOnboarding: Bool
+        hasCompletedOnboarding: Bool,
+        isGuestJourneyActive: Bool = false
     ) -> Self? {
         guard !isLaunchOverlayVisible, !isLoading else { return nil }
-        guard isAuthenticated else { return .signInWall }
+        guard isAuthenticated else {
+            return isGuestJourneyActive ? .guestValue : .signInWall
+        }
         return hasCompletedOnboarding ? .mainApp : .onboarding
     }
 }

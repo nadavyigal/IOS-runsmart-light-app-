@@ -1,10 +1,27 @@
+## 2026-08-13 — RunSmart guest mode and value before authentication
+
+**The personalized first value now precedes account creation.** A signed-out runner can choose a goal, experience level, and real weekly schedule, then see a conservative local Week 1 preview with the first recommended run. The path creates no anonymous backend user and asks for no HealthKit, Garmin, notification, or location permission. Answers and the preview persist only in local `UserDefaults` until authentication.
+
+**Authentication is now the save/unlock boundary, not the entry toll.** From the preview, Apple or email sign-in saves the journey into the existing onboarding model. A new account resumes at Coaching with guest answers preserved; an already-onboarded account goes to the main app. Local guest state clears only after a completed account owns the journey. The guest path ships ON through `RUNSMART_GUEST_MODE_ENABLED` and can be removed from entry routing with one plist change.
+
+**The founder explicitly overrode WP-61b's prior n≥10 opening gate.** This is a product decision, not a claim that the old cohort proved causality. Effectiveness remains evidence-gated after release: measure eligible launch → guest preview, preview → authenticated upgrade, onboarding completion, first workout, and run commitment with counts and p50/p75 timing. Stable guest events are `guest_mode_started`, `guest_profile_completed`, `guest_plan_preview_viewed`, `guest_sign_in_prompted`, and `guest_authenticated_upgrade`; guest relaunches use first-frame screen `guest_value`.
+
+**Status:** Implemented in draft PR #136; release packaging remains pending. Resumely 1.4.9 and its App Store review state were not touched.
+**Current Phase:** Finish Release artifact inspection, commit/push PR #136, then close external gates before versioning/archive.
+**Active Story:** RunSmart 1.1.6 guest/value-before-auth candidate.
+**Last Completed Story:** Guest goal → experience → schedule → preview → upgrade journey with local persistence and instrumentation.
+**Next Recommended Story:** Physical-device guest/auth/onboarding smoke and the overdue route persistence smoke; confirm ASC build 31 availability before the 1.1.6 (31) bump.
+**Blockers:** ASC build-number visibility, Supabase redirect allowlist confirmation, and physical-device release smokes. Upload/submission still require an explicit final archive approval.
+**Last Validation:** 2026-08-13 — simulator journey passed through preview, upgrade-specific auth wall, Back to preview, and terminate/relaunch persistence. Focused guest/flag/calendar run: 12/12. Full suite: 376 passed / 0 failed / 0 skipped. The old locale failure was fixed by making `PlanWeekSummary` use the calendar injected by `makeWeeks`; the English fixture now pins `en_US_POSIX` explicitly. Clean Release simulator build succeeded. Built bundle: `com.runsmart.lite`, still intentionally 1.1.5 (30), guest flag YES, required PostHog/Supabase values present, extension version/build matched, no diagnostics/plans bundled. Six pre-existing compiler warnings remain. Short-screen simulator QA confirmed the signed-out wall scrolls to email, Terms, and Privacy while keeping the guest CTA visible.
+**Last Updated:** 2026-08-13
+
 ## 2026-08-13 — RunSmart 1.1.6 release plan: reliability plus activation measurement
 
 **Recommended target:** 1.1.6 (31), contingent on ASC confirming build 31 is unused. Public baseline remains 1.1.5 (30); packaging and version changes have not started.
 
 The candidate inventory is exact: PR #129 restores native return after an iOS-originated email/browser auth round trip; #130 adds forward-only internal-traffic classification; #131 removes the isolated email-model deinit crash; #132 adds the post-overlay first resolved frame; and #135 completes pre-auth/permission coverage plus guaranteed cold/warm/background wall reach. No visible UI copy/layout changed.
 
-The recommended sequence is one small pre-freeze measurement slice—WP-61a Stories 5–6—then a hard freeze. The release does not include guest mode, value-before-auth, Garmin commercial work, route redesign, voice coach, monetization, localization, or Resumely changes.
+Founder direction superseded the original narrow scope: guest mode/value-before-auth is the final feature slice. WP-61a Stories 5–6 are deferred from 1.1.6; Garmin commercial work, route redesign, voice coach, monetization, localization, and Resumely changes remain excluded.
 
 **Confirmed dependency:** the live canonical AASA returned HTTP 200 on 2026-08-13 with app ID `8VC4R5M425.com.runsmart.lite` and `/auth/callback`, `/auth/callback/*`, and `/auth/update-password`. The remaining auth gate is confirming the Supabase redirect allowlist.
 
