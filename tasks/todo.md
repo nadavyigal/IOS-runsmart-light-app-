@@ -3,7 +3,7 @@
 ## Current Task
 
 **Objective:** Ship RunSmart 1.1.6 with guest mode/value before auth plus every merged reliability and activation-observability improvement since public 1.1.5.
-**Status:** Guest implementation and simulator verification complete in draft PR #136. Versioning, archive, upload, and submission have not started; target build 31 remains contingent on App Store Connect availability.
+**Status:** PR #136 is merged. The founder confirmed build 31 is unused and the Supabase callback is allowlisted. Release branch `codex/runsmart-1.1.6-build31` is versioned to 1.1.6 (31) and has passed the full suite, Release builds, bundle inspection, and guest-value simulator smoke. It is ready to land and archive in Xcode; upload and submission have not started.
 **Source:** Founder execution direction 2026-08-13; `docs/plans/2026-08-13-runsmart-guest-value-before-auth-spec.md`; amended 1.1.6 release plan; Agentic OS WP-61a/WP-61b.
 
 ### Checklist
@@ -13,11 +13,12 @@
 - [x] Implement goal → experience → schedule → local Week 1 preview before auth, preserving answers through upgrade and relaunch.
 - [x] Add stable guest funnel events and a `guest_value` first-frame route; ship behind the plist flag.
 - [x] Explicitly defer WP-61a Stories 5–6 from 1.1.6.
-- [ ] Confirm the Supabase redirect allowlist contains `https://www.runsmart-ai.com/auth/callback*`.
+- [x] Confirm the Supabase redirect allowlist covers `https://www.runsmart-ai.com/auth/callback?source=ios` through `https://www.runsmart-ai.com/**` (founder screenshot plus current Supabase wildcard documentation, 2026-08-13).
 - [ ] Complete the overdue physical-device route/benchmark persistence smoke.
 - [x] Resolve the locale-dependent calendar-test baseline; full suite is 376/376 green.
-- [ ] Confirm build 31 is unused, then bump all six configurations to 1.1.6 (31) and update release notes.
-- [ ] Run physical-device guest/auth/onboarding and route-persistence QA; archive inspection follows after versioning.
+- [x] Founder confirmed build 31 is unused; all six configurations are set to 1.1.6 (31), and release notes already carry the approved 1.1.6 copy.
+- [x] Verify the versioned candidate: 377/377 tests, Release simulator launch, full guest preview flow, arm64 device Release compilation, matching app/extension 1.1.6 (31), required configuration/dSYMs present, and no stray release artifacts.
+- [ ] Run physical-device guest/auth/onboarding and route-persistence QA before upload; inspect the signed Organizer archive before approval.
 - [ ] Upload only after the final archive is explicitly approved; submit separately after metadata/build confirmation.
 - [ ] After release: validate guest event ordering and identity join, then read effectiveness only at the stated sample gates.
 
