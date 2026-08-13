@@ -62,6 +62,29 @@ final class EmailSignInModel: ObservableObject {
         self.gateway = gateway
     }
 
+    /// Opts this type out of isolated deinit, which crashes the test host.
+    ///
+    /// `@MainActor` on a class gives it an isolated deinit, so the final release
+    /// routes through `swift_task_deinitOnExecutor`. With
+    /// `IPHONEOS_DEPLOYMENT_TARGET = 17.0` that goes via the back-deployment
+    /// shim, and on the x86_64 simulator (Xcode 26.5 / Swift 6.3.2) it aborts
+    /// inside `libsystem_malloc`:
+    ///
+    ///     malloc_report → swift_task_deinitOnExecutorImpl
+    ///       → swift_task_deinitOnExecutorMainActorBackDeploy
+    ///       → EmailSignInModel.__deallocating_deinit
+    ///
+    /// It only fires when the last reference dies in a *synchronous* context,
+    /// which is why the two synchronous tests that own a model
+    /// (`testSubmitIsBlockedUntilBothFieldsAreUsable`,
+    /// `testSwitchingModeClearsAStaleErrorAndLeavesConfirmation`) took the whole
+    /// host process down while the six `async` tests in the same file passed.
+    ///
+    /// Nothing here needs main-actor isolation to tear down — the deinit only
+    /// releases stored properties — so opting out is safe rather than a
+    /// workaround that defers a real problem.
+    nonisolated deinit {}
+
     /// Addresses are trimmed and lowercased before they leave the device.
     /// Supabase treats addresses case-insensitively, but a stray capital or a
     /// trailing space pasted from a password manager otherwise reads to the
