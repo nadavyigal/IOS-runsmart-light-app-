@@ -1,3 +1,24 @@
+## 2026-08-13 — 1.1.6 (31) packaged; the archive and upload are the founder's, and always were
+
+**Version bumped 1.1.5 → 1.1.6 and build 30 → 31**, six of each in `project.pbxproj`, zero stale. Release notes rewritten. This is a **release candidate, not a release**: nothing has been archived, signed, or uploaded.
+
+**Why this stops here.** The packaging ran in a Linux cloud agent with no `xcodebuild`, no `xcrun`, no `swift`, no `fastlane`, no macOS, no simulator, no signing certificates and no App Store Connect credentials. The repo has no `.github/workflows`, so there is no CI path either. Every prior RunSmart release has ended the same way — the founder archives and uploads from a Mac — and this one is no different. Recording it explicitly because four separate releases in this project went unrecorded while everyone assumed someone else had done the last step.
+
+**What 1.1.6 actually carries, and what it does not claim.** Three merges since 1.1.5 shipped at `60f1d82`: **#129** (Supabase registration return path — Universal Link and custom-scheme callback, the only user-visible change), **#130** (`is_internal_tester`, analytics only), **#131** (`nonisolated deinit` on `EmailSignInModel`, a test-host crash fix). The release notes name only the registration return. **#130 and #131 are invisible to users and the store copy does not pretend otherwise** — the same discipline applied to 1.1.5, whose notes correctly did not claim the sign-in fix that was really a server-side `mailer_autoconfirm` flip.
+
+**Two things are unverified and must not be recorded as done.** The `EmailSignInTests` result on merged `main` has **not** been re-run since #131 landed — it was verified on the PR branch (15 passed / 0 failures) and the merge was clean, but that is inference, not a run. And `is_internal_tester` has never been observed in PostHog from a compiled binary; it has only ever been asserted in unit tests. **The check that closes S5 is confirming the flag is non-null on an autocaptured event (`Application Opened`) after 1.1.6 is on a device**, plus on the person once identified. If the autocaptured half is null, the `register()` mechanism did not take and the exclusion still leaks — which is the entire failure mode the design was built to avoid.
+
+**Open decision that is not blocking this build:** [#132](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/132) (`activation: observe first resolved app frame`) is open and CLEAN. If it is not merged before the archive, the activation instrumentation ships split across two builds, and the first-frame event will not be readable until whatever follows 1.1.6.
+
+**Status:** **1.1.6 (31) packaged on `cursor/release-1.1.6-31-b0b1`. Not archived, not uploaded, not submitted.** 1.1.5 (30) remains the live public version, released 2026-08-05T16:26:37Z.
+**Current Phase:** Release candidate awaiting a founder archive + upload from a Mac.
+**Active Story:** Ship 1.1.6 (31).
+**Last Completed Story:** #131 — the `EmailSignInModel` isolated-deinit crash diagnosed and fixed.
+**Next Recommended Story:** (1) **Founder: run `EmailSignInTests` locally on merged `main`** and confirm 15 passed / 0 failures; this is the only outstanding verification of #131. (2) **Decide on #132 before archiving** — merging it first keeps the activation instrumentation in one build. (3) **Founder: archive and upload 1.1.6 (31)**, via `fastlane release` or Xcode. (4) **Once 1.1.6 is on a device, verify `is_internal_tester` in PostHog 171597** on an autocaptured event and on the person — this is what closes S5, and no unit test can substitute for it. (5) Re-run the T+1 the moment a non-founder event lands. (6) The owed physical-device route smoke, now four releases stale.
+**Blockers:** Founder archive + upload. Nothing in the repo blocks it.
+**Last Validation:** 2026-08-13 — `project.pbxproj` verified at `MARKETING_VERSION 1.1.6` / `CURRENT_PROJECT_VERSION 31`, 6 of each, 0 stale. Toolchain absence confirmed directly (`xcodebuild`, `xcrun`, `swift`, `fastlane` all missing; `uname` reports Linux), so no build or test was run in this session and none is claimed.
+**Last Updated:** 2026-08-13
+
 ## 2026-08-13 — `is_internal_tester` now exists on RunSmart, as an event property *and* a person property
 
 **S5 of the activation-cliff plan, and the item the 2026-08-06 T+1 raised in passing.** That check found the founder's own pre-release session carrying `is_internal_tester = null`: RunSmart had no such property at all, so team sessions were excludable only by behavioural heuristics and every activation number on project 171597 inherited the error. Resumely closed the equivalent gap in iOS PRs #137/#138; this is the RunSmart version, and it is deliberately **not** a copy of Resumely's code shape.

@@ -2,6 +2,20 @@
 
 ## Current Task
 
+**Objective:** Ship 1.1.6 (31), carrying the registration return path (#129), `is_internal_tester` (#130), and the `EmailSignInModel` deinit crash fix (#131).
+**Status:** **Packaged on `cursor/release-1.1.6-31-b0b1`; not archived, not uploaded.** Version and build bumped six of each with zero stale, release notes rewritten. The remaining steps need a Mac and cannot be done from a Linux cloud agent.
+**Source:** Founder request 2026-08-13.
+
+### Checklist
+- [x] Bump `MARKETING_VERSION` 1.1.5 → 1.1.6 and `CURRENT_PROJECT_VERSION` 30 → 31 across all six target configurations.
+- [x] Rewrite App Store release notes, naming only the user-visible change (#129) and not the invisible ones (#130, #131).
+- [ ] **Founder, on a Mac:** run `EmailSignInTests` on merged `main` and confirm 15 passed / 0 failures. This is the only outstanding verification of #131.
+- [ ] **Decide on #132 before archiving.** Merging it first keeps the activation instrumentation in a single build.
+- [ ] **Founder, on a Mac:** archive and upload 1.1.6 (31) — `fastlane release`, or Xcode archive → App Store Connect.
+- [ ] **After 1.1.6 is on a device:** verify `is_internal_tester` in PostHog 171597 on an autocaptured event (`Application Opened`) and on the person once identified. This closes S5; unit tests cannot.
+
+## Previous Current Task
+
 **Objective:** Activation-cliff plan S5 — give RunSmart an `is_internal_tester` flag as both an event property and a person property, so founder and QA sessions are excludable at person level.
 **Status:** **Implemented and tested on `claude/analytics-internal-tester`; PR open.** Analytics only: two analytics files plus tests. No version bump and no release — it rides along in whatever ships next.
 **Source:** `docs/plans/2026-07-19-activation-cliff-fix-plan.md` line 100 (S5), re-raised by the 2026-08-06 T+1 check. Reference: Resumely iOS PRs #137/#138.

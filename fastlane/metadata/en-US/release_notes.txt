@@ -1,6 +1,6 @@
-RunSmart 1.1.5 improves email sign-in reliability.
+RunSmart 1.1.6 fixes the last gap in creating an account by email.
 
 What's new:
-- Clearer handling when an account is created but still needs email confirmation
-- More precise diagnostics when sign-in can't complete, so problems get fixed faster
+- Confirming your email now brings you straight back into RunSmart, signed in
+- Fewer dead ends when returning from the confirmation link
 - Stability and performance improvements
