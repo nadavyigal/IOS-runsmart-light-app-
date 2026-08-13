@@ -6,13 +6,13 @@
 
 **This does not open WP-61b.** Guest/value-before-account remains blocked until the saved session-scoped launch funnel has n≥10 genuine users at every launch→wall step.
 
-**Status:** Complete locally on `codex/runsmart-activation-entry`. Analytics-only, no UI/auth/onboarding/permission/guest-mode/version/release change.
+**Status:** Merged in PR #132 (`f5fb7c7`). Analytics-only, no UI/auth/onboarding/permission/guest-mode/version/release change. The Agentic OS birthday ledger records 2026-08-13 as the implementation date and keeps production first-seen pending.
 **Current Phase:** Post-release watch on live 1.1.5 (30); build the WP-61a measurement foundation for the next release.
-**Active Story:** WP-61a Story 1 — PR handoff pending.
+**Active Story:** WP-61a Story 2 — pre-auth and permission-prompt coverage, not started in this slice.
 **Last Completed Story:** First resolved activation-frame event and route attribution.
-**Next Recommended Story:** Land this story, then complete WP-61a permission/prompt coverage. Do not open WP-61b until n≥10 exists at every launch→wall step.
+**Next Recommended Story:** Complete WP-61a permission/prompt coverage. Do not open WP-61b until n≥10 exists at every launch→wall step.
 **Blockers:** Effectiveness is data-gated on a released build carrying the event and external traffic.
-**Last Validation:** 2026-08-13 — red compile failure proved the missing tracker; focused 2/2 passed after the final overlay/analytics guards. Full suite: 362 passed / 1 failed; the sole failure, `testPlanWeeksGroupByCalendarWeekAndTotalDistance`, reproduced identically on untouched `origin/main` because the runtime formatted Hebrew while the test expected English. Build/install/launch smoke succeeded and the signed-out wall rendered with Apple and email entry points.
+**Last Validation:** 2026-08-13 — red compile failure proved the missing tracker; focused 2/2 passed after the final overlay/analytics guards. Full suite: 362 passed / 1 failed; the sole failure, `testPlanWeeksGroupByCalendarWeekAndTotalDistance`, reproduced identically on untouched `origin/main` because the runtime formatted Hebrew while the test expected English. Build/install/launch smoke succeeded and the signed-out wall rendered with Apple and email entry points. Review then caught a 0.32-second launch-fade timing edge; commit `bfdde5b` fixed it, focused 2/2 passed again, and the final simulator app build exited 0 before merge.
 **Last Updated:** 2026-08-13
 
 ## 2026-08-13 — `is_internal_tester` now exists on RunSmart, as an event property *and* a person property
