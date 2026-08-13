@@ -85,6 +85,42 @@ extension Analytics {
         ])
     }
 
+    // MARK: - Guest value before auth (RunSmart 1.1.6)
+
+    static func trackGuestModeStarted(source: String = "sign_in_wall") {
+        shared.track("guest_mode_started", properties: ["source": source])
+    }
+
+    static func trackGuestProfileCompleted(goal: String, experience: String, daysPerWeek: Int) {
+        shared.track("guest_profile_completed", properties: [
+            "goal": goal,
+            "experience": experience,
+            "days_per_week": daysPerWeek
+        ])
+    }
+
+    static func trackGuestPlanPreviewViewed(
+        goal: String,
+        experience: String,
+        daysPerWeek: Int,
+        firstWorkoutType: String
+    ) {
+        shared.track("guest_plan_preview_viewed", properties: [
+            "goal": goal,
+            "experience": experience,
+            "days_per_week": daysPerWeek,
+            "first_workout_type": firstWorkoutType
+        ])
+    }
+
+    static func trackGuestSignInPrompted(source: String) {
+        shared.track("guest_sign_in_prompted", properties: ["source": source])
+    }
+
+    static func trackGuestAuthenticatedUpgrade() {
+        shared.track("guest_authenticated_upgrade", properties: [:])
+    }
+
     /// - Parameter mode: which branch of the email surface produced the session.
     ///   `nil` for the Apple path. Without it, sign-ins and sign-ups land in one
     ///   undifferentiated bucket and the funnel cannot be closed.

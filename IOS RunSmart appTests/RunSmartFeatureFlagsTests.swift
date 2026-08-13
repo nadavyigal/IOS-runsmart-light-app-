@@ -27,4 +27,19 @@ final class RunSmartFeatureFlagsTests: XCTestCase {
             processArguments: ["-RUNSMART_ADAPTIVE_COACH"]
         ))
     }
+
+    func testGuestModeDefaultsOffAndCanShipOnFromPlist() {
+        XCTAssertFalse(RunSmartFeatureFlags.guestModeEnabled(infoDictionary: [:], processArguments: []))
+        XCTAssertTrue(RunSmartFeatureFlags.guestModeEnabled(
+            infoDictionary: ["RUNSMART_GUEST_MODE_ENABLED": "YES"],
+            processArguments: []
+        ))
+    }
+
+    func testGuestModeQAArgumentEnablesIt() {
+        XCTAssertTrue(RunSmartFeatureFlags.guestModeEnabled(
+            infoDictionary: [:],
+            processArguments: ["-RUNSMART_GUEST_MODE"]
+        ))
+    }
 }

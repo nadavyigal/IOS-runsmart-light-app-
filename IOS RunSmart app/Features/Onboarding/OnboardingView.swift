@@ -21,9 +21,9 @@ struct OnboardingView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var profile: OnboardingProfile
-    @State private var step = 0
+    @State private var step: Int
     @State private var stepEnteredAt = Date()
-    @State private var maxCompletedStep = -1
+    @State private var maxCompletedStep: Int
     @State private var healthKitStatus: ConnectedDeviceStatus?
     @State private var isConnectingHealthKit = false
     @State private var healthKitFailureMessage: String?
@@ -60,8 +60,15 @@ struct OnboardingView: View {
     // and the funnel names can't drift apart.
     private var stepCount: Int { Self.analyticsStepNames.count }
 
-    init(initialProfile: OnboardingProfile, onComplete: @escaping (OnboardingProfile) -> Void) {
+    init(
+        initialProfile: OnboardingProfile,
+        initialStep: Int = 0,
+        onComplete: @escaping (OnboardingProfile) -> Void
+    ) {
+        let safeInitialStep = min(max(initialStep, 0), Self.analyticsStepNames.count - 1)
         _profile = State(initialValue: initialProfile)
+        _step = State(initialValue: safeInitialStep)
+        _maxCompletedStep = State(initialValue: safeInitialStep - 1)
         self.onComplete = onComplete
     }
 
@@ -364,7 +371,7 @@ struct OnboardingView: View {
     }
 }
 
-private struct OnboardingStepShell<Content: View>: View {
+struct OnboardingStepShell<Content: View>: View {
     var title: String
     var subtitle: String
     var symbol: String
@@ -403,7 +410,7 @@ private struct OnboardingStepShell<Content: View>: View {
     }
 }
 
-private struct OnboardingChoiceGrid: View {
+struct OnboardingChoiceGrid: View {
     var options: [String]
     @Binding var selection: String
 
@@ -425,7 +432,7 @@ private struct OnboardingChoiceGrid: View {
     }
 }
 
-private struct OnboardingPrimaryButton: View {
+struct OnboardingPrimaryButton: View {
     var title: String
     var symbol: String
     var isEnabled: Bool = true
@@ -440,4 +447,3 @@ private struct OnboardingPrimaryButton: View {
         .opacity(isEnabled ? 1 : 0.45)
     }
 }
-

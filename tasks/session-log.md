@@ -1,5 +1,29 @@
 # Session Log
 
+## 2026-08-13 — Guest mode and value before auth added to the 1.1.6 candidate
+
+### Outcome
+Implemented a reversible guest journey for signed-out runners: goal, experience, schedule, a deterministic local Week 1 preview, and the first recommended run before authentication. No backend account or OS permission is created/requested in guest mode. The preview and answers persist locally across relaunch. The save/unlock CTA returns to Apple/email authentication, preserves guest answers for a new account starting at Coaching, and clears guest state only once an account has completed onboarding. Existing completed accounts continue to the main app.
+
+Added stable guest funnel events and a `guest_value` first-frame route. Updated the auth wall so an existing preview produces upgrade-specific copy and cannot accidentally restart the guest journey. The feature ships ON in 1.1.6 through `RUNSMART_GUEST_MODE_ENABLED`; setting it to NO restores account-first entry. The founder's instruction is recorded as an explicit override of WP-61b's former minimum-sample opening gate, while the post-release effectiveness standard remains unchanged.
+
+### Verification
+Red-first focused coverage established missing guest/flag contracts. Final focused selection passed 12/12. The full simulator suite passed 376/376 with zero failures/skips after fixing the old locale baseline so plan-week labels use the calendar supplied to the model. Interactive iPhone 17 QA completed guest CTA → goal → experience → schedule → preview → save/unlock wall → Back to preview, then terminated/relaunched and restored the same preview. Clean Release simulator build succeeded; the built app remained intentionally 1.1.5 (30), carried guest flag YES, matched the extension version/build, included required configuration without exposing values, and bundled no diagnostics/plans. Six known pre-existing warnings remain. Short-screen simulator QA confirmed the scroll fallback reaches email and legal controls while the guest CTA remains visible.
+
+### Scope and next action
+Amended the 1.1.6 release plan and App Store notes. WP-61a Stories 5–6 are deferred; no other feature scope is admitted. Resumely 1.4.9 and App Store Connect review state were untouched. Finish Release build inspection, push/update draft PR #136, then perform the physical-device guest/auth/onboarding and route-persistence smokes before versioning/archive. Build 31 must be confirmed unused in ASC first.
+
+## 2026-08-13 — RunSmart 1.1.6 release planning
+
+### Outcome
+Inventoried every merged change after public 1.1.5 (30) and drafted the executable 1.1.6 release plan. The proposed release carries native auth return, email-model stability, internal-traffic classification, first-visible-frame tracking, and WP-61a pre-auth/permission/wall coverage. Target build 31 is provisional until checked in ASC.
+
+### Evidence
+The candidate is based on clean `origin/main`, not the primary checkout's older dirty auth branch. The live canonical AASA serves the shipped bundle identity and callback paths. Recent exact-main validation remains 368 passes plus one reproduced locale-dependent baseline. A clean Release baseline build also succeeded: app and Live Activity extension resolved to 1.1.5 (30), required analytics/backend values were present without printing them, and six pre-existing warnings were recorded for cleanup or explicit acceptance before archive.
+
+### Scope and next action
+No version/build, release notes, code, archive, upload, ASC state, production setting, or Resumely state changed. Decide whether to finish WP-61a Stories 5–6, close the redirect/route-smoke/test-baseline gates, then execute the packaging checklist in the release plan.
+
 ## 2026-08-13 — WP-61a Stories 2–3: pre-auth/permission coverage and guaranteed wall reach
 
 ### Outcome

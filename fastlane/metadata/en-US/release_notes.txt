@@ -1,6 +1,8 @@
-RunSmart 1.1.5 improves email sign-in reliability.
+RunSmart 1.1.6 helps you see your first week before creating an account.
 
 What's new:
-- Clearer handling when an account is created but still needs email confirmation
-- More precise diagnostics when sign-in can't complete, so problems get fixed faster
-- Stability and performance improvements
+- Build a personalized Week 1 running preview as a guest
+- See your first recommended run before signing in
+- Save your answers and unlock the full adaptive plan when you're ready
+- More reliable account-link return and email sign-in
+- General reliability and performance improvements

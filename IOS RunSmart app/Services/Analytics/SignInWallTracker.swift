@@ -82,6 +82,13 @@ final class SignInWallTracker {
         Analytics.trackSignInWallTapped()
     }
 
+    /// Leaving the account wall for the local value preview is an intentional
+    /// progression, not an abandonment and not a sign-in attempt.
+    func guestModeTapped() {
+        didAttemptSignIn = true
+        Analytics.trackPreAuthScreenDismissed(.signInWall)
+    }
+
     func appDidEnterBackground() {
         defer {
             if viewedAt != nil { appPhase = .background }
