@@ -8,8 +8,8 @@
 
 **Archive versus upload gate:** command-line signed compilation reached `codesign` but macOS waited for interactive Keychain access. Xcode Organizer should therefore create the signed archive and its distribution signature must be inspected there. Physical-device guest/auth/onboarding and route/benchmark persistence remain mandatory before upload/submission, not before archive creation. Six pre-existing warnings are explicitly deferred: five actor-isolation warnings and one deprecated `HKWorkout` initializer.
 
-**Status:** Archive-ready candidate; release branch still needs commit/review/merge to `main`.
-**Current Phase:** Land the version/build memory commit, then founder archives from exact `main` in Xcode.
+**Status:** Archive-ready on `main`; PR #137 merged the release-code candidate as `69d4638`.
+**Current Phase:** Founder archives from current `main` in Xcode, then inspects the signed archive and completes device gates before upload.
 **Active Story:** RunSmart 1.1.6 (31) release packaging.
 **Next Recommended Story:** Inspect the Organizer archive, complete physical-device QA, then approve upload separately.
 **Blockers:** None for archive creation. Signed archive inspection and physical-device QA block upload/submission.
