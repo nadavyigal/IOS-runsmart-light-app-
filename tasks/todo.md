@@ -3,7 +3,7 @@
 ## Current Task
 
 **Objective:** Ship RunSmart 1.1.6 with guest mode/value before auth plus every merged reliability and activation-observability improvement since public 1.1.5.
-**Status:** PR #136 is merged. The founder confirmed build 31 is unused and the Supabase callback is allowlisted. Release branch `codex/runsmart-1.1.6-build31` is versioned to 1.1.6 (31) and has passed the full suite, Release builds, bundle inspection, and guest-value simulator smoke. It is ready to land and archive in Xcode; upload and submission have not started.
+**Status:** Archive-ready on `main`. PR #137 merged the verified 1.1.6 (31) release-code candidate as `69d4638`; the founder confirmed build 31 is unused and the Supabase callback is allowlisted. Upload and submission have not started.
 **Source:** Founder execution direction 2026-08-13; `docs/plans/2026-08-13-runsmart-guest-value-before-auth-spec.md`; amended 1.1.6 release plan; Agentic OS WP-61a/WP-61b.
 
 ### Checklist

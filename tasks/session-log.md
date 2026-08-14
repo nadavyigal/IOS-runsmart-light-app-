@@ -13,6 +13,8 @@ Bundle inspection confirmed app `com.runsmart.lite` and Live Activity extension 
 ### Archive handoff
 A signed command-line device build compiled successfully but paused at `codesign` for interactive macOS Keychain access. It was stopped without changing credentials; the same arm64 device target then passed unsigned. Create the signed archive in Xcode Organizer, inspect version/build, entitlements, `get-task-allow=false`, dSYMs, and bundle contents, then complete physical-device guest/auth/onboarding and route-persistence QA before any upload. No archive, upload, submission, or production mutation was performed.
 
+PR #137 merged the release-code candidate to `main` as `69d4638b29f1b4a89a25fffd34e14e69d4bc8d98`. Archive from current `main`; later documentation-only handoff changes do not alter the built product.
+
 ## 2026-08-13 — Guest mode and value before auth added to the 1.1.6 candidate
 
 ### Outcome
