@@ -1,3 +1,24 @@
+## 2026-08-15 — 1.1.6 is LIVE; the archive on this Mac is non-distributable and both device gates are still unrun
+
+**1.1.6 is public.** Cache-busted Apple lookup: `com.runsmart.lite`, version **1.1.6**, released **2026-08-14T20:22:53Z**, track id `6768297840`. The 2026-08-14 entry below ("Archive-ready on `main`... physical-device QA block upload/submission") was overtaken by the release the same day. No commit in this repo records the archive being validated, the upload occurring, or the device gates being cleared or waived.
+
+**The signed-archive gate FAILED on the only archive present.** `~/Library/Developer/Xcode/Archives/2026-08-14/IOS RunSmart app 14-08-2026, 7.26.xcarchive` is `1.1.6 (31)`, `com.runsmart.lite`, team `8VC4R5M425`, arm64 — but it is signed `Apple Development: Nadav Yigal (V2D7D57MXR)` and its entitlements carry `get-task-allow=true`. That is a debuggable development build; App Store Connect rejects it on upload. **This archive cannot be what shipped.** The same trap blocked Resumely 1.4.2 on 2026-07-15 with the identical identity string.
+
+**Therefore the live build number is NOT verified.** "1.1.6 is live" is store-verified; "1.1.6 (31) is live" is an inference. Apple does not expose build numbers, and no post-release event carries one. Read it off App Store Connect.
+
+**Physical-device QA is BLOCKED, not failed.** `xcrun xctrace list devices` reports both iPhones offline (`Nadav.Yigal's iPhone (26.6)`, `iPhone (77) (18.7.8)`). Neither mandatory smoke could be attempted: the guest/auth/onboarding walk on the #136 value-before-auth path, and the overdue route/benchmark persistence smoke. Both were pre-upload gates; they are now post-release verification on a live binary, where a failure means a hotfix rather than a held submission.
+
+**Post-release telemetry is zero.** PostHog project 171597, fingerprinted before reading. In the 8.9 hours since release: 5 events from 1 person, all on 1.1.5. **Zero 1.1.6 events.** Every 1.1.6 event in the project (26 events, 3 people, 2026-08-13T20:43 to 2026-08-14T04:43) predates the public release and is TestFlight traffic. n=0, so the ordered launch-to-wall funnel has nothing to read and D7 is not reachable before **2026-08-21 20:22Z**.
+
+**Status:** 1.1.6 public since 2026-08-14T20:22:53Z, build unverified. Two device gates outstanding against the live binary.
+**Current Phase:** Post-release verification. Confirm the live build in App Store Connect, then run both device smokes when a device is available.
+**Active Story:** None open. Three follow-up packets are drafted closed with explicit gates (vault note `2026-08-15-weekly-measurement-contracts-and-gated-packets`).
+**Last Completed Story:** RunSmart 1.1.6 release packaging and its post-release state reconciliation.
+**Next Recommended Story:** Read the live build number off ASC (founder-only; gates the exact-build cohort contract), then run the guest/auth/onboarding and route/benchmark smokes on hardware.
+**Blockers:** No physical device connected. Live build number unknown. No Apple Distribution identity present on this Mac, so the next archive would hit the same failure.
+**Last Validation:** 2026-08-15 — Apple lookup confirms 1.1.6 public; `codesign -dvvv` on the local archive returns `Authority=Apple Development` with `get-task-allow=true`; `xctrace` reports both devices offline; PostHog post-release window returns 0 events on 1.1.6.
+**Last Updated:** 2026-08-15
+
 ## 2026-08-14 (Asia/Jerusalem) — RunSmart 1.1.6 (31) candidate verified for archive
 
 **The versioned candidate is ready to land and archive interactively in Xcode.** PR #136 is merged at `e910a5c`; the isolated release branch is 1.1.6 (31), and founder portal evidence confirms build 31 is unused and the canonical Supabase callback is covered by `https://www.runsmart-ai.com/**`.
