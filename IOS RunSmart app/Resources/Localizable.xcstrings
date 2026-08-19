@@ -142,6 +142,9 @@
     "Active" : {
 
     },
+    "ADAPTIVE COACH" : {
+
+    },
     "Adaptive. Motivating. Data-driven." : {
 
     },
@@ -201,6 +204,9 @@
     "Ask Coach anything..." : {
 
     },
+    "At least %lld characters." : {
+
+    },
     "Auth provider" : {
 
     },
@@ -208,6 +214,9 @@
 
     },
     "Back" : {
+
+    },
+    "Back to sign in" : {
 
     },
     "Badges are designed for shareable moments and long-term motivation." : {
@@ -226,6 +235,9 @@
 
     },
     "By continuing you agree to our" : {
+
+    },
+    "Can't use Sign in with Apple? Use your email instead." : {
 
     },
     "Cancel" : {
@@ -297,7 +309,13 @@
     "Confirm only if this rewrite matches what you need. Every change includes Coach's rationale." : {
 
     },
+    "Confirm your email" : {
+
+    },
     "Continue" : {
+
+    },
+    "Continue with email" : {
 
     },
     "Continue without connecting" : {
@@ -383,6 +401,9 @@
         }
       }
     },
+    "Details" : {
+
+    },
     "Discard this workout?" : {
 
     },
@@ -390,6 +411,9 @@
 
     },
     "Disconnect %@" : {
+
+    },
+    "Dismiss adaptive coach suggestion" : {
 
     },
     "Distance" : {
@@ -668,6 +692,9 @@
     "Member since" : {
 
     },
+    "Mode" : {
+
+    },
     "Modify" : {
 
     },
@@ -725,6 +752,9 @@
     "No Route Available" : {
 
     },
+    "No Route Selected" : {
+
+    },
     "No scheduled workouts found for this month." : {
 
     },
@@ -753,6 +783,9 @@
 
     },
     "NOTES" : {
+
+    },
+    "Nothing changes until you approve it" : {
 
     },
     "Now: rehydrate and refuel with a light snack." : {
@@ -796,6 +829,9 @@
       }
     },
     "Pacing intent" : {
+
+    },
+    "Password" : {
 
     },
     "Permanently delete your account, training plans, run history, and all personal data from RunSmart. This cannot be undone." : {
@@ -884,6 +920,9 @@
     "Returns to the run tab and keeps this saved activity." : {
 
     },
+    "Review adjusted week" : {
+
+    },
     "Review Changes" : {
 
     },
@@ -891,6 +930,9 @@
 
     },
     "Route" : {
+
+    },
+    "Route details for %@" : {
 
     },
     "Route for Today" : {
@@ -1274,6 +1316,9 @@
 
     },
     "Your first run is ready" : {
+
+    },
+    "Your plan and runs sync to this account, so they survive a reinstall." : {
 
     },
     "Your week is updated" : {
