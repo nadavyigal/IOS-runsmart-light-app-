@@ -1532,12 +1532,15 @@ struct WellnessTrendSeries: Hashable {
     var latestHRVSource: HRVSource = .unknown
     var latestReadinessDisplay: String
 
+    /// The panel itself explains *why* a window is empty and how far along it is
+    /// (see WellnessTrendPanel.progressNote), so these summaries stay neutral rather
+    /// than repeating "Need more synced days" directly above that note.
     static let empty = WellnessTrendSeries(
         days: [],
         hrvBars: [],
         readinessBars: [],
-        hrvTrendSummary: "Need more synced days",
-        readinessTrendSummary: "Need more synced days",
+        hrvTrendSummary: "No synced days yet",
+        readinessTrendSummary: "No synced days yet",
         latestHRVDisplay: "--",
         latestHRVSource: .unknown,
         latestReadinessDisplay: "--"

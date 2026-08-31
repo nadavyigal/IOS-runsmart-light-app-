@@ -1,6 +1,10 @@
 import SwiftUI
 
 struct WellnessTrendsView: View {
+    /// Single source for the trend window: the fetch, and the "day N of M" note.
+    /// The panel titles keep the literal "(7-day)" so their string-catalog keys stay stable.
+    static let trendWindowDays = 7
+
     @Environment(\.runSmartServices) private var services
     @State private var recovery: RecoverySnapshot = .loading
     @State private var wellness: WellnessSnapshot = .empty
@@ -47,14 +51,18 @@ struct WellnessTrendsView: View {
                 value: trends.latestHRVDisplay,
                 summary: trends.hrvTrendSummary,
                 bars: trends.hrvBars,
-                tint: .accentHeart
+                tint: .accentHeart,
+                garminConnected: garminConnected,
+                windowDays: Self.trendWindowDays
             )
             WellnessTrendPanel(
                 title: "Training Readiness (7-day)",
                 value: trends.latestReadinessDisplay,
                 summary: trends.readinessTrendSummary,
                 bars: trends.readinessBars,
-                tint: .accentPrimary
+                tint: .accentPrimary,
+                garminConnected: garminConnected,
+                windowDays: Self.trendWindowDays
             )
 
             // Garmin API Brand Guidelines (Health): approved attribution line for derived insights.
@@ -68,7 +76,7 @@ struct WellnessTrendsView: View {
         .task {
             async let recoveryTask = services.recoverySnapshot()
             async let wellnessTask = services.wellnessSnapshot()
-            async let trendTask = services.wellnessTrendSeries(days: 7)
+            async let trendTask = services.wellnessTrendSeries(days: Self.trendWindowDays)
             async let statusTask = services.deviceStatuses()
             let statuses = await statusTask
             (recovery, wellness, trends) = await (recoveryTask, wellnessTask, trendTask)
@@ -89,6 +97,40 @@ private struct WellnessTrendPanel: View {
     var summary: String
     var bars: [CGFloat]
     var tint: Color
+    var garminConnected: Bool
+    var windowDays: Int
+
+    private var showsProgressNote: Bool {
+        bars.isEmpty || bars.count < windowDays
+    }
+
+    /// Garmin's partner APIs only deliver data recorded *after* the user connects
+    /// (Garmin policy, November 2025) — there is no historical backfill. A runner who
+    /// connects today therefore sees an empty trend for a week. Say so plainly, with
+    /// the day count, so a filling window does not read as a broken feature.
+    /// Each branch keeps a literal `Text` so SwiftUI still extracts it into
+    /// Localizable.xcstrings; a computed String would silently bypass the catalog.
+    @ViewBuilder
+    private var progressNote: some View {
+        if !garminConnected {
+            Text("Connect a Garmin device to start this \(windowDays)-day trend.")
+        } else if bars.isEmpty {
+            Text("Garmin sends data from the day you connect, so this starts empty. Your first reading appears after the next sync.")
+        } else {
+            Text("Day \(bars.count) of \(windowDays) — this fills in as you sync.")
+        }
+    }
+
+    /// Mirrors `progressNote` for VoiceOver, which reads the combined element.
+    private var progressNoteAccessibilityText: String {
+        if !garminConnected {
+            return String(localized: "Connect a Garmin device to start this \(windowDays)-day trend.")
+        }
+        if bars.isEmpty {
+            return String(localized: "Garmin sends data from the day you connect, so this starts empty. Your first reading appears after the next sync.")
+        }
+        return String(localized: "Day \(bars.count) of \(windowDays) — this fills in as you sync.")
+    }
 
     var body: some View {
         ContentCard {
@@ -105,16 +147,21 @@ private struct WellnessTrendPanel: View {
                 Text(summary)
                     .font(.caption)
                     .foregroundStyle(Color.textSecondary)
-                if bars.isEmpty {
-                    Text("Need more synced days")
+                if !bars.isEmpty {
+                    MetricBars(values: bars, tint: tint)
+                }
+                if showsProgressNote {
+                    progressNote
                         .font(.caption)
                         .foregroundStyle(Color.textTertiary)
-                } else {
-                    MetricBars(values: bars, tint: tint)
                 }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(title), \(value), \(summary)")
+            .accessibilityLabel(
+                showsProgressNote
+                    ? "\(title), \(value), \(summary), \(progressNoteAccessibilityText)"
+                    : "\(title), \(value), \(summary)"
+            )
         }
     }
 }
