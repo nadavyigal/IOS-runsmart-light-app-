@@ -84,4 +84,89 @@ final class TrainingLoadCalculatorTests: XCTestCase {
         let withStaleRun = TrainingLoadCalculator.snapshot(runs: runs, now: now, calendar: calendar)
         XCTAssertEqual(withStaleRun, baseline)
     }
+
+    // MARK: - Daily series (Training Load timeline, Story 1)
+
+    /// Every 2nd day for four weeks; same fixture as the optimal-band test above.
+    private var everyOtherDayRuns: [RecordedRun] {
+        (0..<28).compactMap { day -> RecordedRun? in
+            day % 2 == 0 ? run(daysAgo: day, minutes: 40, rpe: 5) : nil
+        }
+    }
+
+    func testSeriesReturnsOnePointPerDayOldestFirst() {
+        let series = TrainingLoadCalculator.series(runs: everyOtherDayRuns, days: 28, now: now, calendar: calendar)
+        XCTAssertEqual(series.count, 28)
+        XCTAssertEqual(series.map(\.date), series.map(\.date).sorted())
+        XCTAssertEqual(series.last?.date, calendar.startOfDay(for: now))
+        XCTAssertEqual(
+            series.first?.date,
+            calendar.date(byAdding: .day, value: -27, to: calendar.startOfDay(for: now))
+        )
+    }
+
+    /// The invariant that keeps the chart honest: its final point is the same
+    /// number the headline shows.
+    func testSeriesFinalPointMatchesTheCurrentSnapshot() throws {
+        let runs = everyOtherDayRuns
+        let series = TrainingLoadCalculator.series(runs: runs, days: 28, now: now, calendar: calendar)
+        let snapshot = TrainingLoadCalculator.snapshot(runs: runs, now: now, calendar: calendar)
+        let last = try XCTUnwrap(series.last)
+        XCTAssertEqual(last.acuteLoad, snapshot.acuteLoad, accuracy: 0.001)
+        XCTAssertEqual(last.chronicLoad, snapshot.chronicLoad, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(last.acwr), try XCTUnwrap(snapshot.acwr), accuracy: 0.001)
+        XCTAssertEqual(last.status, snapshot.status)
+    }
+
+    func testSeriesAcuteLoadFallsAcrossARestGap() {
+        // Trained hard three weeks ago, then stopped: acute load peaks while
+        // those runs sit inside the sliding 7-day window, then decays to zero
+        // once the window has moved past all of them.
+        //
+        // Note the peak is mid-series, not at `first`: the oldest point sees
+        // only one run inside its own trailing 28-day window, so it is
+        // correctly .insufficientData with zero load.
+        let runs = (21..<28).map { run(daysAgo: $0, minutes: 60, rpe: 8) }
+        let series = TrainingLoadCalculator.series(runs: runs, days: 28, now: now, calendar: calendar)
+
+        XCTAssertGreaterThan(series.map(\.acuteLoad).max() ?? 0, 0)
+        XCTAssertEqual(series.last?.acuteLoad ?? -1, 0, accuracy: 0.001)
+        // Chronic load still remembers the block, so the ratio reads as detraining.
+        XCTAssertEqual(series.last?.status, .detraining)
+    }
+
+    func testSeriesIsInsufficientDataForEveryDayWhenTooFewRuns() {
+        let series = TrainingLoadCalculator.series(
+            runs: [run(daysAgo: 1, minutes: 40, rpe: 5), run(daysAgo: 9, minutes: 40, rpe: 5)],
+            days: 28,
+            now: now,
+            calendar: calendar
+        )
+        XCTAssertEqual(series.count, 28)
+        XCTAssertTrue(series.allSatisfy { $0.status == .insufficientData })
+        XCTAssertTrue(series.allSatisfy { $0.acwr == nil })
+    }
+
+    func testSeriesIgnoresRunsOutsideEachDaysTrailingWindow() {
+        var runs = everyOtherDayRuns
+        let baseline = TrainingLoadCalculator.series(runs: runs, days: 28, now: now, calendar: calendar)
+        runs.append(run(daysAgo: 90, minutes: 300, rpe: 10))
+        let withStaleRun = TrainingLoadCalculator.series(runs: runs, days: 28, now: now, calendar: calendar)
+        XCTAssertEqual(withStaleRun, baseline)
+    }
+
+    func testSeriesDoesNotCountRunsRecordedLaterToday() {
+        // `now` is 08:00Z; a run starting 12 hours later today must not land in
+        // today's point, because the final day is clamped to `now`.
+        var runs = everyOtherDayRuns
+        let baseline = TrainingLoadCalculator.series(runs: runs, days: 28, now: now, calendar: calendar)
+        runs.append(run(daysAgo: -1, minutes: 60, rpe: 10)) // 24h ahead of `now`
+        let withFutureRun = TrainingLoadCalculator.series(runs: runs, days: 28, now: now, calendar: calendar)
+        XCTAssertEqual(withFutureRun, baseline)
+    }
+
+    func testSeriesWithNonPositiveDaysIsEmpty() {
+        XCTAssertTrue(TrainingLoadCalculator.series(runs: everyOtherDayRuns, days: 0, now: now, calendar: calendar).isEmpty)
+        XCTAssertTrue(TrainingLoadCalculator.series(runs: everyOtherDayRuns, days: -5, now: now, calendar: calendar).isEmpty)
+    }
 }
