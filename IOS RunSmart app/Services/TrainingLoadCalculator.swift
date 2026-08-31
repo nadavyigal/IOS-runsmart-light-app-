@@ -100,7 +100,10 @@ enum TrainingLoadCalculator {
         return TrainingLoadMetrics(acuteLoad: acute, chronicLoad: chronic, acwr: acwr, status: status(for: acwr))
     }
 
-    private static func status(for acwr: Double) -> TrainingLoadStatus {
+    /// Internal rather than private so the chart's optimal band can be pinned
+    /// against these exact thresholds in tests. The upper bound is half-open:
+    /// exactly 1.3 is `.elevated`, not `.optimal`.
+    static func status(for acwr: Double) -> TrainingLoadStatus {
         switch acwr {
         case ..<0.8: return .detraining
         case ..<1.3: return .optimal
