@@ -26,6 +26,7 @@ enum SecondaryDestination: Hashable, Identifiable {
     case weeklyRecap
     case wellnessTrends
     case zoneAnalysis
+    case trainingLoad
     case routeCreator
     case badgeCabinet
     case shareRun(RecordedRun?)
@@ -58,6 +59,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .weeklyRecap: "weeklyRecap"
         case .wellnessTrends: "wellnessTrends"
         case .zoneAnalysis: "zoneAnalysis"
+        case .trainingLoad: "trainingLoad"
         case .routeCreator: "routeCreator"
         case .badgeCabinet: "badgeCabinet"
         case .shareRun(let run): "shareRun-\(run?.id.uuidString ?? "nil")"
@@ -91,6 +93,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .weeklyRecap: "Weekly Recap"
         case .wellnessTrends: "Wellness Trends"
         case .zoneAnalysis: "Zone Analysis"
+        case .trainingLoad: "Training Load"
         case .routeCreator: "Route Creator"
         case .badgeCabinet: "Badge Cabinet"
         case .shareRun: "Share Run"
@@ -147,6 +150,8 @@ enum SecondaryDestination: Hashable, Identifiable {
             "Body Battery, HRV, and recovery trends from your connected device."
         case .zoneAnalysis:
             "Understand effort distribution and heart rate zones."
+        case .trainingLoad:
+            "How hard your last four weeks have been, against what is optimal for you."
         case .routeCreator:
             "Build a route that matches the workout."
         case .badgeCabinet:
@@ -185,6 +190,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .weeklyRecap: "calendar.badge.checkmark"
         case .wellnessTrends: "waveform.path.ecg"
         case .zoneAnalysis: "heart.circle.fill"
+        case .trainingLoad: "chart.line.uptrend.xyaxis"
         case .routeCreator: "point.topleft.down.curvedto.point.bottomright.up"
         case .badgeCabinet: "seal.fill"
         case .shareRun: "square.and.arrow.up"
@@ -278,6 +284,8 @@ private struct SecondaryContentView: View {
             WellnessTrendsView()
         case .zoneAnalysis:
             ZoneAnalysisView()
+        case .trainingLoad:
+            TrainingLoadView()
         case .routeCreator:
             RouteCreatorView()
         case .badgeCabinet:
