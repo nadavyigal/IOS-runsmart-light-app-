@@ -112,6 +112,25 @@ enum TrainingLoadCalculator {
         }
     }
 
+    /// Where a run's effort estimate came from. Surfaced in the Exercise Load
+    /// list so a runner can see which sessions are their own reported effort
+    /// and which are inferred — an assumed-moderate run contributes real load
+    /// from a guess, and hiding that would overstate the confidence.
+    enum EffortSource: Hashable {
+        case reportedRPE
+        case heartRate
+        case assumedModerate
+    }
+
+    /// Mirrors the branch order in `effortRPE(for:)`. The two are kept in step
+    /// by a test rather than by sharing a return, because `effortRPE` needs the
+    /// value and this needs the provenance.
+    static func effortSource(for run: RecordedRun) -> EffortSource {
+        if let rpe = run.rpe, (1...10).contains(rpe) { return .reportedRPE }
+        if run.averageHeartRateBPM != nil { return .heartRate }
+        return .assumedModerate
+    }
+
     /// Effort on the 1-10 session-RPE scale: prefer the runner's own RPE,
     /// fall back to an average-HR band, then to moderate (5).
     private static func effortRPE(for run: RecordedRun) -> Int {

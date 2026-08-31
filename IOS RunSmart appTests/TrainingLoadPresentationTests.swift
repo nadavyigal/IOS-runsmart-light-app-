@@ -6,7 +6,7 @@ final class TrainingLoadPresentationTests: XCTestCase {
     private let calendar = Calendar(identifier: .gregorian)
     private let now = ISO8601DateFormatter().date(from: "2026-07-18T08:00:00Z")!
 
-    private func run(daysAgo: Int, minutes: Double, rpe: Int? = nil) -> RecordedRun {
+    private func run(daysAgo: Int, minutes: Double, rpe: Int? = nil, hr: Int? = nil) -> RecordedRun {
         let start = calendar.date(byAdding: .day, value: -daysAgo, to: now)!
         return RecordedRun(
             id: UUID(),
@@ -17,7 +17,7 @@ final class TrainingLoadPresentationTests: XCTestCase {
             distanceMeters: minutes * 160,
             movingTimeSeconds: minutes * 60,
             averagePaceSecondsPerKm: 375,
-            averageHeartRateBPM: nil,
+            averageHeartRateBPM: hr,
             routePoints: [],
             rpe: rpe,
             syncedAt: nil
@@ -198,6 +198,72 @@ final class TrainingLoadPresentationTests: XCTestCase {
             let inside = point.acwr >= range.lowerBound && point.acwr < range.upperBound
             XCTAssertEqual(inside, day.status == .optimal, "ratio \(point.acwr) vs status \(day.status)")
         }
+    }
+
+    // MARK: - Exercise load list (Story 5)
+
+    func testExerciseLoadListsTheAcuteWindowNewestFirst() {
+        let runs = (0..<10).map { run(daysAgo: $0, minutes: 40, rpe: 5) }
+        let entries = ExerciseLoadEntry.acuteWindow(runs: runs, days: 7, now: now, calendar: calendar)
+
+        XCTAssertEqual(entries.count, 8) // days 0...7 inclusive of the boundary
+        XCTAssertEqual(entries.map(\.date), entries.map(\.date).sorted(by: >))
+    }
+
+    /// The list explains the acute number, so its entries must sum to it.
+    func testExerciseLoadEntriesSumToTheAcuteLoad() {
+        let runs = (0..<10).map { run(daysAgo: $0, minutes: 40, rpe: 5) }
+        let entries = ExerciseLoadEntry.acuteWindow(runs: runs, days: 7, now: now, calendar: calendar)
+        let snapshot = TrainingLoadCalculator.snapshot(runs: runs, now: now, calendar: calendar)
+
+        XCTAssertEqual(entries.map(\.load).reduce(0, +), snapshot.acuteLoad, accuracy: 0.001)
+    }
+
+    func testExerciseLoadEntryCarriesFosterSessionLoad() throws {
+        let entries = ExerciseLoadEntry.acuteWindow(
+            runs: [run(daysAgo: 1, minutes: 40, rpe: 6)], days: 7, now: now, calendar: calendar
+        )
+        let entry = try XCTUnwrap(entries.first)
+        XCTAssertEqual(entry.load, 240, accuracy: 0.001) // 40 min x RPE 6
+        XCTAssertEqual(entry.durationMinutes, 40)
+    }
+
+    func testExerciseLoadNamesWhereEachEffortEstimateCameFrom() throws {
+        let reported = run(daysAgo: 1, minutes: 30, rpe: 7)
+        let fromHR = run(daysAgo: 2, minutes: 30, rpe: nil, hr: 150)
+        let assumed = run(daysAgo: 3, minutes: 30)
+
+        let entries = ExerciseLoadEntry.acuteWindow(
+            runs: [reported, fromHR, assumed], days: 7, now: now, calendar: calendar
+        )
+        XCTAssertEqual(entries.map(\.effortSource), [.reportedRPE, .heartRate, .assumedModerate])
+    }
+
+    /// `effortSource` mirrors `effortRPE`'s branch order but does not share its
+    /// return, so pin them together: an out-of-range RPE must fall through to
+    /// heart rate in both.
+    func testEffortSourceAgreesWithTheEffortUsedForLoad() {
+        let outOfRangeRPE = run(daysAgo: 1, minutes: 30, rpe: 42, hr: 150)
+        XCTAssertEqual(TrainingLoadCalculator.effortSource(for: outOfRangeRPE), .heartRate)
+        // HR 150 lands in the hard band -> RPE 7 -> 30 x 7.
+        XCTAssertEqual(TrainingLoadCalculator.sessionLoad(for: outOfRangeRPE), 210, accuracy: 0.001)
+
+        let noSignals = run(daysAgo: 1, minutes: 30)
+        XCTAssertEqual(TrainingLoadCalculator.effortSource(for: noSignals), .assumedModerate)
+        XCTAssertEqual(TrainingLoadCalculator.sessionLoad(for: noSignals), 150, accuracy: 0.001)
+    }
+
+    func testExerciseLoadExcludesRunsOutsideTheAcuteWindow() {
+        let entries = ExerciseLoadEntry.acuteWindow(
+            runs: [run(daysAgo: 30, minutes: 40, rpe: 5)], days: 7, now: now, calendar: calendar
+        )
+        XCTAssertTrue(entries.isEmpty)
+    }
+
+    func testExerciseLoadWithNonPositiveDaysIsEmpty() {
+        XCTAssertTrue(
+            ExerciseLoadEntry.acuteWindow(runs: everyOtherDayRuns, days: 0, now: now, calendar: calendar).isEmpty
+        )
     }
 
     /// Pins the boundary semantics above so a future change to either the band

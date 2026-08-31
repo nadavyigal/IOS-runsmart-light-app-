@@ -28,6 +28,46 @@ enum TrainingLoadMode: String, CaseIterable, Hashable {
     case loadRatio
 }
 
+/// One run's contribution to acute load — the input side of the headline
+/// number, equivalent to Garmin's Exercise Load tab.
+struct ExerciseLoadEntry: Hashable, Identifiable {
+    let id: UUID
+    let date: Date
+    let load: Double
+    let durationMinutes: Int
+    let distanceKm: Double
+    let effortSource: TrainingLoadCalculator.EffortSource
+
+    /// Builds the list for the acute window, newest first.
+    ///
+    /// Scoped to the acute window on purpose: this list exists to explain the
+    /// acute number above it, so showing runs that no longer contribute would
+    /// invite the reader to add them up and get a different total.
+    static func acuteWindow(
+        runs: [RecordedRun],
+        days: Int = 7,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [ExerciseLoadEntry] {
+        guard days > 0 else { return [] }
+        let start = calendar.date(byAdding: .day, value: -days, to: now) ?? now
+
+        return runs
+            .filter { $0.startedAt >= start && $0.startedAt <= now }
+            .sorted { $0.startedAt > $1.startedAt }
+            .map { run in
+                ExerciseLoadEntry(
+                    id: run.id,
+                    date: run.startedAt,
+                    load: TrainingLoadCalculator.sessionLoad(for: run),
+                    durationMinutes: Int((run.movingTimeSeconds / 60.0).rounded()),
+                    distanceKm: run.distanceMeters / 1000.0,
+                    effortSource: TrainingLoadCalculator.effortSource(for: run)
+                )
+            }
+    }
+}
+
 /// View state for the Training Load chart. Pure and testable: it holds numbers
 /// and a status, never user-facing copy. The view switches on `status` with
 /// literal `Text`, so every string stays in Localizable.xcstrings.

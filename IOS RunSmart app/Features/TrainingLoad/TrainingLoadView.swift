@@ -13,7 +13,10 @@ struct TrainingLoadView: View {
 
     static let windowDays = 28
 
+    static let acuteWindowDays = 7
+
     @State private var presentation: TrainingLoadPresentation = .empty
+    @State private var sessions: [ExerciseLoadEntry] = []
     @State private var isLoading = true
     @State private var mode: TrainingLoadMode = .acuteLoad
 
@@ -66,12 +69,17 @@ struct TrainingLoadView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+
+            if !isLoading, !sessions.isEmpty {
+                exerciseLoadSection
+            }
         }
         .task {
             let runs = await services.recentRuns()
             presentation = TrainingLoadPresentation.make(
                 from: TrainingLoadCalculator.series(runs: runs, days: Self.windowDays)
             )
+            sessions = ExerciseLoadEntry.acuteWindow(runs: runs, days: Self.acuteWindowDays)
             isLoading = false
         }
     }
@@ -170,6 +178,58 @@ struct TrainingLoadView: View {
                 }
                 Spacer()
             }
+        }
+    }
+
+    /// The runs behind the acute number, newest first — Garmin's Exercise Load
+    /// tab, kept on this screen rather than split off, so the input sits next
+    /// to the total it produces.
+    private var exerciseLoadSection: some View {
+        ContentCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(title: "Exercise load")
+                Text("The runs behind your \(Self.acuteWindowDays)-day acute load.")
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+
+                ForEach(sessions) { entry in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(entry.date, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
+                                .font(.bodyMD)
+                            Spacer()
+                            Text(Self.wholeNumber(entry.load))
+                                .font(.headingMD)
+                                .monospacedDigit()
+                        }
+                        HStack(spacing: 6) {
+                            Text("\(entry.distanceKm, specifier: "%.1f") km · \(entry.durationMinutes) min")
+                                .font(.caption)
+                                .foregroundStyle(Color.textSecondary)
+                            Text("·")
+                                .font(.caption)
+                                .foregroundStyle(Color.textTertiary)
+                            effortSourceLabel(entry.effortSource)
+                                .font(.caption)
+                                .foregroundStyle(Color.textTertiary)
+                        }
+                    }
+                    if entry.id != sessions.last?.id {
+                        Divider().background(Color.border)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Names where the effort estimate came from. An assumed-moderate run still
+    /// contributes real load from a guess, so saying so is the honest default.
+    @ViewBuilder
+    private func effortSourceLabel(_ source: TrainingLoadCalculator.EffortSource) -> some View {
+        switch source {
+        case .reportedRPE: Text("your effort rating")
+        case .heartRate: Text("from heart rate")
+        case .assumedModerate: Text("assumed moderate")
         }
     }
 
