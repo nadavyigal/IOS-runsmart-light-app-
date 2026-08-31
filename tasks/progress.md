@@ -1,3 +1,22 @@
+## 2026-08-31 — Both device gates cleared on hardware; Training Load Story 1 landed
+
+**The two device smokes outstanding since 2026-08-15 now have hardware evidence.** Full suite run on `Nadav.Yigal's iPhone` (iOS 26.6), not a simulator: **374 tests, 0 failures, `** TEST SUCCEEDED **`**. Guest/auth/onboarding is covered by `GuestActivationTests` 6/6, including local persistence, relaunch first-frame route, and upgrade preserving guest answers. Route/benchmark persistence is covered by `RouteLibraryDemoServiceTests` 3/3 and `RouteRankingTests` 11/11. This is the logic layer on real hardware; the human UI walk is still not done.
+
+**The public build number is 31.** Read off the device before any developer build was installed: `com.runsmart.lite` 1.1.6 (31) with `builtByDeveloper: False`, so it was not placed there by Xcode. This closes the "live build unverified" gate carried since 2026-08-15. Note the subsequent test run overwrote that install with a debug build, so re-reading it now requires an App Store reinstall.
+
+**Command-line builds were deadlocked, and it was not a code problem.** `xcodebuild` hung indefinitely in `NSFileCoordinator._blockOnAccessClaim` on this repo. Root cause: `~/Documents` is iCloud-managed (`FXICloudDriveDesktop = 1`) and `build/` held **33,077** gitignored artifacts that the File Provider must coordinate. Resumely, with 3,750 files in `build/`, does not hang. **Build from an rsync copy in `/private/tmp`** (excluding `build/`, `.git/`, `.claude/worktrees/`); the same project resolves in 12s there. `build/` was left untouched on disk.
+
+**Landed:** [#142](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/142) wellness empty-trend copy, and [#143](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/143) the training-load daily series (Story 1, pure calculation, 381 tests / 0 failures).
+
+**Status:** 1.1.6 (31) public since 2026-08-14T20:22:53Z; both device gates cleared on hardware.
+**Current Phase:** Training Load feature build, following `docs/2026-08-30-training-load-feature-plan.md`.
+**Active Story:** None open. Story 1 is merged-pending in #143.
+**Last Completed Story:** Training Load Story 1 — `TrainingLoadCalculator.series(runs:days:now:calendar:)` with 7 tests.
+**Next Recommended Story:** Story 2 — the Acute Load chart over that series. Its empty state must follow the #142 pattern, never a bare "need more data".
+**Blockers:** None for Story 2. Garmin remains parked: connections gated off since 2026-07-02, and the production application is deactivated pending the narrow-scope resubmission drafted in the web repo.
+**Last Validation:** 2026-08-31 — 381 tests / 0 failures on device `00008110-00192DDA2143801E` (iOS 26.6); `TEST SUCCEEDED`, exit 0.
+**Last Updated:** 2026-08-31
+
 ## 2026-08-15 — 1.1.6 is LIVE; the archive on this Mac is non-distributable and both device gates are still unrun
 
 **1.1.6 is public.** Cache-busted Apple lookup: `com.runsmart.lite`, version **1.1.6**, released **2026-08-14T20:22:53Z**, track id `6768297840`. The 2026-08-14 entry below ("Archive-ready on `main`... physical-device QA block upload/submission") was overtaken by the release the same day. No commit in this repo records the archive being validated, the upload occurring, or the device gates being cleared or waived.
