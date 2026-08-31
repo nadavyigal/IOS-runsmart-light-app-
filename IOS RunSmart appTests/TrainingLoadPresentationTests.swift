@@ -125,4 +125,88 @@ final class TrainingLoadPresentationTests: XCTestCase {
         XCTAssertEqual(TrainingLoadPresentation.optimalRatioRange.lowerBound, 0.8, accuracy: 0.0001)
         XCTAssertEqual(TrainingLoadPresentation.optimalRatioRange.upperBound, 1.3, accuracy: 0.0001)
     }
+
+    // MARK: - Load ratio series (Story 3)
+
+    func testEachPlottedPointCarriesItsOwnRatio() throws {
+        let source = series(everyOtherDayRuns)
+        let presentation = TrainingLoadPresentation.make(from: source)
+        let scored = source.filter { $0.status != .insufficientData }
+
+        XCTAssertEqual(presentation.points.count, scored.count)
+        for (point, day) in zip(presentation.points, scored) {
+            XCTAssertEqual(point.acwr, try XCTUnwrap(day.acwr), accuracy: 0.001)
+        }
+    }
+
+    /// The ratio is acute ÷ chronic, so the plotted ratio must reproduce the
+    /// plotted loads rather than being computed on a different basis.
+    func testPlottedRatioIsConsistentWithThePlottedLoads() throws {
+        let presentation = TrainingLoadPresentation.make(from: series(everyOtherDayRuns))
+        let point = try XCTUnwrap(presentation.points.last)
+        // optimalLow is chronic x 0.8, so chronic is recoverable from the band.
+        let chronic = point.optimalLow / TrainingLoadPresentation.optimalRatioRange.lowerBound
+        XCTAssertEqual(point.acwr, point.acuteLoad / chronic, accuracy: 0.001)
+    }
+
+    /// A day with no chronic load cannot produce a ratio, so it must never be
+    /// plotted — that is the divide-by-zero guard, seen from the chart's side.
+    func testDaysWithoutAChronicBaseAreNeverPlotted() {
+        let presentation = TrainingLoadPresentation.make(
+            from: series([run(daysAgo: 1, minutes: 40, rpe: 5), run(daysAgo: 2, minutes: 40, rpe: 5)])
+        )
+        XCTAssertTrue(presentation.points.isEmpty)
+        XCTAssertEqual(presentation.daysCollected, 0)
+        XCTAssertNil(presentation.currentACWR)
+    }
+
+    func testRatioInsideTheBandMatchesTheOptimalStatus() throws {
+        let presentation = TrainingLoadPresentation.make(from: series(everyOtherDayRuns))
+        let point = try XCTUnwrap(presentation.points.last)
+
+        XCTAssertEqual(presentation.status, .optimal)
+        XCTAssertTrue(TrainingLoadPresentation.optimalRatioRange.contains(point.acwr))
+    }
+
+    func testRatioAboveTheBandMatchesAnAboveOptimalStatus() throws {
+        var runs = (7..<28).compactMap { day in day % 3 == 0 ? run(daysAgo: day, minutes: 30, rpe: 4) : nil }
+        runs += (0..<7).map { run(daysAgo: $0, minutes: 60, rpe: 8) }
+
+        let presentation = TrainingLoadPresentation.make(from: series(runs))
+        let point = try XCTUnwrap(presentation.points.last)
+
+        XCTAssertGreaterThan(point.acwr, TrainingLoadPresentation.optimalRatioRange.upperBound)
+        XCTAssertTrue([.elevated, .highRisk].contains(presentation.status))
+    }
+
+    /// The band drawn on the ratio chart must agree with the status word for
+    /// every plotted day, not just the latest one.
+    ///
+    /// Note the comparison is half-open. `optimalRatioRange` is a closed range
+    /// because that is what gets *drawn* (the band is painted up to and
+    /// including 1.3), while `TrainingLoadCalculator.status(for:)` classifies
+    /// optimal as `..<1.3`. The two only disagree at exactly 1.3, where the
+    /// drawn edge is sub-pixel; asserting with `.contains` here would pass
+    /// today purely because no fixture lands on the boundary.
+    func testBandMembershipAgreesWithStatusForEveryPlottedDay() {
+        let source = series(everyOtherDayRuns)
+        let presentation = TrainingLoadPresentation.make(from: source)
+        let scored = source.filter { $0.status != .insufficientData }
+        let range = TrainingLoadPresentation.optimalRatioRange
+
+        for (point, day) in zip(presentation.points, scored) {
+            let inside = point.acwr >= range.lowerBound && point.acwr < range.upperBound
+            XCTAssertEqual(inside, day.status == .optimal, "ratio \(point.acwr) vs status \(day.status)")
+        }
+    }
+
+    /// Pins the boundary semantics above so a future change to either the band
+    /// or the calculator bands has to face this explicitly.
+    func testOptimalClassificationIsHalfOpenAtTheUpperBound() {
+        let upper = TrainingLoadPresentation.optimalRatioRange.upperBound
+        XCTAssertTrue(TrainingLoadPresentation.optimalRatioRange.contains(upper))
+        // ...but the calculator calls exactly-upper "elevated", not "optimal".
+        XCTAssertEqual(TrainingLoadCalculator.status(for: upper), .elevated)
+        XCTAssertEqual(TrainingLoadCalculator.status(for: upper - 0.0001), .optimal)
+    }
 }

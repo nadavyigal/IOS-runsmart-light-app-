@@ -9,6 +9,9 @@ struct TrainingLoadChartPoint: Hashable, Identifiable {
     let acuteLoad: Double
     let optimalLow: Double
     let optimalHigh: Double
+    /// Acute:chronic ratio for that day. Non-optional because only scored days
+    /// are plotted, and a scored day always has a ratio.
+    let acwr: Double
 
     var id: Date { date }
 
@@ -16,6 +19,13 @@ struct TrainingLoadChartPoint: Hashable, Identifiable {
     var isInsideOptimalRange: Bool {
         acuteLoad >= optimalLow && acuteLoad <= optimalHigh
     }
+}
+
+/// Which series the Training Load screen is showing. Mirrors the two-way
+/// toggle in Garmin's Training Load tab.
+enum TrainingLoadMode: String, CaseIterable, Hashable {
+    case acuteLoad
+    case loadRatio
 }
 
 /// View state for the Training Load chart. Pure and testable: it holds numbers
@@ -56,14 +66,20 @@ struct TrainingLoadPresentation: Hashable {
     /// false. `daysCollected` reports how many real days are behind the chart
     /// so the view can say how far along the window is.
     static func make(from series: [DailyTrainingLoadPoint]) -> TrainingLoadPresentation {
+        // A scored day always carries a ratio (the calculator only omits it when
+        // it also reports .insufficientData), but compactMap rather than force
+        // unwrap so a future change to that contract drops a point instead of
+        // crashing the screen.
         let scored = series.filter { $0.status != .insufficientData }
 
-        let points = scored.map { day in
-            TrainingLoadChartPoint(
+        let points = scored.compactMap { day -> TrainingLoadChartPoint? in
+            guard let acwr = day.acwr else { return nil }
+            return TrainingLoadChartPoint(
                 date: day.date,
                 acuteLoad: day.acuteLoad,
                 optimalLow: day.chronicLoad * optimalRatioRange.lowerBound,
-                optimalHigh: day.chronicLoad * optimalRatioRange.upperBound
+                optimalHigh: day.chronicLoad * optimalRatioRange.upperBound,
+                acwr: acwr
             )
         }
 
@@ -74,7 +90,9 @@ struct TrainingLoadPresentation: Hashable {
             currentChronicLoad: latest.map(\.chronicLoad),
             currentACWR: latest?.acwr,
             status: latest?.status ?? .insufficientData,
-            daysCollected: scored.count,
+            // Counts what is actually plotted, so "day N of M" can never claim
+            // more days than the chart shows.
+            daysCollected: points.count,
             windowDays: series.count
         )
     }

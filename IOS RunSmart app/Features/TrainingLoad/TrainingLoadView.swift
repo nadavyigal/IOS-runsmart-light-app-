@@ -15,6 +15,7 @@ struct TrainingLoadView: View {
 
     @State private var presentation: TrainingLoadPresentation = .empty
     @State private var isLoading = true
+    @State private var mode: TrainingLoadMode = .acuteLoad
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -27,11 +28,23 @@ struct TrainingLoadView: View {
                 }
             }
 
+            Picker("Series", selection: $mode) {
+                Text("Acute Load").tag(TrainingLoadMode.acuteLoad)
+                Text("Load Ratio").tag(TrainingLoadMode.loadRatio)
+            }
+            .pickerStyle(.segmented)
+
             ContentCard {
                 VStack(alignment: .leading, spacing: 12) {
                     if presentation.hasChart {
-                        chart
+                        switch mode {
+                        case .acuteLoad: chart
+                        case .loadRatio: ratioChart
+                        }
                         legend
+                        if mode == .loadRatio {
+                            ratioFooter
+                        }
                     }
                     if !isLoading {
                         progressNote
@@ -67,9 +80,9 @@ struct TrainingLoadView: View {
 
     @ViewBuilder
     private var headline: some View {
-        if let acute = presentation.currentAcuteLoad, presentation.status != .insufficientData {
+        if let value = headlineValue, presentation.status != .insufficientData {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(Self.wholeNumber(acute))
+                Text(value)
                     .font(.metricSM)
                     .monospacedDigit()
                 statusTitle
@@ -107,6 +120,59 @@ struct TrainingLoadView: View {
         .accessibilityLabel(Text("Acute load over the last \(presentation.windowDays) days"))
     }
 
+    /// The ratio view of the same data. The band is the ratio range itself
+    /// (0.8...1.3) rather than a load figure, so it is a flat rail here while
+    /// the acute-load chart's band moves with chronic load.
+    private var ratioChart: some View {
+        Chart {
+            RectangleMark(
+                xStart: .value("Start", presentation.points.first?.date ?? Date()),
+                xEnd: .value("End", presentation.points.last?.date ?? Date()),
+                yStart: .value("Optimal low", TrainingLoadPresentation.optimalRatioRange.lowerBound),
+                yEnd: .value("Optimal high", TrainingLoadPresentation.optimalRatioRange.upperBound)
+            )
+            .foregroundStyle(Color.accentSuccess.opacity(0.25))
+
+            ForEach(presentation.points) { point in
+                LineMark(
+                    x: .value("Day", point.date),
+                    y: .value("Load ratio", point.acwr)
+                )
+                .foregroundStyle(Color.textPrimary)
+                .interpolationMethod(.monotone)
+            }
+        }
+        .chartYAxis { AxisMarks(position: .leading) }
+        .frame(height: 200)
+        .accessibilityLabel(Text("Load ratio over the last \(presentation.windowDays) days"))
+    }
+
+    /// Mirrors the Acute / Chronic pair Garmin prints under its ratio chart.
+    @ViewBuilder
+    private var ratioFooter: some View {
+        if let acute = presentation.currentAcuteLoad, let chronic = presentation.currentChronicLoad {
+            HStack(alignment: .top, spacing: 24) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Self.wholeNumber(acute))
+                        .font(.headingLG)
+                        .monospacedDigit()
+                    Text("Acute Load")
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Self.wholeNumber(chronic))
+                        .font(.headingLG)
+                        .monospacedDigit()
+                    Text("Chronic Load")
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                }
+                Spacer()
+            }
+        }
+    }
+
     private var legend: some View {
         HStack(spacing: 16) {
             Label {
@@ -117,9 +183,14 @@ struct TrainingLoadView: View {
                 Circle().fill(Color.accentSuccess.opacity(0.45)).frame(width: 10, height: 10)
             }
             Label {
-                Text("Acute load")
-                    .font(.caption)
-                    .foregroundStyle(Color.textSecondary)
+                Group {
+                    switch mode {
+                    case .acuteLoad: Text("Acute load")
+                    case .loadRatio: Text("Load ratio")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(Color.textSecondary)
             } icon: {
                 Circle().fill(Color.textPrimary).frame(width: 10, height: 10)
             }
@@ -166,7 +237,22 @@ struct TrainingLoadView: View {
         }
     }
 
+    /// Acute load reads as a whole number, the ratio to one decimal — matching
+    /// how each is conventionally quoted ("500" vs "1.5").
+    private var headlineValue: String? {
+        switch mode {
+        case .acuteLoad:
+            return presentation.currentAcuteLoad.map(Self.wholeNumber)
+        case .loadRatio:
+            return presentation.currentACWR.map(Self.ratioNumber)
+        }
+    }
+
     private static func wholeNumber(_ value: Double) -> String {
         value.formatted(.number.precision(.fractionLength(0)))
+    }
+
+    private static func ratioNumber(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(1)))
     }
 }
