@@ -254,11 +254,35 @@ struct ReportTabView: View {
         .buttonStyle(.plain)
         .runSmartStaggeredAppear(index: 2)
 
+        Button(action: openTrainingLoad) {
+            ContentCard {
+                HStack(spacing: 14) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.title2)
+                        .foregroundStyle(Color.accentPrimary)
+                        .frame(width: 46, height: 46)
+                        .background(Color.accentPrimary.opacity(0.12), in: Circle())
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Training Load")
+                            .font(.headingMD)
+                        Text("See your 28-day acute load against your optimal range.")
+                            .font(.bodyMD)
+                            .foregroundStyle(Color.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(Color.textTertiary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .runSmartStaggeredAppear(index: 3)
+
         RecoveryInsightPlanCard(recovery: recovery, trainingLoad: trainingLoad)
-            .runSmartStaggeredAppear(index: 3)
+            .runSmartStaggeredAppear(index: 4)
 
         RunTrendChartCard(runs: runs)
-            .runSmartStaggeredAppear(index: 4)
+            .runSmartStaggeredAppear(index: 5)
     }
 
     private func reloadRuns() async {
@@ -271,6 +295,10 @@ struct ReportTabView: View {
 
     private func openZoneAnalysis() {
         router.open(.zoneAnalysis)
+    }
+
+    private func openTrainingLoad() {
+        router.open(.trainingLoad)
     }
 
     private func openReportDetail(_ report: RunReportDetail) {
