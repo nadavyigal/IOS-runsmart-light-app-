@@ -1,3 +1,24 @@
+## 2026-08-31 (later) — Training Load Stories 1-3 all merged; Load Focus stays parked
+
+**Three PRs merged to `main`, each verified on hardware:** [#143](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/143) the daily series, [#144](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/144) the acute-load chart, [#146](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/146) the Load Ratio tab. Suite on merged `main`: **397 tests, 0 failures** on `Nadav.Yigal's iPhone` (iOS 26.6). The screen lives at Report > Progress > Training Load.
+
+**The maths already existed.** `TrainingLoadCalculator` had acute load, chronic load and ACWR with bands at 0.8/1.3/1.5 — mathematically the same thing as Garmin's Load Ratio. The only gap was that it returned a single snapshot while the timeline needs a 28-day daily series. Each series point is produced by the existing `snapshot()` evaluated at the end of that day, so the chart's final point can never disagree with the headline number; that invariant is asserted.
+
+**Session-RPE stays, deliberately.** Garmin does not expose Acute Load, Training Status, Training Readiness, Recovery Time or Endurance Score through its partner APIs at any scope, so EPOC parity is unreachable even with Garmin approved. Computing it in-app works for runners with no wearable at all. **No Garmin attribution belongs on this screen.**
+
+**One boundary worth remembering.** `TrainingLoadPresentation.optimalRatioRange` is a *closed* range because that is what gets drawn, while `status(for:)` classifies optimal as `..<1.3` — half-open. They differ only at exactly 1.3. A band-membership test written with `.contains` passes today purely because no fixture lands on the boundary; the real test compares half-open and a second test pins the divergence. `status(for:)` was made internal so tests read the real thresholds rather than duplicating them.
+
+**Stacked-PR hazard, recorded so it is not rediscovered.** Squash-merging #144 deleted its branch, which **auto-closed** the stacked #145. Reopening reported success but the PR stayed closed, and the API refused to retarget a closed PR. The fix was to rebase onto the new `main`, re-run the suite against the changed base, and open #146 as a replacement.
+
+**Status:** 1.1.6 (31) public since 2026-08-14T20:22:53Z. Training Load Stories 1-3 shipped to `main`, not yet released.
+**Current Phase:** Training Load feature, per `docs/2026-08-30-training-load-feature-plan.md`.
+**Active Story:** Story 5 - Exercise Load list.
+**Last Completed Story:** Story 3 - Load Ratio tab (#146).
+**Next Recommended Story:** After Story 5, a founder walk of the whole Training Load flow on hardware; nothing in this feature has been seen on a real device, only on an iPhone 17 Pro simulator.
+**Blockers:** **Story 4 (Load Focus) is parked by decision** - it needs real time-in-zone, and `RecordedRun` carries only `averageHeartRateBPM`. Assigning a whole run to one zone by its average would be a fabricated chart. Revisit when a Garmin or other watch is connected and an HR sample distribution is available. Garmin connections themselves remain gated off since 2026-07-02.
+**Last Validation:** 2026-08-31 - 397 tests / 0 failures on device `00008110-00192DDA2143801E` (iOS 26.6), `TEST SUCCEEDED`, exit 0, run against merged `main`.
+**Last Updated:** 2026-08-31
+
 ## 2026-08-31 — Both device gates cleared on hardware; Training Load Story 1 landed
 
 **The two device smokes outstanding since 2026-08-15 now have hardware evidence.** Full suite run on `Nadav.Yigal's iPhone` (iOS 26.6), not a simulator: **374 tests, 0 failures, `** TEST SUCCEEDED **`**. Guest/auth/onboarding is covered by `GuestActivationTests` 6/6, including local persistence, relaunch first-frame route, and upgrade preserving guest answers. Route/benchmark persistence is covered by `RouteLibraryDemoServiceTests` 3/3 and `RouteRankingTests` 11/11. This is the logic layer on real hardware; the human UI walk is still not done.
