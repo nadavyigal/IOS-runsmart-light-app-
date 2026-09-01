@@ -17,6 +17,7 @@ struct TrainingLoadView: View {
 
     @State private var presentation: TrainingLoadPresentation = .empty
     @State private var sessions: [ExerciseLoadEntry] = []
+    @State private var runsInWindow = 0
     @State private var isLoading = true
     @State private var mode: TrainingLoadMode = .acuteLoad
 
@@ -80,6 +81,7 @@ struct TrainingLoadView: View {
                 from: TrainingLoadCalculator.series(runs: runs, days: Self.windowDays)
             )
             sessions = ExerciseLoadEntry.acuteWindow(runs: runs, days: Self.acuteWindowDays)
+            runsInWindow = TrainingLoadCalculator.runsInWindow(runs: runs, days: Self.windowDays)
             isLoading = false
         }
     }
@@ -262,7 +264,14 @@ struct TrainingLoadView: View {
     @ViewBuilder
     private var progressNote: some View {
         if presentation.daysCollected == 0 {
-            Text("Log four runs in a month and your load timeline starts here.")
+            // Count the runs already logged rather than implying there are none.
+            // The Exercise Load list below is showing them, so "log four runs"
+            // on its own reads as the screen contradicting itself.
+            if runsInWindow > 0 {
+                Text("\(runsInWindow) of \(TrainingLoadCalculator.minimumRunsForScoring) runs logged this month. The timeline starts once you reach \(TrainingLoadCalculator.minimumRunsForScoring).")
+            } else {
+                Text("Log \(TrainingLoadCalculator.minimumRunsForScoring) runs in a month and your load timeline starts here.")
+            }
         } else if presentation.daysCollected < presentation.windowDays {
             Text("Day \(presentation.daysCollected) of \(presentation.windowDays) — this fills in as you run.")
         } else {

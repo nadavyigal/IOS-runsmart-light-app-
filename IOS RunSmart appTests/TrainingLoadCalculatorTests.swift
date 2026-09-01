@@ -65,6 +65,35 @@ final class TrainingLoadCalculatorTests: XCTestCase {
         XCTAssertEqual(snapshot.status, .highRisk)
     }
 
+    // MARK: - Window run count (drives the "n of 4 runs" empty-state copy)
+
+    func testRunsInWindowCountsOnlyTheChronicWindow() {
+        let runs = [
+            run(daysAgo: 1, minutes: 30, rpe: 5),
+            run(daysAgo: 27, minutes: 30, rpe: 5),
+            run(daysAgo: 40, minutes: 30, rpe: 5), // outside
+        ]
+        XCTAssertEqual(TrainingLoadCalculator.runsInWindow(runs: runs, days: 28, now: now, calendar: calendar), 2)
+    }
+
+    func testRunsInWindowWithNonPositiveDaysIsZero() {
+        XCTAssertEqual(
+            TrainingLoadCalculator.runsInWindow(runs: [run(daysAgo: 1, minutes: 30)], days: 0, now: now, calendar: calendar),
+            0
+        )
+    }
+
+    /// The empty-state copy says "n of 4". Pin that 4 to the rule that actually
+    /// gates the chart, so the promise and the behaviour cannot drift apart.
+    func testMinimumRunsConstantIsTheThresholdSnapshotActuallyUses() {
+        let minimum = TrainingLoadCalculator.minimumRunsForScoring
+        let justUnder = (0..<(minimum - 1)).map { run(daysAgo: $0 * 2, minutes: 40, rpe: 5) }
+        let exactly = (0..<minimum).map { run(daysAgo: $0 * 2, minutes: 40, rpe: 5) }
+
+        XCTAssertEqual(TrainingLoadCalculator.snapshot(runs: justUnder, now: now, calendar: calendar).status, .insufficientData)
+        XCTAssertNotEqual(TrainingLoadCalculator.snapshot(runs: exactly, now: now, calendar: calendar).status, .insufficientData)
+    }
+
     func testFewerThanFourRunsInMonthIsInsufficientData() {
         let snapshot = TrainingLoadCalculator.snapshot(
             runs: [run(daysAgo: 1, minutes: 40, rpe: 5), run(daysAgo: 9, minutes: 40, rpe: 5)],

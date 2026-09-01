@@ -36,8 +36,26 @@ struct DailyTrainingLoadPoint: Hashable, Identifiable {
 /// see TrainingMetrics / FlexWeekPresentation).
 enum TrainingLoadCalculator {
 
+    /// Runs needed inside the 28-day window before a day can be scored. Shared
+    /// with the UI so the "n of 4 runs" copy cannot drift from the rule that
+    /// actually gates the chart.
+    static let minimumRunsForScoring = 4
+
     static func sessionLoad(for run: RecordedRun) -> Double {
         (run.movingTimeSeconds / 60.0) * Double(effortRPE(for: run))
+    }
+
+    /// Runs inside the chronic window, i.e. the ones counting toward
+    /// `minimumRunsForScoring`.
+    static func runsInWindow(
+        runs: [RecordedRun],
+        days: Int = 28,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        guard days > 0 else { return 0 }
+        let start = calendar.date(byAdding: .day, value: -days, to: now) ?? now
+        return runs.filter { $0.startedAt >= start && $0.startedAt <= now }.count
     }
 
     /// Daily series for the load timeline, oldest first, one point per day over
@@ -85,7 +103,7 @@ enum TrainingLoadCalculator {
         let acuteStart = calendar.date(byAdding: .day, value: -7, to: now) ?? now
         let recent = runs.filter { $0.startedAt >= windowStart && $0.startedAt <= now }
 
-        guard recent.count >= 4 else {
+        guard recent.count >= minimumRunsForScoring else {
             return TrainingLoadMetrics(acuteLoad: 0, chronicLoad: 0, acwr: nil, status: .insufficientData)
         }
 
