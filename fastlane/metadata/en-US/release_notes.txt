@@ -1,8 +1,8 @@
-RunSmart 1.1.6 helps you see your first week before creating an account.
+RunSmart 1.1.7 adds a clearer view of how your recent training is building over time.
 
 What's new:
-- Build a personalized Week 1 running preview as a guest
-- See your first recommended run before signing in
-- Save your answers and unlock the full adaptive plan when you're ready
-- More reliable account-link return and email sign-in
+- See your 7-day training load and how it changes over time
+- Compare recent load with your longer-term baseline using Load Ratio
+- Review the contribution of each completed run in Exercise Load
+- Get clearer guidance when there is not yet enough training history
 - General reliability and performance improvements
