@@ -1,3 +1,24 @@
+## 2026-09-01 — 1.1.7 (32) release candidate built, signed and verified; upload is founder-only
+
+**Training Load ships in this build.** Stories 1, 2, 3 and 5 are all on `main` (#143, #144, #146, #147), plus the empty-state copy fix. Suite on the versioned candidate: **407 tests, 0 failures** on `Nadav.Yigal's iPhone` (iOS 26.6), `TEST SUCCEEDED`, exit 0. Story 4 (Load Focus) stays parked until a watch is connected — it needs real time-in-zone and `RecordedRun` carries only `averageHeartRateBPM`.
+
+**The distribution-identity trap fired again, and the old conclusion about it was wrong.** `xcodebuild archive` produced an archive signed `Apple Development: Nadav Yigal (V2D7D57MXR)` with `get-task-allow=true`, exactly as on 2026-08-15. **But that does not make the release broken.** `xcodebuild -exportArchive` re-signs: the exported IPA is `Apple Distribution: Nadav Yigal (8VC4R5M425)` with `get-task-allow=false`. The 2026-08-15 entry inferred "this archive cannot be what shipped" from the archive's signature alone; that inference was too strong. **Judge the exported IPA, never the archive.**
+
+**Verified artifact:** `/private/tmp/RunSmart-1.1.7-32-export/RunSmart.ipa`, 12.2 MB, `com.runsmart.lite` 1.1.7 (32), arm64, Apple Distribution, `get-task-allow=false`.
+
+**Upload was NOT performed.** `APP_STORE_CONNECT_API_KEY_ID`, `_ISSUER_ID` and `_KEY` are unset and no `.p8` exists on this machine. Credentials are founder-only. The `fastlane release` lane has `submit_for_review: false` and `automatic_release: false`, so uploading does not itself release.
+
+**A separate defect found while verifying:** `ScreenAttributionTests` crashes at setup **on the simulator** — 0 tests executed, exit 65 — and this reproduces on clean `origin/main`, so it predates this work. It cascades into `GuestActivationTests` and four `RunSmartReadinessTests`. Device runs are unaffected and green. The practical consequence is that the suite is not runnable on simulator-based CI. Untracked; needs its own story.
+
+**Status:** 1.1.7 (32) candidate built and signed; 1.1.6 (31) still public.
+**Current Phase:** Awaiting founder upload to App Store Connect.
+**Active Story:** None.
+**Last Completed Story:** Training Load Story 5 plus the empty-state copy fix (#147).
+**Next Recommended Story:** Fix the simulator-only `ScreenAttributionTests` crash, then Story 4 once a watch is connected.
+**Blockers:** Upload requires founder App Store Connect credentials. The founder's own device carries a debug build over the App Store copy; reinstall from the App Store after testing.
+**Last Validation:** 2026-09-01 — 407 tests / 0 failures on device `00008110-00192DDA2143801E`; exported IPA verified Apple Distribution with `get-task-allow=false`.
+**Last Updated:** 2026-09-01
+
 ## 2026-08-31 (later) — Training Load Stories 1-3 all merged; Load Focus stays parked
 
 **Three PRs merged to `main`, each verified on hardware:** [#143](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/143) the daily series, [#144](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/144) the acute-load chart, [#146](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/146) the Load Ratio tab. Suite on merged `main`: **397 tests, 0 failures** on `Nadav.Yigal's iPhone` (iOS 26.6). The screen lives at Report > Progress > Training Load.
