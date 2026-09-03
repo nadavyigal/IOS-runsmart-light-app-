@@ -5,7 +5,14 @@ protocol AnalyticsTracking {
     nonisolated func track(_ event: String, properties: [String: Any])
     nonisolated func identify(userId: String, traits: [String: Any])
     nonisolated func register(properties: [String: Any])
+    nonisolated func unregister(_ key: String)
     nonisolated func reset()
+}
+
+extension AnalyticsTracking {
+    /// Defaulted so a spy that only cares about `register` stays a one-method
+    /// change away from compiling. The two shipping implementations override it.
+    nonisolated func unregister(_ key: String) {}
 }
 
 nonisolated final class PostHogAnalyticsService: AnalyticsTracking {
@@ -18,6 +25,9 @@ nonisolated final class PostHogAnalyticsService: AnalyticsTracking {
     func register(properties: [String: Any]) {
         PostHogSDK.shared.register(properties)
     }
+    func unregister(_ key: String) {
+        PostHogSDK.shared.unregister(key)
+    }
     func reset() {
         PostHogSDK.shared.reset()
     }
@@ -27,6 +37,7 @@ nonisolated final class NullAnalyticsService: AnalyticsTracking {
     func track(_ event: String, properties: [String: Any]) {}
     func identify(userId: String, traits: [String: Any]) {}
     func register(properties: [String: Any]) {}
+    func unregister(_ key: String) {}
     func reset() {}
 }
 
@@ -39,12 +50,27 @@ enum Analytics {
     /// so no RunSmart funnel could be split by build and no release-over-release
     /// comparison was possible.
     ///
+    /// Re-measured 2026-09-03 (WP-74) against live project 171597: over the trailing
+    /// 30 days, **831 of 862 events carried both keys**. The registration works. The
+    /// 31 that carry neither are the events PostHog captures inside `setup(config)`
+    /// before any `register()` can run — all 15 `Application Installed` plus the first
+    /// `$screen`/`app_launched`/`Application Opened` of a fresh install.
+    ///
     /// These are registered as super properties rather than merged inside
     /// ``PostHogAnalyticsService/track(_:properties:)`` on purpose. Two event sources
     /// never pass through that wrapper and would otherwise stay unlabelled:
     /// PostHog's autocaptured events (`Application Opened`, `Application Installed`,
     /// `$screen`) and the direct `PostHogSDK.shared.capture` calls in
     /// ``RunSmartAnalytics``. Registering on the SDK covers all three sources.
+    ///
+    /// **The build key is `build_number`, not `app_build`, from 2026-09-03 (WP-74 S2).**
+    /// Resumely registers `build_number` and the pinned measurement contract names
+    /// `build_number`, so a contract query written once returned a correct answer for
+    /// Resumely and an empty one for RunSmart — and an empty result is indistinguishable
+    /// from "no users", which at RunSmart's traffic is also the expected answer. Two
+    /// indistinguishable causes for one output is how a measurement stays broken for
+    /// months. Any query spanning 2026-09-03 must accept both keys; `app_version` is
+    /// unchanged and spans the boundary intact.
     ///
     /// `bundle` is injectable so the mapping is testable without a host app.
     static func buildIdentityProperties(bundle: Bundle = .main) -> [String: String] {
@@ -55,10 +81,23 @@ enum Analytics {
         }
         if let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String,
            !build.isEmpty {
-            properties["app_build"] = build
+            properties[buildNumberKey] = build
         }
         return properties
     }
+
+    /// The registered build key, matching Resumely and the pinned contract.
+    static let buildNumberKey = "build_number"
+
+    /// The key this app registered until 2026-09-03.
+    ///
+    /// Super properties are persisted on the device, and `register()` does not remove
+    /// a key it no longer sets. Without an explicit `unregister`, every install that
+    /// ever ran the old code would keep emitting `app_build` frozen at whatever build
+    /// it last saw — a value that never updates again and therefore mis-attributes
+    /// every future event. The stale form is worse than the missing form, because it
+    /// still splits.
+    static let legacyBuildKey = "app_build"
 
     static func setup(projectToken: String, host: String) {
 #if DEBUG
@@ -81,6 +120,9 @@ enum Analytics {
     /// Restores release attribution after PostHog clears user and super-property
     /// state. This intentionally registers only build metadata, never identity.
     static func registerBuildIdentity(bundle: Bundle = .main) {
+        // Unconditionally, and before the guard: an install carrying a persisted
+        // `app_build` must lose it even on a bundle that yields no identity at all.
+        shared.unregister(legacyBuildKey)
         let identity = buildIdentityProperties(bundle: bundle)
         guard !identity.isEmpty else { return }
         shared.register(properties: identity)

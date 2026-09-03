@@ -1,5 +1,22 @@
 # Session Log
 
+## 2026-09-03 (Asia/Jerusalem) — WP-74: prove attribution reaches live events, and unify the build key
+
+### Outcome
+Answered the packet's one question and reported the zero. RunSmart 1.1.7 (32) has emitted **0 events from 0 persons** since it went live at 2026-09-02T19:44:12Z; the project's last event of any kind is 2026-09-02T12:57:34Z, about seven hours before the release. No hunting for a better-looking query was done, per the packet's instruction.
+
+The registration mechanism itself is confirmed working for the first time since it landed. Over the trailing 30 days (862 events, 18 persons, all `$lib = posthog-ios`), **831 of 862 events carry both `app_version` and the build key**, against the 2-of-3,813 measured on 2026-07-20. The 31 that carry neither are exactly the events PostHog captures inside `setup(config)` before any `register()` can run: all 15 `Application Installed`, plus the first `$screen`/`app_launched`/`Application Opened` of a fresh install. The confirming traffic is pre-release and founder traffic, because that is the only traffic there is.
+
+A new defect surfaced while measuring: `Application Updated` carries the *previous* build's identity on 9 of 10 events, because super properties are persisted on device and the event fires before the new build re-registers. Stale is worse than missing, since it still splits. Recorded as an open story, not fixed here.
+
+S2 renamed RunSmart's build key `app_build` → `build_number` to match Resumely and the pinned contract, and made `registerBuildIdentity()` unregister the persisted legacy key so no install keeps emitting a frozen `app_build`. S3 turned the seven-step contract into `scripts/measurement_contract.py`, which runs the same query shape against either project.
+
+### Verification
+S1's query run twice on 2026-09-03 returned identical counts. `scripts/measurement_contract.py` run twice returned byte-for-byte identical output (md5 `317efb22d462f27edeb48765a4414d1b`), and its step-3 integrity check correctly flags the 142-event 1.1.7 (32) cohort as PRE-RELEASE because its last event predates the store release. Four new tests cover the rename, the legacy unregister (including on an empty bundle), and the sign-out restore path; three existing build-identity tests were updated to the new key.
+
+### Scope and next action
+Analytics property naming, one script, and task memory. No UI, auth, onboarding, permission, guest-mode, dependency, version, archive, or App Store change; Garmin, the voice coach and Training Load were untouched. Next: the founder's physical-device route smoke, and re-running the contract script on or after 2026-09-09T19:44Z, the earliest honest 1.1.7 D7 read.
+
 ## 2026-08-14 (Asia/Jerusalem) — RunSmart 1.1.6 (31) archive candidate verification
 
 ### Outcome
