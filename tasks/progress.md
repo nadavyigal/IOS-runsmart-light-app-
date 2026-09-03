@@ -14,6 +14,10 @@
 
 **One saved PostHog insight still names the old key and was left alone deliberately.** Insight 10997860, "RunSmart — Launch to First Completed Run by Build" (project 171597), breaks down by `app_build`. Once a build carrying the rename ships, that breakdown collects future traffic into a single empty bucket while looking exactly like a working chart. The fix is one field, `app_build` → `build_number`, and it is a mutation of the shared analytics workspace rather than of this repo, so it is recorded here for the founder rather than made here. Nothing else in PostHog's 48 saved insights references either build key.
 
+**Validation: 414 passed, 0 failed, 0 skipped** on iPhone 17 Pro (iOS 26.5) simulator — 410 pre-existing plus the 4 new build-key tests. The first full run failed 1 of 414: `testInternalTesterSurvivesResetUser` asserts `resetUser`'s exact call sequence, and the new `unregister` landed inside it. The expectation was updated to `["reset", "unregister", "register", "register"]` and a second assertion now pins what the test actually means — that the restore follows the reset — so the sequence can grow without the intent going unchecked.
+
+**The 2026-09-01 simulator crash did not reproduce.** `ScreenAttributionTests` ran and passed both cases, `GuestActivationTests` ran all six, and the suite completed end to end on the simulator. That is one clean observation on iPhone 17 Pro / iOS 26.5, not a fix and not a claim the defect is gone; it does mean the suite was runnable on simulator today.
+
 **Earliest honest 1.1.7 D7 read: 2026-09-09T19:44Z.** Gate state today is n=0 at every launch→wall step. That is a distribution fact, not an activation one, and no packet here addresses it.
 
 ## 2026-09-01 — 1.1.7 (32) release candidate built, signed and verified; upload is founder-only

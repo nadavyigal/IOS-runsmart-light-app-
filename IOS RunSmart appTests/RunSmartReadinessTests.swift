@@ -3614,8 +3614,10 @@ final class RunSmartReadinessTests: XCTestCase {
             "CFBundleVersion": "30"
         ]))
 
-        XCTAssertEqual(tracker.callLog, ["reset", "register", "register"],
+        XCTAssertEqual(tracker.callLog, ["reset", "unregister", "register", "register"],
             "both super-property groups must be restored after the reset that cleared them, not before it")
+        XCTAssertEqual(tracker.callLog.firstIndex(of: "reset"), 0,
+            "the restore must follow the reset; anything registered before it is cleared again")
         XCTAssertTrue(
             tracker.registrations.contains { $0["is_internal_tester"] != nil },
             "is_internal_tester must be re-registered after resetUser or the exclusion vanishes at sign-out"
