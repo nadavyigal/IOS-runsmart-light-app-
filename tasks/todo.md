@@ -1,3 +1,12 @@
+## September 5 continuity batch
+
+- [x] Reuse open WP-74 #149 and repeat current measurement twice.
+- [x] Correct unavailable Garmin promise in existing guest preview.
+- [x] Reproduce and fix pause displacement inflating saved distance.
+- [x] Pass 416 simulator tests and inspect seeded preview/run retention across relaunch.
+- [ ] Review dependent PR after #149; rebase/retarget after its merge.
+- [ ] Founder public-binary physical auth/record/save/relaunch walkthrough.
+
 # Task State
 
 ## Current Task

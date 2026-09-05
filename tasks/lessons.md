@@ -603,3 +603,7 @@ Future rule: **archive from the main checkout, never from a worktree** — or `c
     /usr/libexec/PlistBuddy -c "Print :POSTHOG_API_KEY" "<built>.app/Info.plist"
 
 Expect 47 chars starting `phc_`. Treat an empty value as a release blocker, not a warning.
+
+### 2026-09-05 — Paused location updates need a new distance anchor
+
+Stopping CLLocationManager during pause does not clear the last accepted fix. The first fix after resume counted displacement while paused (a synthetic 222m run became 1220m). Reset the distance anchor on resume; test movement during the pause and the persisted total. Raw route points still need explicit segmentation before route-derived splits/maps can claim pause-aware behavior.

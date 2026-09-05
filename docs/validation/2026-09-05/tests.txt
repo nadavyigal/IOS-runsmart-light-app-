@@ -1,0 +1,11 @@
+Test Suite 'All tests' started at 2026-09-05 15:01:35.513.
+Test Suite 'GuestActivationTests' started at 2026-09-05 15:01:36.820.
+Test Suite 'GuestActivationTests' passed at 2026-09-05 15:01:36.991.
+Test Case '-[IOS_RunSmart_appTests.RunSmartReadinessTests testRunRecorderResumeExcludesMovementWhilePausedAndPersistsOnce]' passed (0.042 seconds).
+Test Suite 'ScreenAttributionTests' started at 2026-09-05 15:01:40.191.
+Test Suite 'ScreenAttributionTests' passed at 2026-09-05 15:01:40.224.
+	 Executed 413 tests, with 0 failures (0 unexpected) in 3.938 (5.157) seconds
+Test Suite 'All tests' passed at 2026-09-05 15:01:40.673.
+	 Executed 413 tests, with 0 failures (0 unexpected) in 3.938 (5.160) seconds
+✔ Test run with 3 tests in 1 suite passed after 0.010 seconds.
+** TEST SUCCEEDED **

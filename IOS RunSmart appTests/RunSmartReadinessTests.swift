@@ -2027,6 +2027,61 @@ final class RunSmartReadinessTests: XCTestCase {
     }
 
     @MainActor
+    func testRunRecorderResumeExcludesMovementWhilePausedAndPersistsOnce() throws {
+        let defaults = UserDefaults.standard
+        let keys = ["runsmart.runs", "runsmart.hiddenRuns"]
+        let savedValues = keys.map { defaults.object(forKey: $0) }
+        defer {
+            for (key, value) in zip(keys, savedValues) { defaults.set(value, forKey: key) }
+        }
+        for key in keys { defaults.removeObject(forKey: key) }
+        let recorder = RunRecorder()
+        recorder.authorizationStatusProvider = { .authorizedWhenInUse }
+        let now = Date()
+        recorder.startAcquiringLocation(startLocationUpdates: false)
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0800, longitude: 34.7800, accuracy: 10, timestamp: now),
+            makeLocation(latitude: 32.0810, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(1))
+        ], now: now)
+        let beforePause = recorder.distanceMeters
+        recorder.pause()
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0900, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(2))
+        ], now: now)
+        XCTAssertEqual(recorder.distanceMeters, beforePause)
+        recorder.resume()
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0900, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(3))
+        ], now: now)
+        XCTAssertEqual(recorder.distanceMeters, beforePause, accuracy: 0.01,
+                       "The first fix after resuming must not count movement during the pause")
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0910, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(4))
+        ], now: now)
+        XCTAssertEqual(recorder.distanceMeters, beforePause * 2, accuracy: 1)
+        let run = try XCTUnwrap(recorder.finish())
+        XCTAssertNil(recorder.finish(), "Repeated finish must not create another run")
+        let restored = try XCTUnwrap(RunSmartLocalStore.shared.loadRuns().first { $0.id == run.id })
+        XCTAssertEqual(restored.distanceMeters, beforePause * 2, accuracy: 1)
+        XCTAssertEqual(restored.routePoints.count, 4)
+        XCTAssertEqual(recorder.phase, .ready)
+
+        let analyticsSuite = "runsmart.pause-completion.\(UUID().uuidString)"
+        let analyticsDefaults = try XCTUnwrap(UserDefaults(suiteName: analyticsSuite))
+        let previousAnalytics = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.shared = previousAnalytics
+            analyticsDefaults.removePersistentDomain(forName: analyticsSuite)
+        }
+        Analytics.shared = tracker
+        Analytics.trackCompletedRunIfNeeded(restored, defaults: analyticsDefaults)
+        let reopenedDefaults = try XCTUnwrap(UserDefaults(suiteName: analyticsSuite))
+        Analytics.trackCompletedRunIfNeeded(restored, defaults: reopenedDefaults)
+        XCTAssertEqual(tracker.events.filter { $0.name == "run_completed" }.count, 1)
+    }
+
+    @MainActor
     func testRunRecorderPauseThenDiscardReturnsToReadyPhaseWhenAuthorized() {
         let recorder = RunRecorder()
         recorder.authorizationStatusProvider = { .authorizedWhenInUse }

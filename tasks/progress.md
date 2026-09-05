@@ -1,3 +1,18 @@
+## 2026-09-05 — Bounded native continuity repair
+
+**Status:** Validated; PR stacked on open WP-74 #149 (base b098943).
+**Current Phase:** Review.
+**Active Story:** Pause/resume distance and truthful guest preview.
+**Last Completed Story:** Exclude movement while paused from recorded distance; replace Garmin promise with iPhone recording / optional Apple Health / unavailable Garmin copy.
+**Next Recommended Story:** Review #149 then this dependent batch; founder public-device auth → first workout → interruption → save → relaunch walk.
+**Blockers:** No physical GPS/background/public-binary or live-auth proof. Route polylines/splits still lack pause segments; no process-death recovery claim.
+**Last Validation:** 416 tests passed (413 XCTest + 3 Swift Testing), iPhone 17 Pro / iOS 26.5 simulator. Red test saved 1219.771m for 221.776m of active movement; green excludes the pause gap. Guest restoration, plan-request answers, saved-run decoding, repeat finish and completion dedup checked. ScreenAttributionTests 2/2 passed. Seeded preview/run/flag survived process relaunch; screenshot inspected; simulator preference keys restored.
+**Last Updated:** 2026-09-05
+
+Two fresh measurement contract runs match: 0 events / 0 persons since release 2026-09-02T19:44:12Z, 0 with version/build/neither, 0 installs/screens; all ordered funnel steps n=0. 142 version 1.1.7/build 32 events predate release. Empty live data is not missing attribution. app_build → build_number remains prospective/unshipped in #149; September 3 is the code date, not a release boundary. Internal exclusions are person-level within the query window. Shared vault/insight changes are handoff notes only.
+
+Evidence: `docs/validation/2026-09-05/README.md`; scope: `docs/plans/2026-09-05-ios-continuity.md`. No dependency, release, production config, integration relaunch or web changes.
+
 ## 2026-09-03 — WP-74: attribution works, and there is nobody on 1.1.7 to attribute
 
 **The S1 answer, in one sentence: RunSmart 1.1.7 (32) has emitted 0 events from 0 persons since it went live at 2026-09-02T19:44:12Z, so the question of whether live 1.1.7 events carry build identity has no live events to ask it of — 0 carry `app_version`, 0 carry the build key, 0 carry neither, 0 `Application Installed`, 0 `$screen`, and 0 distinct non-founder persons.** The project's last event of any kind is 2026-09-02T12:57:34Z, roughly seven hours *before* the release. Two runs of the query on 2026-09-03 returned identical counts.
