@@ -404,6 +404,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             accumulatedPausedSeconds += Date().timeIntervalSince(pausedAt)
         }
         pausedAt = nil
+        // The runner may have moved while tracking was paused. The first new
+        // fix establishes a fresh distance anchor instead of counting that gap.
+        lastAcceptedLocation = nil
         phase = .recording
         manager.startUpdatingLocation()
         tick()

@@ -485,7 +485,7 @@ struct GuestValueFlowView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Label("This preview stays on this iPhone", systemImage: "iphone")
                         .font(.bodyMD.weight(.semibold))
-                    Text("Sign in to save your answers, generate the full adaptive plan, sync across devices, connect Apple Health or Garmin, and keep durable progress.")
+                    Text("Sign in to save your answers and create your full plan. Record runs with your iPhone, with optional Apple Health sync. Garmin connections are currently unavailable.")
                         .font(.caption)
                         .foregroundStyle(Color.textSecondary)
                 }

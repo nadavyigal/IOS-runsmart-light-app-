@@ -1,0 +1,40 @@
+# Measurement contract - RunSmart (PostHog project 171597)
+# Window: trailing 30 days, 2026-08-07T00:00Z to 2026-09-06T00:00Z (whole UTC days)
+# Gate: n>=10 genuine users at every launch->wall step
+# Build-key boundary: 2026-09-03 (WP-74 S2): app_build -> build_number
+
+## Step 1 - store anchor (cache-busted Apple lookup)
+live version: 1.1.7
+release timestamp: 2026-09-02T19:44:12Z
+build number: 32 (repo IOS RunSmart app.xcodeproj/project.pbxproj, matching the store version)
+
+## Step 2 - project fingerprint
+$lib=posthog-ios: 775 events, 16 persons
+marker app_launched: present
+marker sign_in_wall_reached: present
+
+## Step 3 - build split and pre-release check
+(a cohort whose last event predates its own public release contains no public users)
+NULL (NULL): 26 events, 14 persons, 2026-08-13T12:36:56Z -> 2026-09-02T07:43:16Z
+1.1.7 (32): 142 events, 2 persons, 2026-09-01T12:57:17Z -> 2026-09-02T12:57:34Z <- target cohort PRE-RELEASE: last event predates the store release
+1.1.6 (31): 380 events, 5 persons, 2026-08-13T20:43:11Z -> 2026-09-01T12:57:17Z
+1.1.5 (30): 223 events, 9 persons, 2026-08-13T09:51:12Z -> 2026-08-16T19:13:34Z
+1.1.3 (28): 4 events, 1 persons, 2026-08-13T09:51:12Z -> 2026-08-13T10:26:19Z
+
+## Step 4 - person-level exclusion (never event-level)
+scope: app_version=1.1.7, build=32, since the store release timestamp
+external persons: 0 (0 events)
+internal-tester persons: 0 (0 events)
+
+## Step 5 - ordered funnel, n at every step
+app_launched -> activation_first_frame_rendered -> sign_in_wall_reached
+step 1 app_launched: n=0
+step 2 activation_first_frame_rendered: n=0
+step 3 sign_in_wall_reached: n=0
+no external cohort: counts only, no rates. This is a real answer, not a gap.
+
+## Step 6 - cohort age
+D7 not yet measurable. Earliest valid read: 2026-09-09T19:44Z (168h after the store release). No partial figure is reported.
+
+## Step 7 - record the result
+Write the above into tasks/progress.md and the living page's Current State.

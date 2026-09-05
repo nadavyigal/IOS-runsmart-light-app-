@@ -53,6 +53,29 @@ final class GuestActivationTests: XCTestCase {
         XCTAssertFalse(GuestJourneyStore(defaults: defaults).state.isActive)
     }
 
+    func testRestoredPreviewKeepsAnswersThroughAuthenticatedUpgrade() {
+        var profile = OnboardingProfile.empty
+        profile.goal = "Half Marathon"
+        profile.experience = "Consistent runner"
+        profile.weeklyRunDays = 4
+        profile.preferredDays = ["Tue", "Thu", "Sat", "Sun"]
+        let guest = GuestJourneyStore(defaults: defaults)
+        guest.start()
+        guest.update(profile: profile, step: .preview)
+        guest.markPreviewSeen()
+
+        let restored = GuestJourneyStore(defaults: defaults)
+        restored.markAuthenticatedUpgradeTracked()
+        let upgraded = GuestJourneyStore(defaults: defaults)
+        XCTAssertEqual(upgraded.state.upgradeProfile, profile)
+        XCTAssertEqual(upgraded.state.authenticatedOnboardingStartStep, 3)
+        XCTAssertTrue(upgraded.state.didTrackAuthenticatedUpgrade)
+        let now = Date(timeIntervalSince1970: 1_000)
+        let request = TrainingGoalRequest.onboardingDefault(from: upgraded.state.upgradeProfile, now: now)
+        let expected = TrainingGoalRequest.onboardingDefault(from: profile, now: now)
+        XCTAssertEqual(request, expected)
+    }
+
     func testPreviewUsesGoalExperienceAndScheduleDeterministically() throws {
         var profile = OnboardingProfile.empty
         profile.goal = "First 5K"

@@ -1,3 +1,50 @@
+## 2026-09-05 — Merge review corrections
+
+#150 is the combined merge vehicle for the native continuity fixes and inherited WP-74 #149 attribution work. Retarget to main and close #149 as superseded after the combined merge. No carrying release has shipped from these changes.
+
+Review narrowed the measurement command to RunSmart's 24-hour launch-to-wall diagnostic. Release age alone no longer declares D7 maturity; Resumely reads route to that repository's corrected D7 command. Queries end at the last completed UTC day, exclude internal testers through current persons records, and reject incomplete results instead of reporting zero. Credentials are environment-only; raw HTTP error bodies are not printed.
+
+Validation: four Python tests pass for diagnostic boundaries, app routing, absent credentials and incomplete backend results; the three original review regressions failed against the prior script. Independently verified Xcode result: 416 passed, zero failed/skipped. Review edits affect scripts/docs only. Final HogQL changes have not been rerun live: PostHog connector authentication expired and the environment has no API key. Earlier live-query evidence below predates these corrections.
+
+Next: physical-device paused travel, locked-screen/background recording, save and relaunch checks. Pause-segment map/split accuracy remains a separate issue; no process-death recovery claim. Update insight 10997860's build breakdown with the eventual carrying release. No release/submission performed.
+
+## 2026-09-05 — Bounded native continuity repair
+
+**Status:** Validated; PR stacked on open WP-74 #149 (base b098943).
+**Current Phase:** Review.
+**Active Story:** Pause/resume distance and truthful guest preview.
+**Last Completed Story:** Exclude movement while paused from recorded distance; replace Garmin promise with iPhone recording / optional Apple Health / unavailable Garmin copy.
+**Next Recommended Story:** Review #149 then this dependent batch; founder public-device auth → first workout → interruption → save → relaunch walk.
+**Blockers:** No physical GPS/background/public-binary or live-auth proof. Route polylines/splits still lack pause segments; no process-death recovery claim.
+**Last Validation:** 416 tests passed (413 XCTest + 3 Swift Testing), iPhone 17 Pro / iOS 26.5 simulator. Red test saved 1219.771m for 221.776m of active movement; green excludes the pause gap. Guest restoration, plan-request answers, saved-run decoding, repeat finish and completion dedup checked. ScreenAttributionTests 2/2 passed. Seeded preview/run/flag survived process relaunch; screenshot inspected; simulator preference keys restored.
+**Last Updated:** 2026-09-05
+
+Two fresh measurement contract runs match: 0 events / 0 persons since release 2026-09-02T19:44:12Z, 0 with version/build/neither, 0 installs/screens; all ordered funnel steps n=0. 142 version 1.1.7/build 32 events predate release. Empty live data is not missing attribution. app_build → build_number remains prospective/unshipped in #149; September 3 is the code date, not a release boundary. Internal exclusions are person-level within the query window. Shared vault/insight changes are handoff notes only.
+
+Evidence: `docs/validation/2026-09-05/README.md`; scope: `docs/plans/2026-09-05-ios-continuity.md`. No dependency, release, production config, integration relaunch or web changes.
+
+## 2026-09-03 — WP-74: attribution works, and there is nobody on 1.1.7 to attribute
+
+**The S1 answer, in one sentence: RunSmart 1.1.7 (32) has emitted 0 events from 0 persons since it went live at 2026-09-02T19:44:12Z, so the question of whether live 1.1.7 events carry build identity has no live events to ask it of — 0 carry `app_version`, 0 carry the build key, 0 carry neither, 0 `Application Installed`, 0 `$screen`, and 0 distinct non-founder persons.** The project's last event of any kind is 2026-09-02T12:57:34Z, roughly seven hours *before* the release. Two runs of the query on 2026-09-03 returned identical counts.
+
+**Build attribution itself is fixed, and this is the first confirmation.** The 1.1.7 (32) traffic that does exist is the pre-release build: 142 events from 2 persons, 2026-09-01T12:57:17Z → 2026-09-02T12:57:34Z, and the contract's step-3 integrity check flags it as PRE-RELEASE because its last event predates the store release. Measured across the trailing 30 days (862 events, 18 persons, all `$lib = posthog-ios`): **831 of 862 events carry both `app_version` and the build key, against 2 of 3,813 measured on 2026-07-20.** `registerBuildIdentity()` works. The read that proves it is on pre-release and founder traffic, which is the only traffic there is.
+
+**The 31 events that carry neither are exactly the ones that cannot.** All 15 `Application Installed` carry neither, as `tasks/lessons.md` predicted: they fire inside `PostHogSDK.shared.setup(config)`, which returns before any `register()` can run. The remaining 16 are the first `$screen` (5 of 211), `app_launched` (5 of 111), `Application Opened` (5 of 72) and one `Application Updated` of a fresh install — the same window, same cause. Every other event name is at 100%.
+
+**A new defect, found while measuring: `Application Updated` carries the *previous* build's identity.** 9 of its 10 events in the window have `app_version`/build one release behind PostHog's own `$app_version`/`$app_build` on the same event (1.1.3 vs 1.1.5, 1.1.5 vs 1.1.6, 1.1.6 vs 1.1.7). Super properties are persisted on the device and the update event fires inside `setup()` before the new build re-registers, so the value is not missing but wrong. A stale value is worse than a missing one, because it still splits. Not fixed here — the fix is capturing that event manually after `setup()`, which is its own story. PostHog's native `$app_version`/`$app_build` were correct on 862 of 862 events and are the safer key for install/update attribution specifically.
+
+**S2 decision: RunSmart's build key is renamed `app_build` → `build_number`, effective 2026-09-03.** Resumely registers `build_number` and the pinned contract names `build_number`; one contract query returned a correct answer for Resumely and an empty one for RunSmart, and an empty result is indistinguishable from "no users" — which at RunSmart's traffic is also the expected answer. The rename was chosen over teaching the contract two names because the discontinuity it costs is near-zero *today*: the key has only carried useful data since 2026-08-04, and the public cohort behind it is 0. Every later day makes this cheaper choice more expensive. `registerBuildIdentity()` also now `unregister`s the persisted `app_build`; without that, every install that ever ran the old code would keep emitting `app_build` frozen at its last-seen build.
+
+**S3: the contract is a command.** `python3 scripts/measurement_contract.py` runs all seven pinned steps for project 171597 — cache-busted Apple lookup, project fingerprint, build split with the pre-release check, person-level exclusion, ordered `app_launched → activation_first_frame_rendered → sign_in_wall_reached` funnel with n at every step, and the 168-hour age check. `--app resumely --build N` runs the same query shape against 270848. Two runs on 2026-09-03 were byte-for-byte identical (md5 `317efb22d462f27edeb48765a4414d1b`).
+
+**One saved PostHog insight still names the old key and was left alone deliberately.** Insight 10997860, "RunSmart — Launch to First Completed Run by Build" (project 171597), breaks down by `app_build`. Once a build carrying the rename ships, that breakdown collects future traffic into a single empty bucket while looking exactly like a working chart. The fix is one field, `app_build` → `build_number`, and it is a mutation of the shared analytics workspace rather than of this repo, so it is recorded here for the founder rather than made here. Nothing else in PostHog's 48 saved insights references either build key.
+
+**Validation: 414 passed, 0 failed, 0 skipped** on iPhone 17 Pro (iOS 26.5) simulator — 410 pre-existing plus the 4 new build-key tests. The first full run failed 1 of 414: `testInternalTesterSurvivesResetUser` asserts `resetUser`'s exact call sequence, and the new `unregister` landed inside it. The expectation was updated to `["reset", "unregister", "register", "register"]` and a second assertion now pins what the test actually means — that the restore follows the reset — so the sequence can grow without the intent going unchecked.
+
+**The 2026-09-01 simulator crash did not reproduce.** `ScreenAttributionTests` ran and passed both cases, `GuestActivationTests` ran all six, and the suite completed end to end on the simulator. That is one clean observation on iPhone 17 Pro / iOS 26.5, not a fix and not a claim the defect is gone; it does mean the suite was runnable on simulator today.
+
+**Earliest honest 1.1.7 D7 read: 2026-09-09T19:44Z.** Gate state today is n=0 at every launch→wall step. That is a distribution fact, not an activation one, and no packet here addresses it.
+
 ## 2026-09-01 — 1.1.7 (32) release candidate built, signed and verified; upload is founder-only
 
 **Training Load ships in this build.** Stories 1, 2, 3 and 5 are all on `main` (#143, #144, #146, #147), plus the empty-state copy fix. Suite on the versioned candidate: **407 tests, 0 failures** on a paired physical iPhone (iOS 26.6), `TEST SUCCEEDED`, exit 0. Story 4 (Load Focus) stays parked until a watch is connected — it needs real time-in-zone and `RecordedRun` carries only `averageHeartRateBPM`.
@@ -523,7 +570,7 @@ Last Completed Story: 2026-07-15 — 1.0.9 (23) archived and submitted to ASC; z
 Next Recommended Story: Once 1.0.9 (23) is approved and live: verify WP-43/45 events firing in PostHog for real users, then Experiment E1 (coach preview). If App Review flags S6 or S1 (the waived items), they are the first place to look. Known analytics semantics to remember when reading funnels: onboarding_step_abandoned fires on any backgrounding; plan_generation_timed_out duration inflates if backgrounded mid-poll.
 Blockers: None — waiting on Apple App Review turnaround.
 Last Validation: 2026-07-15 — full suite 275 tests, 0 failures; Release-config build SUCCEEDED at `3186343`. S6/S1 device smoke explicitly waived, not observed — see entry above.
-Last Updated: 2026-08-04
+Last Updated: 2026-09-03
 
 ---
 

@@ -1,6 +1,35 @@
+## September 5 continuity batch
+
+- [x] Reuse open WP-74 #149 and repeat current measurement twice.
+- [x] Correct unavailable Garmin promise in existing guest preview.
+- [x] Reproduce and fix pause displacement inflating saved distance.
+- [x] Pass 416 simulator tests and inspect seeded preview/run retention across relaunch.
+- [ ] Review dependent PR after #149; rebase/retarget after its merge.
+- [ ] Founder public-binary physical auth/record/save/relaunch walkthrough.
+
 # Task State
 
 ## Current Task
+
+**Objective:** WP-74 — establish whether RunSmart's live events can be split by build at all, and make the portfolio's activation contract one query shape rather than two.
+**Status:** Complete. S1 answered (0 live 1.1.7 events, reported as the finding), S2 decided and shipped (`app_build` → `build_number`), S3 shipped as `scripts/measurement_contract.py`.
+**Source:** Agentic OS `WP-74-runsmart-prove-attribution-reaches-live-events.md`; founder request 2026-09-03. A deliberate exception to EXD-028: measurement work serving KR A2, not product or growth work on RunSmart.
+
+### Checklist
+- [x] S1: query project 171597 since 2026-09-02T19:44:12Z. **0 events, 0 persons, 0 non-founder persons.** Run twice, identical.
+- [x] S1: confirm the registration mechanism works at all — 831 of 862 events over 30 days carry both keys, against 2 of 3,813 on 2026-07-20.
+- [x] S1: `Application Installed` 0/15 (fires inside `setup()`); `$screen` 206/211; every other event name at 100%.
+- [x] S2: rename `app_build` → `build_number`, unregister the persisted legacy key, record the boundary date.
+- [x] S2: update the RunSmart parameter block in the Builder OS contract note so the written contract and the shipped code agree.
+- [x] S3: `scripts/measurement_contract.py`, all seven pinned steps, both projects, run twice byte-for-byte identical.
+- [ ] **Founder:** the physical-device route smoke (record, save, benchmark, re-run, compare). Four releases have shipped past this gate; it cannot be delegated.
+- [ ] Re-run `scripts/measurement_contract.py` on or after **2026-09-09T19:44Z**, the earliest honest 1.1.7 D7 read.
+- [ ] **Founder / PostHog:** change insight 10997860 "RunSmart — Launch to First Completed Run by Build" to break down by `build_number` instead of `app_build`, before a build carrying the rename ships.
+- [ ] Open story: `Application Updated` carries the previous build's identity (9 of 10 events). Fix is a manual capture after `setup()`.
+
+**Explicit exclusions:** Garmin (EXD-031), the voice coach flag (EXD-032), Training Load feature work, dashboards, charts, and any report surface. No user-visible change.
+
+## Previous Current Task
 
 **Objective:** Ship RunSmart 1.1.6 with guest mode/value before auth plus every merged reliability and activation-observability improvement since public 1.1.5.
 **Status:** Archive-ready on `main`. PR #137 merged the verified 1.1.6 (31) release-code candidate as `69d4638`; the founder confirmed build 31 is unused and the Supabase callback is allowlisted. Upload and submission have not started.

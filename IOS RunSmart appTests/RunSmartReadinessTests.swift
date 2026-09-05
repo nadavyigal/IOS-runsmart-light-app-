@@ -2027,6 +2027,61 @@ final class RunSmartReadinessTests: XCTestCase {
     }
 
     @MainActor
+    func testRunRecorderResumeExcludesMovementWhilePausedAndPersistsOnce() throws {
+        let defaults = UserDefaults.standard
+        let keys = ["runsmart.runs", "runsmart.hiddenRuns"]
+        let savedValues = keys.map { defaults.object(forKey: $0) }
+        defer {
+            for (key, value) in zip(keys, savedValues) { defaults.set(value, forKey: key) }
+        }
+        for key in keys { defaults.removeObject(forKey: key) }
+        let recorder = RunRecorder()
+        recorder.authorizationStatusProvider = { .authorizedWhenInUse }
+        let now = Date()
+        recorder.startAcquiringLocation(startLocationUpdates: false)
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0800, longitude: 34.7800, accuracy: 10, timestamp: now),
+            makeLocation(latitude: 32.0810, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(1))
+        ], now: now)
+        let beforePause = recorder.distanceMeters
+        recorder.pause()
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0900, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(2))
+        ], now: now)
+        XCTAssertEqual(recorder.distanceMeters, beforePause)
+        recorder.resume()
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0900, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(3))
+        ], now: now)
+        XCTAssertEqual(recorder.distanceMeters, beforePause, accuracy: 0.01,
+                       "The first fix after resuming must not count movement during the pause")
+        recorder.handleLocationUpdates([
+            makeLocation(latitude: 32.0910, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(4))
+        ], now: now)
+        XCTAssertEqual(recorder.distanceMeters, beforePause * 2, accuracy: 1)
+        let run = try XCTUnwrap(recorder.finish())
+        XCTAssertNil(recorder.finish(), "Repeated finish must not create another run")
+        let restored = try XCTUnwrap(RunSmartLocalStore.shared.loadRuns().first { $0.id == run.id })
+        XCTAssertEqual(restored.distanceMeters, beforePause * 2, accuracy: 1)
+        XCTAssertEqual(restored.routePoints.count, 4)
+        XCTAssertEqual(recorder.phase, .ready)
+
+        let analyticsSuite = "runsmart.pause-completion.\(UUID().uuidString)"
+        let analyticsDefaults = try XCTUnwrap(UserDefaults(suiteName: analyticsSuite))
+        let previousAnalytics = Analytics.shared
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.shared = previousAnalytics
+            analyticsDefaults.removePersistentDomain(forName: analyticsSuite)
+        }
+        Analytics.shared = tracker
+        Analytics.trackCompletedRunIfNeeded(restored, defaults: analyticsDefaults)
+        let reopenedDefaults = try XCTUnwrap(UserDefaults(suiteName: analyticsSuite))
+        Analytics.trackCompletedRunIfNeeded(restored, defaults: reopenedDefaults)
+        XCTAssertEqual(tracker.events.filter { $0.name == "run_completed" }.count, 1)
+    }
+
+    @MainActor
     func testRunRecorderPauseThenDiscardReturnsToReadyPhaseWhenAuthorized() {
         let recorder = RunRecorder()
         recorder.authorizationStatusProvider = { .authorizedWhenInUse }
@@ -3395,6 +3450,11 @@ final class RunSmartReadinessTests: XCTestCase {
         /// *after* the reset that cleared it rather than merely alongside it.
         private(set) var callLog: [String] = []
 
+        /// Super-property keys handed to ``unregister(_:)``. WP-74 renamed the build
+        /// key, and a rename that only registers the new key leaves the old one
+        /// persisted on device forever.
+        private(set) var unregistrations: [String] = []
+
         func track(_ event: String, properties: [String: Any]) {
             events.append((event, properties))
             callLog.append("track")
@@ -3407,6 +3467,10 @@ final class RunSmartReadinessTests: XCTestCase {
         func register(properties: [String: Any]) {
             registrations.append(properties)
             callLog.append("register")
+        }
+        func unregister(_ key: String) {
+            unregistrations.append(key)
+            callLog.append("unregister")
         }
         func reset() {
             resetCount += 1
@@ -3426,8 +3490,10 @@ final class RunSmartReadinessTests: XCTestCase {
         let props = Analytics.buildIdentityProperties(bundle: bundle)
         XCTAssertEqual(props["app_version"], "1.1.1",
             "app_version must come from CFBundleShortVersionString")
-        XCTAssertEqual(props["app_build"], "25",
-            "app_build must come from CFBundleVersion")
+        XCTAssertEqual(props["build_number"], "25",
+            "build_number must come from CFBundleVersion")
+        XCTAssertNil(props["app_build"],
+            "app_build is the pre-2026-09-03 name; registering both would leave two names in the portfolio")
     }
 
     func testBuildIdentityPropertiesOmitsMissingAndEmptyValues() {
@@ -3439,7 +3505,7 @@ final class RunSmartReadinessTests: XCTestCase {
             "CFBundleVersion": "25"
         ]))
         XCTAssertNil(blank["app_version"], "an empty version string must be omitted, not registered as \"\"")
-        XCTAssertEqual(blank["app_build"], "25", "a present build must still register when version is blank")
+        XCTAssertEqual(blank["build_number"], "25", "a present build must still register when version is blank")
     }
 
     func testAnalyticsResetReRegistersBuildIdentityForAnonymousEvents() {
@@ -3459,7 +3525,107 @@ final class RunSmartReadinessTests: XCTestCase {
 
         XCTAssertEqual(tracker.resetCount, 1, "reset must still clear the prior user identity")
         XCTAssertEqual(tracker.registrations.first?["app_version"] as? String, "1.1.1")
-        XCTAssertEqual(tracker.registrations.first?["app_build"] as? String, "25")
+        XCTAssertEqual(tracker.registrations.first?["build_number"] as? String, "25")
+    }
+
+    // MARK: - WP-74 S2: one build key for both apps
+
+    /// The registered dictionary must contain the new key and not the old one.
+    ///
+    /// RunSmart registered `app_build` while Resumely registers `build_number` and
+    /// the pinned contract names `build_number`. One contract query pointed at both
+    /// projects returned a correct answer for Resumely and an empty one for RunSmart,
+    /// and an empty result is indistinguishable from "no users" — which at RunSmart's
+    /// traffic is also the expected answer. Two indistinguishable causes for one
+    /// output is how a measurement stays broken for months.
+    func testRegisteredBuildIdentityUsesBuildNumberAndNotAppBuild() {
+        let saved = Analytics.shared
+        let savedTester = Analytics.registeredInternalTester
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.registerInternalTester(savedTester)
+            Analytics.shared = saved
+        }
+        Analytics.shared = tracker
+
+        Analytics.registerBuildIdentity(bundle: StubInfoBundle(values: [
+            "CFBundleShortVersionString": "1.1.7",
+            "CFBundleVersion": "32"
+        ]))
+
+        let registered = tracker.registrations.first
+        XCTAssertEqual(registered?["build_number"] as? String, "32",
+            "the registered dictionary must carry build_number, the name the contract queries")
+        XCTAssertNil(registered?["app_build"],
+            "the registered dictionary must not carry app_build after the 2026-09-03 rename")
+        XCTAssertEqual(registered?["app_version"] as? String, "1.1.7",
+            "app_version is unchanged by the rename and spans the boundary intact")
+    }
+
+    /// Super properties are persisted on the device. `register()` does not remove a
+    /// key it no longer sets, so an install that ever ran the pre-rename code would
+    /// keep emitting `app_build` frozen at its last-seen build — a value that never
+    /// updates again and mis-attributes every future event. Stale is worse than
+    /// missing, because it still splits.
+    func testRegisteringBuildIdentityUnregistersThePersistedLegacyKey() {
+        let saved = Analytics.shared
+        let savedTester = Analytics.registeredInternalTester
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.registerInternalTester(savedTester)
+            Analytics.shared = saved
+        }
+        Analytics.shared = tracker
+
+        Analytics.registerBuildIdentity(bundle: StubInfoBundle(values: [
+            "CFBundleShortVersionString": "1.1.7",
+            "CFBundleVersion": "32"
+        ]))
+
+        XCTAssertEqual(tracker.unregistrations, ["app_build"],
+            "the persisted pre-rename key must be cleared exactly once")
+    }
+
+    /// The unregister has to survive the empty-identity guard. A bundle that yields
+    /// no version and no build still has to lose a persisted `app_build`; otherwise
+    /// the one case where nothing overwrites the stale value is the case that keeps it.
+    func testLegacyKeyIsUnregisteredEvenWhenTheBundleYieldsNoIdentity() {
+        let saved = Analytics.shared
+        let savedTester = Analytics.registeredInternalTester
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.registerInternalTester(savedTester)
+            Analytics.shared = saved
+        }
+        Analytics.shared = tracker
+
+        Analytics.registerBuildIdentity(bundle: StubInfoBundle(values: [:]))
+
+        XCTAssertEqual(tracker.unregistrations, ["app_build"])
+        XCTAssertTrue(tracker.registrations.isEmpty,
+            "an empty identity must still register nothing rather than empty strings")
+    }
+
+    /// `reset()` clears super properties, so sign-out is a second place the legacy key
+    /// could be re-persisted if the restore path diverged from `setup`.
+    func testResetUserRestoresBuildNumberAndStillClearsTheLegacyKey() {
+        let saved = Analytics.shared
+        let savedTester = Analytics.registeredInternalTester
+        let tracker = CapturingAnalyticsService()
+        defer {
+            Analytics.registerInternalTester(savedTester)
+            Analytics.shared = saved
+        }
+        Analytics.shared = tracker
+
+        Analytics.resetUser(bundle: StubInfoBundle(values: [
+            "CFBundleShortVersionString": "1.1.7",
+            "CFBundleVersion": "32"
+        ]))
+
+        XCTAssertEqual(tracker.registrations.first?["build_number"] as? String, "32")
+        XCTAssertNil(tracker.registrations.first?["app_build"])
+        XCTAssertEqual(tracker.unregistrations, ["app_build"])
     }
 
     // MARK: - S5 internal-tester flag (activation cliff plan)
@@ -3503,8 +3669,10 @@ final class RunSmartReadinessTests: XCTestCase {
             "CFBundleVersion": "30"
         ]))
 
-        XCTAssertEqual(tracker.callLog, ["reset", "register", "register"],
+        XCTAssertEqual(tracker.callLog, ["reset", "unregister", "register", "register"],
             "both super-property groups must be restored after the reset that cleared them, not before it")
+        XCTAssertEqual(tracker.callLog.firstIndex(of: "reset"), 0,
+            "the restore must follow the reset; anything registered before it is cleared again")
         XCTAssertTrue(
             tracker.registrations.contains { $0["is_internal_tester"] != nil },
             "is_internal_tester must be re-registered after resetUser or the exclusion vanishes at sign-out"
