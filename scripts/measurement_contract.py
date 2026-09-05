@@ -7,16 +7,14 @@ It has seven mandatory steps and says a skipped step invalidates the read. This
 script is that ritual as a command, because a ritual that depends on someone
 remembering seven steps has now failed six releases running.
 
-One query shape serves both apps. Everything that differs between them lives in
-``APPS`` below, so the shape cannot drift apart again the way the property names
-did (WP-74 S2).
+This command reports RunSmart's 24-hour launch-to-wall diagnostic.
+It does not measure first-run activation or a mature D7 cohort.
 
 Usage:
     python3 scripts/measurement_contract.py            # RunSmart, project 171597
-    python3 scripts/measurement_contract.py --app resumely --build 28
+    # Resumely reads use that app repository's scripts/measurement_contract.py.
 
-Secrets: reads AGENTIC_OS_POSTHOG_API_KEY from the environment, falling back to
-~/.config/agentic-os.env the way the Agentic OS CLI does. The key is never
+Secrets: reads AGENTIC_OS_POSTHOG_API_KEY only from the environment. The key is never
 printed, never written, and never passed as an argument. If it is absent this
 script stops and says so; it does not carry a fallback.
 """
@@ -37,7 +35,6 @@ from pathlib import Path
 
 POSTHOG_BASE_URL = "https://us.posthog.com"
 KEY_ENV = "AGENTIC_OS_POSTHOG_API_KEY"
-LOCAL_ENV_FILE = Path.home() / ".config" / "agentic-os.env"
 APP_STORE_LOOKUP_URL = "https://itunes.apple.com/lookup"
 # Apple caches aggressively per exact URL: an identical lookup can keep returning
 # the previous version for hours. Vary the query string on every call.
@@ -58,7 +55,7 @@ APPS = {
         # events keep the old key, so a query spanning the boundary reads both.
         # This is the documented discontinuity, not a second supported name.
         "build_keys": ["build_number", "app_build"],
-        "build_key_boundary": "2026-09-03 (WP-74 S2): app_build -> build_number",
+        "build_key_boundary": "WP-74 changes source code; public boundary is the carrying release, not September 3",
         # Ordered launch -> wall, per the 1.1.6 release plan.
         "funnel": ["app_launched", "activation_first_frame_rendered", "sign_in_wall_reached"],
         "gate": "n>=10 genuine users at every launch->wall step",
@@ -75,7 +72,7 @@ APPS = {
         "build_keys": ["build_number"],
         "build_key_boundary": None,
         "funnel": ["resume_file_selected", "optimization_started", "optimization_completed"],
-        "gate": ">=20 clean activations (EXD-022)",
+        "gate": "Use the Resumely repository contract; EXD-022 count gate is superseded",
         "fingerprint_events": ["optimization_completed"],
         "version_source": None,
     },
@@ -91,24 +88,7 @@ def load_key() -> str:
     key = os.environ.get(KEY_ENV, "").strip()
     if key:
         return key
-    if LOCAL_ENV_FILE.is_file():
-        for raw in LOCAL_ENV_FILE.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#"):
-                continue
-            if line.startswith("export "):
-                line = line[7:].strip()
-            if "=" not in line:
-                continue
-            name, _, value = line.partition("=")
-            if name.strip() != KEY_ENV:
-                continue
-            value = value.strip()
-            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-                value = value[1:-1]
-            if value:
-                return value
-    print(f"STOP: {KEY_ENV} is not set and is not in {LOCAL_ENV_FILE}.", file=sys.stderr)
+    print(f"STOP: {KEY_ENV} is not set in the environment.", file=sys.stderr)
     print("This read cannot be taken. Not estimating.", file=sys.stderr)
     raise SystemExit(2)
 
@@ -129,10 +109,13 @@ def hogql(key: str, project_id: int, query: str) -> list[list]:
         with urllib.request.urlopen(req, timeout=120) as response:
             payload = json.load(response)
     except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "replace")[:500]
-        print(f"STOP: PostHog returned HTTP {exc.code}. {detail}", file=sys.stderr)
+        print(f"STOP: PostHog returned HTTP {exc.code}.", file=sys.stderr)
         raise SystemExit(1)
-    return payload.get("results", [])
+    results = payload.get("results")
+    if not isinstance(results, list):
+        print("STOP: PostHog response has no completed results array.", file=sys.stderr)
+        raise SystemExit(1)
+    return results
 
 
 def sql_str(value: str) -> str:
@@ -196,6 +179,9 @@ def repo_build(app: dict, store_version: str) -> str:
 # --------------------------------------------------------------------------
 
 def run(app_key: str, build_override: str | None) -> int:
+    if app_key != "runsmart":
+        print("STOP: use scripts/measurement_contract.py in the Resumely iOS repository for its mature D7 contract.", file=sys.stderr)
+        return 2
     app = APPS[app_key]
     key = load_key()
     project_id = app["project_id"]
@@ -205,7 +191,7 @@ def run(app_key: str, build_override: str | None) -> int:
     # Deterministic window: whole UTC days, so two runs on the same day state the
     # same window. Non-determinism is the defect this contract exists to remove.
     today = datetime.now(timezone.utc).date()
-    window_end = datetime(today.year, today.month, today.day, tzinfo=timezone.utc) + timedelta(days=1)
+    window_end = datetime(today.year, today.month, today.day, tzinfo=timezone.utc)
     window_start = window_end - timedelta(days=WINDOW_DAYS)
     win = (f"timestamp >= toDateTime('{window_start:%Y-%m-%d %H:%M:%S}') "
            f"AND timestamp < toDateTime('{window_end:%Y-%m-%d %H:%M:%S}')")
@@ -297,7 +283,7 @@ def run(app_key: str, build_override: str | None) -> int:
     rows = hogql(key, project_id, f"""
         WITH person_flags AS (
             SELECT person_id,
-                   max(toString(properties.is_internal_tester) IN ('true', 'True')) AS is_internal
+                   max(person_id IN (SELECT id FROM persons WHERE lower(toString(properties.is_internal_tester)) IN ('true', '1'))) AS is_internal
             FROM events WHERE {win}
             GROUP BY person_id
         )
@@ -319,7 +305,7 @@ def run(app_key: str, build_override: str | None) -> int:
     print()
 
     # --- Step 5. Ordered funnel with n at every step -------------------------
-    print("## Step 5 - ordered funnel, n at every step")
+    print("## Step 5 - 24-hour entry diagnostic, n at every step (not D7 activation)")
     steps = app["funnel"]
     print(" -> ".join(steps))
     if ext_persons == 0:
@@ -331,7 +317,7 @@ def run(app_key: str, build_override: str | None) -> int:
         rows = hogql(key, project_id, f"""
             WITH person_flags AS (
                 SELECT person_id,
-                       max(toString(properties.is_internal_tester) IN ('true', 'True')) AS is_internal
+                       max(person_id IN (SELECT id FROM persons WHERE lower(toString(properties.is_internal_tester)) IN ('true', '1'))) AS is_internal
                 FROM events WHERE {win}
                 GROUP BY person_id
             ),
@@ -359,15 +345,11 @@ def run(app_key: str, build_override: str | None) -> int:
             print(f"immature: below n={MATURE_N} at some step. Counts only, no rates.")
     print()
 
-    # --- Step 6. Age check against the metric's own window -------------------
-    print("## Step 6 - cohort age")
-    earliest_valid = release_dt + timedelta(hours=D7_HOURS)
-    now = datetime.now(timezone.utc)
-    if now < earliest_valid:
-        print(f"D7 not yet measurable. Earliest valid read: {earliest_valid:%Y-%m-%dT%H:%MZ} "
-              f"({D7_HOURS}h after the store release). No partial figure is reported.")
-    else:
-        print(f"D7 measurable: the cohort passed {D7_HOURS}h at {earliest_valid:%Y-%m-%dT%H:%MZ}.")
+    # Entry observations are not a mature first-run/D7 activation measure.
+    print("## Step 6 - measurement boundary")
+    print("This report measures launch-to-wall within 24 hours, not D7 activation.")
+    print("Release age alone never establishes per-person cohort maturity.")
+    print("First-run and D7 decisions require their separately pinned eligible cohorts.")
     print()
 
     # --- Step 7. Where the result goes --------------------------------------

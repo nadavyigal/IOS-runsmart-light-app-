@@ -1,3 +1,7 @@
+## 2026-09-05 — Name the measured window honestly
+
+A 24-hour entry funnel is not D7 activation. Release age cannot establish per-user maturity. Keep product-specific contracts in their owning repo, use current person classification, and fail incomplete query responses rather than converting them to zero users.
+
 # Lessons Memory
 
 Review this file at the start of future tasks.

@@ -1,3 +1,13 @@
+## 2026-09-05 — Merge review corrections
+
+#150 is the combined merge vehicle for the native continuity fixes and inherited WP-74 #149 attribution work. Retarget to main and close #149 as superseded after the combined merge. No carrying release has shipped from these changes.
+
+Review narrowed the measurement command to RunSmart's 24-hour launch-to-wall diagnostic. Release age alone no longer declares D7 maturity; Resumely reads route to that repository's corrected D7 command. Queries end at the last completed UTC day, exclude internal testers through current persons records, and reject incomplete results instead of reporting zero. Credentials are environment-only; raw HTTP error bodies are not printed.
+
+Validation: four Python tests pass for diagnostic boundaries, app routing, absent credentials and incomplete backend results; the three original review regressions failed against the prior script. Independently verified Xcode result: 416 passed, zero failed/skipped. Review edits affect scripts/docs only. Final HogQL changes have not been rerun live: PostHog connector authentication expired and the environment has no API key. Earlier live-query evidence below predates these corrections.
+
+Next: physical-device paused travel, locked-screen/background recording, save and relaunch checks. Pause-segment map/split accuracy remains a separate issue; no process-death recovery claim. Update insight 10997860's build breakdown with the eventual carrying release. No release/submission performed.
+
 # RunSmart continuity verification, September 5
 
 ## Reproduction
