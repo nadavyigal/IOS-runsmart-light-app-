@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import Combine
+import Supabase
 
 extension Notification.Name {
     static let voiceCoachCueTimerFired = Notification.Name("com.runsmart.voiceCoachCueTimerFired")
@@ -99,16 +100,30 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
         timer = t
     }
 
-    private func fetchAndPlay(context: VoiceCueContext) async {
-        guard let baseURLString = Bundle.main.object(forInfoDictionaryKey: "RunSmartAPIBaseURL") as? String,
-              let url = URL(string: "\(baseURLString)/api/coach/voice-cue") else { return }
-
-        guard let bodyData = try? JSONEncoder().encode(context) else { return }
+    /// The voice-cue route requires a Supabase session. Returns nil without a token,
+    /// so guests skip the network call instead of sending a request that will 401.
+    static func voiceCueRequest(context: VoiceCueContext, baseURLString: String, accessToken: String?) -> URLRequest? {
+        guard let accessToken, !accessToken.isEmpty,
+              let url = URL(string: "\(baseURLString)/api/coach/voice-cue"),
+              let bodyData = try? JSONEncoder().encode(context) else { return nil }
 
         var request = URLRequest(url: url, timeoutInterval: 8)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.httpBody = bodyData
+        return request
+    }
+
+    private func fetchAndPlay(context: VoiceCueContext) async {
+        guard let baseURLString = Bundle.main.object(forInfoDictionaryKey: "RunSmartAPIBaseURL") as? String else { return }
+
+        let accessToken = try? await SupabaseManager.client.auth.session.accessToken
+        guard let request = Self.voiceCueRequest(
+            context: context,
+            baseURLString: baseURLString,
+            accessToken: accessToken
+        ) else { return }
 
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let httpResponse = response as? HTTPURLResponse,
