@@ -1,3 +1,14 @@
+## 2026-09-27 — Voice cues send the Supabase bearer token
+
+**Status:** Validated; PR open, not merged.
+**Current Phase:** Review.
+**Active Story:** Voice-cue auth for RunSmart Web PR nadavyigal/Running-coach-#134 (route returns 401 without a Supabase session).
+**Last Completed Story:** `VoiceCoachService` sends `Authorization: Bearer <Supabase access token>` to `api/coach/voice-cue`; guests with no session skip the network call. Request building moved to a testable static `voiceCueRequest(context:baseURLString:accessToken:)`.
+**Next Recommended Story:** After web #134 merges, signed-in device run: confirm a cue plays at the 5-minute mark. Guest runs get no voice cues by design.
+**Blockers:** None for this change. Merge order: this iOS PR can ship before or after web #134 (the header is ignored by the current route).
+**Last Validation:** 419 tests passed, 0 failed (416 + 3 new `VoiceCoachServiceTests`), iPhone 17 Pro simulator. Red check: removing the header line fails `testSignedInRequestCarriesBearerToken`.
+**Last Updated:** 2026-09-27
+
 ## 2026-09-05 — Merge review corrections
 
 #150 is the combined merge vehicle for the native continuity fixes and inherited WP-74 #149 attribution work. Retarget to main and close #149 as superseded after the combined merge. No carrying release has shipped from these changes.
