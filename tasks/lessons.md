@@ -608,6 +608,10 @@ Future rule: **archive from the main checkout, never from a worktree** — or `c
 
 Expect 47 chars starting `phc_`. Treat an empty value as a release blocker, not a warning.
 
+### 2026-09-28 — A distribution-signed archive is not available with Xcode-managed profiles
+
+Asked to prove the `.xcarchive` itself is Apple Distribution, the 1.1.8 archive was retried with `CODE_SIGN_STYLE = Manual`, `CODE_SIGN_IDENTITY = "Apple Distribution"` and the local "iOS Team Store Provisioning Profile" specifiers. Xcode refused: the profile "is Xcode managed, but signing settings require a manually managed profile". With automatic signing the archive is always Apple Development with `get-task-allow=true`; the distribution proof is the `-exportArchive` IPA. Do not retry the manual route unless a manually created App Store profile is installed. Export can also block silently in `codesign` on a keychain approval dialog for the distribution key (see 2026-06-04); check `ps` for a hung `codesign -f -s` before assuming a network stall.
+
 ### 2026-09-05 — Paused location updates need a new distance anchor
 
 Stopping CLLocationManager during pause does not clear the last accepted fix. The first fix after resume counted displacement while paused (a synthetic 222m run became 1220m). Reset the distance anchor on resume; test movement during the pause and the persisted total. Raw route points still need explicit segmentation before route-derived splits/maps can claim pause-aware behavior.

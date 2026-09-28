@@ -1,8 +1,7 @@
-RunSmart 1.1.7 adds a clearer view of how your recent training is building over time.
+RunSmart 1.1.8 fixes voice coaching and makes paused runs more accurate.
 
 What's new:
-- See your 7-day training load and how it changes over time
-- Compare recent load with your longer-term baseline using Load Ratio
-- Review the contribution of each completed run in Exercise Load
-- Get clearer guidance when there is not yet enough training history
+- Voice cues play again during runs when you are signed in
+- Distance you cover while a run is paused no longer counts toward the run
+- Clearer guest setup copy about recording with iPhone and optional Apple Health sync
 - General reliability and performance improvements

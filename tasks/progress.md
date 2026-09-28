@@ -1,3 +1,24 @@
+## 2026-09-28 — 1.1.8 (33) release candidate: tests green, archive built; upload is founder-only
+
+**Why this build:** RunSmart Web #134 (live 2026-09-27) makes `api/coach/voice-cue` return 401 without a Supabase session, and public 1.1.7 (32) sends no bearer token, so no live user hears a voice cue. 1.1.8 carries #151 (bearer token) and #150 (paused-travel distance fix, guest copy no longer promises Garmin, PostHog build key `app_build` → `build_number`). Nothing else is unreleased on `main`.
+
+**Version:** all six `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` occurrences bumped to 1.1.8 / 33; pbxproj lints clean. Release notes in `fastlane/metadata/en-US/release_notes.txt`. No CHANGELOG file exists in this repo; release notes plus this file are the changelog, as in 1.1.7.
+
+**Tests:** 419 passed, 0 failed, 0 skipped, iPhone 17 Pro simulator (iOS 26.5), built from an rsync copy under `/private/tmp`. `testSignedInRequestCarriesBearerToken` and `testRunRecorderResumeExcludesMovementWhilePausedAndPersistsOnce` ran by name.
+
+**Archive:** `ARCHIVE SUCCEEDED`, 1.1.8 (33), `com.runsmart.lite`, `POSTHOG_API_KEY` present (47 chars, `phc_`), `SUPABASE_URL` full, `ITSAppUsesNonExemptEncryption=false`. The archive is signed Apple Development with `get-task-allow=true`, as in 1.1.7: automatic signing always signs archives for development, and export re-signs. A manual Apple Distribution archive was attempted and refused: the local store profiles are Xcode-managed and Xcode will not use them with manual signing. Judge the exported IPA.
+
+**Smoke checklist for the TestFlight build:** `docs/qa/2026-09-28-1.1.8-testflight-smoke.md`.
+
+**Status:** 1.1.8 (33) candidate archived; 1.1.7 (32) public.
+**Current Phase:** Release candidate; founder upload, TestFlight smoke, then submission.
+**Active Story:** RunSmart 1.1.8 (33) release.
+**Last Completed Story:** Voice-cue bearer token (#151).
+**Next Recommended Story:** Founder: upload, run the TestFlight smoke, submit. Then update PostHog insight 10997860 breakdown `app_build` → `build_number` once 1.1.8 is public.
+**Blockers:** Upload needs founder App Store Connect access. Export needs the Apple Distribution key approved in the macOS keychain.
+**Last Validation:** 2026-09-28 — 419 / 0 failures on simulator; archive inspected.
+**Last Updated:** 2026-09-28
+
 ## 2026-09-27 — Voice cues send the Supabase bearer token
 
 **Status:** Validated; PR open, not merged.
