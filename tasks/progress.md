@@ -8,7 +8,7 @@
 
 **Archive:** `ARCHIVE SUCCEEDED`, 1.1.8 (33), `com.runsmart.lite`, `POSTHOG_API_KEY` present (47 chars, `phc_`), `SUPABASE_URL` full, `ITSAppUsesNonExemptEncryption=false`. The archive is signed Apple Development with `get-task-allow=true`, as in 1.1.7: automatic signing always signs archives for development, and export re-signs. A manual Apple Distribution archive was attempted and refused: the local store profiles are Xcode-managed and Xcode will not use them with manual signing. Judge the exported IPA.
 
-**Exported IPA (verified):** `EXPORT SUCCEEDED`, `RunSmart.ipa` 12.2 MB, 1.1.8 (33), arm64. `codesign -dvvv`: app and Live Activity extension both `Authority=Apple Distribution`, `get-task-allow=false`; `codesign --verify --deep --strict` OK. Export first waited on a keychain approval for the distribution key; approved on the Mac, then completed.
+**Exported IPA (verified):** `EXPORT SUCCEEDED`, `RunSmart.ipa` 12.2 MB, 1.1.8 (33), arm64. `codesign -dvvv`: app and Live Activity extension both `Authority=Apple Distribution`, `get-task-allow=false`; `codesign --verify --deep --strict` OK. Export sat in `codesign` for about 23 minutes (likely the keychain prompt for the distribution key), then completed.
 
 **Smoke checklist for the TestFlight build:** `docs/qa/2026-09-28-1.1.8-testflight-smoke.md`.
 
