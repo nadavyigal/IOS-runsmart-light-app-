@@ -1,3 +1,26 @@
+## 2026-09-28 — 1.1.8 (33) release candidate: tests green, archive built; upload is founder-only
+
+**Why this build:** RunSmart Web #134 (live 2026-09-27) makes `api/coach/voice-cue` return 401 without a Supabase session, and public 1.1.7 (32) sends no bearer token, so no live user hears a voice cue. 1.1.8 carries #151 (bearer token) and #150 (paused-travel distance fix, guest copy no longer promises Garmin, PostHog build key `app_build` → `build_number`). Nothing else is unreleased on `main`.
+
+**Version:** all six `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` occurrences bumped to 1.1.8 / 33; pbxproj lints clean. Release notes in `fastlane/metadata/en-US/release_notes.txt`. No CHANGELOG file exists in this repo; release notes plus this file are the changelog, as in 1.1.7.
+
+**Tests:** 419 passed, 0 failed, 0 skipped, iPhone 17 Pro simulator (iOS 26.5), built from an rsync copy under `/private/tmp`. `testSignedInRequestCarriesBearerToken` and `testRunRecorderResumeExcludesMovementWhilePausedAndPersistsOnce` ran by name.
+
+**Archive:** `ARCHIVE SUCCEEDED`, 1.1.8 (33), `com.runsmart.lite`, `POSTHOG_API_KEY` present (47 chars, `phc_`), `SUPABASE_URL` full, `ITSAppUsesNonExemptEncryption=false`. The archive is signed Apple Development with `get-task-allow=true`, as in 1.1.7: automatic signing always signs archives for development, and export re-signs. A manual Apple Distribution archive was attempted and refused: the local store profiles are Xcode-managed and Xcode will not use them with manual signing. Judge the exported IPA.
+
+**Exported IPA (verified):** `EXPORT SUCCEEDED`, `RunSmart.ipa` 12.2 MB, 1.1.8 (33), arm64. `codesign -dvvv`: app and Live Activity extension both `Authority=Apple Distribution`, `get-task-allow=false`; `codesign --verify --deep --strict` OK. Export sat in `codesign` for about 23 minutes (likely the keychain prompt for the distribution key), then completed.
+
+**Smoke checklist for the TestFlight build:** `docs/qa/2026-09-28-1.1.8-testflight-smoke.md`.
+
+**Status:** 1.1.8 (33) candidate archived and exported (Apple Distribution IPA verified); 1.1.7 (32) public.
+**Current Phase:** Release candidate; founder upload, TestFlight smoke, then submission.
+**Active Story:** RunSmart 1.1.8 (33) release.
+**Last Completed Story:** Voice-cue bearer token (#151).
+**Next Recommended Story:** Founder: upload, run the TestFlight smoke, submit. Then update PostHog insight 10997860 breakdown `app_build` → `build_number` once 1.1.8 is public.
+**Blockers:** Upload needs founder App Store Connect access.
+**Last Validation:** 2026-09-28 — 419 / 0 failures on simulator; archive inspected; exported IPA Apple Distribution, `get-task-allow=false`.
+**Last Updated:** 2026-09-28
+
 ## 2026-09-27 — Voice cues send the Supabase bearer token
 
 **Status:** Validated; PR open, not merged.
@@ -581,7 +604,7 @@ Last Completed Story: 2026-07-15 — 1.0.9 (23) archived and submitted to ASC; z
 Next Recommended Story: Once 1.0.9 (23) is approved and live: verify WP-43/45 events firing in PostHog for real users, then Experiment E1 (coach preview). If App Review flags S6 or S1 (the waived items), they are the first place to look. Known analytics semantics to remember when reading funnels: onboarding_step_abandoned fires on any backgrounding; plan_generation_timed_out duration inflates if backgrounded mid-poll.
 Blockers: None — waiting on Apple App Review turnaround.
 Last Validation: 2026-07-15 — full suite 275 tests, 0 failures; Release-config build SUCCEEDED at `3186343`. S6/S1 device smoke explicitly waived, not observed — see entry above.
-Last Updated: 2026-09-03
+Last Updated: 2026-09-28
 
 ---
 
