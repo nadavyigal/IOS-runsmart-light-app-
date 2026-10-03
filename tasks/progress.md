@@ -1,3 +1,14 @@
+## 2026-10-03 — PostHog silence root cause: empty `POSTHOG_API_KEY` in archives without secrets file
+
+**Root cause:** `RunSmartConfig.xcconfig` committed `POSTHOG_API_KEY` as empty and relied on gitignored `RunSmartSecrets.xcconfig` via `#include?`. When that file is absent (fresh worktree, rsync copy, CI/Xcode Cloud), Release builds succeed but `setupAnalyticsIfNeeded()` bails at the empty-token guard and emits zero events — indistinguishable from broken instrumentation. PostHog project 171597 confirms: 1.1.7 (32) and 1.1.8 (33) show only pre-release device events; **zero events after each App Store release timestamp** (1.1.7 after 2026-09-02T19:44Z, 1.1.8 after 2026-10-02T19:28Z).
+
+**Fix (PR open, not merged):** Commit the public PostHog project API key (`phc_*`) into `RunSmartConfig.xcconfig` (same pattern as `SUPABASE_PUBLISHABLE_KEY`). Add `Analytics.postHogCredentials()` to centralize resolution and reject unresolved `$(BUILD_SETTING)` placeholders. Add a Release-only build phase that fails the archive when the built `Info.plist` carries an empty key.
+
+**Verify after merge:** Archive from a checkout **without** `RunSmartSecrets.xcconfig`, confirm `PlistBuddy -c 'Print :POSTHOG_API_KEY' …/Info.plist` is non-empty, upload a TestFlight build, launch once, and watch PostHog 171597 Live Events for `app_launched` with `app_version` / `build_number`.
+
+**Status:** Fix in review; no version bump or release in this PR.
+**Last Updated:** 2026-10-03
+
 ## 2026-09-28 — 1.1.8 (33) release candidate: tests green, archive built; upload is founder-only
 
 **Why this build:** RunSmart Web #134 (live 2026-09-27) makes `api/coach/voice-cue` return 401 without a Supabase session, and public 1.1.7 (32) sends no bearer token, so no live user hears a voice cue. 1.1.8 carries #151 (bearer token) and #150 (paused-travel distance fix, guest copy no longer promises Garmin, PostHog build key `app_build` → `build_number`). Nothing else is unreleased on `main`.
