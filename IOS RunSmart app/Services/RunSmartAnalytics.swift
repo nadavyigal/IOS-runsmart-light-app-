@@ -28,13 +28,8 @@ enum RunSmartAnalytics {
 #if DEBUG
         guard !RunSmartDemoMode.isEnabled else { return }
 #endif
-        guard
-            let projectToken = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_API_KEY") as? String,
-            !projectToken.isEmpty
-        else { return }
-        let host = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_HOST") as? String
-            ?? "https://us.i.posthog.com"
-        let config = PostHogConfig(projectToken: projectToken, host: host)
+        guard let credentials = Analytics.postHogCredentials() else { return }
+        let config = PostHogConfig(projectToken: credentials.projectToken, host: credentials.host)
         PostHogSDK.shared.setup(config)
     }
 
