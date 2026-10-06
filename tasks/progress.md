@@ -24,8 +24,10 @@
 - **Gate bug found and fixed (`41d19b8`):** the Verify PostHog Credentials phase declared no inputs, so Xcode could run it before `ProcessInfoPlistFile`. An incremental Release build with `POSTHOG_API_KEY=` read the previous build's plist and **passed with an empty key**. It now declares `$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)` as its input and a missing plist fails. Re-run: empty key straight after a good build exits 65 with the gate error; good key exits 0.
 - Unit tests: **421 run, 411 passed, 10 crashed.** Both new credential tests pass. The 10 crashes are pre-existing, not from this PR: 4 of them run on `origin/main` crash identically (0/4 pass), all in `SignInWallTracker.__deallocating_deinit` → `swift_task_deinitOnExecutorMainActorBackDeploy` → malloc abort (iPhone 17 simulator). Tracked separately.
 
-**Status:** Fix in review, tests run; no version bump or release in this PR.
-**Last Updated:** 2026-10-05
+**2026-10-06 rebase onto #154 (Claude):** rebased onto the deinit fix (#154); the only conflict was this file, resolved by keeping both entries. Full suite on iPhone 17 iOS 26.3.1, no secrets file: **421 passed, 0 failed, 0 skipped**. The 10 crashes above are gone.
+
+**Status:** Fix in review, rebased and green on iOS 26.3; no version bump or release in this PR.
+**Last Updated:** 2026-10-06
 
 ## 2026-09-28 — 1.1.8 (33) release candidate: tests green, archive built; upload is founder-only
 
