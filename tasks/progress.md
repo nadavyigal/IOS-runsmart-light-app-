@@ -1,3 +1,20 @@
+## 2026-10-06: 1.1.8 (33) is live; release bookkeeping closed
+
+**Live:** App Store lookup (`itunes.apple.com/lookup?bundleId=com.runsmart.lite`, checked 2026-10-06) returns 1.1.8, released 2026-10-02T19:28:34Z. The 2026-09-28 "release candidate" entry below is history, not current state.
+
+**Merged today:** #154 (iOS 26.3 test-host deinit fix) and #153 (PostHog public key committed, Release archive gate). Both land in the next build, not in 1.1.8.
+
+**PostHog insight 10997860** ("RunSmart — Launch to First Completed Run by Build", project 171597): breakdown changed `app_build` → `build_number` via the PostHog API on 2026-10-06. It was the only saved insight still on the old key (see the 2026-09-03 S2 entry).
+
+**Status:** 1.1.8 (33) public. No release in flight.
+**Current Phase:** Post-release verification.
+**Active Story:** None.
+**Last Completed Story:** 1.1.8 release bookkeeping and PostHog build-key insight fix.
+**Next Recommended Story:** Founder: physical-device route smoke on 1.1.8 (`docs/qa/ios-qa-checklist.md`). Three releases shipped without it.
+**Blockers:** Device smoke needs the founder's phone.
+**Last Validation:** 2026-10-06: App Store lookup shows 1.1.8; PATCH response for insight 10997860 shows `breakdown: build_number`.
+**Last Updated:** 2026-10-06
+
 ## 2026-10-06: Synchronous tests no longer abort on the iOS 26.3 simulator
 
 **Why:** on `main` (1.1.8 (33)) ten synchronous tests crashed the test host on the iPhone 17 simulator (iOS 26.3.1). Implicit deinits are main-actor isolated under `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, and the iOS 26.3 runtime aborts such a deinit inside XCTest's synchronous task-local binding. iOS 26.5 does not, so the 1.1.8 run (iOS 26.5) was green. Not a shipped crash: the app never binds a task-local synchronously, and below iOS 26 the runtime function is never called.
