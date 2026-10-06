@@ -99,6 +99,24 @@ enum Analytics {
     /// still splits.
     static let legacyBuildKey = "app_build"
 
+    /// Resolves PostHog credentials from a bundle's Info.plist.
+    ///
+    /// Returns nil when the key or host is missing, empty, or still an unresolved
+    /// `$(BUILD_SETTING)` placeholder — the silent failure mode that shipped in
+    /// 1.1.7/1.1.8 when `RunSmartSecrets.xcconfig` was absent at archive time.
+    static func postHogCredentials(bundle: Bundle = .main) -> (projectToken: String, host: String)? {
+        guard let projectToken = bundle.object(forInfoDictionaryKey: "POSTHOG_API_KEY") as? String,
+              isUsablePlistCredential(projectToken),
+              let host = bundle.object(forInfoDictionaryKey: "POSTHOG_HOST") as? String,
+              isUsablePlistCredential(host)
+        else { return nil }
+        return (projectToken, host)
+    }
+
+    static func isUsablePlistCredential(_ value: String) -> Bool {
+        !value.isEmpty && !value.hasPrefix("$(")
+    }
+
     static func setup(projectToken: String, host: String) {
 #if DEBUG
         guard !RunSmartDemoMode.isEnabled else {

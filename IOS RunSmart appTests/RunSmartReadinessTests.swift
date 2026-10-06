@@ -3478,6 +3478,35 @@ final class RunSmartReadinessTests: XCTestCase {
         }
     }
 
+    // MARK: - PostHog credential resolution
+
+    func testPostHogCredentialsRejectEmptyAndUnresolvedPlaceholders() {
+        XCTAssertFalse(Analytics.isUsablePlistCredential(""))
+        XCTAssertFalse(Analytics.isUsablePlistCredential("$(POSTHOG_API_KEY)"))
+
+        XCTAssertNil(Analytics.postHogCredentials(bundle: StubInfoBundle(values: [
+            "POSTHOG_API_KEY": "",
+            "POSTHOG_HOST": "https://us.i.posthog.com"
+        ])))
+        XCTAssertNil(Analytics.postHogCredentials(bundle: StubInfoBundle(values: [
+            "POSTHOG_API_KEY": "$(POSTHOG_API_KEY)",
+            "POSTHOG_HOST": "https://us.i.posthog.com"
+        ])))
+        XCTAssertNil(Analytics.postHogCredentials(bundle: StubInfoBundle(values: [
+            "POSTHOG_API_KEY": "phc_test_token",
+            "POSTHOG_HOST": ""
+        ])))
+    }
+
+    func testPostHogCredentialsResolveCommittedDefaults() {
+        let credentials = Analytics.postHogCredentials(bundle: StubInfoBundle(values: [
+            "POSTHOG_API_KEY": "phc_test_token",
+            "POSTHOG_HOST": "https://us.i.posthog.com"
+        ]))
+        XCTAssertEqual(credentials?.projectToken, "phc_test_token")
+        XCTAssertEqual(credentials?.host, "https://us.i.posthog.com")
+    }
+
     // MARK: - WP-51 build identity + onboarding_started dedupe
 
     /// Measured 2026-07-20: app_version was set on 2 of 3,813 events over 60 days,

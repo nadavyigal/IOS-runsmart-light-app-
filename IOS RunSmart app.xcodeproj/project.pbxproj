@@ -120,6 +120,7 @@
 				33F1D5BC2FA0B36A006C1A3C /* Resources */,
 				WW3814072FA0B36A006C1A3C /* Embed Foundation Extensions */,
 				33F1D5DC2FA0B36A006C1A3C /* Strip Disallowed Resource Metadata */,
+				PHG0VERIFY2FA0B36A006C1A3C /* Verify PostHog Credentials */,
 			);
 			buildRules = (
 			);
@@ -271,6 +272,26 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		PHG0VERIFY2FA0B36A006C1A3C /* Verify PostHog Credentials */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "Verify PostHog Credentials";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Fail Release archives when PostHog credentials did not resolve into the app bundle.\nif [ \"$CONFIGURATION\" = \"Debug\" ]; then\n  exit 0\nfi\n\nPLIST=\"${SCRIPT_INPUT_FILE_0}\"\nif [ ! -f \"$PLIST\" ]; then\n  echo \"error: built Info.plist not found at $PLIST; cannot verify PostHog credentials.\"\n  exit 1\nfi\n\nKEY=$(/usr/libexec/PlistBuddy -c \"Print :POSTHOG_API_KEY\" \"$PLIST\" 2>/dev/null || echo \"\")\nHOST=$(/usr/libexec/PlistBuddy -c \"Print :POSTHOG_HOST\" \"$PLIST\" 2>/dev/null || echo \"\")\n\ncase \"$KEY\" in\n  \"\"|\"\\$(POSTHOG_API_KEY)\")\n    echo \"error: POSTHOG_API_KEY is empty in the built Info.plist. Release builds will emit zero analytics. See RunSmartConfig.xcconfig.\"\n    exit 1\n    ;;\nesac\n\ncase \"$HOST\" in\n  \"\"|\"\\$(POSTHOG_HOST)\")\n    echo \"error: POSTHOG_HOST is empty in the built Info.plist. Release builds will emit zero analytics.\"\n    exit 1\n    ;;\nesac\n";
+		};
 		33F1D5DC2FA0B36A006C1A3C /* Strip Disallowed Resource Metadata */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;

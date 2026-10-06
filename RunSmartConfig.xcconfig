@@ -1,7 +1,11 @@
 // Committed defaults for clean local and CI builds.
 // RunSmartSecrets.xcconfig is gitignored and may override these values.
+//
+// PostHog project API keys (phc_*) are public client keys, like the Supabase
+// publishable key below. An empty default silently disables analytics in Release
+// when the gitignored secrets file is absent (worktrees, CI, Xcode Cloud).
 
-POSTHOG_API_KEY =
+POSTHOG_API_KEY = phc_2RcjPhReYKSisINOVVehHusghrUtyyiR6sN87SzJLZ6
 // xcconfig treats // as a comment; use $()/ to preserve the URL scheme.
 SUPABASE_URL = https:/$()/dxqglotcyirxzyqaxqln.supabase.co
 SUPABASE_PUBLISHABLE_KEY = sb_publishable_PpDpqkqVaKFnOyoLR7mdyA_UNTeeoqN
