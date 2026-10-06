@@ -1,3 +1,16 @@
+## 2026-10-06: Synchronous tests no longer abort on the iOS 26.3 simulator
+
+**Why:** on `main` (1.1.8 (33)) ten synchronous tests crashed the test host on the iPhone 17 simulator (iOS 26.3.1). Implicit deinits are main-actor isolated under `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, and the iOS 26.3 runtime aborts such a deinit inside XCTest's synchronous task-local binding. iOS 26.5 does not, so the 1.1.8 run (iOS 26.5) was green. Not a shipped crash: the app never binds a task-local synchronously, and below iOS 26 the runtime function is never called.
+
+**Status:** Fix committed (85adf3c) on `fix/signin-wall-tracker-deinit-crash`; PR open, not merged.
+**Current Phase:** Review.
+**Active Story:** Test-host deinit crash on iOS 26.3.
+**Last Completed Story:** `nonisolated deinit {}` on `SignInWallTracker`, `ActivationFirstFrameTracker`, `GuestJourneyStore` and the `RegisterSpy` test spy (same fix as #131 for `EmailSignInModel`). Lesson added to `tasks/lessons.md`.
+**Next Recommended Story:** Merge this PR. Run releases on both the iOS 26.3 and 26.5 simulators.
+**Blockers:** None.
+**Last Validation:** 2026-10-06: full suite on iPhone 17 iOS 26.3.1, 409 passed / 10 failed before, 419 passed / 0 failed after.
+**Last Updated:** 2026-10-06
+
 ## 2026-09-28 — 1.1.8 (33) release candidate: tests green, archive built; upload is founder-only
 
 **Why this build:** RunSmart Web #134 (live 2026-09-27) makes `api/coach/voice-cue` return 401 without a Supabase session, and public 1.1.7 (32) sends no bearer token, so no live user hears a voice cue. 1.1.8 carries #151 (bearer token) and #150 (paused-travel distance fix, guest copy no longer promises Garmin, PostHog build key `app_build` → `build_number`). Nothing else is unreleased on `main`.

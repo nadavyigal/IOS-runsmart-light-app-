@@ -616,7 +616,7 @@ Asked to prove the `.xcarchive` itself is Apple Distribution, the 1.1.8 archive 
 
 Stopping CLLocationManager during pause does not clear the last accepted fix. The first fix after resume counted displacement while paused (a synthetic 222m run became 1220m). Reset the distance anchor on resume; test movement during the pause and the persisted total. Raw route points still need explicit segmentation before route-derived splits/maps can claim pause-aware behavior.
 
-### 2026-10-05 — Implicit isolated deinit aborts synchronous tests on the iOS 26.3 runtime (SECOND OCCURRENCE)
+### 2026-10-05: Implicit isolated deinit aborts synchronous tests on the iOS 26.3 runtime (SECOND OCCURRENCE)
 
 Trigger: on `main` (1.1.8 (33)) ten synchronous tests died with SIGABRT on the iPhone 17 simulator (iOS 26.3): `malloc_report → swift_task_deinitOnExecutorImpl → swift_task_deinitOnExecutorMainActorBackDeploy → <Type>.__deallocating_deinit` for `SignInWallTracker`, `ActivationFirstFrameTracker`, `GuestJourneyStore` and the test spy `RegisterSpy`. PR #131 had already fixed the same crash in `EmailSignInModel` one type at a time, so every new class reopened it.
 
