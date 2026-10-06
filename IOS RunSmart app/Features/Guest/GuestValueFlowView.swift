@@ -54,6 +54,11 @@ final class GuestJourneyStore: ObservableObject {
         }
     }
 
+    /// Opts out of the implicit isolated deinit; see `EmailSignInModel`'s deinit
+    /// for the synchronous-test abort it causes. Teardown only releases stored
+    /// properties, so nothing here needs the main actor.
+    nonisolated deinit {}
+
     func start() {
         guard !state.isActive else { return }
         var profile = OnboardingProfile.empty

@@ -47,6 +47,11 @@ final class SignInWallTracker {
         self.now = now
     }
 
+    /// Opts out of the implicit isolated deinit; see `EmailSignInModel`'s deinit
+    /// for the synchronous-test abort it causes. Teardown only releases stored
+    /// properties, so nothing here needs the main actor.
+    nonisolated deinit {}
+
     func wallAppeared() {
         guard viewedAt == nil else { return }
         viewedAt = now()

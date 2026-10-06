@@ -64,21 +64,27 @@ final class EmailSignInModel: ObservableObject {
 
     /// Opts this type out of isolated deinit, which crashes the test host.
     ///
-    /// `@MainActor` on a class gives it an isolated deinit, so the final release
-    /// routes through `swift_task_deinitOnExecutor`. With
-    /// `IPHONEOS_DEPLOYMENT_TARGET = 17.0` that goes via the back-deployment
-    /// shim, and on the x86_64 simulator (Xcode 26.5 / Swift 6.3.2) it aborts
-    /// inside `libsystem_malloc`:
+    /// `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` (Swift 6.3.2) gives every
+    /// pure-Swift class with an *implicit* deinit an isolated one, so the final
+    /// release routes through `swift_task_deinitOnExecutor`. A written `deinit`
+    /// stays nonisolated, and `NSObject` subclasses are not affected.
+    ///
+    /// On the iOS 26.3 runtime that call aborts inside `libsystem_malloc` when
+    /// the release happens inside a *synchronous* task-local binding on a thread
+    /// with no running Task:
     ///
     ///     malloc_report → swift_task_deinitOnExecutorImpl
     ///       → swift_task_deinitOnExecutorMainActorBackDeploy
     ///       → EmailSignInModel.__deallocating_deinit
     ///
-    /// It only fires when the last reference dies in a *synchronous* context,
-    /// which is why the two synchronous tests that own a model
-    /// (`testSubmitIsBlockedUntilBothFieldsAreUsable`,
+    /// XCTest wraps every synchronous test in exactly that binding
+    /// (`XCTestCore.$currentErrorTracker`), which is why the two synchronous
+    /// tests that own a model (`testSubmitIsBlockedUntilBothFieldsAreUsable`,
     /// `testSwitchingModeClearsAStaleErrorAndLeavesConfirmation`) took the whole
     /// host process down while the six `async` tests in the same file passed.
+    /// The iOS 26.5 runtime does not abort, and below iOS 26 the back-deploy
+    /// shim never calls the runtime function. App code never binds a task-local
+    /// synchronously, so this is a test-host crash, not a shipped one.
     ///
     /// Nothing here needs main-actor isolation to tear down — the deinit only
     /// releases stored properties — so opting out is safe rather than a

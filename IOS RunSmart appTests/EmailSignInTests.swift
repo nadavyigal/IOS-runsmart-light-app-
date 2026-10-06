@@ -465,6 +465,10 @@ private final class RegisterSpy: AnalyticsTracking {
     func identify(userId: String, traits: [String: Any]) {}
     func register(properties: [String: Any]) { registered.merge(properties) { _, new in new } }
     func reset() {}
+
+    /// The `AnalyticsTracking` conformance makes this spy main-actor isolated,
+    /// so it gets the same implicit isolated deinit as `EmailSignInModel`.
+    nonisolated deinit {}
 }
 
 @MainActor
