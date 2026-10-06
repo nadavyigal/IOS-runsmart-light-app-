@@ -615,3 +615,14 @@ Asked to prove the `.xcarchive` itself is Apple Distribution, the 1.1.8 archive 
 ### 2026-09-05 — Paused location updates need a new distance anchor
 
 Stopping CLLocationManager during pause does not clear the last accepted fix. The first fix after resume counted displacement while paused (a synthetic 222m run became 1220m). Reset the distance anchor on resume; test movement during the pause and the persisted total. Raw route points still need explicit segmentation before route-derived splits/maps can claim pause-aware behavior.
+
+### 2026-10-05 — Implicit isolated deinit aborts synchronous tests on the iOS 26.3 runtime (SECOND OCCURRENCE)
+
+Trigger: on `main` (1.1.8 (33)) ten synchronous tests died with SIGABRT on the iPhone 17 simulator (iOS 26.3): `malloc_report → swift_task_deinitOnExecutorImpl → swift_task_deinitOnExecutorMainActorBackDeploy → <Type>.__deallocating_deinit` for `SignInWallTracker`, `ActivationFirstFrameTracker`, `GuestJourneyStore` and the test spy `RegisterSpy`. PR #131 had already fixed the same crash in `EmailSignInModel` one type at a time, so every new class reopened it.
+
+- `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` (Swift 6.3.2) gives every pure-Swift class with an implicit deinit an isolated one. A written `deinit` stays nonisolated; `NSObject` subclasses are unaffected.
+- The abort needs three things together: the iOS 26.3 runtime, an isolated deinit, and the release happening inside a synchronous task-local binding on a thread with no Task. XCTest supplies the last one for every synchronous test (`XCTestCore.$currentErrorTracker`). A 15-line probe aborted on iOS 26.3 and survived on iOS 26.5; async tests survive on both.
+- It went unnoticed because the release run (2026-09-28, 419/0) used an iOS 26.5 simulator.
+- Not a shipped crash: app code and Supabase only bind task-locals with `async`, and below iOS 26 the back-deploy shim never calls the runtime function.
+
+Future rule: every new `final class` (not `NSObject`, not `nonisolated`) whose teardown only releases stored properties gets `nonisolated deinit {}`. Run the suite on the iOS 26.3 iPhone 17 simulator as well as 26.5 before calling a release green.

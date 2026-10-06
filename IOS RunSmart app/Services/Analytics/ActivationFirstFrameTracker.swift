@@ -45,6 +45,11 @@ final class ActivationFirstFrameTracker {
         self.init(signInWallTracker: .shared)
     }
 
+    /// Opts out of the implicit isolated deinit; see `EmailSignInModel`'s deinit
+    /// for the synchronous-test abort it causes. Teardown only releases stored
+    /// properties, so nothing here needs the main actor.
+    nonisolated deinit {}
+
     func screenRendered(_ screen: ActivationFirstFrameScreen) {
         guard !didTrackFrame else { return }
         didTrackFrame = true
