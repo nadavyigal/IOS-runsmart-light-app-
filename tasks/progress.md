@@ -30,10 +30,10 @@
 **Why:** on `main` (1.1.8 (33)) ten synchronous tests crashed the test host on the iPhone 17 simulator (iOS 26.3.1). Implicit deinits are main-actor isolated under `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, and the iOS 26.3 runtime aborts such a deinit inside XCTest's synchronous task-local binding. iOS 26.5 does not, so the 1.1.8 run (iOS 26.5) was green. Not a shipped crash: the app never binds a task-local synchronously, and below iOS 26 the runtime function is never called.
 
 **Status:** Fix committed (85adf3c) on `fix/signin-wall-tracker-deinit-crash`; merged as #154 on 2026-10-06.
-**Current Phase:** Review.
+**Current Phase:** Merged (#154, 2026-10-06).
 **Active Story:** Test-host deinit crash on iOS 26.3.
 **Last Completed Story:** `nonisolated deinit {}` on `SignInWallTracker`, `ActivationFirstFrameTracker`, `GuestJourneyStore` and the `RegisterSpy` test spy (same fix as #131 for `EmailSignInModel`). Lesson added to `tasks/lessons.md`.
-**Next Recommended Story:** Merge this PR. Run releases on both the iOS 26.3 and 26.5 simulators.
+**Next Recommended Story:** Done: merged as #154. Run releases on both the iOS 26.3 and 26.5 simulators.
 **Blockers:** None.
 **Last Validation:** 2026-10-06: full suite on iPhone 17 iOS 26.3.1, 409 passed / 10 failed before, 419 passed / 0 failed after.
 **Last Updated:** 2026-10-06
@@ -44,7 +44,7 @@
 
 **Root cause:** `RunSmartConfig.xcconfig` committed `POSTHOG_API_KEY` as empty and relied on gitignored `RunSmartSecrets.xcconfig` via `#include?`. When that file is absent (fresh worktree, rsync copy, CI/Xcode Cloud), Release builds succeed but `setupAnalyticsIfNeeded()` bails at the empty-token guard and emits zero events — indistinguishable from broken instrumentation. PostHog project 171597 confirms: 1.1.7 (32) and 1.1.8 (33) show only pre-release device events; **zero events after each App Store release timestamp** (1.1.7 after 2026-09-02T19:44Z, 1.1.8 after 2026-10-02T19:28Z).
 
-**Fix (PR open, not merged):** Commit the public PostHog project API key (`phc_*`) into `RunSmartConfig.xcconfig` (same pattern as `SUPABASE_PUBLISHABLE_KEY`). Add `Analytics.postHogCredentials()` to centralize resolution and reject unresolved `$(BUILD_SETTING)` placeholders. Add a Release-only build phase that fails the archive when the built `Info.plist` carries an empty key.
+**Fix (merged as #153 on 2026-10-06):** Commit the public PostHog project API key (`phc_*`) into `RunSmartConfig.xcconfig` (same pattern as `SUPABASE_PUBLISHABLE_KEY`). Add `Analytics.postHogCredentials()` to centralize resolution and reject unresolved `$(BUILD_SETTING)` placeholders. Add a Release-only build phase that fails the archive when the built `Info.plist` carries an empty key.
 
 **Verify after merge:** Archive from a checkout **without** `RunSmartSecrets.xcconfig`, confirm `PlistBuddy -c 'Print :POSTHOG_API_KEY' …/Info.plist` is non-empty, upload a TestFlight build, launch once, and watch PostHog 171597 Live Events for `app_launched` with `app_version` / `build_number`.
 
