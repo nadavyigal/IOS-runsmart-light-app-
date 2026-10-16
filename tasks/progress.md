@@ -1,8 +1,31 @@
+## 2026-10-16: Public 1.1.8 (33) does emit analytics; the "silent build" premise was wrong
+
+**Merged:** #154 (iOS 26.3 test-host deinit fix) and #153 (PostHog public key committed, Release archive gate), both 2026-10-06. Neither is in a public build yet. This entry folds in and supersedes #155.
+
+**Live:** App Store lookup (checked 2026-10-16) returns 1.1.8, released 2026-10-02T19:28:34Z.
+
+**1.1.8 (33) carries the PostHog key.** The archive Xcode actually uploaded (`~/Library/Developer/Xcode/Archives/2026-09-28/RunSmart-1.1.8-33.xcarchive`, `Distributions` shows "Uploaded to Apple" 2026-10-02T06:05:47Z, build 33) has a 47-char `phc_` key in its `Info.plist`, identical to the one now committed in `RunSmartConfig.xcconfig`, and `POSTHOG_HOST = https://us.i.posthog.com`. Every uploaded RunSmart archive since 1.0.1 (10) carries the same key. The empty-key failure in the 2026-10-03 entry is real for worktree and CI archives, but it is not what happened to 1.1.7 or 1.1.8.
+
+**PostHog 171597 shows public 1.1.8 traffic** (HogQL via the personal API key in `~/.config/agentic-os.env`, HTTP 200, 2026-10-16): after the release timestamp, 4 persons sent events on `app_version = 1.1.8`, 3 of them `is_internal_tester = false` (iOS 26.6.1 / 26.6.2), last on 2026-10-16. 14 `app_launched` events, all with `app_version = 1.1.8` and `build_number = 33`. Funnel events reach `run_completed` and `sign_in_completed`. The 2026-10-03 "zero events after each release" read was taken one day after release, on a low-traffic app.
+
+**PostHog insight 10997860** ("RunSmart — Launch to First Completed Run by Build") breaks down by `build_number` (re-read 2026-10-16; changed on 2026-10-06 per #155).
+
+**The 2026-10-16 HTTP 403 is on the reading side, not the app.** With the founder's personal key, project 171597 reads (`/api/projects/171597/`, insights, persons, dashboards, `query/`) all return 200 today. A 403 means the caller used a different or narrower key. A full-table HogQL scan can also return 504 (timeout) and `/events/` 503 (busy); bound queries by time.
+
+**Status:** 1.1.8 (33) public and emitting analytics with version and build. 1.1.9 prepared as a clean-checkout archive check only (see below once landed).
+**Current Phase:** Measurement verified; release decision with founder.
+**Active Story:** S5 (October Improvement Plan): RunSmart analytics in the public build.
+**Last Completed Story:** Live verification that public 1.1.8 emits `app_launched` with `app_version` and `build_number`.
+**Next Recommended Story:** Founder decides whether 1.1.9 ships. It carries no user-facing change over 1.1.8 (only #153 build hardening and #154 test-only), so it is not needed for analytics. Then: physical-device route smoke on 1.1.8 (`docs/qa/ios-qa-checklist.md`).
+**Blockers:** None for analytics.
+**Last Validation:** 2026-10-16: uploaded 1.1.8 archive key inspected; PostHog HogQL read of 171597, HTTP 200; App Store lookup 1.1.8.
+**Last Updated:** 2026-10-16
+
 ## 2026-10-06: Synchronous tests no longer abort on the iOS 26.3 simulator
 
 **Why:** on `main` (1.1.8 (33)) ten synchronous tests crashed the test host on the iPhone 17 simulator (iOS 26.3.1). Implicit deinits are main-actor isolated under `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, and the iOS 26.3 runtime aborts such a deinit inside XCTest's synchronous task-local binding. iOS 26.5 does not, so the 1.1.8 run (iOS 26.5) was green. Not a shipped crash: the app never binds a task-local synchronously, and below iOS 26 the runtime function is never called.
 
-**Status:** Fix committed (85adf3c) on `fix/signin-wall-tracker-deinit-crash`; PR open, not merged.
+**Status:** Fix committed (85adf3c) on `fix/signin-wall-tracker-deinit-crash`; merged as #154 on 2026-10-06.
 **Current Phase:** Review.
 **Active Story:** Test-host deinit crash on iOS 26.3.
 **Last Completed Story:** `nonisolated deinit {}` on `SignInWallTracker`, `ActivationFirstFrameTracker`, `GuestJourneyStore` and the `RegisterSpy` test spy (same fix as #131 for `EmailSignInModel`). Lesson added to `tasks/lessons.md`.
@@ -12,6 +35,8 @@
 **Last Updated:** 2026-10-06
 
 ## 2026-10-03 — PostHog silence root cause: empty `POSTHOG_API_KEY` in archives without secrets file
+
+**Correction (2026-10-16):** the mechanism below is real for worktree and CI archives, but it did not affect public 1.1.7 or 1.1.8: both uploaded archives carry the key, and 1.1.8 traffic is in 171597. See the 2026-10-16 entry.
 
 **Root cause:** `RunSmartConfig.xcconfig` committed `POSTHOG_API_KEY` as empty and relied on gitignored `RunSmartSecrets.xcconfig` via `#include?`. When that file is absent (fresh worktree, rsync copy, CI/Xcode Cloud), Release builds succeed but `setupAnalyticsIfNeeded()` bails at the empty-token guard and emits zero events — indistinguishable from broken instrumentation. PostHog project 171597 confirms: 1.1.7 (32) and 1.1.8 (33) show only pre-release device events; **zero events after each App Store release timestamp** (1.1.7 after 2026-09-02T19:44Z, 1.1.8 after 2026-10-02T19:28Z).
 
@@ -26,7 +51,7 @@
 
 **2026-10-06 rebase onto #154 (Claude):** rebased onto the deinit fix (#154); the only conflict was this file, resolved by keeping both entries. Full suite on iPhone 17 iOS 26.3.1, no secrets file: **421 passed, 0 failed, 0 skipped**. The 10 crashes above are gone.
 
-**Status:** Fix in review, rebased and green on iOS 26.3; no version bump or release in this PR.
+**Status:** Merged as #153 on 2026-10-06; no version bump or release in that PR.
 **Last Updated:** 2026-10-06
 
 ## 2026-09-28 — 1.1.8 (33) release candidate: tests green, archive built; upload is founder-only
