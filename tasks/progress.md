@@ -12,13 +12,17 @@
 
 **The 2026-10-16 HTTP 403 is on the reading side, not the app.** With the founder's personal key, project 171597 reads (`/api/projects/171597/`, insights, persons, dashboards, `query/`) all return 200 today. A 403 means the caller used a different or narrower key. A full-table HogQL scan can also return 504 (timeout) and `/events/` 503 (busy); bound queries by time.
 
-**Status:** 1.1.8 (33) public and emitting analytics with version and build. 1.1.9 prepared as a clean-checkout archive check only (see below once landed).
+**1.1.9 (34) candidate (PR #157, not merged):** version bump only. Archived from this worktree with no `RunSmartSecrets.xcconfig`: `ARCHIVE SUCCEEDED`; built `Info.plist` has `POSTHOG_API_KEY` (47 chars) equal to the committed key and to project 171597's `api_token`, `POSTHOG_HOST = https://us.i.posthog.com`, no unresolved `$(...)`. The Verify PostHog Credentials phase ran clean. Tests 421 passed / 0 failed / 0 skipped on the iPhone 17 simulator (iOS 26.5); no iOS 26.3 runtime is installed today.
+
+**Device smoke (not run, no device connected 2026-10-16):** connect and unlock the iPhone, install the 1.1.9 build (TestFlight after founder upload, or Xcode Run in Release), open the app once, then in PostHog 171597 Activity filter `event = app_launched` and check `app_version = 1.1.9`, `build_number = 34`. Public 1.1.8 already passes this check with real users.
+
+**Status:** 1.1.8 (33) public and emitting analytics with version and build. 1.1.9 (34) archived and verified locally; not uploaded.
 **Current Phase:** Measurement verified; release decision with founder.
 **Active Story:** S5 (October Improvement Plan): RunSmart analytics in the public build.
 **Last Completed Story:** Live verification that public 1.1.8 emits `app_launched` with `app_version` and `build_number`.
 **Next Recommended Story:** Founder decides whether 1.1.9 ships. It carries no user-facing change over 1.1.8 (only #153 build hardening and #154 test-only), so it is not needed for analytics. Then: physical-device route smoke on 1.1.8 (`docs/qa/ios-qa-checklist.md`).
-**Blockers:** None for analytics.
-**Last Validation:** 2026-10-16: uploaded 1.1.8 archive key inspected; PostHog HogQL read of 171597, HTTP 200; App Store lookup 1.1.8.
+**Blockers:** None for analytics. 1.1.9 upload and device smoke need the founder.
+**Last Validation:** 2026-10-16: uploaded 1.1.8 archive key inspected; PostHog HogQL read of 171597, HTTP 200; App Store lookup 1.1.8; 1.1.9 (34) clean-checkout archive key verified; 421 / 0 tests (iPhone 17, iOS 26.5).
 **Last Updated:** 2026-10-16
 
 ## 2026-10-06: Synchronous tests no longer abort on the iOS 26.3 simulator
