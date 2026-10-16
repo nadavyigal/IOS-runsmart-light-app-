@@ -1,7 +1,4 @@
-RunSmart 1.1.8 fixes voice coaching and makes paused runs more accurate.
+RunSmart 1.1.9 is a maintenance release.
 
 What's new:
-- Voice cues play again during runs when you are signed in
-- Distance you cover while a run is paused no longer counts toward the run
-- Clearer guest setup copy about recording with iPhone and optional Apple Health sync
-- General reliability and performance improvements
+- Build and stability improvements behind the scenes
