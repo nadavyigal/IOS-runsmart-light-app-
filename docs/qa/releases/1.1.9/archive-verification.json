@@ -1,0 +1,25 @@
+{
+  "archive_path": "/Users/nadavyigal/Library/Developer/Xcode/Archives/2026-10-17/RunSmart 1.1.9 (34) - Review Prep.xcarchive",
+  "bundle_id": "com.runsmart.lite",
+  "version": "1.1.9",
+  "build": "34",
+  "sdk": "iphoneos26.5",
+  "xcode": "2650",
+  "posthog_matches_committed_public_key": true,
+  "required_service_configuration_resolved": true,
+  "encryption_nonexempt": false,
+  "privacy_manifest_matches_source": true,
+  "healthkit_entitlement": true,
+  "apple_sign_in_entitlement": true,
+  "associated_domains_count": 2,
+  "app_and_extension_versions_match": true,
+  "deep_strict_signature_verification": true,
+  "get_task_allow": true,
+  "dsyms": [
+    "RunSmartRunLiveActivityExtension.appex.dSYM",
+    "IOS RunSmart app.app.dSYM"
+  ],
+  "unwanted_source_or_secret_files": [],
+  "export_status": "Succeeded; Apple Distribution IPA and extension verified; see ipa-verification.json",
+  "upload_performed": false
+}
