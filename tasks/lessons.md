@@ -1,3 +1,11 @@
+## 2026-10-17 — Build outside a stalled Documents file-coordination path
+
+If xcodebuild produces no DerivedData or output and a process sample shows `NSFileCoordinator` blocked while opening the project, stop that invocation and build an exact source snapshot under `/private/tmp`. Verify source fingerprints, carry the intended resource changes, and record that the snapshot omits local secrets. Use exact identifiers from `simctl list runtimes` when creating a QA simulator.
+
+## 2026-10-17 — Release privacy and metadata follow runtime behavior
+
+When analytics identifies the authenticated account, declare product interaction as linked and include Analytics as a User ID purpose. Check both the bundled manifest and ASC answers; a valid plist does not prove accurate declarations. Compare parsed source and archived plist objects because Xcode can reserialize the resource without changing its meaning. Remove unavailable integrations from store promises when the in-app copy changes.
+
 ## 2026-09-05 — Name the measured window honestly
 
 A 24-hour entry funnel is not D7 activation. Release age cannot establish per-user maturity. Keep product-specific contracts in their owning repo, use current person classification, and fail incomplete query responses rather than converting them to zero users.

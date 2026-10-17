@@ -1,0 +1,9 @@
+RunSmart 1.1.9 (34) is a maintenance update. There are no new user-facing features in this version.
+
+RunSmart provides running plans, outdoor GPS run recording, and post-run reports. A signed-out runner can preview a first week using the guest flow. Saving a full plan and accessing account features requires Sign in with Apple or email sign-in. Please use the dedicated review account entered in the App Review Information credentials fields for the authenticated features.
+
+Apple Health / HealthKit is optional. With the runner's permission, RunSmart reads supported workout and wellness data for training context and can write completed runs to Apple Health when write permission is granted. RunSmart does not use CareKit. Location is used for outdoor run recording; background location is used only while recording a run. Notifications are optional local workout reminders.
+
+Garmin connections are currently unavailable and are not required to review the app. No external hardware is required for the iPhone GPS recording flow. Voice cues require a signed-in session. RunSmart does not provide medical diagnosis.
+
+Account deletion is available from the Profile account/settings area. Please contact us using the App Review Information contact fields if assistance is needed.

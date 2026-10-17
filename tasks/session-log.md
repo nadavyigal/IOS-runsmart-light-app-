@@ -1,3 +1,11 @@
+## 2026-10-17 — 1.1.9 (34) App Store preparation
+
+**Status:** Archive verified; not ready to submit until live privacy-policy correction, ASC checks and final device smoke. Distribution export is waiting for macOS Keychain signature access; user was asked to approve the local prompt. No upload/submission/release performed.
+**Source:** Release PR #157, original `f0dbf3e`, current main task history retained. Native privacy declarations corrected for identified analytics (User ID, Product Interaction and Fitness purposes), profile name and persisted coach messages. Store description no longer advertises unavailable Garmin connections. No app logic/UI change.
+**Validation:** Final corrected candidate passed 421/421 tests, zero failed/skipped, iPhone 17 Pro / iOS 26.5. Signed Release archive succeeded without a secrets xcconfig. App/extension 1.1.9 (34), required config resolved, committed analytics key matches, entitlements/dSYMs/signature/resource packaging verified. Fresh iPhone 17e launch and small-screen entry layout inspected; temporary smoke simulator removed.
+**Artifact:** `~/Library/Developer/Xcode/Archives/2026-10-17/RunSmart 1.1.9 (34) - Review Prep.xcarchive`. Development signing is expected on this archive; only the export can establish Apple Distribution / `get-task-allow=false`.
+**Handoff:** `docs/qa/releases/1.1.9/README.md` with evidence, reviewer notes, privacy-policy correction draft and final device smoke checklist. Public policy currently claims browser-only local storage and anonymous analytics; the native backend and run-stat telemetry contradict that. URLs return 200, which is not a content-readiness check. ASC remains at Apple Account sign-in; no API key is configured.
+
 ## 2026-09-05 — Bounded native continuity repair
 
 **Status:** Validated; PR stacked on open WP-74 #149 (base b098943).
