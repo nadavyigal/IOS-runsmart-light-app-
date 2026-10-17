@@ -4,7 +4,7 @@ Prepared 2026-10-17 (Asia/Jerusalem). App Store submission remains founder-owned
 
 ## Decision
 
-**Not ready to submit until the live privacy-policy correction, ASC privacy/metadata checks, and final device smoke are complete.** Local archive and test checks passed; distribution export is waiting for macOS Keychain approval. Do not interpret a checked historical 1.0.2 or TestFlight checklist as evidence for this version.
+**Not ready to submit until the live privacy-policy correction, ASC privacy/metadata checks, and final device smoke are complete.** Local archive, distribution IPA and test checks passed. ASC still redirects to sign-in in the accessible Codex browser. Do not interpret a checked historical 1.0.2 or TestFlight checklist as evidence for this version.
 
 ## Candidate and scope
 
@@ -27,18 +27,18 @@ Prepared 2026-10-17 (Asia/Jerusalem). App Store submission remains founder-owned
 
 - **Release archive: PASS**, including the final privacy resource; signed app and extension, matching 1.1.9 (34), both dSYMs, HealthKit/Apple sign-in/associated-domain entitlements, and deep/strict signature verification.
 - **Built configuration: PASS** without a local secrets xcconfig. Analytics key matches the committed public key; analytics host and required backend settings are resolved; no unresolved build placeholders or bundled Swift/markdown/xcconfig/private-key files.
-- **Privacy packaging: PASS**, parsed archived manifest equals the final source. The archive has development signing / `get-task-allow=true`, which is expected before distribution export. This is not a distribution IPA signature claim.
+- **Privacy packaging: PASS**, parsed archived manifest equals the final source. The archive has development signing / `get-task-allow=true`, as expected before export. The exported IPA was separately verified with Apple Distribution signing and `get-task-allow=false`.
 - **Simulator suite: PASS**, 421 passed, zero failures/skips on iPhone 17 Pro / iOS 26.5. The final resource candidate was rerun: **421 passed, zero failures/skips**; app logic is unchanged.
 - **Fresh launch: PASS**, dedicated fresh iPhone 17e / iOS 26.5 simulator. Inspected guest CTA, Apple/email sign-in and legal links with no clipping. Screenshot: `fresh-launch-iphone-17e.png`. This was a simulator Debug build, not the device archive. The temporary smoke simulator was removed afterward.
-- **App Store export: WAITING**, `codesign` is waiting for Keychain signature access. A prompt was requested from the release owner; distribution IPA and Apple's server-side validation have not passed yet.
+- **App Store export: PASS**, following release-owner Keychain approval. App AND extension use Apple Distribution signing and `get-task-allow=false`; deep/strict signature checks pass; both remain 1.1.9 (34), and the final privacy manifest is included. IPA size: 12,207,508 bytes. Apple server-side upload/processing validation has not run.
 - **Not run:** physical-device/upgrade/auth/provider/background GPS smoke, ASC processing or review checks. Existing actor-isolation and HealthKit deprecation warnings remain in untouched Swift sources.
 
 The archive is installed in Xcode's normal Organizer location:
 `/Users/nadavyigal/Library/Developer/Xcode/Archives/2026-10-17/RunSmart 1.1.9 (34) - Review Prep.xcarchive`.
 
-Export invocation uses `ExportOptionsAppStore.plist`: local export only, `manageAppVersionAndBuildNumber=false`, so it cannot silently increment build 34 or submit the app. It is currently running from `/private/tmp/runsmart-1.1.9-34-20261017`, writing `build/AppStoreExport` and `export.log`. After Keychain approval, verify the resulting IPA uses Apple Distribution signing with `get-task-allow=false` before uploading.
+Export invocation uses `ExportOptionsAppStore.plist`: local export only, `manageAppVersionAndBuildNumber=false`, so it cannot silently increment build 34 or submit the app. Export completed successfully from `/private/tmp/runsmart-1.1.9-34-20261017`. The verified IPA and export outputs are copied to the durable canonical checkout at `build/release-1.1.9-34/AppStoreExport/RunSmart.ipa`. SHA-256: `cf9a41c0c904a0e01e431cd9087f245c258821ed5235d2c5add79adcf947128a`.
 
-Archive inspection: `archive-verification.json`. Test summary: `test-summary.json`. Raw build logs are kept under `build/release-1.1.9-34/` in the canonical app checkout. The `.xcresult` bundles remain under the temporary build snapshot.
+Archive inspection: `archive-verification.json`. Distribution IPA inspection: `ipa-verification.json`. Test summary: `test-summary.json`. Raw build logs are kept under `build/release-1.1.9-34/` in the canonical app checkout. The `.xcresult` bundles remain under the temporary build snapshot.
 
 Static checks passed: project/Info/privacy plist syntax, all six version/build pairs, metadata character limits, and absence of a local secrets file in the build copy. Public support, privacy and AASA endpoints return HTTP 200; AASA contains the native application identifier. The privacy URL's content still needs correction despite returning 200.
 
@@ -64,4 +64,4 @@ Apple submission reference: https://developer.apple.com/help/app-store-connect/m
 
 ## Access and practical limits
 
-App Store Connect opened at its Apple Account sign-in screen. This environment has no configured ASC API key. No upload, build processing, reviewer-account login, live metadata change, agreements acceptance, submission or release has been claimed. The final physical-device/background and live-provider checks require release-owner evidence. Simulator success cannot close those gates.
+The release owner reported signing in on the follow-up, but the accessible Codex App Store Connect tab still redirects `/apps` to Apple Account sign-in. The release owner was asked to finish signing in in that tab until the Apps list appears. This environment has no configured ASC API key. No upload, build processing, reviewer-account login, live metadata change, agreements acceptance, submission or release has been claimed. The final physical-device/background and live-provider checks require release-owner evidence. Simulator success cannot close those gates.

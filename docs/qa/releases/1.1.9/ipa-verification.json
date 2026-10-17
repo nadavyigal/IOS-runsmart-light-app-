@@ -1,0 +1,23 @@
+{
+  "ipa_sha256": "cf9a41c0c904a0e01e431cd9087f245c258821ed5235d2c5add79adcf947128a",
+  "size_bytes": 12207508,
+  "bundles": [
+    {
+      "bundle_id": "com.runsmart.lite",
+      "version": "1.1.9",
+      "build": "34",
+      "apple_distribution": true,
+      "get_task_allow": false,
+      "deep_strict_verified": true
+    },
+    {
+      "bundle_id": "com.runsmart.lite.runliveactivity",
+      "version": "1.1.9",
+      "build": "34",
+      "apple_distribution": true,
+      "get_task_allow": false,
+      "deep_strict_verified": true
+    }
+  ],
+  "final_privacy_manifest_matches": true
+}

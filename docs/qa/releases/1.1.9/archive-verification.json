@@ -20,6 +20,6 @@
     "IOS RunSmart app.app.dSYM"
   ],
   "unwanted_source_or_secret_files": [],
-  "export_status": "Waiting for macOS Keychain signing approval",
+  "export_status": "Succeeded; Apple Distribution IPA and extension verified; see ipa-verification.json",
   "upload_performed": false
 }

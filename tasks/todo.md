@@ -2,7 +2,7 @@
 
 - [x] Inspect PR #157 and pin source `f0dbf3e`.
 - [x] Build and inspect signed Release archive; final privacy resource matches source.
-- [ ] Export distribution IPA — waiting on macOS Keychain distribution-key access.
+- [x] Export distribution IPA after owner Keychain approval; app/extension Apple Distribution, debugging disabled, signatures and final privacy manifest verified.
 - [x] Final candidate: 421/421 simulator tests; fresh iPhone 17e launch inspected.
 - [x] Verify entitlements, permission strings, privacy packaging, public links and local metadata.
 - [ ] Publish corrected native privacy policy and reconcile ASC privacy answers; live policy is inaccurate.

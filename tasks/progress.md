@@ -1,3 +1,8 @@
+## 2026-10-17 — Distribution IPA export completed
+
+**Status:** App Store distribution IPA verified after release-owner Keychain approval. App and Live Activity extension are 1.1.9 (34), Apple Distribution signed, `get-task-allow=false`, deep/strict signature checks passed, final privacy manifest included. Durable IPA: `build/release-1.1.9-34/AppStoreExport/RunSmart.ipa` (12,207,508 bytes); fingerprint in `docs/qa/releases/1.1.9/ipa-verification.json`.
+**Still open:** Native privacy-policy publication, final device smoke, and ASC build/metadata/privacy review. The owner reported signing in, but the accessible Codex `/apps` tab still redirects to Apple Account sign-in; requested completion in that tab. No upload or submission performed.
+
 ## 2026-10-17 — 1.1.9 (34) App Store preparation
 
 **Status:** Archive verified; not ready to submit until live privacy-policy correction, ASC checks and final device smoke. Distribution export is waiting for macOS Keychain signature access; user was asked to approve the local prompt. No upload/submission/release performed.
