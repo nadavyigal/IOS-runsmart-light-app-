@@ -1318,6 +1318,6 @@ struct URLSessionRunSmartAPIClient: RunSmartAPIClient {
            !raw.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
             return url
         }
-        return URL(string: "https://runsmart-ai.com")!
+        return URL(string: "https://www.runsmart-ai.com")!
     }
 }
