@@ -1,3 +1,18 @@
+## 2026-10-19 — 1.1.9 (34) is live on the App Store
+
+**Live:** App Store lookup for id 6768297840, polled 3 times on 2026-10-19 with a different `nocache` value each time (3 of 3 agreed): version 1.1.9, released 2026-10-18T18:23:16Z. The founder also confirmed it is approved and live in App Store Connect. The 2026-10-17 entries ("not uploaded", "No upload or submission performed") are now out of date.
+
+**Apex redirect:** the live build calls the apex `runsmart-ai.com`. The apex redirect was removed on Vercel on 2026-10-18, a server-side fix, so signed-in requests from the live 1.1.9 keep their token without a new build. PR #158 (call `www.runsmart-ai.com` directly) is still open; it ships in the next build once merged.
+
+**Status:** 1.1.9 (34) live since 2026-10-18.
+**Current Phase:** Post-release verification.
+**Active Story:** None.
+**Last Completed Story:** 1.1.9 (34) released (release PR #157, merged 2026-10-17).
+**Next Recommended Story:** Physical-device route smoke on the live 1.1.9 using `docs/qa/ios-qa-checklist.md`. Include plan generation while signed in. Then in PostHog 171597, check that `app_launched` shows up with `app_version = 1.1.9` and `build_number = 34`.
+**Blockers:** Device smoke needs the founder's iPhone.
+**Last Validation:** 2026-10-19: App Store lookup 1.1.9, released 2026-10-18T18:23:16Z (3 of 3 polls). Status-file change only; no build, test or code change.
+**Last Updated:** 2026-10-19
+
 ## 2026-10-17 — Distribution IPA export completed
 
 **Status:** App Store distribution IPA verified after release-owner Keychain approval. App and Live Activity extension are 1.1.9 (34), Apple Distribution signed, `get-task-allow=false`, deep/strict signature checks passed, final privacy manifest included. Durable IPA: `build/release-1.1.9-34/AppStoreExport/RunSmart.ipa` (12,207,508 bytes); fingerprint in `docs/qa/releases/1.1.9/ipa-verification.json`.
