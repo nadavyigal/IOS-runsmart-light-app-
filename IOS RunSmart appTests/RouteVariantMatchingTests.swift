@@ -284,6 +284,30 @@ final class RouteVariantMatchingTests: XCTestCase {
         XCTAssertEqual(BenchmarkComparisonPresentation.distanceDeltaLabel(490), "+0.49 km")
     }
 
+    /// Plain loop, then a detour, then the plain loop again: the third run is a full match, so
+    /// it keeps its route time PB even though its previous run was a variant.
+    func testFullRouteRunAfterAVariantKeepsItsRoutePB() async {
+        let services = ProductionRunSmartServices()
+        let first = Self.makeRun(day: 1, distanceMeters: 4_000, movingTime: 1_600, points: Self.plainLoop())
+        let detour = Self.makeRun(day: 2, distanceMeters: 4_500, movingTime: 1_750, points: Self.detourLoop())
+        let third = Self.makeRun(day: 3, distanceMeters: 4_000, movingTime: 1_540, points: Self.plainLoop())
+        _ = await services.saveRouteMatch(for: first)
+        let route = SavedRoute.from(run: first, name: "Park loop")
+        _ = await services.saveRoute(route, fromRun: first)
+        _ = await services.enableBenchmark(for: route.id)
+        _ = await services.saveRouteMatch(for: detour)
+        let thirdStored = await services.saveRouteMatch(for: third)
+
+        let comparison = await services.benchmarkComparison(for: thirdStored)
+
+        XCTAssertEqual(comparison?.previousPerformance?.runID, detour.id)
+        XCTAssertEqual(comparison?.comparesPace, true, "Against a variant the previous-run delta is by pace")
+        XCTAssertEqual(comparison?.currentPerformance.isRouteVariant, false)
+        XCTAssertEqual(comparison?.personalBest.runID, third.id)
+        guard let comparison else { return XCTFail("No comparison") }
+        XCTAssertTrue(BenchmarkComparisonPresentation.insights(for: comparison).contains("This is your personal best on Park loop."))
+    }
+
     // MARK: - Fixtures
 
     @MainActor

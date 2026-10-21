@@ -168,7 +168,7 @@ struct BenchmarkComparisonCard: View {
                         tint: .accentRecovery
                     )
                     BenchmarkMetricTile(
-                        title: comparison.comparesPace ? "Best Pace" : "Route PB",
+                        title: comparison.currentPerformance.isRouteVariant ? "Best Pace" : "Route PB",
                         value: pbValue,
                         detail: pbDetail,
                         symbol: "flag.checkered",
@@ -275,15 +275,17 @@ struct BenchmarkComparisonCard: View {
         return "vs \(BenchmarkComparisonPresentation.durationLabel(previous.durationSeconds))"
     }
 
+    // Only the run itself being a variant hides route time; a full-route run after a
+    // variant still shows its real route PB.
     private var pbValue: String {
-        if comparison.comparesPace {
+        if comparison.currentPerformance.isRouteVariant {
             return BenchmarkComparisonPresentation.paceLabel(comparison.allTimeAverage.bestPaceSecondsPerKm)
         }
         return BenchmarkComparisonPresentation.durationLabel(comparison.personalBest.durationSeconds)
     }
 
     private var pbDetail: String {
-        if comparison.comparesPace {
+        if comparison.currentPerformance.isRouteVariant {
             let isBest = comparison.currentPerformance.paceSecondsPerKm <= comparison.allTimeAverage.bestPaceSecondsPerKm + 0.5
             return isBest ? "New best" : "Best on route"
         }

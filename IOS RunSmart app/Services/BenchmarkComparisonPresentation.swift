@@ -123,11 +123,20 @@ enum BenchmarkComparisonPresentation {
             insights.append("This is your first tracked effort on this route.")
         }
 
-        let bestPace = comparison.allTimeAverage.bestPaceSecondsPerKm
-        if current.paceSecondsPerKm <= bestPace + 0.5 {
-            insights.append("This is your best pace on \(comparison.routeName).")
+        if current.isRouteVariant {
+            let bestPace = comparison.allTimeAverage.bestPaceSecondsPerKm
+            if current.paceSecondsPerKm <= bestPace + 0.5 {
+                insights.append("This is your best pace on \(comparison.routeName).")
+            } else {
+                insights.append("You are \(durationLabel(current.paceSecondsPerKm - bestPace)) /km off your best pace here.")
+            }
+        } else if comparison.personalBest.runID == current.runID {
+            insights.append("This is your personal best on \(comparison.routeName).")
         } else {
-            insights.append("You are \(durationLabel(current.paceSecondsPerKm - bestPace)) /km off your best pace here.")
+            let pbDelta = current.durationSeconds - comparison.personalBest.durationSeconds
+            if pbDelta > 0 {
+                insights.append("You are \(durationLabel(pbDelta)) off your route PB.")
+            }
         }
 
         return Array(insights.prefix(3))
