@@ -13,6 +13,7 @@ enum RouteRematchService {
     nonisolated static func updatedMatches(
         runs: [RecordedRun],
         savedRoutes: [SavedRoute],
+        benchmarkRouteIDs: Set<UUID> = [],
         limit: Int = maxRunsPerPass
     ) -> [UUID: RouteMatchResult] {
         let savedRouteIDs = Set(savedRoutes.map(\.id))
@@ -21,13 +22,19 @@ enum RouteRematchService {
             .sorted { $0.startedAt > $1.startedAt }
             .prefix(max(0, limit))
 
+        let preparedRoutes = RouteMatchingService.prepare(savedRoutes)
         var updates: [UUID: RouteMatchResult] = [:]
         for run in candidates {
-            guard let candidate = RouteMatchingService.match(run: run, savedRoutes: savedRoutes) else { continue }
+            guard let candidate = RouteMatchingService.match(
+                run: run,
+                preparedRoutes: preparedRoutes,
+                benchmarkRouteIDs: benchmarkRouteIDs
+            ) else { continue }
             let preferred = preferredResult(
                 existing: run.routeMatchResult,
                 candidate: candidate,
-                savedRouteIDs: savedRouteIDs
+                savedRouteIDs: savedRouteIDs,
+                benchmarkRouteIDs: benchmarkRouteIDs
             )
             if preferred != run.routeMatchResult {
                 updates[run.id] = preferred
@@ -36,19 +43,25 @@ enum RouteRematchService {
         return updates
     }
 
-    /// Keeps an existing `.matched` result unless its route is gone or the new result is
-    /// also `.matched` (the new one is then the best-scoring route, so it is no downgrade).
+    /// Keeps a result that counts toward a route unless its route is gone or the new result
+    /// ranks at least as high: a benchmark route first, then full match over route variant.
     nonisolated static func preferredResult(
         existing: RouteMatchResult?,
         candidate: RouteMatchResult,
-        savedRouteIDs: Set<UUID>
+        savedRouteIDs: Set<UUID>,
+        benchmarkRouteIDs: Set<UUID> = []
     ) -> RouteMatchResult {
         guard let existing,
-              existing.confidence == .matched,
+              existing.confidence.countsTowardRoute,
               let existingRouteID = existing.routeID,
               savedRouteIDs.contains(existingRouteID) else {
             return candidate
         }
-        return candidate.confidence == .matched ? candidate : existing
+        return rank(candidate, benchmarkRouteIDs) >= rank(existing, benchmarkRouteIDs) ? candidate : existing
+    }
+
+    nonisolated private static func rank(_ result: RouteMatchResult, _ benchmarkRouteIDs: Set<UUID>) -> (Int, Int) {
+        let onBenchmark = result.confidence.countsTowardRoute && result.routeID.map(benchmarkRouteIDs.contains) == true
+        return (onBenchmark ? 1 : 0, result.confidence.rank)
     }
 }

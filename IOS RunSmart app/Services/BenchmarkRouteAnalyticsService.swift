@@ -9,7 +9,7 @@ enum BenchmarkRouteAnalyticsService {
         calendar: Calendar = .current
     ) -> BenchmarkRouteComparison? {
         guard let match = run.routeMatchResult,
-              match.confidence == .matched,
+              match.confidence.countsTowardRoute,
               let routeID = match.routeID,
               let route = savedRoutes.first(where: { $0.id == routeID }),
               benchmarkRoutes.contains(where: { $0.savedRouteID == routeID }) else {
@@ -20,8 +20,12 @@ enum BenchmarkRouteAnalyticsService {
             .uniqueByRunID()
             .map { performance(from: $0) }
             .sorted { $0.startedAt < $1.startedAt }
+        // Route PB is a time, so it only comes from full-route runs. A route with only
+        // variants so far falls back to the best pace.
+        let fullRoute = performances.filter { !$0.isRouteVariant }
         guard let current = performances.first(where: { $0.runID == run.id }),
-              let best = performances.min(by: { $0.durationSeconds < $1.durationSeconds }),
+              let best = fullRoute.min(by: { $0.durationSeconds < $1.durationSeconds })
+                ?? performances.min(by: { $0.paceSecondsPerKm < $1.paceSecondsPerKm }),
               let allTimeAverage = average(routeID: routeID, performances: performances) else {
             return nil
         }
@@ -47,14 +51,15 @@ enum BenchmarkRouteAnalyticsService {
             personalBest: best,
             allTimeAverage: allTimeAverage,
             monthlyAverage: monthlyAverage,
-            recentTrend: trend(current: current, previousRuns: priorRuns)
+            recentTrend: trend(current: current, previousRuns: priorRuns),
+            routeDistanceMeters: route.distanceMeters
         )
     }
 
     private static func matchedRuns(for routeID: UUID, in runs: [RecordedRun]) -> [RecordedRun] {
         runs.filter { run in
             guard let match = run.routeMatchResult else { return false }
-            return match.routeID == routeID && match.confidence == .matched
+            return match.routeID == routeID && match.confidence.countsTowardRoute
         }
     }
 
@@ -65,7 +70,9 @@ enum BenchmarkRouteAnalyticsService {
             startedAt: run.startedAt,
             durationSeconds: run.movingTimeSeconds,
             paceSecondsPerKm: run.averagePaceSecondsPerKm,
-            averageHeartRateBPM: run.averageHeartRateBPM
+            averageHeartRateBPM: run.averageHeartRateBPM,
+            distanceMeters: run.distanceMeters,
+            matchConfidence: run.routeMatchResult?.confidence
         )
     }
 

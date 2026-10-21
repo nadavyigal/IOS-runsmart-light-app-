@@ -3,26 +3,72 @@ import Foundation
 
 enum RouteMatchingService {
     nonisolated static let minimumRoutePoints = 6
+    /// A route point counts as covered when the run passed within this distance of it.
+    nonisolated static let coverageToleranceMeters = 35.0
+    /// Longest or shortest a route variant may be, relative to the route.
+    nonisolated static let maxVariantDistanceRatio = 0.25
 
-    nonisolated static func match(run: RecordedRun, savedRoutes: [SavedRoute]) -> RouteMatchResult? {
+    /// Picks the route the run counts toward. A route the run counts toward beats one it only
+    /// resembles, a benchmark route beats a plain saved route, and a full match beats a variant.
+    nonisolated static func match(
+        run: RecordedRun,
+        savedRoutes: [SavedRoute],
+        benchmarkRouteIDs: Set<UUID> = []
+    ) -> RouteMatchResult? {
         guard run.routePoints.count >= minimumRoutePoints else { return nil }
-        let routes = savedRoutes.filter { $0.points.count >= minimumRoutePoints && $0.distanceMeters > 0 }
-        guard !routes.isEmpty else { return nil }
+        return match(run: run, preparedRoutes: prepare(savedRoutes), benchmarkRouteIDs: benchmarkRouteIDs)
+    }
 
-        let candidates = routes.map { candidate(for: $0, run: run) }
-        guard let best = candidates.max(by: { $0.score < $1.score }) else { return nil }
+    /// A saved route with its coverage geometry built once, so a re-match pass over many runs
+    /// does not rebuild it for every run.
+    nonisolated struct PreparedRoute {
+        let route: SavedRoute
+        fileprivate let trace: PreparedTrace
+    }
 
-        let confidence = confidence(for: best, routeDistanceMeters: max(best.route.distanceMeters, 1))
-        let attachedRouteID = confidence == .matched ? best.route.id : nil
+    nonisolated static func prepare(_ savedRoutes: [SavedRoute]) -> [PreparedRoute] {
+        savedRoutes
+            .filter { $0.points.count >= minimumRoutePoints && $0.distanceMeters > 0 }
+            .map { PreparedRoute(route: $0, trace: PreparedTrace($0.points)) }
+    }
+
+    nonisolated static func match(
+        run: RecordedRun,
+        preparedRoutes: [PreparedRoute],
+        benchmarkRouteIDs: Set<UUID> = []
+    ) -> RouteMatchResult? {
+        guard run.routePoints.count >= minimumRoutePoints, !preparedRoutes.isEmpty else { return nil }
+
+        // The run's geometry is built at most once, and only if some route needs coverage.
+        var runTrace: PreparedTrace?
+        var candidates: [Candidate] = []
+        for prepared in preparedRoutes {
+            candidates.append(candidate(for: prepared, run: run, runTrace: &runTrace))
+        }
+        guard let best = candidates.max(by: { preference($0, benchmarkRouteIDs) < preference($1, benchmarkRouteIDs) }) else {
+            return nil
+        }
+
         return RouteMatchResult(
-            routeID: attachedRouteID,
+            routeID: best.confidence.countsTowardRoute ? best.route.id : nil,
             candidateRouteID: best.route.id,
-            confidence: confidence,
+            confidence: best.confidence,
             distanceDeltaMeters: best.distanceDeltaMeters,
             startDeltaMeters: best.startDeltaMeters,
             endDeltaMeters: best.endDeltaMeters,
             shapeSimilarity: best.shapeSimilarity,
-            isReversed: best.isReversed
+            isReversed: best.isReversed,
+            routeCoverage: best.routeCoverage
+        )
+    }
+
+    nonisolated private static func preference(_ candidate: Candidate, _ benchmarkRouteIDs: Set<UUID>) -> (Int, Int, Int, Double) {
+        let counts = candidate.confidence.countsTowardRoute
+        return (
+            counts ? 1 : 0,
+            counts && benchmarkRouteIDs.contains(candidate.route.id) ? 1 : 0,
+            candidate.confidence.rank,
+            candidate.score
         )
     }
 
@@ -37,7 +83,8 @@ enum RouteMatchingService {
             startDeltaMeters: 0,
             endDeltaMeters: 0,
             shapeSimilarity: 1,
-            isReversed: false
+            isReversed: false,
+            routeCoverage: 1
         )
     }
 
@@ -47,11 +94,15 @@ enum RouteMatchingService {
         var startDeltaMeters: Double
         var endDeltaMeters: Double
         var shapeSimilarity: Double
+        var routeCoverage: Double
+        var runOnRoute: Double
         var isReversed: Bool
         var score: Double
+        var confidence: RouteMatchConfidence
     }
 
-    nonisolated private static func candidate(for route: SavedRoute, run: RecordedRun) -> Candidate {
+    nonisolated private static func candidate(for prepared: PreparedRoute, run: RecordedRun, runTrace: inout PreparedTrace?) -> Candidate {
+        let route = prepared.route
         let forwardStart = distance(from: run.routePoints.first, to: route.points.first)
         let forwardEnd = distance(from: run.routePoints.last, to: route.points.last)
         let reverseStart = distance(from: run.routePoints.first, to: route.points.last)
@@ -63,38 +114,223 @@ enum RouteMatchingService {
             routePoints: routePoints
         )
         let distanceDeltaMeters = abs(run.distanceMeters - route.distanceMeters)
-        let endpointScore = max(0, 1 - ((isReversed ? reverseStart + reverseEnd : forwardStart + forwardEnd) / 600))
+        let startDeltaMeters = isReversed ? reverseStart : forwardStart
+        let endDeltaMeters = isReversed ? reverseEnd : forwardEnd
+        // Coverage is direction-free; only worth the cost when the run starts and ends nearby.
+        // It is measured both ways: on an out-and-back route one pass covers both legs, so the
+        // run must also stay on the route (a return by another street fails that check).
+        // Skipped when no confidence level could use it: endpoints apart, or distance beyond
+        // the widest limit (route variant). The second pass only matters for a match or variant.
+        let distanceRatio = distanceDeltaMeters / max(route.distanceMeters, 1)
+        let coverageCanMatter = startDeltaMeters <= 300 && endDeltaMeters <= 300 && distanceRatio <= maxVariantDistanceRatio
+        var routeCoverage = 0.0
+        var runOnRoute = 0.0
+        if coverageCanMatter {
+            let trace = runTrace ?? PreparedTrace(run.routePoints)
+            runTrace = trace
+            routeCoverage = coverage(of: prepared.trace, by: trace)
+            if routeCoverage >= 0.85 || shapeSimilarity >= 0.74 {
+                runOnRoute = coverage(of: trace, by: prepared.trace)
+            }
+        }
+        let endpointScore = max(0, 1 - ((startDeltaMeters + endDeltaMeters) / 600))
         let distanceScore = max(0, 1 - (distanceDeltaMeters / max(route.distanceMeters * 0.25, 1)))
-        let score = (shapeSimilarity * 0.50) + (endpointScore * 0.30) + (distanceScore * 0.20)
+        let score = (max(shapeSimilarity, routeCoverage) * 0.50) + (endpointScore * 0.30) + (distanceScore * 0.20)
+        let confidence = confidence(
+            distanceRatio: distanceRatio,
+            startDeltaMeters: startDeltaMeters,
+            endDeltaMeters: endDeltaMeters,
+            shapeSimilarity: shapeSimilarity,
+            routeCoverage: routeCoverage,
+            runOnRoute: runOnRoute
+        )
 
         return Candidate(
             route: route,
             distanceDeltaMeters: distanceDeltaMeters,
-            startDeltaMeters: isReversed ? reverseStart : forwardStart,
-            endDeltaMeters: isReversed ? reverseEnd : forwardEnd,
+            startDeltaMeters: startDeltaMeters,
+            endDeltaMeters: endDeltaMeters,
             shapeSimilarity: shapeSimilarity,
+            routeCoverage: routeCoverage,
+            runOnRoute: runOnRoute,
             isReversed: isReversed,
-            score: score
+            score: score,
+            confidence: confidence
         )
     }
 
-    nonisolated private static func confidence(for candidate: Candidate, routeDistanceMeters: Double) -> RouteMatchConfidence {
-        let distanceRatio = candidate.distanceDeltaMeters / routeDistanceMeters
-        if distanceRatio <= 0.08,
-           candidate.startDeltaMeters <= 120,
-           candidate.endDeltaMeters <= 120,
-           candidate.shapeSimilarity >= 0.74 {
+    nonisolated private static func confidence(
+        distanceRatio: Double,
+        startDeltaMeters: Double,
+        endDeltaMeters: Double,
+        shapeSimilarity: Double,
+        routeCoverage: Double,
+        runOnRoute: Double
+    ) -> RouteMatchConfidence {
+        let sameStartAndFinish = startDeltaMeters <= 120 && endDeltaMeters <= 120
+
+        // The 8% distance limit for a full match is unchanged. Coverage lets a run with a short
+        // detour still pass the shape check, which compares points by index and drifts after one.
+        // A full match also needs most of the run on the route, so its time can set the route PB.
+        if sameStartAndFinish,
+           distanceRatio <= 0.08,
+           runOnRoute >= 0.80,
+           shapeSimilarity >= 0.74 || routeCoverage >= 0.90 {
             return .matched
         }
 
+        // A variant may leave the route for its extra distance, but not for most of the run.
+        if sameStartAndFinish,
+           distanceRatio <= maxVariantDistanceRatio,
+           routeCoverage >= 0.85,
+           runOnRoute >= 0.70 {
+            return .routeVariant
+        }
+
         if distanceRatio <= 0.18,
-           candidate.startDeltaMeters <= 300,
-           candidate.endDeltaMeters <= 300,
-           candidate.shapeSimilarity >= 0.52 {
+           startDeltaMeters <= 300,
+           endDeltaMeters <= 300,
+           shapeSimilarity >= 0.52 || routeCoverage >= 0.60 {
             return .possibleMatch
         }
 
         return .noMatch
+    }
+
+    /// Share of `target`'s length that `other` passes within `coverageToleranceMeters` of.
+    /// Both are resampled by distance, so dense GPS stretches do not dominate.
+    nonisolated private static func coverage(of target: PreparedTrace, by other: PreparedTrace) -> Double {
+        guard !target.samples.isEmpty, !other.samples.isEmpty else { return 0 }
+        // Each trace has its own flat frame around its first point; move target points into
+        // other's frame. The two origins are within a few hundred meters, so the frames agree.
+        let shift = projected(
+            latitude: other.originLatitude,
+            longitude: other.originLongitude,
+            originLatitude: target.originLatitude,
+            originLongitude: target.originLongitude
+        )
+        let tolerance = coverageToleranceMeters
+        var covered = 0
+        for point in target.samples {
+            let x = point.x - shift.x
+            let y = point.y - shift.y
+            guard x >= other.minX - tolerance, x <= other.maxX + tolerance,
+                  y >= other.minY - tolerance, y <= other.maxY + tolerance else { continue }
+            if other.hasPoint(withinToleranceOfX: x, y: y) { covered += 1 }
+        }
+        return Double(covered) / Double(target.samples.count)
+    }
+
+    fileprivate struct PlanePoint {
+        var x: Double
+        var y: Double
+    }
+
+    /// A trace resampled by distance in a flat frame around its first point, with a grid for
+    /// nearby-point lookups. Built once per route per pass and once per run.
+    fileprivate struct PreparedTrace {
+        let originLatitude: Double
+        let originLongitude: Double
+        let samples: [PlanePoint]
+        let minX: Double
+        let maxX: Double
+        let minY: Double
+        let maxY: Double
+        /// Cells twice the tolerance wide: a circle of that tolerance touches at most 2 x 2 cells.
+        private let cells: [Int64: [PlanePoint]]
+        private let cellSize: Double
+
+        nonisolated init(_ points: [RunRoutePoint]) {
+            originLatitude = points.first?.latitude ?? 0
+            originLongitude = points.first?.longitude ?? 0
+            let flat = points.map {
+                RouteMatchingService.projected(
+                    latitude: $0.latitude,
+                    longitude: $0.longitude,
+                    originLatitude: points.first?.latitude ?? 0,
+                    originLongitude: points.first?.longitude ?? 0
+                )
+            }
+            samples = RouteMatchingService.resampled(flat)
+            minX = samples.map(\.x).min() ?? 0
+            maxX = samples.map(\.x).max() ?? 0
+            minY = samples.map(\.y).min() ?? 0
+            maxY = samples.map(\.y).max() ?? 0
+            cellSize = RouteMatchingService.coverageToleranceMeters * 2
+            var grid: [Int64: [PlanePoint]] = [:]
+            for sample in samples {
+                let key = Self.key(Int((sample.x / cellSize).rounded(.down)), Int((sample.y / cellSize).rounded(.down)))
+                grid[key, default: []].append(sample)
+            }
+            cells = grid
+        }
+
+        nonisolated func hasPoint(withinToleranceOfX x: Double, y: Double) -> Bool {
+            let tolerance = RouteMatchingService.coverageToleranceMeters
+            let limit = tolerance * tolerance
+            let scaledX = x / cellSize
+            let scaledY = y / cellSize
+            let cellX = Int(scaledX.rounded(.down))
+            let cellY = Int(scaledY.rounded(.down))
+            let neighborX = scaledX - Double(cellX) < 0.5 ? cellX - 1 : cellX + 1
+            let neighborY = scaledY - Double(cellY) < 0.5 ? cellY - 1 : cellY + 1
+            for gridX in [cellX, neighborX] {
+                for gridY in [cellY, neighborY] {
+                    for other in cells[Self.key(gridX, gridY)] ?? [] {
+                        let dx = other.x - x
+                        let dy = other.y - y
+                        if dx * dx + dy * dy <= limit { return true }
+                    }
+                }
+            }
+            return false
+        }
+
+        nonisolated private static func key(_ x: Int, _ y: Int) -> Int64 {
+            (Int64(x) << 32) | Int64(UInt32(truncatingIfNeeded: y))
+        }
+    }
+
+    /// Local flat projection in meters around the origin; accurate to well under a meter over a run.
+    nonisolated fileprivate static func projected(
+        latitude: Double,
+        longitude: Double,
+        originLatitude: Double,
+        originLongitude: Double
+    ) -> PlanePoint {
+        let metersPerDegreeLatitude = 111_320.0
+        let metersPerDegreeLongitude = metersPerDegreeLatitude * cos(originLatitude * .pi / 180)
+        return PlanePoint(
+            x: (longitude - originLongitude) * metersPerDegreeLongitude,
+            y: (latitude - originLatitude) * metersPerDegreeLatitude
+        )
+    }
+
+    /// Evenly spaced points along the line, at most about `maxCount` of them.
+    nonisolated fileprivate static func resampled(_ points: [PlanePoint], maxCount: Int = 200) -> [PlanePoint] {
+        guard points.count > 1, let first = points.first, let last = points.last else { return points }
+        var length = 0.0
+        for (a, b) in zip(points, points.dropFirst()) {
+            length += hypot(b.x - a.x, b.y - a.y)
+        }
+        guard length > 0 else { return [first] }
+
+        let spacing = max(10, length / Double(maxCount - 1))
+        var result = [first]
+        var travelled = 0.0
+        var nextSampleAt = spacing
+        for (a, b) in zip(points, points.dropFirst()) {
+            let segment = hypot(b.x - a.x, b.y - a.y)
+            guard segment > 0 else { continue }
+            while nextSampleAt <= travelled + segment {
+                let t = (nextSampleAt - travelled) / segment
+                result.append(PlanePoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t))
+                nextSampleAt += spacing
+            }
+            travelled += segment
+        }
+        result.append(last)
+        return result
     }
 
     nonisolated private static func shapeSimilarity(runPoints: [RunRoutePoint], routePoints: [RunRoutePoint]) -> Double {
