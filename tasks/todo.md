@@ -1,3 +1,16 @@
+## 2026-10-21 — Combined API + route candidate
+
+**Outcome:** reviewable local candidate containing unmerged #158 API-host fix and merged #161 route matching. Device validation is required; distribution waits until the Resumely release sprint closes.
+
+- [x] Inspect canonical repo, worktrees, live PR state and review threads.
+- [x] Story 1: integrate #158 head 26a4104 with main d57f314 in isolated candidate branch; preserve original PR gate.
+- [ ] Story 2: run full integrated simulator tests and arm64 Release device compilation; inspect built identity/config.
+- [x] Story 3: prepare exact independent API/route physical-device checklist; publish draft candidate PR.
+- [ ] Founder: signed-in physical-device API smoke for #158.
+- [ ] Founder: one-benchmark October 18/21 route attachment, pace, disable/rematch and share checks.
+
+**Test contract:** existing APIBaseURLTests + full route/rematch/share suite must pass together. No product redesign, GPS upload/privacy expansion, web #140, production changes or distribution. Historical checks below retain their original scope.
+
 ## 2026-10-17 — RunSmart 1.1.9 (34) App Store preparation
 
 - [x] Inspect PR #157 and pin source `f0dbf3e`.

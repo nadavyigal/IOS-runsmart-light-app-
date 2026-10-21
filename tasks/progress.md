@@ -1,3 +1,10 @@
+## 2026-10-21 — Combined API + route candidate prepared
+
+**Status:** development QA candidate, physical gates OPEN. Source `9c5005f45111b5c3744d67f025976c12d99b4e13` integrates #158 `26a4104` with merged #161/main `d57f314`; original #158 remains open. Worktree `/Users/nadavyigal/Developer/runsmart-worktrees/pr158-api-www`, branch `codex/ios-api-route-candidate-2026-10-21`.
+**Verified:** 448/448 tests, zero failures/skips, iPhone 17 / iOS 26.5; standalone simulator install/launch and restored guest preview inspected. Built simulator plist resolves `com.runsmart.lite`, 1.1.9 (34), API `https://www.runsmart-ai.com`. Unsigned arm64 Release compilation in progress; final handoff records result.
+**Next:** founder installs from this exact worktree over existing app; signed-in plan/API smoke for #158, separately one-benchmark October 18/21 attachment/pace/share/disable/rematch checks. No new outdoor run required for the old matcher. Detailed steps and evidence: `docs/qa/2026-10-21-api-route-candidate.md`.
+**Release:** no upload/submission while Resumely sprint remains active. No GPS upload/privacy expansion, RunSmart web #140 or partner outreach. Version/build retained for development QA, not allocated for distribution.
+
 ## 2026-10-21: Coverage matching and route variants (PR open, not merged)
 
 **Why:** PR #160 (merged) re-matches stored runs, but the founder's Oct 18 and Oct 21 loop runs still did not compare: the Oct 21 run has a short detour (+9.8%), and the index-sampled shape score (0.653) and the 8% distance limit both rejected it. The founder accepted the recommendation (coverage matching plus a pace-only state) on 2026-10-21.
