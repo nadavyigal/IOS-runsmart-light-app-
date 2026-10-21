@@ -1,0 +1,22 @@
+{
+  "source_commit": "9c5005f45111b5c3744d67f025976c12d99b4e13",
+  "build": "unsigned Release generic iOS arm64",
+  "app": {
+    "CFBundleIdentifier": "com.runsmart.lite",
+    "CFBundleShortVersionString": "1.1.9",
+    "CFBundleVersion": "34",
+    "RunSmartAPIBaseURL": "https://www.runsmart-ai.com"
+  },
+  "extension": {
+    "CFBundleIdentifier": "com.runsmart.lite.runliveactivity",
+    "CFBundleShortVersionString": "1.1.9",
+    "CFBundleVersion": "34"
+  },
+  "configuration_present": {
+    "POSTHOG_API_KEY": true,
+    "SUPABASE_URL": true,
+    "SUPABASE_PUBLISHABLE_KEY": true
+  },
+  "architecture": "arm64",
+  "signed": false
+}
