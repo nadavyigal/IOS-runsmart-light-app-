@@ -1,3 +1,10 @@
+## 2026-10-21 — Combined API + route candidate prepared
+
+**Status:** development QA candidate, physical gates OPEN. Source `9c5005f45111b5c3744d67f025976c12d99b4e13` integrates #158 `26a4104` with merged #161/main `d57f314`; original #158 remains open. Worktree `/Users/nadavyigal/Developer/runsmart-worktrees/pr158-api-www`, branch `codex/ios-api-route-candidate-2026-10-21`.
+**Verified:** 448/448 tests, zero failures/skips, iPhone 17 / iOS 26.5; standalone simulator install/launch and restored guest preview inspected. Built simulator plist resolves `com.runsmart.lite`, 1.1.9 (34), API `https://www.runsmart-ai.com`. Unsigned arm64 Release build PASSED; app/extension 1.1.9 (34), production API host and nonempty resolved analytics/Supabase config verified without exposing secrets.
+**Next:** founder installs from this exact worktree over existing app; signed-in plan/API smoke for #158, separately one-benchmark October 18/21 attachment/pace/share/disable/rematch checks. No new outdoor run required for the old matcher. Detailed steps and evidence: `docs/qa/2026-10-21-api-route-candidate.md`.
+**Release:** no upload/submission while Resumely sprint remains active. No GPS upload/privacy expansion, RunSmart web #140 or partner outreach. Version/build retained for development QA, not allocated for distribution.
+
 ## 2026-10-21: Coverage matching and route variants (PR open, not merged)
 
 **Why:** PR #160 (merged) re-matches stored runs, but the founder's Oct 18 and Oct 21 loop runs still did not compare: the Oct 21 run has a short detour (+9.8%), and the index-sampled shape score (0.653) and the 8% distance limit both rejected it. The founder accepted the recommendation (coverage matching plus a pace-only state) on 2026-10-21.
@@ -48,6 +55,21 @@
 **Blockers:** Device smoke needs the founder's iPhone.
 **Last Validation:** 2026-10-19: App Store lookup 1.1.9, released 2026-10-18T18:23:16Z (3 of 3 polls). Status-file change only; no build, test or code change.
 **Last Updated:** 2026-10-19
+
+## 2026-10-18: API base URL points at www (plan generation fix)
+
+**Status:** PR open, not merged, not in a build. Server-side fix already live.
+**Root cause:** `RunSmartAPIBaseURL` was `https://runsmart-ai.com`. Vercel answered 308 to `www`, and
+URLSession drops the Authorization header on a cross-host redirect, so every signed-in API call
+reached the server without a token. Since web PR #134 (2026-09-27) `/api/generate-plan` requires it:
+401, "no plan" for every iOS user. Found from a real first user (2026-10-16, no plan saved).
+**Fixed today, no release needed:** the Vercel apex redirect on project running-coach was removed
+2026-10-18; the bare domain now serves directly. Verified: URLSession POST to the bare domain, no
+redirect; Supabase logged the token check (`GET /auth/v1/user`) 1 s later.
+**This PR:** `RunSmartInfo.plist:59` and `RunSmartAPIModels.swift:1321` use `https://www.runsmart-ai.com`,
+so the app no longer depends on that domain setting. `APIBaseURLTests` guards it. Full suite 423 passed, 0 failed.
+**Not checked:** the other routes behind login since #134 (chat, run report, voice cue, workouts) are the
+same failure class and are fixed by the same change; a physical-device run is still open.
 
 ## 2026-10-17 — Distribution IPA export completed
 

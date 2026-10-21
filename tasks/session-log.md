@@ -1,3 +1,10 @@
+## 2026-10-21 — Combined API + route candidate prepared
+
+**Status:** development QA candidate, physical gates OPEN. Source `9c5005f45111b5c3744d67f025976c12d99b4e13` integrates #158 `26a4104` with merged #161/main `d57f314`; original #158 remains open. Worktree `/Users/nadavyigal/Developer/runsmart-worktrees/pr158-api-www`, branch `codex/ios-api-route-candidate-2026-10-21`.
+**Verified:** 448/448 tests, zero failures/skips, iPhone 17 / iOS 26.5; standalone simulator install/launch and restored guest preview inspected. Built simulator plist resolves `com.runsmart.lite`, 1.1.9 (34), API `https://www.runsmart-ai.com`. Unsigned arm64 Release build PASSED; app/extension 1.1.9 (34), production API host and nonempty resolved analytics/Supabase config verified without exposing secrets.
+**Next:** founder installs from this exact worktree over existing app; signed-in plan/API smoke for #158, separately one-benchmark October 18/21 attachment/pace/share/disable/rematch checks. No new outdoor run required for the old matcher. Detailed steps and evidence: `docs/qa/2026-10-21-api-route-candidate.md`.
+**Release:** no upload/submission while Resumely sprint remains active. No GPS upload/privacy expansion, RunSmart web #140 or partner outreach. Version/build retained for development QA, not allocated for distribution.
+
 ## 2026-10-17 — Distribution IPA export completed
 
 **Status:** App Store distribution IPA verified after release-owner Keychain approval. App and Live Activity extension are 1.1.9 (34), Apple Distribution signed, `get-task-allow=false`, deep/strict signature checks passed, final privacy manifest included. Durable IPA: `build/release-1.1.9-34/AppStoreExport/RunSmart.ipa` (12,207,508 bytes); fingerprint in `docs/qa/releases/1.1.9/ipa-verification.json`.
