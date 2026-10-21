@@ -166,6 +166,25 @@ final class RouteRematchTests: XCTestCase {
         XCTAssertEqual(benchmark?.historicalRunCount, 1)
     }
 
+    /// "Save + benchmark" re-matches twice in a row and the second pass is skipped when
+    /// nothing changed. A run stored in between must still be scored.
+    func testBenchmarkAfterSaveStillMatchesRunStoredInBetween() async {
+        let services = ProductionRunSmartServices()
+        let first = Self.makeRun(day: 1, distanceMeters: 5_000, points: Self.loopPoints())
+        _ = await services.saveRouteMatch(for: first)
+        let route = SavedRoute.from(run: first, name: "Park loop")
+        _ = await services.saveRoute(route, fromRun: first)
+
+        let unprocessed = Self.makeRun(day: 2, distanceMeters: 5_100, points: Self.loopPoints(offset: 0.00002))
+        await RunSmartLocalStore.shared.saveRun(unprocessed)
+        _ = await services.enableBenchmark(for: route.id)
+
+        let stored = await Self.storedRun(unprocessed.id)
+        XCTAssertEqual(stored?.routeMatchResult?.routeID, route.id)
+        let benchmark = await RunSmartLocalStore.shared.loadBenchmarkRoutes().first { $0.savedRouteID == route.id }
+        XCTAssertEqual(benchmark?.historicalRunCount, 2)
+    }
+
     // MARK: - Re-match policy
 
     func testRematchKeepsExistingMatchWhenNewResultIsWeaker() {

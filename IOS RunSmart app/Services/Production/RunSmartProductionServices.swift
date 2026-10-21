@@ -246,18 +246,73 @@ final class RunSmartLocalStore {
     func rematchRunsAfterRouteChange(savedFrom sourceRun: RecordedRun? = nil, routeID: UUID? = nil) async {
         let runs = visibleRuns(loadRuns())
         let routes = loadSavedRoutes()
-        let matches = await Task.detached(priority: .utility) {
-            RouteRematchService.updatedMatches(runs: runs, savedRoutes: routes)
-        }.value
+        let sourceRouteID = routes.contains(where: { $0.id == routeID }) ? routeID : nil
+
+        // Saving a route with "benchmark" on calls this twice in a row; the second call
+        // sees the state the first one wrote, so scoring it again cannot change anything.
+        var matches: [UUID: RouteMatchResult] = [:]
+        if lastRematchedStateHash != Self.rematchStateHash(runs: runs, routes: routes) {
+            matches = await Task.detached(priority: .utility) {
+                RouteRematchService.updatedMatches(runs: runs, savedRoutes: routes)
+            }.value
+        }
 
         var changed = applyRouteMatches(matches)
-        if let sourceRun, let routeID, routes.contains(where: { $0.id == routeID }) {
-            changed += attachRun(sourceRun, toSavedRoute: routeID) ? 1 : 0
+        if let sourceRun, let sourceRouteID {
+            changed += attachRun(sourceRun, toSavedRoute: sourceRouteID) ? 1 : 0
         }
+
+        var runsAfter = runs.map { run -> RecordedRun in
+            var updated = run
+            if let match = matches[run.id] { updated.routeMatchResult = match }
+            return updated
+        }
+        if let sourceRun, let sourceRouteID {
+            let exact = RouteMatchingService.exactMatch(routeID: sourceRouteID)
+            if let index = runsAfter.firstIndex(where: { Self.isSameStoredRun($0, sourceRun) }) {
+                runsAfter[index].routeMatchResult = exact
+            } else {
+                var attached = sourceRun
+                attached.routeMatchResult = exact
+                runsAfter.append(attached)
+            }
+        }
+        lastRematchedStateHash = Self.rematchStateHash(runs: runsAfter, routes: routes)
+
         refreshBenchmarkStats()
         if changed > 0 {
             NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
         }
+    }
+
+    private var lastRematchedStateHash: Int?
+
+    /// Everything route scoring reads. In memory only (Hasher is seeded per launch), so the
+    /// first re-match after launch always scores.
+    private static func rematchStateHash(runs: [RecordedRun], routes: [SavedRoute]) -> Int {
+        var hasher = Hasher()
+        for route in routes.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
+            hasher.combine(route.id)
+            hasher.combine(route.updatedAt)
+            hasher.combine(route.distanceMeters)
+            hasher.combine(route.points.count)
+        }
+        for run in runs.sorted(by: { $0.id.uuidString < $1.id.uuidString })
+        where run.routePoints.count >= RouteMatchingService.minimumRoutePoints {
+            hasher.combine(run.id)
+            hasher.combine(run.startedAt)
+            hasher.combine(run.distanceMeters)
+            hasher.combine(run.routePoints.count)
+            hasher.combine(run.routeMatchResult)
+        }
+        return hasher.finalize()
+    }
+
+    private static func isSameStoredRun(_ lhs: RecordedRun, _ rhs: RecordedRun) -> Bool {
+        if lhs.id == rhs.id { return true }
+        guard let lhsProviderID = lhs.providerActivityID,
+              let rhsProviderID = rhs.providerActivityID else { return false }
+        return lhsProviderID == rhsProviderID && lhs.source == rhs.source
     }
 
     /// Writes match results onto stored runs. Re-reads the store first so a run saved while
@@ -281,12 +336,7 @@ final class RunSmartLocalStore {
     @discardableResult
     func attachRun(_ run: RecordedRun, toSavedRoute routeID: UUID) -> Bool {
         let match = RouteMatchingService.exactMatch(routeID: routeID)
-        var attached = loadRuns().first { stored in
-            if stored.id == run.id { return true }
-            guard let storedProviderID = stored.providerActivityID,
-                  let runProviderID = run.providerActivityID else { return false }
-            return storedProviderID == runProviderID && stored.source == run.source
-        } ?? run
+        var attached = loadRuns().first { Self.isSameStoredRun($0, run) } ?? run
         guard attached.routeMatchResult != match, !isRunHidden(attached) else { return false }
         attached.routeMatchResult = match
         saveRun(attached)
