@@ -22,11 +22,12 @@ enum RouteRematchService {
             .sorted { $0.startedAt > $1.startedAt }
             .prefix(max(0, limit))
 
+        let preparedRoutes = RouteMatchingService.prepare(savedRoutes)
         var updates: [UUID: RouteMatchResult] = [:]
         for run in candidates {
             guard let candidate = RouteMatchingService.match(
                 run: run,
-                savedRoutes: savedRoutes,
+                preparedRoutes: preparedRoutes,
                 benchmarkRouteIDs: benchmarkRouteIDs
             ) else { continue }
             let preferred = preferredResult(
