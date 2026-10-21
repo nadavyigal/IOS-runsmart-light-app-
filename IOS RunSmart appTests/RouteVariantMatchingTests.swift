@@ -79,6 +79,24 @@ final class RouteVariantMatchingTests: XCTestCase {
         XCTAssertLessThan(match?.routeCoverage ?? 1, 0.5)
     }
 
+    /// Codex finding on #161: on an out-and-back route, the outbound leg alone covers both
+    /// legs. A run that returns by another street must not count, as a match or a variant.
+    func testOutAndBackRouteNeedsTheRunToComeBackTheSameWay() {
+        let outAndBack = Self.trace([(0, 0), (0, 1_000), (0, 0)])
+        let route = Self.makeRoute(points: outAndBack, distanceMeters: 2_000)
+
+        let sameWayBack = Self.makeRun(day: 2, distanceMeters: 2_000, points: outAndBack)
+        XCTAssertEqual(RouteMatchingService.match(run: sameWayBack, savedRoutes: [route])?.confidence, .matched)
+
+        let nearbyStreetBack = Self.makeRun(day: 2, distanceMeters: 2_044, points: Self.trace([(0, 0), (0, 1_000), (150, 500), (0, 0)]))
+        let nearbyMatch = RouteMatchingService.match(run: nearbyStreetBack, savedRoutes: [route])
+        XCTAssertGreaterThanOrEqual(nearbyMatch?.routeCoverage ?? 0, 0.95, "The outbound leg alone covers the route")
+        XCTAssertFalse(nearbyMatch?.confidence.countsTowardRoute ?? true)
+
+        let farStreetBack = Self.makeRun(day: 2, distanceMeters: 2_281, points: Self.trace([(0, 0), (0, 1_000), (400, 500), (0, 0)]))
+        XCTAssertFalse(RouteMatchingService.match(run: farStreetBack, savedRoutes: [route])?.confidence.countsTowardRoute ?? true)
+    }
+
     func testRunMuchLongerThanTheRouteIsNotAVariant() {
         let route = Self.makeRoute(points: Self.plainLoop(), distanceMeters: 4_000)
         let run = Self.makeRun(day: 2, distanceMeters: 5_400, points: Self.detourLoop())

@@ -70,6 +70,7 @@ enum RouteMatchingService {
         var endDeltaMeters: Double
         var shapeSimilarity: Double
         var routeCoverage: Double
+        var runOnRoute: Double
         var isReversed: Bool
         var score: Double
         var confidence: RouteMatchConfidence
@@ -90,9 +91,11 @@ enum RouteMatchingService {
         let startDeltaMeters = isReversed ? reverseStart : forwardStart
         let endDeltaMeters = isReversed ? reverseEnd : forwardEnd
         // Coverage is direction-free; only worth the cost when the run starts and ends nearby.
-        let routeCoverage = startDeltaMeters <= 300 && endDeltaMeters <= 300
-            ? coverage(of: route.points, by: run.routePoints)
-            : 0
+        // It is measured both ways: on an out-and-back route one pass covers both legs, so the
+        // run must also stay on the route (a return by another street fails that check).
+        let endpointsNearby = startDeltaMeters <= 300 && endDeltaMeters <= 300
+        let routeCoverage = endpointsNearby ? coverage(of: route.points, by: run.routePoints) : 0
+        let runOnRoute = endpointsNearby ? coverage(of: run.routePoints, by: route.points) : 0
         let endpointScore = max(0, 1 - ((startDeltaMeters + endDeltaMeters) / 600))
         let distanceScore = max(0, 1 - (distanceDeltaMeters / max(route.distanceMeters * 0.25, 1)))
         let score = (max(shapeSimilarity, routeCoverage) * 0.50) + (endpointScore * 0.30) + (distanceScore * 0.20)
@@ -101,7 +104,8 @@ enum RouteMatchingService {
             startDeltaMeters: startDeltaMeters,
             endDeltaMeters: endDeltaMeters,
             shapeSimilarity: shapeSimilarity,
-            routeCoverage: routeCoverage
+            routeCoverage: routeCoverage,
+            runOnRoute: runOnRoute
         )
 
         return Candidate(
@@ -111,6 +115,7 @@ enum RouteMatchingService {
             endDeltaMeters: endDeltaMeters,
             shapeSimilarity: shapeSimilarity,
             routeCoverage: routeCoverage,
+            runOnRoute: runOnRoute,
             isReversed: isReversed,
             score: score,
             confidence: confidence
@@ -122,21 +127,26 @@ enum RouteMatchingService {
         startDeltaMeters: Double,
         endDeltaMeters: Double,
         shapeSimilarity: Double,
-        routeCoverage: Double
+        routeCoverage: Double,
+        runOnRoute: Double
     ) -> RouteMatchConfidence {
         let sameStartAndFinish = startDeltaMeters <= 120 && endDeltaMeters <= 120
 
         // The 8% distance limit for a full match is unchanged. Coverage lets a run with a short
         // detour still pass the shape check, which compares points by index and drifts after one.
+        // A full match also needs most of the run on the route, so its time can set the route PB.
         if sameStartAndFinish,
            distanceRatio <= 0.08,
+           runOnRoute >= 0.80,
            shapeSimilarity >= 0.74 || routeCoverage >= 0.90 {
             return .matched
         }
 
+        // A variant may leave the route for its extra distance, but not for most of the run.
         if sameStartAndFinish,
            distanceRatio <= maxVariantDistanceRatio,
-           routeCoverage >= 0.85 {
+           routeCoverage >= 0.85,
+           runOnRoute >= 0.70 {
             return .routeVariant
         }
 
