@@ -1,4 +1,23 @@
-## 2026-10-21: Route benchmark gap: re-match stored runs (PR open, not merged)
+## 2026-10-21: Coverage matching and route variants (PR open, not merged)
+
+**Why:** PR #160 (merged) re-matches stored runs, but the founder's Oct 18 and Oct 21 loop runs still did not compare: the Oct 21 run has a short detour (+9.8%), and the index-sampled shape score (0.653) and the 8% distance limit both rejected it. The founder accepted the recommendation (coverage matching plus a pace-only state) on 2026-10-21.
+
+**Change (branch `claude/2026-10-21-route-coverage-matching`):** shape is now also measured by coverage (share of the route within 35 m of the run, both traces resampled by distance). A full match keeps the 8% limit. New `routeVariant`: same start and finish (within 120 m), at least 85% of the route covered, distance within 25%. It counts toward the route and is compared by pace; route PB and average time use full matches only. A benchmark route wins over a plain saved route. Health imports re-match stored runs.
+
+**Founder's runs (measured on the real traces, 35 m):** the Oct 21 run covers 97.1% of the Oct 18 route, the Oct 18 run covers 95.6% of the Oct 21 route, the Oct 15 1 km run covers 0%. Expected: benchmark either loop route and both runs compare by pace; the 1 km run does not count.
+
+**Supabase history:** 92 runs for the founder's account, none with GPS (`runs.route` is null on every row; iOS never uploads GPS). Only the 3 saved routes carry points. Older runs' GPS lives in Apple Health on the phone; the app imports it (180 days, 100 workouts) into the on-device store, which benchmarks read.
+
+**Status:** PR open for review, not merged.
+**Current Phase:** Route matching v2 in review.
+**Active Story:** Coverage matching and route variants.
+**Last Completed Story:** Route re-match on save/benchmark (PR #160, merged 2026-10-21).
+**Next Recommended Story:** Device test on the founder's iPhone: benchmark the Oct 18 route and open the Oct 21 run; check older Health-imported loop runs appear in the benchmark history.
+**Blockers:** Device test needs the founder's iPhone.
+**Last Validation:** 2026-10-21: full suite 442 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New `RouteVariantMatchingTests` (11); 5 matching tests fail with the old rules restored. One existing fixture moved (parallel street 90 m sideways; the old offset was the same street shifted along). Code-reviewer: PB-tile finding fixed (f7c98f3). No device test; no iOS 26.3 runtime.
+**Last Updated:** 2026-10-21
+
+## 2026-10-21: Route benchmark gap: re-match stored runs (PR #160, merged 2026-10-21)
 
 **Why:** the founder ran the same loop twice on 1.1.9 (run 1385, 2026-10-18, 5.03 km; run 1386, 2026-10-21, 5.52 km) and saved a route from each, but the app could not compare them. Route matches were computed once, when a run was processed, against the routes that existed then. So the run a route was saved from never counted on its own route, and earlier runs never counted toward a later benchmark.
 
