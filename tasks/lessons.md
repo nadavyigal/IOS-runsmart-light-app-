@@ -638,3 +638,7 @@ Trigger: on `main` (1.1.8 (33)) ten synchronous tests died with SIGABRT on the i
 - Not a shipped crash: app code and Supabase only bind task-locals with `async`, and below iOS 26 the back-deploy shim never calls the runtime function.
 
 Future rule: every new `final class` (not `NSObject`, not `nonisolated`) whose teardown only releases stored properties gets `nonisolated deinit {}`. Run the suite on the iOS 26.3 iPhone 17 simulator as well as 26.5 before calling a release green.
+
+## 2026-10-18 — Never point an API client at a host that redirects
+**Bug:** `RunSmartAPIBaseURL` was the bare `runsmart-ai.com`, which Vercel 308-redirects to `www`. URLSession follows a cross-host redirect but drops the `Authorization` header, so every signed-in call reached the server without its token. Plan generation returned 401 for every iOS user from 2026-09-27 (web #134 added the auth check) until 2026-10-18. Simulator tests stayed green because they never hit the real host.
+**Rule:** the API base must be the host that serves the API with no redirect. Check it with `curl -s -o /dev/null -D - https://<base>/api/<route>`, and expect no `location:` header. `APIBaseURLTests` guards the value. A 401 "Sign in" from a signed-in client means "check for a redirect" before "check the token".
