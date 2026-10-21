@@ -2,9 +2,9 @@ import CoreLocation
 import Foundation
 
 enum RouteMatchingService {
-    static let minimumRoutePoints = 6
+    nonisolated static let minimumRoutePoints = 6
 
-    static func match(run: RecordedRun, savedRoutes: [SavedRoute]) -> RouteMatchResult? {
+    nonisolated static func match(run: RecordedRun, savedRoutes: [SavedRoute]) -> RouteMatchResult? {
         guard run.routePoints.count >= minimumRoutePoints else { return nil }
         let routes = savedRoutes.filter { $0.points.count >= minimumRoutePoints && $0.distanceMeters > 0 }
         guard !routes.isEmpty else { return nil }
@@ -26,7 +26,22 @@ enum RouteMatchingService {
         )
     }
 
-    private struct Candidate {
+    /// The stored result for the run a route was saved from: the route is that run's
+    /// own trace, so it matches with zero deltas instead of being re-scored.
+    nonisolated static func exactMatch(routeID: UUID) -> RouteMatchResult {
+        RouteMatchResult(
+            routeID: routeID,
+            candidateRouteID: routeID,
+            confidence: .matched,
+            distanceDeltaMeters: 0,
+            startDeltaMeters: 0,
+            endDeltaMeters: 0,
+            shapeSimilarity: 1,
+            isReversed: false
+        )
+    }
+
+    nonisolated private struct Candidate {
         var route: SavedRoute
         var distanceDeltaMeters: Double
         var startDeltaMeters: Double
@@ -36,7 +51,7 @@ enum RouteMatchingService {
         var score: Double
     }
 
-    private static func candidate(for route: SavedRoute, run: RecordedRun) -> Candidate {
+    nonisolated private static func candidate(for route: SavedRoute, run: RecordedRun) -> Candidate {
         let forwardStart = distance(from: run.routePoints.first, to: route.points.first)
         let forwardEnd = distance(from: run.routePoints.last, to: route.points.last)
         let reverseStart = distance(from: run.routePoints.first, to: route.points.last)
@@ -63,7 +78,7 @@ enum RouteMatchingService {
         )
     }
 
-    private static func confidence(for candidate: Candidate, routeDistanceMeters: Double) -> RouteMatchConfidence {
+    nonisolated private static func confidence(for candidate: Candidate, routeDistanceMeters: Double) -> RouteMatchConfidence {
         let distanceRatio = candidate.distanceDeltaMeters / routeDistanceMeters
         if distanceRatio <= 0.08,
            candidate.startDeltaMeters <= 120,
@@ -82,7 +97,7 @@ enum RouteMatchingService {
         return .noMatch
     }
 
-    private static func shapeSimilarity(runPoints: [RunRoutePoint], routePoints: [RunRoutePoint]) -> Double {
+    nonisolated private static func shapeSimilarity(runPoints: [RunRoutePoint], routePoints: [RunRoutePoint]) -> Double {
         let runSample = sample(runPoints, count: 20)
         let routeSample = sample(routePoints, count: 20)
         guard runSample.count == routeSample.count, !runSample.isEmpty else { return 0 }
@@ -92,7 +107,7 @@ enum RouteMatchingService {
         return max(0, min(1, 1 - (averageDistance / 220)))
     }
 
-    private static func sample(_ points: [RunRoutePoint], count: Int) -> [RunRoutePoint] {
+    nonisolated private static func sample(_ points: [RunRoutePoint], count: Int) -> [RunRoutePoint] {
         guard points.count > count, count > 1 else { return points }
         let lastIndex = points.count - 1
         let step = Double(lastIndex) / Double(count - 1)
@@ -101,7 +116,7 @@ enum RouteMatchingService {
         }
     }
 
-    private static func distance(from lhs: RunRoutePoint?, to rhs: RunRoutePoint?) -> Double {
+    nonisolated private static func distance(from lhs: RunRoutePoint?, to rhs: RunRoutePoint?) -> Double {
         guard let lhs, let rhs else { return .greatestFiniteMagnitude }
         return CLLocation(latitude: lhs.latitude, longitude: lhs.longitude)
             .distance(from: CLLocation(latitude: rhs.latitude, longitude: rhs.longitude))

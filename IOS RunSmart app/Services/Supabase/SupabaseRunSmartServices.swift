@@ -800,10 +800,19 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func saveRoute(_ route: SavedRoute) async -> Bool {
+        await persistRoute(route, savedFrom: nil)
+    }
+
+    func saveRoute(_ route: SavedRoute, fromRun run: RecordedRun) async -> Bool {
+        await persistRoute(route, savedFrom: run)
+    }
+
+    private func persistRoute(_ route: SavedRoute, savedFrom run: RecordedRun?) async -> Bool {
         store.saveSavedRoute(route)
         if let userID = currentUserID {
             try? await routeRemote.upsertRoute(route, userID: userID)
         }
+        await store.rematchRunsAfterRouteChange(savedFrom: run, routeID: route.id)
         postRouteChange()
         return true
     }
@@ -868,7 +877,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         if let userID = currentUserID {
             try? await routeRemote.upsertBenchmark(id: benchmarkID, savedRouteID: routeID, enabledAt: enabledAt, userID: userID)
         }
-        store.refreshBenchmarkStats()
+        await store.rematchRunsAfterRouteChange()
         postRouteChange()
         return true
     }
