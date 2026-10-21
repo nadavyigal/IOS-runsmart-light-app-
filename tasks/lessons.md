@@ -1,3 +1,7 @@
+## 2026-10-21: A match stored at processing time goes stale when the reference set changes
+
+Route matches were computed once per run against the routes that existed then, and never again. A route saved afterwards, including one saved from that same run, never collected its runs, so benchmarks stayed empty with no error. When a derived result depends on a set the user can grow (routes, benchmarks, goals), recompute it when that set changes, or compute it at read time. Before blaming a threshold, measure the real data against every gate: on the founder's two loop runs the 8% distance gate was not the only blocker; the index-sampled shape score (0.653 vs 0.74) also failed.
+
 ## 2026-10-17 — Build outside a stalled Documents file-coordination path
 
 If xcodebuild produces no DerivedData or output and a process sample shows `NSFileCoordinator` blocked while opening the project, stop that invocation and build an exact source snapshot under `/private/tmp`. Verify source fingerprints, carry the intended resource changes, and record that the snapshot omits local secrets. Use exact identifiers from `simctl list runtimes` when creating a QA simulator.
