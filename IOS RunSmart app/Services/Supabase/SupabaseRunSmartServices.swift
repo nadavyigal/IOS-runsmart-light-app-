@@ -812,7 +812,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         if let userID = currentUserID {
             try? await routeRemote.upsertRoute(route, userID: userID)
         }
-        await store.rematchRunsAfterRouteChange(savedFrom: run, routeID: route.id)
+        await store.rematchStoredRuns(savedFrom: run, routeID: route.id)
         postRouteChange()
         return true
     }
@@ -877,7 +877,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         if let userID = currentUserID {
             try? await routeRemote.upsertBenchmark(id: benchmarkID, savedRouteID: routeID, enabledAt: enabledAt, userID: userID)
         }
-        await store.rematchRunsAfterRouteChange()
+        await store.rematchStoredRuns()
         postRouteChange()
         return true
     }
@@ -1066,6 +1066,9 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             } else {
                 await postRunsChanged()
             }
+            // Imported history (often months of the same loops) only counts toward a saved
+            // route once it is matched against it.
+            await store.rematchStoredRuns()
         }
         // Today's activity card (steps/calories/sleep) only refreshes on this notification — the
         // run-import notifications above don't fire when only the daily wellness snapshot changed.
@@ -1548,7 +1551,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult? {
-        RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes())
+        RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
     }
 
     func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? {
@@ -1562,7 +1565,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     private func saveRouteMatch(for run: RecordedRun) -> RecordedRun {
         var matchedRun = run
-        matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes())
+        matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
         store.saveRun(matchedRun)
         return matchedRun
     }

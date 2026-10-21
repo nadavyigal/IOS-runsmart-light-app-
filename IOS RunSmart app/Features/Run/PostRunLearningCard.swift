@@ -70,7 +70,7 @@ struct PostRunLearningCardModel: Hashable {
         let isShort = distanceKm < 0.5 || duration < 180
         let hasPoorGPS = resolvedRun.map { !$0.routePoints.isEmpty && $0.routePoints.count < RouteMatchingService.minimumRoutePoints } ?? false
         let hasNoMap = resolvedRun?.routePoints.isEmpty ?? true
-        let matchedBenchmark = resolvedRun?.routeMatchResult?.confidence == .matched
+        let matchedBenchmark = resolvedRun?.routeMatchResult?.confidence.countsTowardRoute == true
 
         let happened = happenedText(
             run: resolvedRun,
@@ -259,7 +259,7 @@ struct PostRunLearningCard: View {
             activePlan = await services.activeTrainingPlan()
         }
         .onAppear {
-            let hasBenchmark = run?.routeMatchResult?.confidence == .matched
+            let hasBenchmark = run?.routeMatchResult?.confidence.countsTowardRoute == true
             let hasPlanMatch = model.planImpact != .unavailable
             Analytics.trackPostRunCardViewed(
                 hasBenchmark: hasBenchmark,

@@ -220,6 +220,10 @@ final class RunSmartLocalStore {
         load([BenchmarkRoute].self, key: "runsmart.benchmarkRoutes") ?? []
     }
 
+    func benchmarkRouteIDs() -> Set<UUID> {
+        Set(loadBenchmarkRoutes().map(\.savedRouteID))
+    }
+
     @discardableResult
     func removeBenchmarkRoute(_ savedRouteID: UUID) -> Bool {
         var benchmarks = loadBenchmarkRoutes()
@@ -241,25 +245,33 @@ final class RunSmartLocalStore {
     // MARK: - Route re-matching
 
     /// Re-matches stored runs against the current saved routes after a route is saved or
-    /// benchmarked, attaches the run a route was saved from to that route, persists the
-    /// results, and refreshes benchmark stats. Scoring runs off the main actor.
-    func rematchRunsAfterRouteChange(savedFrom sourceRun: RecordedRun? = nil, routeID: UUID? = nil) async {
+    /// benchmarked, or runs are imported. Attaches the run a route was saved from to that
+    /// route, persists the results, and refreshes benchmark stats. Scoring runs off the main actor.
+    func rematchStoredRuns(savedFrom sourceRun: RecordedRun? = nil, routeID: UUID? = nil) async {
         let runs = visibleRuns(loadRuns())
         let routes = loadSavedRoutes()
+        let benchmarkRouteIDs = Set(loadBenchmarkRoutes().map(\.savedRouteID))
         let sourceRouteID = routes.contains(where: { $0.id == routeID }) ? routeID : nil
 
         // Saving a route with "benchmark" on calls this twice in a row; the second call
         // sees the state the first one wrote, so scoring it again cannot change anything.
         var matches: [UUID: RouteMatchResult] = [:]
-        if lastRematchedStateHash != Self.rematchStateHash(runs: runs, routes: routes) {
+        if lastRematchedStateHash != Self.rematchStateHash(runs: runs, routes: routes, benchmarkRouteIDs: benchmarkRouteIDs) {
             matches = await Task.detached(priority: .utility) {
-                RouteRematchService.updatedMatches(runs: runs, savedRoutes: routes)
+                RouteRematchService.updatedMatches(runs: runs, savedRoutes: routes, benchmarkRouteIDs: benchmarkRouteIDs)
             }.value
         }
 
         var changed = applyRouteMatches(matches)
+        var sourceAttached = false
         if let sourceRun, let sourceRouteID {
-            changed += attachRun(sourceRun, toSavedRoute: sourceRouteID) ? 1 : 0
+            sourceAttached = attachRun(
+                sourceRun,
+                toSavedRoute: sourceRouteID,
+                savedRouteIDs: Set(routes.map(\.id)),
+                benchmarkRouteIDs: benchmarkRouteIDs
+            )
+            changed += sourceAttached ? 1 : 0
         }
 
         var runsAfter = runs.map { run -> RecordedRun in
@@ -267,7 +279,7 @@ final class RunSmartLocalStore {
             if let match = matches[run.id] { updated.routeMatchResult = match }
             return updated
         }
-        if let sourceRun, let sourceRouteID {
+        if let sourceRun, let sourceRouteID, sourceAttached {
             let exact = RouteMatchingService.exactMatch(routeID: sourceRouteID)
             if let index = runsAfter.firstIndex(where: { Self.isSameStoredRun($0, sourceRun) }) {
                 runsAfter[index].routeMatchResult = exact
@@ -277,7 +289,7 @@ final class RunSmartLocalStore {
                 runsAfter.append(attached)
             }
         }
-        lastRematchedStateHash = Self.rematchStateHash(runs: runsAfter, routes: routes)
+        lastRematchedStateHash = Self.rematchStateHash(runs: runsAfter, routes: routes, benchmarkRouteIDs: benchmarkRouteIDs)
 
         refreshBenchmarkStats()
         if changed > 0 {
@@ -289,8 +301,9 @@ final class RunSmartLocalStore {
 
     /// Everything route scoring reads. In memory only (Hasher is seeded per launch), so the
     /// first re-match after launch always scores.
-    private static func rematchStateHash(runs: [RecordedRun], routes: [SavedRoute]) -> Int {
+    private static func rematchStateHash(runs: [RecordedRun], routes: [SavedRoute], benchmarkRouteIDs: Set<UUID>) -> Int {
         var hasher = Hasher()
+        hasher.combine(benchmarkRouteIDs)
         for route in routes.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
             hasher.combine(route.id)
             hasher.combine(route.updatedAt)
@@ -331,13 +344,26 @@ final class RunSmartLocalStore {
         return changed
     }
 
-    /// Stores the run a route was saved from as an exact match of that route. Updates the
-    /// stored copy when one exists so an older in-memory run does not overwrite newer fields.
+    /// Stores the run a route was saved from as an exact match of that route, unless the run
+    /// already counts toward a benchmark route. Updates the stored copy when one exists so an
+    /// older in-memory run does not overwrite newer fields.
     @discardableResult
-    func attachRun(_ run: RecordedRun, toSavedRoute routeID: UUID) -> Bool {
+    func attachRun(
+        _ run: RecordedRun,
+        toSavedRoute routeID: UUID,
+        savedRouteIDs: Set<UUID>? = nil,
+        benchmarkRouteIDs: Set<UUID> = []
+    ) -> Bool {
         let match = RouteMatchingService.exactMatch(routeID: routeID)
         var attached = loadRuns().first { Self.isSameStoredRun($0, run) } ?? run
         guard attached.routeMatchResult != match, !isRunHidden(attached) else { return false }
+        let preferred = RouteRematchService.preferredResult(
+            existing: attached.routeMatchResult,
+            candidate: match,
+            savedRouteIDs: savedRouteIDs ?? Set(loadSavedRoutes().map(\.id)),
+            benchmarkRouteIDs: benchmarkRouteIDs
+        )
+        guard preferred == match else { return false }
         attached.routeMatchResult = match
         saveRun(attached)
         return true
@@ -1032,7 +1058,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     }
 
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult? {
-        RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes())
+        RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
     }
 
     func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? {
@@ -1046,7 +1072,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func saveRouteMatch(for run: RecordedRun) -> RecordedRun {
         var matchedRun = run
-        matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes())
+        matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
         store.saveRun(matchedRun)
         return matchedRun
     }
@@ -1152,14 +1178,14 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func saveRoute(_ route: SavedRoute) async -> Bool {
         store.saveSavedRoute(route)
-        await store.rematchRunsAfterRouteChange()
+        await store.rematchStoredRuns()
         postRouteChange()
         return true
     }
 
     func saveRoute(_ route: SavedRoute, fromRun run: RecordedRun) async -> Bool {
         store.saveSavedRoute(route)
-        await store.rematchRunsAfterRouteChange(savedFrom: run, routeID: route.id)
+        await store.rematchStoredRuns(savedFrom: run, routeID: route.id)
         postRouteChange()
         return true
     }
@@ -1199,7 +1225,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
             averageDurationSeconds: nil
         )
         store.saveBenchmarkRoute(benchmark)
-        await store.rematchRunsAfterRouteChange()
+        await store.rematchStoredRuns()
         postRouteChange()
         return true
     }
@@ -1283,6 +1309,9 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         let result = await health.importHealthData(localStore: store)
         store.saveDeviceStatus(result.status)
         if !result.runs.isEmpty {
+            // Imported history (often months of the same loops) only counts toward a saved
+            // route once it is matched against it.
+            await store.rematchStoredRuns()
             await MainActor.run {
                 NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
             }
@@ -1347,28 +1376,30 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
 enum BenchmarkStatRefresh {
     /// Recomputes cached aggregate stats for each BenchmarkRoute from the current run history.
-    /// Only high-confidence matched runs contribute to a route's stats.
+    /// Matched runs and route variants count toward run count and average pace; times
+    /// (PB, average duration) come from full-route matches only.
     static func refresh(_ benchmarks: [BenchmarkRoute], from runs: [RecordedRun]) -> [BenchmarkRoute] {
         benchmarks.map { benchmark -> BenchmarkRoute in
-            let matched: [RecordedRun] = runs.filter {
+            let counted: [RecordedRun] = runs.filter {
                 $0.routeMatchResult?.routeID == benchmark.savedRouteID &&
-                $0.routeMatchResult?.confidence == .matched
+                $0.routeMatchResult?.confidence.countsTowardRoute == true
             }
+            let fullRoute: [RecordedRun] = counted.filter { $0.routeMatchResult?.confidence == .matched }
             var updated: BenchmarkRoute = benchmark
-            updated.historicalRunCount = matched.count
-            if matched.isEmpty {
-                updated.personalBestSeconds = nil
-                updated.personalBestDate = nil
-                updated.averagePaceSecondsPerKm = nil
-                updated.averageDurationSeconds = nil
-            } else {
-                if let best: RecordedRun = matched.min(by: { $0.movingTimeSeconds < $1.movingTimeSeconds }) {
+            updated.historicalRunCount = counted.count
+            updated.personalBestSeconds = nil
+            updated.personalBestDate = nil
+            updated.averagePaceSecondsPerKm = nil
+            updated.averageDurationSeconds = nil
+            if !counted.isEmpty {
+                updated.averagePaceSecondsPerKm = counted.reduce(0.0) { $0 + $1.averagePaceSecondsPerKm } / Double(counted.count)
+            }
+            if !fullRoute.isEmpty {
+                if let best: RecordedRun = fullRoute.min(by: { $0.movingTimeSeconds < $1.movingTimeSeconds }) {
                     updated.personalBestSeconds = best.movingTimeSeconds
                     updated.personalBestDate = best.startedAt
                 }
-                let count: Double = Double(matched.count)
-                updated.averagePaceSecondsPerKm = matched.reduce(0.0) { $0 + $1.averagePaceSecondsPerKm } / count
-                updated.averageDurationSeconds = matched.reduce(0.0) { $0 + $1.movingTimeSeconds } / count
+                updated.averageDurationSeconds = fullRoute.reduce(0.0) { $0 + $1.movingTimeSeconds } / Double(fullRoute.count)
             }
             return updated
         }

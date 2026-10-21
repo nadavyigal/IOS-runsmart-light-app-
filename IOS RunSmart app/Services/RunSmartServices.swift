@@ -530,19 +530,20 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     // in the simulator. Returning nil here (the old behavior) silently killed
     // the benchmark feature in every demo and simulator session.
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult? {
-        RouteMatchingService.match(run: run, savedRoutes: await savedRoutes())
+        RouteMatchingService.match(run: run, savedRoutes: await savedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
     }
 
     func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? {
         let saved = await savedRoutes()
+        let benchmarkRouteIDs = store.benchmarkRouteIDs()
         var matchedRun = run
         if matchedRun.routeMatchResult == nil {
-            matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: saved)
+            matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: saved, benchmarkRouteIDs: benchmarkRouteIDs)
         }
         let history = (await recentRuns()).map { historyRun in
             var candidate = historyRun
             if candidate.routeMatchResult == nil {
-                candidate.routeMatchResult = RouteMatchingService.match(run: candidate, savedRoutes: saved)
+                candidate.routeMatchResult = RouteMatchingService.match(run: candidate, savedRoutes: saved, benchmarkRouteIDs: benchmarkRouteIDs)
             }
             return candidate
         }
@@ -624,7 +625,7 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func saveRoute(_ route: SavedRoute) async -> Bool {
         seedDemoRoutesIfNeeded()
         store.saveSavedRoute(route)
-        await store.rematchRunsAfterRouteChange()
+        await store.rematchStoredRuns()
         postRouteChange()
         return true
     }
@@ -632,7 +633,7 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func saveRoute(_ route: SavedRoute, fromRun run: RecordedRun) async -> Bool {
         seedDemoRoutesIfNeeded()
         store.saveSavedRoute(route)
-        await store.rematchRunsAfterRouteChange(savedFrom: run, routeID: route.id)
+        await store.rematchStoredRuns(savedFrom: run, routeID: route.id)
         postRouteChange()
         return true
     }
@@ -676,7 +677,7 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
                 averageDurationSeconds: nil
             )
         )
-        await store.rematchRunsAfterRouteChange()
+        await store.rematchStoredRuns()
         postRouteChange()
         return true
     }
