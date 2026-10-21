@@ -12,7 +12,7 @@
 **Last Completed Story:** 1.1.9 (34) released (release PR #157, merged 2026-10-17).
 **Next Recommended Story:** Founder decides the matching proposal in the PR (relaxing the 8% gate alone does not help: the shape score also fails). Then a physical-device route smoke on a build that carries this fix.
 **Blockers:** Gate decision is the founder's. Device smoke needs the founder's iPhone.
-**Last Validation:** 2026-10-21: full suite on iPhone 17 simulator (iOS 26.5), see PR. New `RouteRematchTests` (10) fail on the pre-fix behaviour (6 store-level) and pass with the fix. No iOS 26.3 runtime installed.
+**Last Validation:** 2026-10-21: full suite 432 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New `RouteRematchTests` (11): the 6 store-level tests fail on pre-fix behaviour and pass with the fix. Code-reviewer pass: double re-match fixed (3be2fac); main-actor JSON decode kept on purpose (store writes stay serialized). No iOS 26.3 runtime installed; no device test.
 **Last Updated:** 2026-10-21
 
 ## 2026-10-19 — 1.1.9 (34) is live on the App Store
