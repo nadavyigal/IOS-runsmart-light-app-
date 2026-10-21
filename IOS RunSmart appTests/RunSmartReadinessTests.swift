@@ -1248,7 +1248,9 @@ final class RunSmartReadinessTests: XCTestCase {
 
     func testRouteMatchingMarksNearbyNoisyRouteAsPossibleWithoutAttaching() {
         let routePoints = makeRoutePoints()
-        let noisyRunPoints = makeRoutePoints(latitude: 32.0859, longitude: 34.7824)
+        // A parallel street about 90 m to the side. (The earlier offset moved the run 87 m
+        // along the same street, which coverage matching now treats as a route variant.)
+        let noisyRunPoints = makeRoutePoints(latitude: 32.0853 - 0.00045, longitude: 34.7818 + 0.0008)
         let routeID = UUID(uuidString: "44444444-4444-4444-4444-444444444444")!
         let route = makeSavedRoute(id: routeID, points: routePoints, distanceMeters: 5_000)
         let run = makeRun(

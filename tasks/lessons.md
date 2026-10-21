@@ -1,3 +1,7 @@
+## 2026-10-21: A route fixture "offset" can run along the street, not beside it
+
+`testRouteMatchingMarksNearbyNoisyRouteAsPossibleWithoutAttaching` shifted the run by equal latitude and longitude steps. On that diagonal route the shift was 87 m along the street and only 10.5 m to the side, so it was the same path, not a nearby one. Index-based shape matching could not tell the difference; coverage matching can. When a fixture means "a parallel street", offset it perpendicular to the route and check the sideways distance.
+
 ## 2026-10-21: A match stored at processing time goes stale when the reference set changes
 
 Route matches were computed once per run against the routes that existed then, and never again. A route saved afterwards, including one saved from that same run, never collected its runs, so benchmarks stayed empty with no error. When a derived result depends on a set the user can grow (routes, benchmarks, goals), recompute it when that set changes, or compute it at read time. Before blaming a threshold, measure the real data against every gate: on the founder's two loop runs the 8% distance gate was not the only blocker; the index-sampled shape score (0.653 vs 0.74) also failed.

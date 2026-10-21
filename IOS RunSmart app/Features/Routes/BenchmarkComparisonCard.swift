@@ -54,7 +54,7 @@ struct BenchmarkComparisonLoaderView: View {
         case .noMatch:
             state = .status(.noBenchmark)
             return
-        case .matched:
+        case .matched, .routeVariant:
             break
         }
 
@@ -168,8 +168,8 @@ struct BenchmarkComparisonCard: View {
                         tint: .accentRecovery
                     )
                     BenchmarkMetricTile(
-                        title: "Route PB",
-                        value: BenchmarkComparisonPresentation.durationLabel(comparison.personalBest.durationSeconds),
+                        title: comparison.currentPerformance.isRouteVariant ? "Best Pace" : "Route PB",
+                        value: pbValue,
                         detail: pbDetail,
                         symbol: "flag.checkered",
                         tint: .accentPrimary
@@ -240,14 +240,27 @@ struct BenchmarkComparisonCard: View {
             Spacer(minLength: 8)
 
             StatusChip(
-                text: BenchmarkComparisonPresentation.confidenceLabel(comparison.matchConfidence),
+                text: chipText,
                 tint: .accentPrimary
             )
         }
     }
 
+    private var chipText: String {
+        if comparison.matchConfidence == .routeVariant, let delta = comparison.currentDistanceDeltaMeters {
+            return "Variant \(BenchmarkComparisonPresentation.distanceDeltaLabel(delta))"
+        }
+        return BenchmarkComparisonPresentation.confidenceLabel(comparison.matchConfidence)
+    }
+
     private var previousValue: String {
         guard let previous = comparison.previousPerformance else { return "First run" }
+        if comparison.comparesPace {
+            return BenchmarkComparisonPresentation.paceDeltaLabel(
+                current: comparison.currentPerformance.paceSecondsPerKm,
+                baseline: previous.paceSecondsPerKm
+            )
+        }
         return BenchmarkComparisonPresentation.deltaLabel(
             current: comparison.currentPerformance.durationSeconds,
             baseline: previous.durationSeconds
@@ -256,11 +269,27 @@ struct BenchmarkComparisonCard: View {
 
     private var previousDetail: String {
         guard let previous = comparison.previousPerformance else { return "No prior route match" }
+        if comparison.comparesPace {
+            return "vs \(BenchmarkComparisonPresentation.paceLabel(previous.paceSecondsPerKm)) /km"
+        }
         return "vs \(BenchmarkComparisonPresentation.durationLabel(previous.durationSeconds))"
     }
 
+    // Only the run itself being a variant hides route time; a full-route run after a
+    // variant still shows its real route PB.
+    private var pbValue: String {
+        if comparison.currentPerformance.isRouteVariant {
+            return BenchmarkComparisonPresentation.paceLabel(comparison.allTimeAverage.bestPaceSecondsPerKm)
+        }
+        return BenchmarkComparisonPresentation.durationLabel(comparison.personalBest.durationSeconds)
+    }
+
     private var pbDetail: String {
-        comparison.personalBest.runID == comparison.currentPerformance.runID ? "New best" : "Best effort"
+        if comparison.currentPerformance.isRouteVariant {
+            let isBest = comparison.currentPerformance.paceSecondsPerKm <= comparison.allTimeAverage.bestPaceSecondsPerKm + 0.5
+            return isBest ? "New best" : "Best on route"
+        }
+        return comparison.personalBest.runID == comparison.currentPerformance.runID ? "New best" : "Best effort"
     }
 
     private var monthlyDetail: String {

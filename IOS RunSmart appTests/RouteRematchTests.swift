@@ -144,28 +144,6 @@ final class RouteRematchTests: XCTestCase {
         XCTAssertEqual(comparison?.personalBest.runID, first.id)
     }
 
-    /// The founder's numbers: 5.03 km on Oct 18, 5.52 km on Oct 21 (9.8% longer). With the 8%
-    /// distance gate unchanged the longer run stays a possible match, so it is not compared.
-    func testLoopRunMoreThanEightPercentLongerStaysPossibleMatchWithGateUnchanged() async {
-        let services = ProductionRunSmartServices()
-        let oct18 = Self.makeRun(day: 1, distanceMeters: 5_030, points: Self.loopPoints())
-        let oct21 = Self.makeRun(day: 4, distanceMeters: 5_522, points: Self.loopPoints())
-        _ = await services.saveRouteMatch(for: oct18)
-        _ = await services.saveRouteMatch(for: oct21)
-
-        let route = SavedRoute.from(run: oct18, name: "5.0 km run")
-        _ = await services.saveRoute(route, fromRun: oct18)
-        _ = await services.enableBenchmark(for: route.id)
-
-        let oct21Stored = await Self.storedRun(oct21.id)
-        XCTAssertEqual(oct21Stored?.routeMatchResult?.confidence, .possibleMatch)
-        XCTAssertNil(oct21Stored?.routeMatchResult?.routeID)
-        XCTAssertEqual(oct21Stored?.routeMatchResult?.candidateRouteID, route.id)
-
-        let benchmark = await RunSmartLocalStore.shared.loadBenchmarkRoutes().first { $0.savedRouteID == route.id }
-        XCTAssertEqual(benchmark?.historicalRunCount, 1)
-    }
-
     /// "Save + benchmark" re-matches twice in a row and the second pass is skipped when
     /// nothing changed. A run stored in between must still be scored.
     func testBenchmarkAfterSaveStillMatchesRunStoredInBetween() async {

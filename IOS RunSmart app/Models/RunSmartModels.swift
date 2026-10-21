@@ -1079,8 +1079,25 @@ struct BenchmarkRoute: Identifiable, Codable, Hashable {
 
 enum RouteMatchConfidence: String, Codable, Hashable {
     case matched
+    /// Same start and finish and most of the route covered, but the distance differs by more
+    /// than a full match allows (an extra detour or a skipped stretch). Compared by pace only.
+    case routeVariant
     case possibleMatch
     case noMatch
+
+    /// The run counts toward its route's benchmark history.
+    nonisolated var countsTowardRoute: Bool {
+        self == .matched || self == .routeVariant
+    }
+
+    nonisolated var rank: Int {
+        switch self {
+        case .matched: 3
+        case .routeVariant: 2
+        case .possibleMatch: 1
+        case .noMatch: 0
+        }
+    }
 }
 
 struct RouteMatchResult: Codable, Hashable {
@@ -1092,6 +1109,8 @@ struct RouteMatchResult: Codable, Hashable {
     var endDeltaMeters: Double
     var shapeSimilarity: Double
     var isReversed: Bool
+    /// Share of the route's length that the run passed within `RouteMatchingService.coverageToleranceMeters` of.
+    var routeCoverage: Double? = nil
 }
 
 enum BenchmarkRouteTrend: String, Codable, Hashable {
@@ -1109,6 +1128,10 @@ struct BenchmarkRunPerformance: Identifiable, Codable, Hashable {
     var durationSeconds: TimeInterval
     var paceSecondsPerKm: Double
     var averageHeartRateBPM: Int?
+    var distanceMeters: Double? = nil
+    var matchConfidence: RouteMatchConfidence? = nil
+
+    var isRouteVariant: Bool { matchConfidence == .routeVariant }
 }
 
 struct BenchmarkPerformanceAverage: Codable, Hashable {
@@ -1141,9 +1164,22 @@ struct BenchmarkRouteComparison: Codable, Hashable {
     var allTimeAverage: BenchmarkPerformanceAverage
     var monthlyAverage: MonthlyBenchmarkAverage
     var recentTrend: BenchmarkRouteTrend
+    var routeDistanceMeters: Double? = nil
 
     var hasEnoughHistory: Bool {
         allTimeAverage.runCount >= 2
+    }
+
+    /// A route variant is not the same distance, so total time says nothing about fitness.
+    /// Compare pace when either side of the comparison is one.
+    var comparesPace: Bool {
+        currentPerformance.isRouteVariant || previousPerformance?.isRouteVariant == true
+    }
+
+    /// How much longer (positive) or shorter (negative) the current run was than the route.
+    var currentDistanceDeltaMeters: Double? {
+        guard let run = currentPerformance.distanceMeters, let route = routeDistanceMeters else { return nil }
+        return run - route
     }
 }
 
