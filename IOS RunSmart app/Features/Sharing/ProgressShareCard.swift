@@ -45,13 +45,22 @@ struct ProgressSharePayload: Hashable {
 
     static func benchmark(_ comparison: BenchmarkRouteComparison) -> ProgressSharePayload {
         let current = comparison.currentPerformance
+        // A route variant is a different distance, so its total time is not comparable to the
+        // route PB; share pace, like the card does.
+        let headline: [ProgressShareMetric] = current.isRouteVariant
+            ? [
+                ProgressShareMetric(title: "This Run", value: "\(BenchmarkComparisonPresentation.paceLabel(current.paceSecondsPerKm)) /km"),
+                ProgressShareMetric(title: "Best Pace", value: "\(BenchmarkComparisonPresentation.paceLabel(comparison.allTimeAverage.bestPaceSecondsPerKm)) /km")
+            ]
+            : [
+                ProgressShareMetric(title: "This Run", value: BenchmarkComparisonPresentation.durationLabel(current.durationSeconds)),
+                ProgressShareMetric(title: "Route PB", value: BenchmarkComparisonPresentation.durationLabel(comparison.personalBest.durationSeconds))
+            ]
         return ProgressSharePayload(
             kind: .benchmark,
             title: comparison.routeName,
             subtitle: comparison.currentPerformance.startedAt.formatted(date: .abbreviated, time: .omitted),
-            metrics: [
-                ProgressShareMetric(title: "This Run", value: BenchmarkComparisonPresentation.durationLabel(current.durationSeconds)),
-                ProgressShareMetric(title: "Route PB", value: BenchmarkComparisonPresentation.durationLabel(comparison.personalBest.durationSeconds)),
+            metrics: headline + [
                 ProgressShareMetric(title: "Month Avg", value: BenchmarkComparisonPresentation.paceLabel(comparison.monthlyAverage.averagePaceSecondsPerKm))
             ],
             insight: BenchmarkComparisonPresentation.insights(for: comparison).first ?? "Benchmark progress saved privately in RunSmart.",

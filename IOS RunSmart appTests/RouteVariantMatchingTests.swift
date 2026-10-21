@@ -280,6 +280,9 @@ final class RouteVariantMatchingTests: XCTestCase {
             "Your pace was 0:05 /km faster than your previous run on this route.",
             "This is your best pace on Park loop.",
         ])
+        let shared = ProgressSharePayload.benchmark(comparison).metrics
+        XCTAssertEqual(shared.map(\.title), ["This Run", "Best Pace", "Month Avg"], "A variant shares pace, never its total time against the route PB")
+        XCTAssertEqual(shared.first?.value, "6:20 /km")
         XCTAssertEqual(BenchmarkComparisonPresentation.paceDeltaLabel(current: 380, baseline: 385), "-0:05 /km")
         XCTAssertEqual(BenchmarkComparisonPresentation.distanceDeltaLabel(490), "+0.49 km")
     }
