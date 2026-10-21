@@ -1,3 +1,20 @@
+## 2026-10-21: Route benchmark gap: re-match stored runs (PR open, not merged)
+
+**Why:** the founder ran the same loop twice on 1.1.9 (run 1385, 2026-10-18, 5.03 km; run 1386, 2026-10-21, 5.52 km) and saved a route from each, but the app could not compare them. Route matches were computed once, when a run was processed, against the routes that existed then. So the run a route was saved from never counted on its own route, and earlier runs never counted toward a later benchmark.
+
+**Fix (branch `claude/2026-10-21-route-benchmark-rematch`):** saving a route from a run stores that run as an exact match of the route. Saving a route or enabling a benchmark re-matches the newest 300 stored runs off the main actor, keeps an existing matched result unless its route is gone or the new result is also matched, persists the results and refreshes benchmark stats. Supabase, local and demo services all do this. The 8% distance gate is unchanged.
+
+**Founder's two runs, still not compared after this fix.** Read-only SQL on production Supabase (`user_saved_routes`), 2026-10-21: start 23 m apart, end 62 m apart, distance 9.8% over the Oct 18 route and 8.9% over the Oct 21 route, index-sampled shape similarity 0.653 (the matched level needs 0.74). Each run lands as `possibleMatch` against the other's route. So each benchmark shows only its own run. Nearest-point check: the Oct 21 trace is on average 6.8 m from the Oct 18 trace, 90% of its points within 5.5 m, about 4% more than 40 m off (a short detour, max 155 m). It is the same loop plus a detour. The PR body holds the gate proposal for the founder.
+
+**Status:** PR open for review, not merged.
+**Current Phase:** Route benchmark fix in review.
+**Active Story:** Route benchmark gap (re-match on save/benchmark).
+**Last Completed Story:** 1.1.9 (34) released (release PR #157, merged 2026-10-17).
+**Next Recommended Story:** Founder decides the matching proposal in the PR (relaxing the 8% gate alone does not help: the shape score also fails). Then a physical-device route smoke on a build that carries this fix.
+**Blockers:** Gate decision is the founder's. Device smoke needs the founder's iPhone.
+**Last Validation:** 2026-10-21: full suite on iPhone 17 simulator (iOS 26.5), see PR. New `RouteRematchTests` (10) fail on the pre-fix behaviour (6 store-level) and pass with the fix. No iOS 26.3 runtime installed.
+**Last Updated:** 2026-10-21
+
 ## 2026-10-19 — 1.1.9 (34) is live on the App Store
 
 **Live:** App Store lookup for id 6768297840, polled 3 times on 2026-10-19 with a different `nocache` value each time (3 of 3 agreed): version 1.1.9, released 2026-10-18T18:23:16Z. The founder also confirmed it is approved and live in App Store Connect. The 2026-10-17 entries ("not uploaded", "No upload or submission performed") are now out of date.
