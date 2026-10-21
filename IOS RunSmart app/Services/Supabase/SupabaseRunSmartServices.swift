@@ -823,7 +823,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             if let userID = currentUserID {
                 try? await routeRemote.deleteRoute(id: routeID, userID: userID)
             }
-            store.refreshBenchmarkStats()
+            // Runs attached to the deleted route move to the best remaining one.
+            await store.rematchStoredRuns()
             postRouteChange()
         }
         return removed
@@ -888,7 +889,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             if let userID = currentUserID {
                 try? await routeRemote.deleteBenchmark(savedRouteID: routeID, userID: userID)
             }
-            store.refreshBenchmarkStats()
+            // Runs attached to this benchmark move to the best remaining one.
+            await store.rematchStoredRuns()
             postRouteChange()
         }
         return removed

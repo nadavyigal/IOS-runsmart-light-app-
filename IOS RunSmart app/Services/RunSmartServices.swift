@@ -642,7 +642,8 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
         seedDemoRoutesIfNeeded()
         let removed = store.removeSavedRoute(routeID)
         if removed {
-            store.refreshBenchmarkStats()
+            // Runs attached to the deleted route move to the best remaining one.
+            await store.rematchStoredRuns()
             postRouteChange()
         }
         return removed
@@ -685,7 +686,11 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func disableBenchmark(for routeID: UUID) async -> Bool {
         seedDemoRoutesIfNeeded()
         let removed = store.removeBenchmarkRoute(routeID)
-        if removed { postRouteChange() }
+        if removed {
+            // Runs attached to this benchmark move to the best remaining one.
+            await store.rematchStoredRuns()
+            postRouteChange()
+        }
         return removed
     }
 

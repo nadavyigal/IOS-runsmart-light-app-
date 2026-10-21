@@ -61,7 +61,8 @@ struct PostRunLearningCardModel: Hashable {
         run: RecordedRun?,
         outcome: PostActivityOutcome?,
         report: RunReportDetail?,
-        activePlan: TrainingPlanSnapshot?
+        activePlan: TrainingPlanSnapshot?,
+        benchmarkRouteIDs: Set<UUID> = []
     ) -> PostRunLearningCardModel {
         let resolvedRun = outcome?.canonicalRun ?? run
         let resolvedReport = report ?? outcome?.report
@@ -70,7 +71,7 @@ struct PostRunLearningCardModel: Hashable {
         let isShort = distanceKm < 0.5 || duration < 180
         let hasPoorGPS = resolvedRun.map { !$0.routePoints.isEmpty && $0.routePoints.count < RouteMatchingService.minimumRoutePoints } ?? false
         let hasNoMap = resolvedRun?.routePoints.isEmpty ?? true
-        let matchedBenchmark = resolvedRun?.routeMatchResult?.confidence.countsTowardRoute == true
+        let matchedBenchmark = Self.countsTowardBenchmark(resolvedRun, benchmarkRouteIDs: benchmarkRouteIDs)
 
         let happened = happenedText(
             run: resolvedRun,
@@ -99,6 +100,14 @@ struct PostRunLearningCardModel: Hashable {
             source: source,
             action: action.kind
         )
+    }
+
+    /// A run can count toward any saved route; only an enabled benchmark makes it a benchmark run.
+    static func countsTowardBenchmark(_ run: RecordedRun?, benchmarkRouteIDs: Set<UUID>) -> Bool {
+        guard let match = run?.routeMatchResult,
+              match.confidence.countsTowardRoute,
+              let routeID = match.routeID else { return false }
+        return benchmarkRouteIDs.contains(routeID)
     }
 
     private static func happenedText(
@@ -209,6 +218,7 @@ struct PostRunLearningCard: View {
     var debrief: PostRunDebriefModel? = nil   // E6: AI debrief
 
     @State private var activePlan: TrainingPlanSnapshot?
+    @State private var benchmarkRouteIDs: Set<UUID> = []
     @State private var isSaving = false
     @State private var saveState: SaveState = .idle
 
@@ -217,7 +227,8 @@ struct PostRunLearningCard: View {
             run: run,
             outcome: outcome,
             report: report,
-            activePlan: activePlan
+            activePlan: activePlan,
+            benchmarkRouteIDs: benchmarkRouteIDs
         )
     }
 
@@ -256,14 +267,13 @@ struct PostRunLearningCard: View {
             }
         }
         .task {
+            benchmarkRouteIDs = Set((await services.benchmarkRoutes()).map(\.savedRouteID))
             activePlan = await services.activeTrainingPlan()
-        }
-        .onAppear {
-            let hasBenchmark = run?.routeMatchResult?.confidence.countsTowardRoute == true
-            let hasPlanMatch = model.planImpact != .unavailable
+            // Sent once benchmark membership is known, so has_benchmark reflects an enabled
+            // benchmark rather than any saved route the run matched.
             Analytics.trackPostRunCardViewed(
-                hasBenchmark: hasBenchmark,
-                hasPlanMatch: hasPlanMatch
+                hasBenchmark: PostRunLearningCardModel.countsTowardBenchmark(run, benchmarkRouteIDs: benchmarkRouteIDs),
+                hasPlanMatch: model.planImpact != .unavailable
             )
         }
     }

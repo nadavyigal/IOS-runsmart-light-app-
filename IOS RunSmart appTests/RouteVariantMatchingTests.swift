@@ -206,6 +206,77 @@ final class RouteVariantMatchingTests: XCTestCase {
         XCTAssertEqual(benchmark?.historicalRunCount, 2)
     }
 
+    /// Codex finding on #161: with both loops benchmarked, the detour run sits on its own route.
+    /// Turning that benchmark off must move it to the remaining one.
+    func testDisablingABenchmarkMovesItsRunsToTheRemainingBenchmark() async {
+        let services = ProductionRunSmartServices()
+        let oct18 = Self.makeRun(day: 1, distanceMeters: 4_000, movingTime: 1_540, points: Self.plainLoop())
+        let oct21 = Self.makeRun(day: 4, distanceMeters: 4_500, movingTime: 1_710, points: Self.detourLoop())
+        _ = await services.saveRouteMatch(for: oct18)
+        let plainRoute = SavedRoute.from(run: oct18, name: "Park loop")
+        _ = await services.saveRoute(plainRoute, fromRun: oct18)
+        _ = await services.saveRouteMatch(for: oct21)
+        let detourRoute = SavedRoute.from(run: oct21, name: "Park loop + detour")
+        _ = await services.saveRoute(detourRoute, fromRun: oct21)
+        _ = await services.enableBenchmark(for: plainRoute.id)
+        _ = await services.enableBenchmark(for: detourRoute.id)
+        let bothBenchmarked = await Self.storedRun(oct21.id)
+        XCTAssertEqual(bothBenchmarked?.routeMatchResult?.routeID, detourRoute.id)
+
+        _ = await services.disableBenchmark(for: detourRoute.id)
+
+        let stored = await Self.storedRun(oct21.id)
+        XCTAssertEqual(stored?.routeMatchResult?.routeID, plainRoute.id)
+        XCTAssertEqual(stored?.routeMatchResult?.confidence, .routeVariant)
+        let benchmark = await RunSmartLocalStore.shared.loadBenchmarkRoutes().first { $0.savedRouteID == plainRoute.id }
+        XCTAssertEqual(benchmark?.historicalRunCount, 2)
+    }
+
+    func testDeletingARouteMovesItsRunsToTheBenchmark() async {
+        let services = ProductionRunSmartServices()
+        let oct18 = Self.makeRun(day: 1, distanceMeters: 4_000, movingTime: 1_540, points: Self.plainLoop())
+        let oct21 = Self.makeRun(day: 4, distanceMeters: 4_500, movingTime: 1_710, points: Self.detourLoop())
+        _ = await services.saveRouteMatch(for: oct18)
+        let plainRoute = SavedRoute.from(run: oct18, name: "Park loop")
+        _ = await services.saveRoute(plainRoute, fromRun: oct18)
+        _ = await services.saveRouteMatch(for: oct21)
+        let detourRoute = SavedRoute.from(run: oct21, name: "Park loop + detour")
+        _ = await services.saveRoute(detourRoute, fromRun: oct21)
+        _ = await services.enableBenchmark(for: plainRoute.id)
+        _ = await services.enableBenchmark(for: detourRoute.id)
+
+        _ = await services.deleteRoute(detourRoute.id)
+
+        let stored = await Self.storedRun(oct21.id)
+        XCTAssertEqual(stored?.routeMatchResult?.routeID, plainRoute.id)
+    }
+
+    /// Codex finding on #161: a run can count toward any saved route, but the post-run card and
+    /// its analytics only call it a benchmark run when that route is an enabled benchmark.
+    func testPostRunCardCallsItABenchmarkRunOnlyForAnEnabledBenchmark() {
+        let routeID = UUID()
+        var run = Self.makeRun(day: 1, distanceMeters: 4_500, points: Self.detourLoop())
+        run.routeMatchResult = RouteMatchResult(
+            routeID: routeID,
+            candidateRouteID: routeID,
+            confidence: .routeVariant,
+            distanceDeltaMeters: 500,
+            startDeltaMeters: 0,
+            endDeltaMeters: 0,
+            shapeSimilarity: 0.6,
+            isReversed: false,
+            routeCoverage: 1
+        )
+
+        XCTAssertFalse(PostRunLearningCardModel.countsTowardBenchmark(run, benchmarkRouteIDs: []))
+        XCTAssertTrue(PostRunLearningCardModel.countsTowardBenchmark(run, benchmarkRouteIDs: [routeID]))
+
+        let plainSaved = PostRunLearningCardModel.make(run: run, outcome: nil, report: nil, activePlan: nil)
+        XCTAssertFalse(plainSaved.happened.contains("benchmark route"))
+        let benchmarked = PostRunLearningCardModel.make(run: run, outcome: nil, report: nil, activePlan: nil, benchmarkRouteIDs: [routeID])
+        XCTAssertTrue(benchmarked.happened.contains("benchmark route"))
+    }
+
     // MARK: - Stats and copy
 
     func testStatRefreshCountsVariantsButTakesTimesFromFullRouteRunsOnly() {

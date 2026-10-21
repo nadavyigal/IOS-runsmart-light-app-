@@ -1193,7 +1193,8 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func deleteRoute(_ routeID: UUID) async -> Bool {
         let removed = store.removeSavedRoute(routeID)
         if removed {
-            store.refreshBenchmarkStats()
+            // Runs attached to the deleted route move to the best remaining one.
+            await store.rematchStoredRuns()
             postRouteChange()
         }
         return removed
@@ -1233,7 +1234,8 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func disableBenchmark(for routeID: UUID) async -> Bool {
         let removed = store.removeBenchmarkRoute(routeID)
         if removed {
-            store.refreshBenchmarkStats()
+            // Runs attached to this benchmark move to the best remaining one.
+            await store.rematchStoredRuns()
             postRouteChange()
         }
         return removed
