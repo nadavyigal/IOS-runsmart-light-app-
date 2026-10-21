@@ -624,6 +624,15 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
     func saveRoute(_ route: SavedRoute) async -> Bool {
         seedDemoRoutesIfNeeded()
         store.saveSavedRoute(route)
+        await store.rematchRunsAfterRouteChange()
+        postRouteChange()
+        return true
+    }
+
+    func saveRoute(_ route: SavedRoute, fromRun run: RecordedRun) async -> Bool {
+        seedDemoRoutesIfNeeded()
+        store.saveSavedRoute(route)
+        await store.rematchRunsAfterRouteChange(savedFrom: run, routeID: route.id)
         postRouteChange()
         return true
     }
@@ -667,7 +676,7 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
                 averageDurationSeconds: nil
             )
         )
-        store.refreshBenchmarkStats()
+        await store.rematchRunsAfterRouteChange()
         postRouteChange()
         return true
     }

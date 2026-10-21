@@ -238,6 +238,111 @@ final class RunSmartLocalStore {
         save(updated, key: "runsmart.benchmarkRoutes")
     }
 
+    // MARK: - Route re-matching
+
+    /// Re-matches stored runs against the current saved routes after a route is saved or
+    /// benchmarked, attaches the run a route was saved from to that route, persists the
+    /// results, and refreshes benchmark stats. Scoring runs off the main actor.
+    func rematchRunsAfterRouteChange(savedFrom sourceRun: RecordedRun? = nil, routeID: UUID? = nil) async {
+        let runs = visibleRuns(loadRuns())
+        let routes = loadSavedRoutes()
+        let sourceRouteID = routes.contains(where: { $0.id == routeID }) ? routeID : nil
+
+        // Saving a route with "benchmark" on calls this twice in a row; the second call
+        // sees the state the first one wrote, so scoring it again cannot change anything.
+        var matches: [UUID: RouteMatchResult] = [:]
+        if lastRematchedStateHash != Self.rematchStateHash(runs: runs, routes: routes) {
+            matches = await Task.detached(priority: .utility) {
+                RouteRematchService.updatedMatches(runs: runs, savedRoutes: routes)
+            }.value
+        }
+
+        var changed = applyRouteMatches(matches)
+        if let sourceRun, let sourceRouteID {
+            changed += attachRun(sourceRun, toSavedRoute: sourceRouteID) ? 1 : 0
+        }
+
+        var runsAfter = runs.map { run -> RecordedRun in
+            var updated = run
+            if let match = matches[run.id] { updated.routeMatchResult = match }
+            return updated
+        }
+        if let sourceRun, let sourceRouteID {
+            let exact = RouteMatchingService.exactMatch(routeID: sourceRouteID)
+            if let index = runsAfter.firstIndex(where: { Self.isSameStoredRun($0, sourceRun) }) {
+                runsAfter[index].routeMatchResult = exact
+            } else {
+                var attached = sourceRun
+                attached.routeMatchResult = exact
+                runsAfter.append(attached)
+            }
+        }
+        lastRematchedStateHash = Self.rematchStateHash(runs: runsAfter, routes: routes)
+
+        refreshBenchmarkStats()
+        if changed > 0 {
+            NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+        }
+    }
+
+    private var lastRematchedStateHash: Int?
+
+    /// Everything route scoring reads. In memory only (Hasher is seeded per launch), so the
+    /// first re-match after launch always scores.
+    private static func rematchStateHash(runs: [RecordedRun], routes: [SavedRoute]) -> Int {
+        var hasher = Hasher()
+        for route in routes.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
+            hasher.combine(route.id)
+            hasher.combine(route.updatedAt)
+            hasher.combine(route.distanceMeters)
+            hasher.combine(route.points.count)
+        }
+        for run in runs.sorted(by: { $0.id.uuidString < $1.id.uuidString })
+        where run.routePoints.count >= RouteMatchingService.minimumRoutePoints {
+            hasher.combine(run.id)
+            hasher.combine(run.startedAt)
+            hasher.combine(run.distanceMeters)
+            hasher.combine(run.routePoints.count)
+            hasher.combine(run.routeMatchResult)
+        }
+        return hasher.finalize()
+    }
+
+    private static func isSameStoredRun(_ lhs: RecordedRun, _ rhs: RecordedRun) -> Bool {
+        if lhs.id == rhs.id { return true }
+        guard let lhsProviderID = lhs.providerActivityID,
+              let rhsProviderID = rhs.providerActivityID else { return false }
+        return lhsProviderID == rhsProviderID && lhs.source == rhs.source
+    }
+
+    /// Writes match results onto stored runs. Re-reads the store first so a run saved while
+    /// the matches were being computed is not overwritten. Returns the number of runs changed.
+    @discardableResult
+    func applyRouteMatches(_ matches: [UUID: RouteMatchResult]) -> Int {
+        guard !matches.isEmpty else { return 0 }
+        var runs = loadRuns()
+        var changed = 0
+        for index in runs.indices {
+            guard let match = matches[runs[index].id], runs[index].routeMatchResult != match else { continue }
+            runs[index].routeMatchResult = match
+            changed += 1
+        }
+        if changed > 0 { save(runs, key: "runsmart.runs") }
+        return changed
+    }
+
+    /// Stores the run a route was saved from as an exact match of that route. Updates the
+    /// stored copy when one exists so an older in-memory run does not overwrite newer fields.
+    @discardableResult
+    func attachRun(_ run: RecordedRun, toSavedRoute routeID: UUID) -> Bool {
+        let match = RouteMatchingService.exactMatch(routeID: routeID)
+        var attached = loadRuns().first { Self.isSameStoredRun($0, run) } ?? run
+        guard attached.routeMatchResult != match, !isRunHidden(attached) else { return false }
+        attached.routeMatchResult = match
+        saveRun(attached)
+        return true
+    }
+
     private func save<Value: Encodable>(_ value: Value, key: String) {
         guard let data = try? encoder.encode(value) else { return }
         defaults.set(data, forKey: key)
@@ -747,6 +852,8 @@ protocol RouteProviding {
     func routeRecommendation(for workout: WorkoutSummary?, fallbackDistanceLabel: String?) async -> RouteRecommendation
     func savedRoutes() async -> [SavedRoute]
     func saveRoute(_ route: SavedRoute) async -> Bool
+    /// Saves a route created from `run` and stores `run` as an exact match of it.
+    func saveRoute(_ route: SavedRoute, fromRun run: RecordedRun) async -> Bool
     func deleteRoute(_ routeID: UUID) async -> Bool
     func updateRoute(_ route: SavedRoute) async -> Bool
     func benchmarkRoutes() async -> [BenchmarkRoute]
@@ -757,6 +864,7 @@ protocol RouteProviding {
 extension RouteProviding {
     func savedRoutes() async -> [SavedRoute] { [] }
     func saveRoute(_ route: SavedRoute) async -> Bool { false }
+    func saveRoute(_ route: SavedRoute, fromRun run: RecordedRun) async -> Bool { await saveRoute(route) }
     func deleteRoute(_ routeID: UUID) async -> Bool { false }
     func updateRoute(_ route: SavedRoute) async -> Bool { false }
     func benchmarkRoutes() async -> [BenchmarkRoute] { [] }
@@ -1044,6 +1152,14 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func saveRoute(_ route: SavedRoute) async -> Bool {
         store.saveSavedRoute(route)
+        await store.rematchRunsAfterRouteChange()
+        postRouteChange()
+        return true
+    }
+
+    func saveRoute(_ route: SavedRoute, fromRun run: RecordedRun) async -> Bool {
+        store.saveSavedRoute(route)
+        await store.rematchRunsAfterRouteChange(savedFrom: run, routeID: route.id)
         postRouteChange()
         return true
     }
@@ -1083,7 +1199,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
             averageDurationSeconds: nil
         )
         store.saveBenchmarkRoute(benchmark)
-        store.refreshBenchmarkStats()
+        await store.rematchRunsAfterRouteChange()
         postRouteChange()
         return true
     }

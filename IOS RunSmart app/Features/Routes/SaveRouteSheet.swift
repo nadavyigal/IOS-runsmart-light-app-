@@ -262,7 +262,7 @@ struct SaveRouteSheet: View {
         var route = SavedRoute.from(run: run, name: trimmedName, tags: Array(selectedTags), notes: routeNotes)
         route.isFavorite = isFavorite
 
-        let saved = await services.saveRoute(route)
+        let saved = await services.saveRoute(route, fromRun: run)
         if saved && makeBenchmark {
             _ = await services.enableBenchmark(for: route.id)
         }
