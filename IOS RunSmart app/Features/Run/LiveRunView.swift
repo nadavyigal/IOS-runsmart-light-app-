@@ -7,6 +7,9 @@ struct LiveRunView: View {
     var completedKmSplits: [KilometerSplit]
     var phase: RunRecordingPhase
     var isAutoPaused: Bool = false
+    /// Planned-workout guide; nil for free runs and workouts without a parseable structure.
+    var guide: WorkoutGuide? = nil
+    var currentPaceSeconds: TimeInterval? = nil
     var gpsStatus: String
     var gpsDetail: String
     var elapsedSeconds: TimeInterval
@@ -79,6 +82,10 @@ struct LiveRunView: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 12) {
                 LiveRunStateBanner(phase: phase, elapsedSeconds: elapsedSeconds, isAutoPaused: isAutoPaused)
+
+                if let guide {
+                    LiveWorkoutGuideCard(guide: guide, currentPaceSeconds: currentPaceSeconds)
+                }
 
                 if let distance = metrics.first {
                     RunSmartPanel(cornerRadius: 22, padding: 20, accent: .accentPrimary) {
@@ -243,6 +250,102 @@ private struct LiveKmSplitsPanel: View {
         guard let latest = splits.last else { return "No completed kilometers yet" }
         let pace = RunRecorder.paceLabel(secondsPerKm: latest.paceSecondsPerKm)
         return "\(splits.count) splits. Latest kilometer \(latest.km), pace \(pace) per kilometer."
+    }
+}
+
+/// Compact planned-workout card: where the runner is in the workout, what is left in the
+/// step, the target pace band with its state, and what comes next.
+struct LiveWorkoutGuideCard: View {
+    var guide: WorkoutGuide
+    var currentPaceSeconds: TimeInterval?
+
+    var body: some View {
+        RunSmartPanel(cornerRadius: 18, padding: 14, accent: tint) {
+            if let progress = guide.progress {
+                stepContent(progress)
+            } else {
+                Text("Workout complete. Keep running or hold to finish.")
+                    .font(.headingMD)
+                    .foregroundStyle(Color.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel("Workout complete. Keep running or hold to finish.")
+            }
+        }
+    }
+
+    private func stepContent(_ progress: WorkoutGuide.Progress) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(progress.step.title)
+                    .font(.labelSM)
+                    .foregroundStyle(Color.textSecondary)
+                    .textCase(.uppercase)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                Spacer(minLength: 6)
+                Text("Step \(progress.index + 1) of \(progress.count)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.textTertiary)
+            }
+            Text(WorkoutGuideFormat.remaining(meters: progress.remainingMeters, seconds: progress.remainingSeconds) ?? "")
+                .font(.metricLG)
+                .monospacedDigit()
+                .foregroundStyle(Color.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+            if let band = progress.step.paceBand {
+                HStack(spacing: 8) {
+                    Circle().fill(tint).frame(width: 10, height: 10)
+                    Text("\(band.label) /km")
+                        .font(.metricSM)
+                        .monospacedDigit()
+                        .foregroundStyle(Color.textPrimary)
+                    Text(statusLabel)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(tint)
+                    Spacer(minLength: 0)
+                }
+            }
+            Text(progress.next.map { "Next: \($0.previewLabel)" } ?? "Last step")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.textSecondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityText(progress))
+    }
+
+    private var status: WorkoutGuide.PaceStatus? { guide.paceStatus(currentPace: currentPaceSeconds) }
+
+    private var tint: Color {
+        switch status {
+        case .inRange: .accentPrimary
+        case .tooFast: .accentEnergy
+        case .tooSlow: .accentHeart
+        case nil: .textTertiary
+        }
+    }
+
+    private var statusLabel: String {
+        switch status {
+        case .inRange: "On pace"
+        case .tooFast: "Too fast"
+        case .tooSlow: "Too slow"
+        case nil: "Pace --"
+        }
+    }
+
+    private func accessibilityText(_ progress: WorkoutGuide.Progress) -> String {
+        var parts = [progress.step.title]
+        if let left = WorkoutGuideFormat.remaining(meters: progress.remainingMeters, seconds: progress.remainingSeconds) {
+            parts.append(left)
+        }
+        if let band = progress.step.paceBand {
+            parts.append("Target pace \(band.label) per kilometre. \(statusLabel)")
+        }
+        parts.append(progress.next.map { "Next: \($0.previewLabel)" } ?? "Last step")
+        return parts.joined(separator: ". ")
     }
 }
 

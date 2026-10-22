@@ -136,14 +136,30 @@ final class LocalRunCueService: NSObject, ObservableObject {
         schedule.reset(distance: distance, movingTime: movingTime)
         announce(recovered ? "Run restored. Paused." : "Run started.")
     }
-    func update(distance: Double, movingTime: TimeInterval) {
-        if let text = schedule.update(distance: distance, movingTime: movingTime, settings: settings) { announce(text) }
+    func update(distance: Double, movingTime: TimeInterval, guide: [WorkoutGuide.Announcement] = []) {
+        let split = schedule.update(distance: distance, movingTime: movingTime, settings: settings)
+        if let text = Self.combinedText(split: split, guide: guide) {
+            // A guide-only cue waits for speech in progress; a split cue keeps its usual priority and
+            // carries any step cue with it, so the two never cut each other off in the same second.
+            announce(text, queued: split == nil)
+        }
     }
-    func announce(_ text: String) {
+
+    /// One utterance per tick: the split cue first, then the step cue. Pace reminders are dropped
+    /// when a split cue is speaking, because the step change that matters is already in it.
+    static func combinedText(split: String?, guide: [WorkoutGuide.Announcement]) -> String? {
+        let steps = guide.filter { !$0.isReminder }.map(\.text)
+        let reminders = guide.filter(\.isReminder).map(\.text)
+        let guideText = (steps.isEmpty ? (split == nil ? reminders : []) : steps).joined(separator: " ")
+        let parts = [split, guideText.isEmpty ? nil : guideText].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
+
+    func announce(_ text: String, queued: Bool = false) {
         guard settings.enabled else { return }
         VoiceCoachService.shared.cancelPlaybackForLocalCue()
         if let speechHandler { speechHandler(text); return }
-        synthesizer.stopSpeaking(at: .immediate)
+        if !queued { synthesizer.stopSpeaking(at: .immediate) }
         let utterance = AVSpeechUtterance(string: text)
         // A built-in voice works without an account, downloaded enhanced voice, or network.
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")

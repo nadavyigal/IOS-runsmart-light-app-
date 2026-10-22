@@ -17,6 +17,9 @@ struct RunSessionCheckpoint: Codable, Equatable {
     var savedAt: Date
     /// Closed pauses so far. Optional so checkpoints written before this field existed still load.
     var pauseIntervals: [RunPauseInterval]? = nil
+    /// Planned-workout guide with its step start points. Optional so older checkpoints still load;
+    /// the guide catches up from the recovered moving time and distance when the run resumes.
+    var workoutGuide: WorkoutGuide? = nil
 
     /// Moving time as it stood when the checkpoint was written.
     var movingSecondsAtSave: TimeInterval {

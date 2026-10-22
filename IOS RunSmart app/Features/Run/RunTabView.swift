@@ -14,6 +14,17 @@ struct RunTabView: View {
     @State private var resumeAfterEndSheet = false
     @State private var isConfirmingFinish = false
 
+#if DEBUG
+    /// Simulator QA: `-RUNSMART_DEMO_MODE -AUTO_START_RUN -DEMO_GUIDE_INTERVALS` starts a run with a
+    /// short warm-up and 6 x 400 m reps so the live guide card shows a rep without a 10 minute wait.
+    private static let demoIntervalWorkout = WorkoutSummary(
+        id: UUID(), scheduledDate: Date(), planID: nil, weekday: "Thu", date: "22", kind: .intervals,
+        title: "6 x 400 m", distance: "6 x 400m", detail: "", isToday: true, isComplete: false,
+        durationMinutes: nil, targetPaceSecondsPerKm: nil, intensity: nil, trainingPhase: nil,
+        workoutStructure: #"{"steps":[{"type":"warmup","duration_seconds":4},{"type":"repeat","reps_count":6,"rep_distance":"400 m","pace_seconds_per_km":270,"note":"90 s recovery"},{"type":"cooldown","duration_seconds":300}]}"#
+    )
+#endif
+
     var body: some View {
         Group {
             if let finishedRun {
@@ -31,6 +42,8 @@ struct RunTabView: View {
                     completedKmSplits: recorder.completedKilometerSplits,
                     phase: recorder.phase,
                     isAutoPaused: recorder.isAutoPaused,
+                    guide: recorder.workoutGuide,
+                    currentPaceSeconds: recorder.currentPaceSeconds,
                     gpsStatus: gpsStatus,
                     gpsDetail: gpsDetail,
                     elapsedSeconds: recorder.movingSeconds,
@@ -68,6 +81,11 @@ struct RunTabView: View {
             guard RunSmartDemoMode.isEnabled,
                   ProcessInfo.processInfo.arguments.contains("-AUTO_START_RUN"),
                   recorder.phase == .ready else { return }
+            if ProcessInfo.processInfo.arguments.contains("-DEMO_GUIDE_INTERVALS"), router.plannedWorkout == nil {
+                router.plannedWorkout = Self.demoIntervalWorkout
+            }
+            recorder.activeWorkoutTitle = router.plannedWorkout?.title
+            recorder.activeGuideSteps = router.plannedWorkout.flatMap { StructuredWorkoutFactory.makeGuideSteps(for: $0) }
             recorder.start()
         }
 #endif
@@ -318,6 +336,7 @@ struct RunTabView: View {
         let source = router.plannedWorkout != nil ? "planned" : "free"
         Analytics.trackRunStarted(source: source)
         recorder.activeWorkoutTitle = router.plannedWorkout?.title
+        recorder.activeGuideSteps = router.plannedWorkout.flatMap { StructuredWorkoutFactory.makeGuideSteps(for: $0) }
         recorder.start()
     }
 

@@ -437,6 +437,11 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Title of the planned workout for the run in progress; stored in the checkpoint so a
     /// recovered run keeps its label. Set by the Run tab before `start()`.
     var activeWorkoutTitle: String?
+    /// Guide stages of the planned workout for the run starting now. Set by the Run tab before
+    /// `start()`, like `activeWorkoutTitle`. Nil for free runs and workouts without a parseable target.
+    var activeGuideSteps: [GuideStep]?
+    /// Follows `activeGuideSteps` once the clock runs; advanced from moving time and distance.
+    @Published private(set) var workoutGuide: WorkoutGuide?
     /// Called when starting a new run saved an unanswered recovered run first. The Run tab uses
     /// it to export that run to Health and process it silently (no summary screen).
     var onRecoveredRunAutoSaved: ((RecordedRun) -> Void)?
@@ -584,6 +589,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         stopTracking()
         resetCurrentRun()
         activeWorkoutTitle = nil
+        activeGuideSteps = nil
         resolveTerminalPhase()
     }
 
@@ -603,6 +609,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         setTrackingPower(low: false)
         // Same start announcement as a run that began on a fix.
         LocalRunCueService.shared.begin()
+        workoutGuide = activeGuideSteps.flatMap { WorkoutGuide(steps: $0) }
         startTimer()
         tick(now: now)
         // Written now, before any fix, so a crash in the first minute is still recoverable.
@@ -653,6 +660,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         startTimer()
         tick()
         LocalRunCueService.shared.begin()
+        // After the start cue, so the first step cue queues behind it instead of cutting it off.
+        workoutGuide = activeGuideSteps.flatMap { WorkoutGuide(steps: $0) }
     }
 
     func pause() { pause(at: Date(), automatic: false) }
@@ -702,6 +711,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         resetCurrentRun()
         checkpointStore.delete()
         activeWorkoutTitle = nil
+        activeGuideSteps = nil
         lastSavedRun = nil
         resolveTerminalPhase()
     }
@@ -734,6 +744,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         store.saveRun(run)
         checkpointStore.delete()
         activeWorkoutTitle = nil
+        activeGuideSteps = nil
         lastSavedRun = run
         resetCurrentRun()
         resolveTerminalPhase()
@@ -794,6 +805,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         lastSplitCheckKilometer = Int(checkpoint.distanceMeters / 1_000)
         completedKilometerSplits = Self.kilometerSplits(from: checkpoint.routePoints).filter { !$0.isPartial }
         activeWorkoutTitle = checkpoint.workoutTitle
+        workoutGuide = checkpoint.workoutGuide
         pendingRecovery = nil
         phase = .paused
         LocalRunCueService.shared.begin(distance: distanceMeters, movingTime: checkpoint.movingSecondsAtSave, recovered: true)
@@ -859,7 +871,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             distanceMeters: distanceMeters,
             workoutTitle: activeWorkoutTitle,
             savedAt: now,
-            pauseIntervals: pauseIntervals
+            pauseIntervals: pauseIntervals,
+            workoutGuide: workoutGuide
         )
     }
 
@@ -1177,6 +1190,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     private func resetCurrentRun() {
+        workoutGuide = nil
         isAutoPaused = false
         isEndDecisionPending = false
         autoPauseDetector.reset()
@@ -1231,7 +1245,12 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             currentPaceSeconds = nil
         }
         guard phase == .recording else { return }
-        LocalRunCueService.shared.update(distance: distanceMeters, movingTime: movingSeconds)
+        let guideCues = workoutGuide?.update(
+            distance: distanceMeters,
+            movingTime: movingSeconds,
+            currentPace: currentPaceSeconds
+        ) ?? []
+        LocalRunCueService.shared.update(distance: distanceMeters, movingTime: movingSeconds, guide: guideCues)
         if lastCheckpointWriteAt.map({ now.timeIntervalSince($0) >= Self.checkpointMinimumInterval }) ?? true {
             writeCheckpoint(now: now)
         }
