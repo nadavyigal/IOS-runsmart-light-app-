@@ -226,6 +226,11 @@ struct RunSmartLiteAppShell: View {
         }
         .task {
             guard !RunSmartDemoMode.isEnabled else { return }
+            // An unfinished run from a killed session is answered on the Run tab, so
+            // land there on launch or the prompt would wait for a manual tab switch.
+            if recorder.pendingRecovery != nil {
+                router.selectedTab = .run
+            }
             isAnalyticsReady = setupAnalyticsIfNeeded()
             PushService.shared.configureNavigation { destination in
                 router.openNotificationDestination(destination)

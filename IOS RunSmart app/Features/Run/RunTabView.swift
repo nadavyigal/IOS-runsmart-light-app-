@@ -146,6 +146,49 @@ struct RunTabView: View {
         } message: {
             Text(finishConfirmationMessage)
         }
+        // The app was killed or crashed mid-run. Every button clears
+        // `pendingRecovery`, so the alert cannot be dismissed without an answer.
+        .alert(
+            "Unfinished run found",
+            isPresented: Binding(
+                get: { isRecoveryPromptVisible },
+                set: { _ in }
+            )
+        ) {
+            if recorder.canResumeRecoveredRun {
+                Button("Resume Run") {
+                    recorder.resumeRecoveredRun()
+                }
+            }
+            Button("Save Run") {
+                saveRecoveredRun()
+            }
+            Button("Discard", role: .destructive) {
+                recorder.discardRecoveredRun()
+            }
+        } message: {
+            Text(recoveryMessage)
+        }
+    }
+
+    private var isRecoveryPromptVisible: Bool {
+        recorder.pendingRecovery != nil
+            && recorder.phase != .recording
+            && recorder.phase != .paused
+            && finishedRun == nil
+    }
+
+    private var recoveryMessage: String {
+        guard let checkpoint = recorder.pendingRecovery else { return "" }
+        let distance = String(format: "%.2f km", checkpoint.distanceMeters / 1_000)
+        let moving = RunRecorder.timeLabel(checkpoint.movingSecondsAtSave)
+        let started = Calendar.current.isDateInToday(checkpoint.startedAt)
+            ? checkpoint.startedAt.formatted(date: .omitted, time: .shortened)
+            : checkpoint.startedAt.formatted(date: .abbreviated, time: .shortened)
+        let choices = recorder.canResumeRecoveredRun
+            ? "Resume it, save it, or discard it."
+            : "Save it or discard it."
+        return "\(distance), \(moving) moving time, started \(started). \(choices)"
     }
 
     private var liveMetrics: [MetricTile] {
@@ -251,6 +294,7 @@ struct RunTabView: View {
         RunSmartHaptics.medium()
         let source = router.plannedWorkout != nil ? "planned" : "free"
         Analytics.trackRunStarted(source: source)
+        recorder.activeWorkoutTitle = router.plannedWorkout?.title
         recorder.start()
     }
 
@@ -288,7 +332,7 @@ struct RunTabView: View {
     private func syncRunLiveActivity() {
         let isLiveRun = recorder.phase == .recording || recorder.phase == .paused
         RunLiveActivityController.sync(
-            workoutTitle: router.plannedWorkout?.title ?? "Free Run",
+            workoutTitle: router.plannedWorkout?.title ?? recorder.activeWorkoutTitle ?? "Free Run",
             distanceLabel: recorder.distanceLabel,
             movingTimeLabel: recorder.movingLabel,
             paceLabel: recorder.currentPaceLabel,
@@ -311,20 +355,7 @@ struct RunTabView: View {
         VoiceCoachService.shared.stopSession()
         let run = recorder.finish()
         if let run {
-            router.dismissPostRunSummaryIfNeeded()
-            Task { await services.saveToHealth(run) }
-            postActivityOutcome = nil
-            isProcessingFinishedRun = true
-            NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
-            finishedRun = run
-            Task {
-                let outcome = await services.processCompletedActivity(run)
-                await MainActor.run {
-                    postActivityOutcome = outcome
-                    isProcessingFinishedRun = false
-                    updateTabBarVisibility()
-                }
-            }
+            presentFinishedRun(run)
         } else {
             finishedRun = nil
             postActivityOutcome = nil
@@ -332,6 +363,33 @@ struct RunTabView: View {
             router.dismissPostRunSummaryIfNeeded()
         }
         updateTabBarVisibility()
+    }
+
+    /// Shared tail of finishing a live run and saving a recovered one: health export,
+    /// post-run summary and activity processing.
+    private func presentFinishedRun(_ run: RecordedRun) {
+        router.dismissPostRunSummaryIfNeeded()
+        Task { await services.saveToHealth(run) }
+        postActivityOutcome = nil
+        isProcessingFinishedRun = true
+        NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+        finishedRun = run
+        Task {
+            let outcome = await services.processCompletedActivity(run)
+            await MainActor.run {
+                postActivityOutcome = outcome
+                isProcessingFinishedRun = false
+                updateTabBarVisibility()
+            }
+        }
+        updateTabBarVisibility()
+    }
+
+    private func saveRecoveredRun() {
+        RunSmartHaptics.medium()
+        if let run = recorder.saveRecoveredRun() {
+            presentFinishedRun(run)
+        }
     }
 
     private func discardRun() {

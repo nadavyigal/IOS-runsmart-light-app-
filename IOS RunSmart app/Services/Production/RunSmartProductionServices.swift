@@ -417,9 +417,18 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published private(set) var horizontalAccuracy: Double?
     @Published private(set) var lastErrorMessage: String?
     @Published private(set) var lastSavedRun: RecordedRun?
+    /// An unfinished run found on disk at launch (the app was killed or crashed mid-run).
+    /// The Run tab asks the runner to resume, save or discard it.
+    @Published private(set) var pendingRecovery: RunSessionCheckpoint?
+
+    /// Title of the planned workout for the run in progress; stored in the checkpoint so a
+    /// recovered run keeps its label. Set by the Run tab before `start()`.
+    var activeWorkoutTitle: String?
 
     private let manager = CLLocationManager()
     private let store: RunSmartLocalStore
+    private let checkpointStore: RunCheckpointStore
+    private var lastCheckpointLocationTime: Date?
     private var startedAt: Date?
     private var pausedAt: Date?
     private var accumulatedPausedSeconds: TimeInterval = 0
@@ -442,13 +451,16 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     nonisolated static let liveRouteMinimumInterval: TimeInterval = 2
     nonisolated static let liveRouteMinimumDistance: CLLocationDistance = 12
     nonisolated static let maximumDisplayRoutePoints = 240
+    nonisolated static let checkpointMinimumInterval: TimeInterval = 10
+    nonisolated static let maximumResumableCheckpointAge: TimeInterval = 12 * 3_600
 
     override convenience init() {
         self.init(store: .shared)
     }
 
-    init(store: RunSmartLocalStore) {
+    init(store: RunSmartLocalStore, checkpointStore: RunCheckpointStore = .shared) {
         self.store = store
+        self.checkpointStore = checkpointStore
         super.init()
         manager.delegate = self
         manager.activityType = .fitness
@@ -458,6 +470,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         manager.allowsBackgroundLocationUpdates = true
         manager.showsBackgroundLocationIndicator = true
         updatePhaseForAuthorization()
+        if phase != .recording, phase != .paused {
+            pendingRecovery = checkpointStore.load()
+        }
     }
 
     var distanceLabel: String { String(format: "%.2f", distanceMeters / 1_000) }
@@ -503,6 +518,11 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     func startAcquiringLocation(startLocationUpdates: Bool = true) {
         shouldStartAfterPermission = false
+        // A new run supersedes an unanswered recovery prompt; keep that run in history
+        // instead of letting the new run's checkpoint overwrite it.
+        if pendingRecovery != nil {
+            saveRecoveredRun()
+        }
         resetCurrentRun()
         phase = .acquiringLocation
         if startLocationUpdates {
@@ -516,6 +536,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         accumulatedPausedSeconds = 0
         lastErrorMessage = nil
         phase = .recording
+        // The first accepted fix always writes the opening checkpoint (see
+        // acceptRecordingLocation), so a run that dies seconds in is still recoverable.
         acceptRecordingLocation(firstLocation, forceDisplay: true)
         startTimer()
         tick()
@@ -525,8 +547,11 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         guard phase == .recording else { return }
         pausedAt = Date()
         phase = .paused
-        manager.stopUpdatingLocation()
+        // Keep location running at low power: background location is the only thing
+        // that keeps a pocketed, paused run alive. Fixes are ignored while paused.
+        setTrackingPower(low: true)
         tick()
+        writeCheckpoint()
     }
 
     func resume() {
@@ -539,14 +564,18 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         // fix establishes a fresh distance anchor instead of counting that gap.
         lastAcceptedLocation = nil
         phase = .recording
+        setTrackingPower(low: false)
         manager.startUpdatingLocation()
         tick()
+        writeCheckpoint()
     }
 
     func discard() {
         shouldStartAfterPermission = false
         stopTracking()
         resetCurrentRun()
+        checkpointStore.delete()
+        activeWorkoutTitle = nil
         lastSavedRun = nil
         resolveTerminalPhase()
     }
@@ -563,25 +592,130 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             accumulatedPausedSeconds: accumulatedPausedSeconds,
             activePauseStartedAt: activePauseStartedAt
         )
-        let pace = distanceMeters > 0 ? moving / (distanceMeters / 1_000) : 0
-        let run = RecordedRun(
+        let run = Self.makeRecordedRun(
+            startedAt: startedAt,
+            endedAt: endedAt,
+            movingSeconds: moving,
+            distanceMeters: distanceMeters,
+            routePoints: routePoints
+        )
+        store.saveRun(run)
+        checkpointStore.delete()
+        activeWorkoutTitle = nil
+        lastSavedRun = run
+        resetCurrentRun()
+        resolveTerminalPhase()
+        return run
+    }
+
+    private static func makeRecordedRun(
+        startedAt: Date,
+        endedAt: Date,
+        movingSeconds: TimeInterval,
+        distanceMeters: Double,
+        routePoints: [RunRoutePoint]
+    ) -> RecordedRun {
+        let pace = distanceMeters > 0 ? movingSeconds / (distanceMeters / 1_000) : 0
+        return RecordedRun(
             id: UUID(),
             providerActivityID: nil,
             source: .runSmart,
             startedAt: startedAt,
             endedAt: endedAt,
             distanceMeters: distanceMeters,
-            movingTimeSeconds: moving,
+            movingTimeSeconds: movingSeconds,
             averagePaceSecondsPerKm: pace,
             averageHeartRateBPM: nil,
             routePoints: routePoints,
             syncedAt: nil
         )
-        store.saveRun(run)
-        lastSavedRun = run
+    }
+
+    // MARK: Crash and kill recovery
+
+    /// Resume is only offered for a recent checkpoint, and only while location is
+    /// authorized; an older or ungated run can still be saved or discarded.
+    var canResumeRecoveredRun: Bool {
+        guard let checkpoint = pendingRecovery else { return false }
+        guard authorizationStatus == .authorizedAlways || authorizationStatus == .authorizedWhenInUse else { return false }
+        return Date().timeIntervalSince(checkpoint.savedAt) <= Self.maximumResumableCheckpointAge
+    }
+
+    /// Rebuilds the run from the checkpoint and lands in `.paused`. Everything since the
+    /// checkpoint was written counts as paused time, so the runner sees "Paused" and
+    /// taps Resume when they are moving again.
+    func resumeRecoveredRun(startLocationUpdates: Bool = true) {
+        guard let checkpoint = pendingRecovery, canResumeRecoveredRun else { return }
+        guard phase != .recording, phase != .paused else { return }
+        shouldStartAfterPermission = false
         resetCurrentRun()
+        startedAt = checkpoint.startedAt
+        accumulatedPausedSeconds = checkpoint.accumulatedPausedSeconds
+        pausedAt = checkpoint.wasPaused ? (checkpoint.pausedAt ?? checkpoint.savedAt) : checkpoint.savedAt
+        routePoints = checkpoint.routePoints
+        displayRoutePoints = Self.simplifiedDisplayRoute(from: checkpoint.routePoints)
+        distanceMeters = checkpoint.distanceMeters
+        activeWorkoutTitle = checkpoint.workoutTitle
+        pendingRecovery = nil
+        phase = .paused
+        setTrackingPower(low: true)
+        if startLocationUpdates {
+            manager.startUpdatingLocation()
+        }
+        startTimer()
+        tick()
+        writeCheckpoint()
+    }
+
+    /// Saves the unfinished run as it stood at the last checkpoint.
+    @discardableResult
+    func saveRecoveredRun() -> RecordedRun? {
+        guard let checkpoint = pendingRecovery else { return nil }
+        let endedAt = max(checkpoint.savedAt, checkpoint.routePoints.last?.timestamp ?? checkpoint.savedAt)
+        let moving = Self.movingDuration(
+            startedAt: checkpoint.startedAt,
+            endedAt: endedAt,
+            accumulatedPausedSeconds: checkpoint.accumulatedPausedSeconds,
+            activePauseStartedAt: checkpoint.wasPaused ? checkpoint.pausedAt : nil
+        )
+        let run = Self.makeRecordedRun(
+            startedAt: checkpoint.startedAt,
+            endedAt: endedAt,
+            movingSeconds: moving,
+            distanceMeters: checkpoint.distanceMeters,
+            routePoints: checkpoint.routePoints
+        )
+        store.saveRun(run)
+        checkpointStore.delete()
+        pendingRecovery = nil
+        activeWorkoutTitle = nil
+        lastSavedRun = run
         resolveTerminalPhase()
         return run
+    }
+
+    func discardRecoveredRun() {
+        checkpointStore.delete()
+        pendingRecovery = nil
+    }
+
+    private func writeCheckpoint() {
+        guard let startedAt, phase == .recording || phase == .paused else { return }
+        checkpointStore.save(RunSessionCheckpoint(
+            startedAt: startedAt,
+            accumulatedPausedSeconds: accumulatedPausedSeconds,
+            pausedAt: pausedAt,
+            wasPaused: phase == .paused,
+            routePoints: routePoints,
+            distanceMeters: distanceMeters,
+            workoutTitle: activeWorkoutTitle,
+            savedAt: Date()
+        ))
+    }
+
+    private func setTrackingPower(low: Bool) {
+        manager.desiredAccuracy = low ? kCLLocationAccuracyHundredMeters : kCLLocationAccuracyBest
+        manager.distanceFilter = low ? 50 : 5
     }
 
     /// WP-45: which permission event (if any) a location-authorization callback
@@ -747,6 +881,12 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         routePoints.append(point)
         lastAcceptedLocation = location
         updateDisplayRoute(with: location, force: forceDisplay)
+
+        // Throttled by fix time: the route can be megabytes on a long run.
+        if lastCheckpointLocationTime.map({ location.timestamp.timeIntervalSince($0) >= Self.checkpointMinimumInterval }) ?? true {
+            lastCheckpointLocationTime = location.timestamp
+            writeCheckpoint()
+        }
     }
 
     private func updateDisplayRoute(with location: CLLocation, force: Bool) {
@@ -773,6 +913,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         startedAt = nil
         pausedAt = nil
         accumulatedPausedSeconds = 0
+        lastCheckpointLocationTime = nil
     }
 
     private func startTimer() {
@@ -800,6 +941,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     private func stopTracking() {
         manager.stopUpdatingLocation()
+        setTrackingPower(low: false)
         timer?.invalidate()
         timer = nil
         tick()
@@ -879,7 +1021,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         return splits
     }
 
-    static func movingDuration(
+    nonisolated static func movingDuration(
         startedAt: Date,
         endedAt: Date,
         accumulatedPausedSeconds: TimeInterval,

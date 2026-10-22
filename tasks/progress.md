@@ -1,14 +1,16 @@
-## 2026-10-22: Record-a-run Release A, S0 quick fixes (branch claude/2026-10-22-record-run-release-a)
+## 2026-10-22: Record-a-run Release A (branch claude/2026-10-22-record-run-release-a)
 
-**Change:** voice-coach audio session is active only while a cue plays, so music is no longer ducked for the whole run; live map follows the runner (camera keyed on the last fix, ~800 m span) instead of freezing after ~1.2 km; debrief sends the matched planned workout type (fallback pace/HR effort) instead of "easy"; template card renamed "RUN SUMMARY" and the "AI - GPS - RunSmart" label removed; "Route: N pts" pill replaced by elevation gain (3 m hysteresis).
+**S0 quick fixes:** voice-coach audio session active only while a cue plays; live map follows the runner instead of freezing after ~1.2 km; debrief sends the planned workout type; template card renamed "RUN SUMMARY" without the AI label; elevation gain replaces "N pts".
 
-**Status:** S0 committed, Release A in progress (S1 next).
+**S1 crash and kill recovery:** `RunSessionCheckpoint` written to Application Support (first fix, pause, resume, every 10 s; serial background queue; deleted on finish/discard). On launch an "Unfinished run found" alert offers Resume (lands paused; the gap counts as pause), Save, Discard; app switches to the Run tab. Resume withheld after 12 h. Pause keeps GPS on at low power so iOS keeps the app alive; paused fixes are ignored.
+
+**Status:** S0, S1 committed. Release A in progress.
 **Current Phase:** Record-a-run Release A.
-**Active Story:** S1 crash and kill recovery.
-**Last Completed Story:** S0 quick fixes.
-**Next Recommended Story:** S1 crash and kill recovery.
-**Blockers:** None. Device check pending: Spotify volume between cues; UIBackgroundModes has only `location`, so cues with the phone locked are unverified (handle in S4).
-**Last Validation:** 2026-10-22: full suite 455 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New `RecordRunQuickFixTests` (9).
+**Active Story:** S2 run data integrity.
+**Last Completed Story:** S1 crash and kill recovery.
+**Next Recommended Story:** S2 run data integrity, then S3 GPS start.
+**Blockers:** None. Device checks pending: Spotify volume between cues; cues with phone locked (UIBackgroundModes has only `location`, handle in S4); force-quit recovery while recording and while paused; paused run alive in background.
+**Last Validation:** 2026-10-22: full suite 476 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New `RecordRunQuickFixTests` (9), `RunRecoveryTests` (21).
 **Last Updated:** 2026-10-22
 
 ## 2026-10-22: Record-a-run UX plan (plan only, no code)
