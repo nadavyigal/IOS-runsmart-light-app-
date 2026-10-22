@@ -27,23 +27,28 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
     private var timer: Timer?
     private var player: AVAudioPlayer?
     private var isFetching = false
+    private var sessionGeneration = 0
+    private var sessionActive = false
 
     private static let userDefaultsKey = "voiceCoachEnabled"
     private static let cueInterval: TimeInterval = 300
 
     private override init() {
         isEnabled = UserDefaults.standard.object(forKey: VoiceCoachService.userDefaultsKey) == nil
-            ? true
+            ? false
             : UserDefaults.standard.bool(forKey: VoiceCoachService.userDefaultsKey)
         super.init()
     }
 
     func startSession() {
+        sessionActive = true
         configureAudioSession()
         startTimer()
     }
 
     func stopSession() {
+        sessionActive = false
+        sessionGeneration += 1
         timer?.invalidate()
         timer = nil
         player?.stop()
@@ -52,6 +57,8 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
     }
 
     func pauseSession() {
+        sessionActive = false
+        sessionGeneration += 1
         timer?.invalidate()
         timer = nil
         player?.stop()
@@ -60,6 +67,7 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
     }
 
     func resumeSession() {
+        sessionActive = true
         startTimer()
     }
 
@@ -67,15 +75,26 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
         isEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: VoiceCoachService.userDefaultsKey)
         if !enabled {
-            stopSession()
+            sessionGeneration += 1
+            player?.stop()
+            player = nil
+            deactivateAudioSession()
         }
     }
 
+    func cancelPlaybackForLocalCue() {
+        sessionGeneration += 1
+        player?.stop()
+        player = nil
+        deactivateAudioSession()
+    }
+
     func deliverCue(context: VoiceCueContext) {
-        guard isEnabled, !isFetching else { return }
+        guard isEnabled, sessionActive, !isFetching, !LocalRunCueService.shared.isSpeaking else { return }
         isFetching = true
+        let generation = sessionGeneration
         Task { [weak self] in
-            await self?.fetchAndPlay(context: context)
+            await self?.fetchAndPlay(context: context, generation: generation)
             await MainActor.run { [weak self] in
                 self?.isFetching = false
             }
@@ -85,7 +104,9 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
     // MARK: AVAudioPlayerDelegate
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor [weak self] in
-            self?.deactivateAudioSession()
+            guard let self, self.player === player else { return }
+            self.player = nil
+            self.deactivateAudioSession()
         }
     }
 
@@ -126,7 +147,7 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
         return request
     }
 
-    private func fetchAndPlay(context: VoiceCueContext) async {
+    private func fetchAndPlay(context: VoiceCueContext, generation: Int) async {
         guard let baseURLString = Bundle.main.object(forInfoDictionaryKey: "RunSmartAPIBaseURL") as? String else { return }
 
         let accessToken = try? await SupabaseManager.client.auth.session.accessToken
@@ -141,28 +162,26 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
               httpResponse.statusCode == 200,
               !data.isEmpty else { return }
 
+        guard isEnabled, sessionActive, generation == sessionGeneration, !LocalRunCueService.shared.isSpeaking else { return }
+
         if let encodedText = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "X-Coach-Text"),
            let text = encodedText.removingPercentEncoding {
-            await MainActor.run { [weak self] in
-                self?.lastCueText = text
-            }
+            lastCueText = text
         }
 
-        await MainActor.run { [weak self] in
-            guard let self else { return }
-            self.player?.stop()
-            try? AVAudioSession.sharedInstance().setActive(true)
-            if let p = try? AVAudioPlayer(data: data) {
-                p.delegate = self
-                p.prepareToPlay()
-                if p.play() {
-                    self.player = p
-                } else {
-                    self.deactivateAudioSession()
-                }
+        player?.stop()
+        configureAudioSession()
+        try? AVAudioSession.sharedInstance().setActive(true)
+        if let p = try? AVAudioPlayer(data: data) {
+            p.delegate = self
+            p.prepareToPlay()
+            if p.play() {
+                player = p
             } else {
-                self.deactivateAudioSession()
+                deactivateAudioSession()
             }
+        } else {
+            deactivateAudioSession()
         }
     }
 }

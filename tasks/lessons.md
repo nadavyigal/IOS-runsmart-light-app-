@@ -1,3 +1,11 @@
+## 2026-10-22 — Clamp device timestamps to the recording lifetime
+
+Core Location fixes can be fresh yet older than the callback that started the run. Clamp automatically inferred pause starts to startedAt and resume durations to zero or greater. A delayed-fix fixture must distinguish fix time from callback time.
+
+## 2026-10-22 — Auto-pause needs unfiltered stationary callbacks
+
+A GPS distance filter can suppress the repeated stationary fixes that an eight-second stop detector needs. While automatic pausing is enabled, request distanceFilterNone during recording and automatic pauses; keep manual pauses low power. Test the recorder integration as well as the pure detector, including manual pauses and GPS gaps.
+
 ## 2026-10-21: A route fixture "offset" can run along the street, not beside it
 
 `testRouteMatchingMarksNearbyNoisyRouteAsPossibleWithoutAttaching` shifted the run by equal latitude and longitude steps. On that diagonal route the shift was 87 m along the street and only 10.5 m to the side, so it was the same path, not a nearby one. Index-based shape matching could not tell the difference; coverage matching can. When a fixture means "a parallel street", offset it perpendicular to the route and check the sideways distance.

@@ -3,108 +3,172 @@ import SwiftUI
 struct LiveRunView: View {
     var metrics: [MetricTile]
     var routePoints: [RunRoutePoint]
-    /// Full GPS route for split math — must match post-run `run.routePoints` (WP-38 S12).
+    /// Full GPS route for split math — must match post-run `run.routePoints`.
     var splitRoutePoints: [RunRoutePoint]
     var phase: RunRecordingPhase
+    var isAutoPaused: Bool = false
     var gpsStatus: String
     var gpsDetail: String
     var elapsedSeconds: TimeInterval
     var onPauseResume: () -> Void
     var onFinish: () -> Void
+    // Kept for call-site compatibility; discard belongs only in the end sheet.
     var onDiscard: () -> Void
-    @ObservedObject private var voiceCoach = VoiceCoachService.shared
+    @ObservedObject private var audioCues = LocalRunCueService.shared
+    @State private var page = LivePage.stats
     @State private var showsKmSplits = false
 
+    private enum LivePage: String, CaseIterable {
+        case stats = "Stats"
+        case map = "Map"
+    }
+
     var body: some View {
-        GeometryReader { proxy in
-            // WP-37 S4 follow-up: on shorter screens (e.g. iPhone SE 3rd gen,
-            // 375x667pt) the fixed-height panels above leave less room than the
-            // button row + its labels need, and a bare VStack has no scroll
-            // fallback — labels were silently clipped past the screen edge with
-            // no way to reveal them. minHeight (not maxHeight) lets the Spacer
-            // below still pin the buttons to the bottom on tall screens exactly
-            // as before, while short screens scroll instead of clipping.
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 12) {
-                    RunSmartTopBar(title: "Run")
-
-                    GPSStatusPill(status: gpsStatus, detail: gpsDetail, phase: phase)
-                    LiveRunStateBanner(phase: phase, elapsedSeconds: elapsedSeconds)
-
-                    RunSmartPanel(cornerRadius: 22, padding: 0, accent: .accentPrimary) {
-                        if let primaryMetric = metrics.first {
-                            VStack(spacing: 0) {
-                                LiveMetricCard(metric: primaryMetric, isPrimary: true)
-                                    .padding(.horizontal, 18)
-                                    .padding(.top, 16)
-                                    .padding(.bottom, 12)
-
-                                HStack(spacing: 0) {
-                                    ForEach(Array(metrics.dropFirst().enumerated()), id: \.element.id) { index, metric in
-                                        LiveMetricCard(metric: metric, isPrimary: false)
-                                            .padding(14)
-                                            .frame(maxWidth: .infinity, minHeight: 94)
-                                            .overlay(alignment: .leading) {
-                                                Rectangle()
-                                                    .fill(Color.border.opacity(0.72))
-                                                    .frame(width: index == 0 ? 0 : 1)
-                                            }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .frame(height: max(174, min(218, proxy.size.height * 0.25)))
-
-                    if routePoints.isEmpty {
-                        RunSmartRoutePreview(title: "GPS", showGPS: true, height: max(82, min(124, proxy.size.height * 0.14)))
-                    } else {
-                        RunSmartPanel(cornerRadius: 20, padding: 8) {
-                            RouteMapView(points: routePoints, title: "GPS", isLive: true)
-                                .frame(height: max(78, min(116, proxy.size.height * 0.13)))
-                        }
-                    }
-
-                    if !completedKmSplits.isEmpty {
-                        LiveKmSplitsPanel(splits: completedKmSplits, isExpanded: $showsKmSplits)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    // WP-37 S3: never show 4 buttons. Coach is irrelevant while paused
-                    // (VoiceCoachService is itself paused, so there's nothing to mute),
-                    // so the paused state swaps it for Discard instead of appending a
-                    // fourth button — keeps the row at 3 buttons on every screen width.
-                    HStack(alignment: .bottom, spacing: 18) {
-                        LiveControlButton(title: phase == .paused ? "Resume" : "Pause", symbol: phase == .paused ? "play.fill" : "pause.fill", tint: .accentPrimary, prominent: true, action: onPauseResume)
-                        LiveControlButton(title: "Finish", symbol: "stop.fill", tint: .accentHeart, prominent: false, action: onFinish)
-                        if phase == .paused {
-                            LiveControlButton(title: "Discard", symbol: "trash.fill", tint: .accentHeart, prominent: false, action: onDiscard)
-                        } else {
-                            LiveControlButton(
-                                title: voiceCoach.isEnabled ? "Coach" : "Muted",
-                                symbol: voiceCoach.isEnabled ? "waveform" : "waveform.slash",
-                                tint: voiceCoach.isEnabled ? .accentPrimary : .textSecondary,
-                                prominent: false,
-                                action: { voiceCoach.setEnabled(!voiceCoach.isEnabled) }
-                            )
-                        }
-                    }
-                    .padding(.bottom, 28)
-                }
-                .foregroundStyle(Color.textPrimary)
-                .padding(.horizontal, 18)
-                .padding(.top, 14)
-                .padding(.bottom, 0)
-                .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
+        VStack(spacing: 10) {
+            HStack {
+                Text("Run")
+                    .font(.headingLG)
+                Spacer()
+                Label("GPS", systemImage: "location.fill")
+                    .font(.labelSM)
+                    .foregroundStyle(Color.accentRecovery)
+                    .accessibilityLabel("\(gpsStatus). \(gpsDetail)")
             }
+            .padding(.horizontal, 20)
+
+            Picker("Run page", selection: $page) {
+                ForEach(LivePage.allCases, id: \.self) { page in
+                    Text(page.rawValue).tag(page)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 18)
+
+            TabView(selection: $page) {
+                statsPage.tag(LivePage.stats)
+                LiveRunMapPage(points: routePoints, metrics: metrics, isPaused: phase == .paused, isAutoPaused: isAutoPaused)
+                    .tag(LivePage.map)
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+
+            HStack(alignment: .bottom, spacing: 24) {
+                LiveControlButton(
+                    title: audioCues.isEnabled ? "Audio" : "Muted",
+                    symbol: audioCues.isEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill",
+                    tint: audioCues.isEnabled ? .accentPrimary : .textSecondary,
+                    action: { audioCues.setEnabled(!audioCues.isEnabled) }
+                )
+                LiveControlButton(
+                    title: phase == .paused ? "Resume" : "Pause",
+                    symbol: phase == .paused ? "play.fill" : "pause.fill",
+                    tint: .accentPrimary,
+                    prominent: true,
+                    action: onPauseResume
+                )
+                HoldToFinishButton(action: onFinish)
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 12)
         }
+        .padding(.top, 10)
         .foregroundStyle(Color.textPrimary)
         .background(Color.black.opacity(0.52).ignoresSafeArea())
     }
 
+    private var statsPage: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 12) {
+                LiveRunStateBanner(phase: phase, elapsedSeconds: elapsedSeconds, isAutoPaused: isAutoPaused)
+
+                if let distance = metrics.first {
+                    RunSmartPanel(cornerRadius: 22, padding: 20, accent: .accentPrimary) {
+                        LiveMetricCard(metric: distance, isPrimary: true)
+                    }
+                }
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    ForEach(metrics.dropFirst()) { metric in
+                        RunSmartPanel(cornerRadius: 18, padding: 14) {
+                            LiveMetricCard(metric: metric, isPrimary: false)
+                        }
+                    }
+                }
+
+                if !completedKmSplits.isEmpty {
+                    LiveKmSplitsPanel(splits: completedKmSplits, isExpanded: $showsKmSplits)
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 12)
+        }
+    }
+
     private var completedKmSplits: [KilometerSplit] {
         RunRecorder.kilometerSplits(from: splitRoutePoints).filter { !$0.isPartial }
+    }
+}
+
+/// A tap has no finish action. The long press and VoiceOver action both open
+/// the same end sheet; neither saves or discards the run directly.
+private struct HoldToFinishButton: View {
+    var action: () -> Void
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var progress: CGFloat = 0
+
+    var body: some View {
+        VStack(spacing: 7) {
+            ZStack {
+                Circle().fill(Color.surfaceCard)
+                Circle().stroke(Color.accentHeart.opacity(0.25), lineWidth: 4)
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(Color.accentHeart, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Image(systemName: "stop.fill")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(Color.accentHeart)
+            }
+            .frame(width: 72, height: 72)
+            Text("Hold to\nfinish")
+                .font(.bodyMD.weight(.bold))
+                .foregroundStyle(Color.accentHeart)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.65)
+                .frame(width: 84)
+        }
+        .contentShape(Rectangle())
+        .onLongPressGesture(minimumDuration: 1.5, maximumDistance: 24) {
+            guard scenePhase == .active else { return }
+            resetHold()
+            RunSmartHaptics.medium()
+            action()
+        } onPressingChanged: { pressing in
+            if pressing {
+                withAnimation(reduceMotion ? nil : .linear(duration: 1.5)) {
+                    progress = 1
+                }
+            } else {
+                resetHold()
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("Finish run")
+        .accessibilityHint("Opens Save, Resume, and Discard options.")
+        .accessibilityAction {
+            RunSmartHaptics.medium()
+            action()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { resetHold() }
+        }
+        .onDisappear { resetHold() }
+    }
+
+    private func resetHold() {
+        progress = 0
     }
 }
 
@@ -217,6 +281,7 @@ private struct LiveMetricCard: View {
 private struct LiveRunStateBanner: View {
     var phase: RunRecordingPhase
     var elapsedSeconds: TimeInterval
+    var isAutoPaused = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -258,11 +323,11 @@ private struct LiveRunStateBanner: View {
     }
 
     private var title: String {
-        phase == .paused ? "Paused" : "Recording"
+        phase == .paused ? (isAutoPaused ? "Auto-paused" : "Paused") : "Recording"
     }
 
     private var subtitle: String {
-        phase == .paused ? "Distance tracking is stopped." : "Time is running now."
+        phase == .paused ? (isAutoPaused ? "Move to resume recording." : "Tap Resume when you are ready.") : "Time is running now."
     }
 
     private var tint: Color {
@@ -281,9 +346,9 @@ private struct LiveControlButton: View {
         Button(action: action) {
             VStack(spacing: 7) {
                 Image(systemName: symbol)
-                    .font(.system(size: prominent ? 34 : 24, weight: .bold))
+                    .font(.system(size: prominent ? 30 : 24, weight: .bold))
                     .foregroundStyle(prominent ? Color.black : tint)
-                    .frame(width: prominent ? 112 : 78, height: prominent ? 112 : 78)
+                    .frame(width: prominent ? 88 : 72, height: prominent ? 88 : 72)
                     .background(prominent ? tint : Color.surfaceCard)
                     .clipShape(Circle())
                 Text(title)
@@ -305,7 +370,7 @@ private struct LiveControlButton: View {
         case "Resume": return "Resumes distance tracking."
         case "Finish": return "Opens finish and save confirmation."
         case "Discard": return "Opens discard workout confirmation."
-        case "Coach", "Muted": return "Toggles voice coach cues during this run."
+        case "Audio", "Muted": return "Toggles offline run announcements."
         default: return ""
         }
     }

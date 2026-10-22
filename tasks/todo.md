@@ -1,3 +1,16 @@
+## 2026-10-22 — Record-a-run Release B
+
+- [x] S4 offline cues/settings — automated checks passed; device audio smoke pending
+- [x] S5 auto-pause — 5 recorder/detector tests; device GPS smoke pending
+- [x] S6 hold to finish and one end sheet — simulator tap/hold/resume/save verified
+- [x] S7 Stats/Map pages — following and pause-boundary tests; standard-screen simulator verified
+- [x] S8 estimated calories — reference equation, fallback/persistence and legacy decoding passed
+- [x] Final full suite 518/0; simulator core smoke; independent review fixes
+- [ ] Integrate Claude S3, verify Start anyway cue, and complete device + small-screen/VoiceOver smoke
+- [ ] Push and draft PR
+
+Plan: `tasks/record-run-release-b.md`. Isolated branch `codex/2026-10-22-record-run-release-b`, base S2 `15e9edf`.
+
 ## 2026-10-17 — RunSmart 1.1.9 (34) App Store preparation
 
 - [x] Inspect PR #157 and pin source `f0dbf3e`.

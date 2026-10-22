@@ -48,6 +48,11 @@ struct PostRunSummaryView: View {
                             PostRunStatPill(title: "Elev Gain", value: elevationGainLabel, tint: .accentRecovery)
                         }
 
+                        if let energy = displayRun?.estimatedActiveKilocalories ?? run?.estimatedActiveKilocalories, energy.isFinite, energy >= 0 {
+                            PostRunStatPill(title: "Calories (est.)", value: "\(Int(energy.rounded())) kcal", tint: .accentEnergy)
+                                .accessibilityLabel("Estimated active calories, \(Int(energy.rounded())) kilocalories")
+                        }
+
                         RouteMapView(points: displayRun?.routePoints ?? [], title: "Completed route")
                             .frame(height: 142)
                     }

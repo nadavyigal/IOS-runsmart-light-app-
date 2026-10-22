@@ -9,7 +9,9 @@ struct RunTabView: View {
     @State private var finishedRun: RecordedRun?
     @State private var postActivityOutcome: PostActivityOutcome?
     @State private var isProcessingFinishedRun = false
-    @State private var isConfirmingDiscard = false
+    @ObservedObject private var weight = RunnerWeightStore.shared
+    @State private var showsWeightSetup = false
+    @State private var resumeAfterEndSheet = false
     @State private var isConfirmingFinish = false
 
     var body: some View {
@@ -28,12 +30,13 @@ struct RunTabView: View {
                     routePoints: recorder.displayRoutePoints,
                     splitRoutePoints: recorder.routePoints,
                     phase: recorder.phase,
+                    isAutoPaused: recorder.isAutoPaused,
                     gpsStatus: gpsStatus,
                     gpsDetail: gpsDetail,
                     elapsedSeconds: recorder.movingSeconds,
                     onPauseResume: primaryRunAction,
                     onFinish: requestFinishRun,
-                    onDiscard: requestDiscardRun
+                    onDiscard: requestFinishRun
                 )
             } else {
                 PreRunView(
@@ -51,6 +54,11 @@ struct RunTabView: View {
         }
         .task {
             await reloadMetrics()
+            await weight.refreshHealthWeightIfEnabled()
+            if weight.shouldOfferWeightSetup, recorder.pendingRecovery == nil, finishedRun == nil, recorder.phase != .recording, recorder.phase != .paused {
+                weight.markWeightSetupOffered()
+                showsWeightSetup = true
+            }
         }
 #if DEBUG
         .onAppear {
@@ -120,31 +128,47 @@ struct RunTabView: View {
         .onChange(of: recorder.currentPaceLabel) { _, _ in
             syncRunLiveActivity()
         }
-        // WP-37 S4: confirmationDialog rendered with only the destructive/confirm
-        // action visible on iOS 26 (device-confirmed) — "Keep Workout"/"Keep
-        // Recording" never appeared, leaving a mid-run mis-tap with no visible way
-        // back. .alert reliably renders both actions; same copy, same roles.
-        .alert(
-            "Discard this workout?",
-            isPresented: $isConfirmingDiscard
-        ) {
-            Button("Discard Workout", role: .destructive) {
-                discardRun()
+        .sheet(isPresented: $isConfirmingFinish, onDismiss: {
+            recorder.isEndDecisionPending = false
+            if resumeAfterEndSheet, recorder.phase == .paused { recorder.resume() }
+            resumeAfterEndSheet = false
+        }) {
+            VStack(spacing: 22) {
+                Text("End this run?").font(.title2.bold())
+                Text("\(recorder.distanceLabel) km · \(recorder.movingLabel)")
+                    .font(.title3.monospacedDigit())
+                Text(isVeryShortRun ? "Short activities may be saved for review without counting as meaningful training." : "Your run stays paused while you decide.")
+                    .font(.callout).foregroundStyle(.secondary)
+                Button("Save Run") {
+                    resumeAfterEndSheet = false
+                    finishRun()
+                }.buttonStyle(.borderedProminent)
+                Button("Resume") {
+                    resumeAfterEndSheet = true
+                    isConfirmingFinish = false
+                }
+                    .buttonStyle(.bordered)
+                Button("Discard Run", role: .destructive) {
+                    resumeAfterEndSheet = false
+                    isConfirmingFinish = false
+                    discardRun()
+                }
             }
-            Button("Keep Workout", role: .cancel) {}
-        } message: {
-            Text("This removes the current timer, distance, and route.")
+            .padding(28)
+            .frame(maxWidth: .infinity)
+            .presentationDetents([.medium, .large])
+            .interactiveDismissDisabled()
         }
-        .alert(
-            finishConfirmationTitle,
-            isPresented: $isConfirmingFinish
-        ) {
-            Button("Finish and Save") {
-                finishRun()
+        .sheet(isPresented: $showsWeightSetup) {
+            NavigationStack {
+                ScrollView { RunnerWeightSettingsView().padding() }
+                    .navigationTitle("Calorie estimate")
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showsWeightSetup = false }
+                        }
+                    }
             }
-            Button("Keep Recording", role: .cancel) {}
-        } message: {
-            Text(finishConfirmationMessage)
         }
         // The app was killed or crashed mid-run. Every button clears
         // `pendingRecovery`, so the alert cannot be dismissed without an answer.
@@ -194,9 +218,10 @@ struct RunTabView: View {
     private var liveMetrics: [MetricTile] {
         [
             MetricTile(title: "Distance", value: recorder.distanceLabel, unit: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up", tint: .accentPrimary),
-            MetricTile(title: "Current Pace", value: recorder.currentPaceLabel, unit: "/km", symbol: "timer", tint: .accentEnergy),
             MetricTile(title: "Moving time", value: recorder.movingLabel, unit: "", symbol: "stopwatch", tint: .textPrimary),
-            MetricTile(title: "GPS", value: recorder.horizontalAccuracy.map { "\(Int($0))" } ?? "--", unit: "m", symbol: "location.fill", tint: .accentRecovery)
+            MetricTile(title: "Average Pace", value: recorder.averagePaceLabel, unit: "/km", symbol: "speedometer", tint: .accentRecovery),
+            MetricTile(title: "Current Pace", value: recorder.currentPaceLabel, unit: "/km", symbol: "timer", tint: .accentEnergy),
+            MetricTile(title: "Calories", value: recorder.estimatedActiveKilocalories.map { String(format: "%.0f", $0) } ?? "--", unit: weight.weightKg == nil ? "Weight needed" : "kcal · est.", symbol: "flame", tint: .accentEnergy)
         ]
     }
 
@@ -262,17 +287,6 @@ struct RunTabView: View {
         finishedRun != nil || recorder.phase == .recording || recorder.phase == .paused
     }
 
-    private var finishConfirmationTitle: String {
-        isVeryShortRun ? "Finish this short run?" : "Finish this run?"
-    }
-
-    private var finishConfirmationMessage: String {
-        if isVeryShortRun {
-            return "This activity is very short, so RunSmart may save it as a review-only activity instead of counting it as meaningful training."
-        }
-        return "RunSmart will stop GPS recording and save this activity for your report."
-    }
-
     private var isVeryShortRun: Bool {
         recorder.distanceMeters < 100 || recorder.movingSeconds < 60
     }
@@ -311,13 +325,12 @@ struct RunTabView: View {
     }
 
     private func requestFinishRun() {
+        guard recorder.phase == .recording || recorder.phase == .paused, !isConfirmingFinish else { return }
         RunSmartHaptics.light()
+        resumeAfterEndSheet = recorder.phase == .recording
+        recorder.isEndDecisionPending = true
+        if resumeAfterEndSheet { recorder.pause() }
         isConfirmingFinish = true
-    }
-
-    private func requestDiscardRun() {
-        RunSmartHaptics.light()
-        isConfirmingDiscard = true
     }
 
     private func updateRunSessionSideEffects(for phase: RunRecordingPhase) {

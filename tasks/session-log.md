@@ -1,3 +1,15 @@
+## 2026-10-22 — Record-a-run Release B implementation and QA
+
+Implemented S4–S8 on isolated `codex/2026-10-22-record-run-release-b` at `/Users/nadavyigal/Developer/runsmart-ios-worktrees/record-run-release-b`, based on Claude S2 `15e9edf`. The Release A checkout was not modified; S3 remains Claude-owned.
+
+Offline AVSpeechSynthesizer cues run from recorder events and GPS/timer progress, with persisted cadence/metrics and optional authenticated AI extra; stale AI playback is canceled. Auto-pause is default-on, uses accurate speed fixes, excludes the full detected stop, resumes automatic pauses only, and preserves manual pauses. Finish needs a 1.5-second hold or accessibility action; a single paused decision sheet owns Save/Resume/Discard. Stats/Map pages show average/current pace and follow the latest fix; simplification preserves pause boundaries. Optional Health/manual weight powers ACSM net active calorie estimates, persisted on saved runs and marked est.
+
+Final full XCTest/Swift Testing run: **518 passed / 0 failed / 0 skipped**, iPhone 17 Pro / iOS 26.5. Focused suite 21/0 before two final timing regressions; final auto-pause suite 5/0. Simulator smoke verified short tap, hold, pause, Resume from recording and manual pause, Map, and demo Save -> Activity saved. See `docs/qa/reports/record-run-release-b-2026-10-22/README.md` for result summaries and images. A new SE boot stalled at BackBoard and a concurrent test-host launch timed out; the attempt was interrupted and the temporary SE removed. Final isolated rerun passed.
+
+Independent review caught manual-pause sheet Resume, recovery/weight presentation priority, stationary callback filtering, exact milestone interpolation, stale AI callbacks, skipped route segment markers, and delayed fixes predating run start. All fixed. Retrospective: isolation protected Claude's work and review found cross-story edge cases; keep simulator boot and test startup sequential. No skill changes made.
+
+Handoff: integrate Claude S3 before merging, recheck Start anyway + start speech, then perform guest airplane-mode/locked-phone/Spotify/Bluetooth/background GPS, small-screen/maximum Dynamic Type and VoiceOver smoke. No Release C, store upload, submission or release.
+
 ## 2026-10-17 — Distribution IPA export completed
 
 **Status:** App Store distribution IPA verified after release-owner Keychain approval. App and Live Activity extension are 1.1.9 (34), Apple Distribution signed, `get-task-allow=false`, deep/strict signature checks passed, final privacy manifest included. Durable IPA: `build/release-1.1.9-34/AppStoreExport/RunSmart.ipa` (12,207,508 bytes); fingerprint in `docs/qa/releases/1.1.9/ipa-verification.json`.

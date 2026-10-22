@@ -427,6 +427,17 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Title of the planned workout for the run in progress; stored in the checkpoint so a
     /// recovered run keeps its label. Set by the Run tab before `start()`.
     var activeWorkoutTitle: String?
+    @Published private(set) var isAutoPaused = false
+    var autoPauseEnabledProvider: (() -> Bool)?
+    var isEndDecisionPending = false
+    private var autoPauseDetector = RunAutoPauseDetector()
+    private var autoPauseEnabled: Bool {
+        autoPauseEnabledProvider?() ?? (UserDefaults.standard.object(forKey: "runAutoPauseEnabled") == nil
+            ? true : UserDefaults.standard.bool(forKey: "runAutoPauseEnabled"))
+    }
+    var estimatedActiveKilocalories: Double? {
+        RunCalorieEstimator.activeKilocalories(distanceMeters: distanceMeters, weightKg: RunnerWeightStore.shared.weightKg)
+    }
 
     private let manager = CLLocationManager()
     private let store: RunSmartLocalStore
@@ -532,6 +543,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
         resetCurrentRun()
         phase = .acquiringLocation
+        setTrackingPower(low: false)
         if startLocationUpdates {
             manager.startUpdatingLocation()
         }
@@ -548,24 +560,34 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         acceptRecordingLocation(firstLocation, forceDisplay: true)
         startTimer()
         tick()
+        LocalRunCueService.shared.begin()
     }
 
-    func pause() {
+    func pause() { pause(at: Date(), automatic: false) }
+
+    private func pause(at date: Date, automatic: Bool) {
         guard phase == .recording else { return }
-        pausedAt = Date()
+        pausedAt = max(startedAt ?? date, date)
+        isAutoPaused = automatic
+        autoPauseDetector.reset()
         phase = .paused
-        // Keep location running at low power: background location is the only thing
-        // that keeps a pocketed, paused run alive. Fixes are ignored while paused.
-        setTrackingPower(low: true)
+        LocalRunCueService.shared.announce(automatic ? "Auto-paused." : "Run paused.")
+        if automatic { RunSmartHaptics.light() }
+        // Manual pauses use low-power GPS. Automatic pauses retain frequent fixes
+        // so movement can resume the run, including while the phone is locked.
+        setTrackingPower(low: !automatic)
         tick()
         writeCheckpoint()
     }
 
-    func resume() {
+    func resume() { resume(at: Date()) }
+
+    private func resume(at now: Date) {
         guard phase == .paused else { return }
+        isAutoPaused = false
+        autoPauseDetector.reset()
         if let pausedAt {
-            let now = Date()
-            accumulatedPausedSeconds += now.timeIntervalSince(pausedAt)
+            accumulatedPausedSeconds += max(0, now.timeIntervalSince(pausedAt))
             pauseIntervals.append(RunPauseInterval(start: pausedAt, end: max(pausedAt, now)))
         }
         pausedAt = nil
@@ -574,6 +596,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         // instead of counting that gap.
         lastAcceptedLocation = nil
         phase = .recording
+        LocalRunCueService.shared.announce("Run resumed.")
         setTrackingPower(low: false)
         manager.startUpdatingLocation()
         tick()
@@ -581,6 +604,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func discard() {
+        LocalRunCueService.shared.stop()
         shouldStartAfterPermission = false
         stopTracking()
         resetCurrentRun()
@@ -614,6 +638,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             routePoints: routePoints,
             pauseIntervals: finishedPauseIntervals
         )
+        LocalRunCueService.shared.announce("Run finished. " + String(format: "%.2f kilometers. ", run.distanceMeters / 1_000) + "Moving time " + RunCueSchedule.duration(run.movingTimeSeconds))
         store.saveRun(run)
         checkpointStore.delete()
         activeWorkoutTitle = nil
@@ -644,7 +669,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             averageHeartRateBPM: nil,
             routePoints: routePoints,
             syncedAt: nil,
-            pauseIntervals: pauseIntervals
+            pauseIntervals: pauseIntervals,
+            estimatedActiveKilocalories: RunCalorieEstimator.activeKilocalories(distanceMeters: distanceMeters, weightKg: RunnerWeightStore.shared.weightKg)
         )
     }
 
@@ -676,6 +702,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         activeWorkoutTitle = checkpoint.workoutTitle
         pendingRecovery = nil
         phase = .paused
+        LocalRunCueService.shared.begin(distance: distanceMeters, movingTime: checkpoint.movingSecondsAtSave, recovered: true)
         setTrackingPower(low: true)
         if startLocationUpdates {
             manager.startUpdatingLocation()
@@ -739,7 +766,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     private func setTrackingPower(low: Bool) {
         manager.desiredAccuracy = low ? kCLLocationAccuracyHundredMeters : kCLLocationAccuracyBest
-        manager.distanceFilter = low ? 50 : 5
+        manager.distanceFilter = low ? 50 : (autoPauseEnabled ? kCLDistanceFilterNone : 5)
     }
 
     /// WP-45: which permission event (if any) a location-authorization callback
@@ -836,7 +863,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func handleLocationUpdates(_ locations: [CLLocation], now: Date = Date()) {
-        guard phase == .acquiringLocation || phase == .recording else { return }
+        guard phase == .acquiringLocation || phase == .recording || phase == .paused else { return }
+        if !autoPauseEnabled { autoPauseDetector.reset() }
 
         for location in locations {
             if phase == .acquiringLocation {
@@ -847,9 +875,42 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
                 continue
             }
 
-            guard Self.isUsable(location, maxAccuracy: Self.acceptedRecordingAccuracy, now: now) else { continue }
+            guard Self.isUsable(location, maxAccuracy: Self.acceptedRecordingAccuracy, now: now) else {
+                autoPauseDetector.reset()
+                continue
+            }
             horizontalAccuracy = location.horizontalAccuracy
+            if autoPauseEnabled, !isEndDecisionPending, location.horizontalAccuracy <= 25,
+               phase == .recording || isAutoPaused {
+                switch autoPauseDetector.update(speed: location.speed, at: location.timestamp, isAutoPaused: isAutoPaused) {
+                case .pause(let since):
+                    // Remove any low-speed drift recorded during the debounce. The
+                    // full stop, including the first eight seconds, is paused time.
+                    let stopDate = max(startedAt ?? since, since)
+                    routePoints.removeAll { $0.timestamp > stopDate }
+                    distanceMeters = Self.routeDistance(routePoints)
+                    displayRoutePoints = Self.simplifiedDisplayRoute(from: routePoints)
+                    pause(at: stopDate, automatic: true)
+                    continue
+                case .resume:
+                    resume(at: location.timestamp)
+                    RunSmartHaptics.light()
+                case nil: break
+                }
+            } else {
+                autoPauseDetector.reset()
+            }
+            guard phase == .recording else { continue }
             acceptRecordingLocation(location)
+        }
+        tick(now: now)
+    }
+
+    private static func routeDistance(_ points: [RunRoutePoint]) -> Double {
+        zip(points, points.dropFirst()).reduce(0) { total, pair in
+            guard pair.1.startsNewSegment != true else { return total }
+            return total + CLLocation(latitude: pair.0.latitude, longitude: pair.0.longitude)
+                .distance(from: CLLocation(latitude: pair.1.latitude, longitude: pair.1.longitude))
         }
     }
 
@@ -869,17 +930,19 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         let lastIndex = points.count - 1
         let step = Double(lastIndex) / Double(maxPoints - 1)
         var result: [RunRoutePoint] = []
-        var usedIndices = Set<Int>()
+        var previousSourceIndex = -1
 
         for displayIndex in 0..<maxPoints {
             let sourceIndex = displayIndex == maxPoints - 1 ? lastIndex : Int((Double(displayIndex) * step).rounded())
-            if usedIndices.insert(sourceIndex).inserted {
-                result.append(points[sourceIndex])
+            var sample = points[sourceIndex]
+            // A pause boundary can fall between retained samples. Carry it forward
+            // so drawing the display route never connects across the paused gap.
+            // Each raw point is inspected once; raw route/split data stays intact.
+            if points[(previousSourceIndex + 1)...sourceIndex].contains(where: { $0.startsNewSegment == true }) {
+                sample.startsNewSegment = true
             }
-        }
-
-        if result.last?.id != points.last?.id {
-            result.append(points[lastIndex])
+            result.append(sample)
+            previousSourceIndex = sourceIndex
         }
         return result
     }
@@ -985,6 +1048,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     private func resetCurrentRun() {
+        isAutoPaused = false
+        isEndDecisionPending = false
+        autoPauseDetector.reset()
         routePoints = []
         displayRoutePoints = []
         distanceMeters = 0
@@ -1014,9 +1080,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.timer = timer
     }
 
-    private func tick() {
+    private func tick(now: Date = Date()) {
         guard let startedAt else { return }
-        let now = Date()
         elapsedSeconds = now.timeIntervalSince(startedAt)
         movingSeconds = Self.movingDuration(
             startedAt: startedAt,
@@ -1024,7 +1089,10 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             accumulatedPausedSeconds: accumulatedPausedSeconds,
             activePauseStartedAt: pausedAt
         )
-        updateCurrentPace(now: now)
+        if phase == .recording { updateCurrentPace(now: now) } else { currentPaceSeconds = nil }
+        if phase == .recording {
+            LocalRunCueService.shared.update(distance: distanceMeters, movingTime: movingSeconds)
+        }
     }
 
     private func stopTracking() {

@@ -1,3 +1,10 @@
+## 2026-10-22 — Record-a-run Release B (Codex, separate from Claude Release A)
+
+**Scope:** S4 offline on-device cues and real settings; S5 default-on auto-pause; S6 hold-to-finish and one Save/Resume/Discard sheet; S7 Stats/Map pages with latest-fix following; S8 optional-weight active-calorie estimate, live and saved summary.
+**Branch/worktree:** `codex/2026-10-22-record-run-release-b`, `/Users/nadavyigal/Developer/runsmart-ios-worktrees/record-run-release-b`, based on S2 `15e9edf`. Claude's active Release A checkout was not changed.
+**Validation:** Final full simulator suite 518 passed / 0 failed / 0 skipped. Finish tap/hold, pause/resume, end sheet and demo save visually verified. Independent review findings fixed. Final metric-order/label and delayed-GPS fixes are included in that run. Small-screen simulator boot stalled; temporary device removed and that smoke remains pending.
+**Handoff:** `docs/qa/reports/record-run-release-b-2026-10-22/README.md`. S3 remains Claude-owned; integrate finished Release A and recheck its Start anyway branch before merging B. Physical locked-phone/offline/audio/background-GPS checks remain. No upload, submission, release or Release C work.
+
 ## 2026-10-22: Record-a-run Release A (branch claude/2026-10-22-record-run-release-a)
 
 **S0 quick fixes:** voice-coach audio session active only while a cue plays; live map follows the runner instead of freezing after ~1.2 km; debrief sends the planned workout type; template card renamed "RUN SUMMARY" without the AI label; elevation gain replaces "N pts".
