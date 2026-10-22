@@ -104,7 +104,7 @@ struct LiveRunView: View {
     }
 
     private var completedKmSplits: [KilometerSplit] {
-        RunRecorder.kilometerSplits(from: splitRoutePoints)
+        RunRecorder.kilometerSplits(from: splitRoutePoints).filter { !$0.isPartial }
     }
 }
 

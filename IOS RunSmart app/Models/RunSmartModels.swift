@@ -859,6 +859,10 @@ struct RunRoutePoint: Identifiable, Codable, Hashable {
     var timestamp: Date
     var horizontalAccuracy: Double
     var altitude: Double?
+    /// True on the first accepted point after a pause (or a recovered-run resume).
+    /// Distance and time between the previous point and this one are never counted.
+    /// Optional so stored runs and Health imports without the field still decode.
+    var startsNewSegment: Bool? = nil
 
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -872,7 +876,18 @@ struct RunRoutePoint: Identifiable, Codable, Hashable {
 struct KilometerSplit: Identifiable, Equatable {
     var id: Int { km }
     var km: Int
+    /// Pace for this split in seconds per kilometer. For a partial split it is
+    /// normalized to one kilometer.
     var paceSecondsPerKm: Double
+    /// 1000 for a full split; the remaining distance for a partial final split.
+    var distanceMeters: Double = 1_000
+    var isPartial: Bool = false
+}
+
+/// A stretch of a run during which the runner had recording paused.
+struct RunPauseInterval: Codable, Hashable, Equatable {
+    var start: Date
+    var end: Date
 }
 
 struct RecordedRun: Identifiable, Codable, Hashable {
@@ -893,6 +908,8 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     /// Garmin device model (e.g. "Garmin Forerunner 265"), when known. Required for the
     /// "Garmin [device model]" attribution on Garmin-sourced rows per brand guidelines.
     var sourceDeviceName: String? = nil
+    /// Pauses recorded by RunSmart during the run. Nil for runs imported from Garmin or Health.
+    var pauseIntervals: [RunPauseInterval]? = nil
 }
 
 enum RunSmartAttribution {

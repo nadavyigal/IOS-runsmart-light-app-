@@ -4,13 +4,15 @@
 
 **S1 crash and kill recovery:** `RunSessionCheckpoint` written to Application Support (first fix, pause, resume, every 10 s; serial background queue; deleted on finish/discard). On launch an "Unfinished run found" alert offers Resume (lands paused; the gap counts as pause), Save, Discard; app switches to the Run tab. Resume withheld after 12 h. Pause keeps GPS on at low power so iOS keeps the app alive; paused fixes are ignored.
 
-**Status:** S0, S1 committed. Release A in progress.
+**S2 run data integrity:** splits skip pause gaps (segment flag on the first point after resume, pause intervals stored on the run), boundary times interpolated, no 8-split cap, partial final split (≥100 m). Jitter filter keeps an anchor and drops fixes over 12 m/s, under max(3 m, 0.5 × accuracy), or near-stationary (speed <0.5 m/s within 2 × accuracy; unknown speed within 1.5 × accuracy). Current pace = path distance over the last ~30 s, "--" when stopped. Four existing fixtures in `RunSmartReadinessTests` updated (implausible jumps, old end-timestamp split attribution).
+
+**Status:** S0, S1, S2 committed. Release A in progress.
 **Current Phase:** Record-a-run Release A.
-**Active Story:** S2 run data integrity.
-**Last Completed Story:** S1 crash and kill recovery.
-**Next Recommended Story:** S2 run data integrity, then S3 GPS start.
-**Blockers:** None. Device checks pending: Spotify volume between cues; cues with phone locked (UIBackgroundModes has only `location`, handle in S4); force-quit recovery while recording and while paused; paused run alive in background.
-**Last Validation:** 2026-10-22: full suite 476 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New `RecordRunQuickFixTests` (9), `RunRecoveryTests` (21).
+**Active Story:** S3 GPS start.
+**Last Completed Story:** S2 run data integrity.
+**Next Recommended Story:** S3 GPS start, then founder review before Release B.
+**Blockers:** None. Device checks pending: Spotify volume between cues; cues with phone locked (UIBackgroundModes has only `location`, handle in S4); force-quit recovery while recording and while paused; paused run alive in background; jitter filter route density at 20 m accuracy.
+**Last Validation:** 2026-10-22: full suite 495 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New `RecordRunQuickFixTests` (9), `RunRecoveryTests` (21), `RunDataIntegrityTests` (20).
 **Last Updated:** 2026-10-22
 
 ## 2026-10-22: Record-a-run UX plan (plan only, no code)

@@ -219,7 +219,11 @@ struct PostRunSummaryView: View {
     private var splitRows: [SplitRow] {
         guard let run = displayRun else { return [] }
         return RunRecorder.kilometerSplits(from: run.routePoints).map { split in
-            SplitRow(km: split.km, pace: RunRecorder.paceLabel(secondsPerKm: split.paceSecondsPerKm))
+            SplitRow(
+                km: split.km,
+                pace: RunRecorder.paceLabel(secondsPerKm: split.paceSecondsPerKm),
+                partialDistanceLabel: split.isPartial ? String(format: "%.2f km", split.distanceMeters / 1_000) : nil
+            )
         }
     }
 
@@ -647,7 +651,7 @@ private struct SplitPreviewCard: View {
                         .font(.labelLG)
                         .foregroundStyle(Color.accentPrimary)
                     Spacer()
-                    Text("\(splits.count) splits")
+                    Text("\(splits.filter { $0.partialDistanceLabel == nil }.count) splits")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.textSecondary)
                 }
@@ -662,7 +666,7 @@ private struct SplitPreviewCard: View {
                 } else {
                     ForEach(splits) { split in
                         HStack {
-                            Text("\(split.km)")
+                            Text(split.partialDistanceLabel == nil ? "\(split.km)" : "-")
                                 .font(.bodyMD)
                                 .foregroundStyle(Color.textSecondary)
                                 .frame(width: 28, alignment: .leading)
@@ -670,7 +674,7 @@ private struct SplitPreviewCard: View {
                                 .font(.metricSM)
                                 .monospacedDigit()
                             Spacer()
-                            Text("km \(split.km)")
+                            Text(split.partialDistanceLabel ?? "km \(split.km)")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Color.textTertiary)
                         }
@@ -712,4 +716,6 @@ private struct SplitRow: Identifiable {
     var id: Int { km }
     var km: Int
     var pace: String
+    /// Set only for the partial final split, e.g. "0.43 km". Pace is still per km.
+    var partialDistanceLabel: String? = nil
 }

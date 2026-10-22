@@ -438,12 +438,20 @@ final class RunSmartReadinessTests: XCTestCase {
         )
     }
 
-    private func makeLocation(latitude: Double, longitude: Double, accuracy: CLLocationAccuracy, timestamp: Date) -> CLLocation {
+    private func makeLocation(
+        latitude: Double,
+        longitude: Double,
+        accuracy: CLLocationAccuracy,
+        timestamp: Date,
+        speed: CLLocationSpeed = -1
+    ) -> CLLocation {
         CLLocation(
             coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
             altitude: 0,
             horizontalAccuracy: accuracy,
             verticalAccuracy: -1,
+            course: -1,
+            speed: speed,
             timestamp: timestamp
         )
     }
@@ -1889,13 +1897,23 @@ final class RunSmartReadinessTests: XCTestCase {
             RunRoutePoint(latitude: 32.0220, longitude: 34.0, timestamp: start.addingTimeInterval(630), horizontalAccuracy: 8, altitude: nil)
         ]
 
-        let splits = RunRecorder.kilometerSplits(from: points)
+        // Record-run S2: boundary crossings are interpolated inside the GPS segment instead
+        // of being stamped with the segment's end time, and a 100m+ remainder adds a
+        // partial final split. Expected values come from the real measured segment length.
+        let segment = CLLocation(latitude: 32.0000, longitude: 34.0)
+            .distance(from: CLLocation(latitude: 32.0110, longitude: 34.0))
+        let allSplits = RunRecorder.kilometerSplits(from: points)
+        let splits = allSplits.filter { !$0.isPartial }
 
-        XCTAssertEqual(splits.count, 2, "distance never reaches a 3rd kilometer, so only 2 real splits should exist")
+        XCTAssertEqual(splits.count, 2, "distance never reaches a 3rd kilometer, so only 2 full splits should exist")
         XCTAssertEqual(splits[0].km, 1)
-        XCTAssertEqual(splits[0].paceSecondsPerKm, 300, accuracy: 0.5, "split 1 pace must be the real elapsed time to cross 1km (5:00/km), not a fabricated drift value")
+        let firstCrossing = 300 * 1_000 / segment
+        XCTAssertEqual(splits[0].paceSecondsPerKm, firstCrossing, accuracy: 0.5, "split 1 must interpolate the 1km crossing inside the first GPS segment")
         XCTAssertEqual(splits[1].km, 2)
-        XCTAssertEqual(splits[1].paceSecondsPerKm, 330, accuracy: 0.5, "split 2 pace must be the real elapsed time between the 1km and 2km crossings (5:30/km)")
+        let secondCrossing = 300 + 330 * (2_000 - segment) / segment
+        XCTAssertEqual(splits[1].paceSecondsPerKm, secondCrossing - firstCrossing, accuracy: 0.5, "split 2 must be the interpolated time between the 1km and 2km crossings")
+        XCTAssertEqual(allSplits.count, 3, "the remaining ~440m is above the 100m threshold, so a partial split follows")
+        XCTAssertTrue(allSplits[2].isPartial)
     }
 
     func testKilometerSplitsReturnsEmptyWhenRouteNeverCompletesAKilometer() {
@@ -1977,8 +1995,8 @@ final class RunSmartReadinessTests: XCTestCase {
         recorder.startAcquiringLocation(startLocationUpdates: false)
         recorder.handleLocationUpdates([
             makeLocation(latitude: 32.0800, longitude: 34.7800, accuracy: 10, timestamp: now),
-            makeLocation(latitude: 32.0810, longitude: 34.7810, accuracy: 10, timestamp: now.addingTimeInterval(3))
-        ], now: now)
+            makeLocation(latitude: 32.0810, longitude: 34.7810, accuracy: 10, timestamp: now.addingTimeInterval(15))
+        ], now: now.addingTimeInterval(8))
 
         XCTAssertEqual(recorder.phase, .recording)
         XCTAssertGreaterThan(recorder.distanceMeters, 0)
@@ -2041,25 +2059,26 @@ final class RunSmartReadinessTests: XCTestCase {
         recorder.authorizationStatusProvider = { .authorizedWhenInUse }
         let now = Date()
         recorder.startAcquiringLocation(startLocationUpdates: false)
+        // Fixes are 10 s apart so each ~111 m leg is a plausible 11 m/s, not a GPS jump.
         recorder.handleLocationUpdates([
             makeLocation(latitude: 32.0800, longitude: 34.7800, accuracy: 10, timestamp: now),
-            makeLocation(latitude: 32.0810, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(1))
-        ], now: now)
+            makeLocation(latitude: 32.0810, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(10))
+        ], now: now.addingTimeInterval(5))
         let beforePause = recorder.distanceMeters
         recorder.pause()
         recorder.handleLocationUpdates([
-            makeLocation(latitude: 32.0900, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(2))
-        ], now: now)
+            makeLocation(latitude: 32.0900, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(20))
+        ], now: now.addingTimeInterval(20))
         XCTAssertEqual(recorder.distanceMeters, beforePause)
         recorder.resume()
         recorder.handleLocationUpdates([
-            makeLocation(latitude: 32.0900, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(3))
-        ], now: now)
+            makeLocation(latitude: 32.0900, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(30))
+        ], now: now.addingTimeInterval(30))
         XCTAssertEqual(recorder.distanceMeters, beforePause, accuracy: 0.01,
                        "The first fix after resuming must not count movement during the pause")
         recorder.handleLocationUpdates([
-            makeLocation(latitude: 32.0910, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(4))
-        ], now: now)
+            makeLocation(latitude: 32.0910, longitude: 34.7800, accuracy: 10, timestamp: now.addingTimeInterval(40))
+        ], now: now.addingTimeInterval(40))
         XCTAssertEqual(recorder.distanceMeters, beforePause * 2, accuracy: 1)
         let run = try XCTUnwrap(recorder.finish())
         XCTAssertNil(recorder.finish(), "Repeated finish must not create another run")
@@ -2207,7 +2226,7 @@ final class RunSmartReadinessTests: XCTestCase {
             let t = origin.addingTimeInterval(Double(i) * 4)
             let lat = 32.0800 + Double(i) * 0.0001
             recorder.handleLocationUpdates([
-                makeLocation(latitude: lat, longitude: 34.7800, accuracy: 12, timestamp: t)
+                makeLocation(latitude: lat, longitude: 34.7800, accuracy: 12, timestamp: t, speed: 2.8)
             ], now: t)
         }
 

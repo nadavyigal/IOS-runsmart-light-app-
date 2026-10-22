@@ -415,6 +415,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published private(set) var elapsedSeconds: TimeInterval = 0
     @Published private(set) var movingSeconds: TimeInterval = 0
     @Published private(set) var horizontalAccuracy: Double?
+    /// Pace over the last ~30 seconds of the current segment, refreshed every second by
+    /// `tick()`. Nil when there is no recent movement, so the label never shows a stale pace.
+    @Published private(set) var currentPaceSeconds: TimeInterval?
     @Published private(set) var lastErrorMessage: String?
     @Published private(set) var lastSavedRun: RecordedRun?
     /// An unfinished run found on disk at launch (the app was killed or crashed mid-run).
@@ -432,6 +435,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     private var startedAt: Date?
     private var pausedAt: Date?
     private var accumulatedPausedSeconds: TimeInterval = 0
+    private var pauseIntervals: [RunPauseInterval] = []
     private var timer: Timer?
     private var lastAcceptedLocation: CLLocation?
     private var lastDisplayLocation: CLLocation?
@@ -451,6 +455,15 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     nonisolated static let liveRouteMinimumInterval: TimeInterval = 2
     nonisolated static let liveRouteMinimumDistance: CLLocationDistance = 12
     nonisolated static let maximumDisplayRoutePoints = 240
+    /// Jitter filter: a fix implying more than this speed from the last accepted point is an outlier jump.
+    nonisolated static let maximumPlausibleSpeed: CLLocationSpeed = 12
+    nonisolated static let minimumAcceptedMovement: CLLocationDistance = 3
+    nonisolated static let stationarySpeedThreshold: CLLocationSpeed = 0.5
+    nonisolated static let stationaryAccuracyMultiplier: Double = 2
+    nonisolated static let unknownSpeedAccuracyMultiplier: Double = 1.5
+    nonisolated static let currentPaceWindow: TimeInterval = 30
+    nonisolated static let currentPaceMaximumAge: TimeInterval = 10
+    nonisolated static let currentPaceMinimumDistance: CLLocationDistance = 15
     nonisolated static let checkpointMinimumInterval: TimeInterval = 10
     nonisolated static let maximumResumableCheckpointAge: TimeInterval = 12 * 3_600
 
@@ -483,14 +496,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         return Self.paceLabel(secondsPerKm: movingSeconds / max(distanceMeters / 1_000, 0.001))
     }
     var currentPaceLabel: String {
-        guard routePoints.count >= 2, let last = lastAcceptedLocation else { return averagePaceLabel }
-        let recent = routePoints.suffix(6)
-        guard let first = recent.first else { return averagePaceLabel }
-        let firstLocation = CLLocation(latitude: first.latitude, longitude: first.longitude)
-        let meters = last.distance(from: firstLocation)
-        let seconds = last.timestamp.timeIntervalSince(first.timestamp)
-        guard meters > 10, seconds > 0 else { return averagePaceLabel }
-        return Self.paceLabel(secondsPerKm: seconds / (meters / 1_000))
+        guard let currentPaceSeconds else { return "--" }
+        return Self.paceLabel(secondsPerKm: currentPaceSeconds)
     }
 
     func requestPermission() {
@@ -557,11 +564,14 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     func resume() {
         guard phase == .paused else { return }
         if let pausedAt {
-            accumulatedPausedSeconds += Date().timeIntervalSince(pausedAt)
+            let now = Date()
+            accumulatedPausedSeconds += now.timeIntervalSince(pausedAt)
+            pauseIntervals.append(RunPauseInterval(start: pausedAt, end: max(pausedAt, now)))
         }
         pausedAt = nil
         // The runner may have moved while tracking was paused. The first new
-        // fix establishes a fresh distance anchor instead of counting that gap.
+        // fix establishes a fresh distance anchor (and starts a new route segment)
+        // instead of counting that gap.
         lastAcceptedLocation = nil
         phase = .recording
         setTrackingPower(low: false)
@@ -585,6 +595,10 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         guard let startedAt else { return nil }
         let endedAt = Date()
         let activePauseStartedAt = pausedAt
+        var finishedPauseIntervals = pauseIntervals
+        if let activePauseStartedAt {
+            finishedPauseIntervals.append(RunPauseInterval(start: activePauseStartedAt, end: max(activePauseStartedAt, endedAt)))
+        }
         stopTracking()
         let moving = Self.movingDuration(
             startedAt: startedAt,
@@ -597,7 +611,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             endedAt: endedAt,
             movingSeconds: moving,
             distanceMeters: distanceMeters,
-            routePoints: routePoints
+            routePoints: routePoints,
+            pauseIntervals: finishedPauseIntervals
         )
         store.saveRun(run)
         checkpointStore.delete()
@@ -613,7 +628,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         endedAt: Date,
         movingSeconds: TimeInterval,
         distanceMeters: Double,
-        routePoints: [RunRoutePoint]
+        routePoints: [RunRoutePoint],
+        pauseIntervals: [RunPauseInterval]
     ) -> RecordedRun {
         let pace = distanceMeters > 0 ? movingSeconds / (distanceMeters / 1_000) : 0
         return RecordedRun(
@@ -627,7 +643,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             averagePaceSecondsPerKm: pace,
             averageHeartRateBPM: nil,
             routePoints: routePoints,
-            syncedAt: nil
+            syncedAt: nil,
+            pauseIntervals: pauseIntervals
         )
     }
 
@@ -651,6 +668,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         resetCurrentRun()
         startedAt = checkpoint.startedAt
         accumulatedPausedSeconds = checkpoint.accumulatedPausedSeconds
+        pauseIntervals = checkpoint.pauseIntervals ?? []
         pausedAt = checkpoint.wasPaused ? (checkpoint.pausedAt ?? checkpoint.savedAt) : checkpoint.savedAt
         routePoints = checkpoint.routePoints
         displayRoutePoints = Self.simplifiedDisplayRoute(from: checkpoint.routePoints)
@@ -678,12 +696,17 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             accumulatedPausedSeconds: checkpoint.accumulatedPausedSeconds,
             activePauseStartedAt: checkpoint.wasPaused ? checkpoint.pausedAt : nil
         )
+        var recoveredPauseIntervals = checkpoint.pauseIntervals ?? []
+        if checkpoint.wasPaused, let pausedAt = checkpoint.pausedAt {
+            recoveredPauseIntervals.append(RunPauseInterval(start: pausedAt, end: max(pausedAt, endedAt)))
+        }
         let run = Self.makeRecordedRun(
             startedAt: checkpoint.startedAt,
             endedAt: endedAt,
             movingSeconds: moving,
             distanceMeters: checkpoint.distanceMeters,
-            routePoints: checkpoint.routePoints
+            routePoints: checkpoint.routePoints,
+            pauseIntervals: recoveredPauseIntervals
         )
         store.saveRun(run)
         checkpointStore.delete()
@@ -709,7 +732,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             routePoints: routePoints,
             distanceMeters: distanceMeters,
             workoutTitle: activeWorkoutTitle,
-            savedAt: Date()
+            savedAt: Date(),
+            pauseIntervals: pauseIntervals
         ))
     }
 
@@ -865,9 +889,12 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         // copy set by locationManager(_:didFailWithError:) so the GPS pill reverts
         // to normal accuracy messaging instead of sticking on the old error text.
         lastErrorMessage = nil
-        if let previous = lastAcceptedLocation {
-            let delta = location.distance(from: previous)
-            guard delta >= 1 else { return }
+        // The first point of a segment (run start, or the first fix after a pause or a
+        // recovered-run resume) has no anchor, so it is never filtered and adds no distance.
+        let startsNewSegment = lastAcceptedLocation == nil && !routePoints.isEmpty
+        if let anchor = lastAcceptedLocation {
+            let delta = location.distance(from: anchor)
+            guard Self.shouldAcceptMovement(from: anchor, to: location) else { return }
             distanceMeters += delta
         }
 
@@ -876,10 +903,12 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             longitude: location.coordinate.longitude,
             timestamp: location.timestamp,
             horizontalAccuracy: location.horizontalAccuracy,
-            altitude: location.verticalAccuracy >= 0 ? location.altitude : nil
+            altitude: location.verticalAccuracy >= 0 ? location.altitude : nil,
+            startsNewSegment: startsNewSegment ? true : nil
         )
         routePoints.append(point)
         lastAcceptedLocation = location
+        updateCurrentPace()
         updateDisplayRoute(with: location, force: forceDisplay)
 
         // Throttled by fix time: the route can be megabytes on a long run.
@@ -887,6 +916,62 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             lastCheckpointLocationTime = location.timestamp
             writeCheckpoint()
         }
+    }
+
+    /// GPS jitter filter. The last accepted point is the anchor and stays put when a fix is
+    /// rejected, so real slow movement still accumulates on a later fix. A fix is dropped when:
+    /// (a) it implies more than 12 m/s from the anchor (outlier jump),
+    /// (b) it is closer than max(3 m, half its horizontal accuracy) to the anchor,
+    /// (c) the device reports it is standing still (speed 0 to 0.5 m/s) and the move is within
+    ///     twice the accuracy radius (two noisy fixes can differ by about 1.4x the radius), or
+    /// (d) the device reports no speed and the move is within 1.5x the accuracy radius.
+    static func shouldAcceptMovement(from anchor: CLLocation, to location: CLLocation) -> Bool {
+        let delta = location.distance(from: anchor)
+        let elapsed = location.timestamp.timeIntervalSince(anchor.timestamp)
+        let accuracy = location.horizontalAccuracy
+        guard elapsed > 0, delta / elapsed <= maximumPlausibleSpeed else { return false }
+        guard delta >= max(minimumAcceptedMovement, 0.5 * accuracy) else { return false }
+        if location.speed >= 0 {
+            if location.speed < stationarySpeedThreshold, delta <= stationaryAccuracyMultiplier * accuracy {
+                return false
+            }
+        } else if delta <= unknownSpeedAccuracyMultiplier * accuracy {
+            return false
+        }
+        return true
+    }
+
+    private func updateCurrentPace(now: Date = Date()) {
+        let pace = Self.currentPace(points: routePoints, now: now)
+        if pace != currentPaceSeconds {
+            currentPaceSeconds = pace
+        }
+    }
+
+    /// Pace in seconds per kilometer over roughly the last 30 seconds of the current
+    /// segment, using summed path distance. Nil when that window covers under 15 m or the
+    /// newest point is more than 10 seconds old (stopped, or no GPS).
+    static func currentPace(points: [RunRoutePoint], now: Date) -> TimeInterval? {
+        guard let newest = points.last else { return nil }
+        guard now.timeIntervalSince(newest.timestamp) <= currentPaceMaximumAge else { return nil }
+
+        let windowStart = newest.timestamp.addingTimeInterval(-currentPaceWindow)
+        var meters: Double = 0
+        var oldest = newest
+        var index = points.count - 1
+        while index > 0 {
+            let current = points[index]
+            if current.startsNewSegment == true || oldest.timestamp <= windowStart { break }
+            let previous = points[index - 1]
+            meters += CLLocation(latitude: previous.latitude, longitude: previous.longitude)
+                .distance(from: CLLocation(latitude: current.latitude, longitude: current.longitude))
+            oldest = previous
+            index -= 1
+        }
+
+        let seconds = newest.timestamp.timeIntervalSince(oldest.timestamp)
+        guard meters >= currentPaceMinimumDistance, seconds > 0 else { return nil }
+        return seconds / (meters / 1_000)
     }
 
     private func updateDisplayRoute(with location: CLLocation, force: Bool) {
@@ -913,6 +998,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         startedAt = nil
         pausedAt = nil
         accumulatedPausedSeconds = 0
+        pauseIntervals = []
+        currentPaceSeconds = nil
         lastCheckpointLocationTime = nil
     }
 
@@ -937,6 +1024,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             accumulatedPausedSeconds: accumulatedPausedSeconds,
             activePauseStartedAt: pausedAt
         )
+        updateCurrentPace(now: now)
     }
 
     private func stopTracking() {
@@ -985,37 +1073,64 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         return gain
     }
 
-    /// Real per-kilometer splits derived from route-point GPS distance and
-    /// timestamps — WP-37 S5. A split for kilometer N only appears once the
-    /// recorded route has actually crossed N*1000m; a run that never completes
-    /// a full kilometer returns an empty array (no fabricated/filler splits).
-    /// Multiple boundaries crossed within one sparse GPS segment are all
-    /// attributed to that segment's end timestamp rather than interpolated.
-    static func kilometerSplits(from routePoints: [RunRoutePoint], maxSplits: Int = 8) -> [KilometerSplit] {
-        guard routePoints.count >= 2, let first = routePoints.first else { return [] }
+    /// Real per-kilometer splits derived from route-point GPS distance and timestamps.
+    /// A full split for kilometer N only appears once the recorded route has crossed N*1000m.
+    /// Distance and time are never counted across a segment start (a pause or recovered-run
+    /// resume), and each boundary crossing is interpolated linearly within its GPS segment.
+    /// After at least one full split, a remainder of 100m or more adds a final partial split
+    /// whose pace is normalized per km. A run that never completes a kilometer returns an
+    /// empty array (no fabricated or filler splits).
+    static func kilometerSplits(from routePoints: [RunRoutePoint], maxSplits: Int? = nil) -> [KilometerSplit] {
+        guard routePoints.count >= 2 else { return [] }
 
+        let limit = maxSplits ?? Int.max
         var splits: [KilometerSplit] = []
         var cumulativeDistance: Double = 0
+        var activeSeconds: TimeInterval = 0
         var nextBoundaryMeters: Double = 1_000
-        var previousBoundaryTimestamp = first.timestamp
-        var previousPoint = first
+        var lastBoundaryActiveSeconds: TimeInterval = 0
+        var reachedLimit = false
 
-        for point in routePoints.dropFirst() {
-            guard splits.count < maxSplits else { break }
+        for index in 1..<routePoints.count {
+            if splits.count >= limit {
+                reachedLimit = true
+                break
+            }
+            let previous = routePoints[index - 1]
+            let point = routePoints[index]
+            if point.startsNewSegment == true { continue }
 
-            let segmentDistance = CLLocation(latitude: previousPoint.latitude, longitude: previousPoint.longitude)
+            let segmentDistance = CLLocation(latitude: previous.latitude, longitude: previous.longitude)
                 .distance(from: CLLocation(latitude: point.latitude, longitude: point.longitude))
-            cumulativeDistance += segmentDistance
+            let segmentSeconds = max(0, point.timestamp.timeIntervalSince(previous.timestamp))
 
-            while cumulativeDistance >= nextBoundaryMeters, splits.count < maxSplits {
-                let km = splits.count + 1
-                let splitSeconds = max(0, point.timestamp.timeIntervalSince(previousBoundaryTimestamp))
-                splits.append(KilometerSplit(km: km, paceSecondsPerKm: splitSeconds))
-                previousBoundaryTimestamp = point.timestamp
+            while cumulativeDistance + segmentDistance >= nextBoundaryMeters, splits.count < limit {
+                let fraction = segmentDistance > 0 ? (nextBoundaryMeters - cumulativeDistance) / segmentDistance : 1
+                let crossingSeconds = activeSeconds + fraction * segmentSeconds
+                splits.append(KilometerSplit(
+                    km: splits.count + 1,
+                    paceSecondsPerKm: max(0, crossingSeconds - lastBoundaryActiveSeconds)
+                ))
+                lastBoundaryActiveSeconds = crossingSeconds
                 nextBoundaryMeters += 1_000
             }
 
-            previousPoint = point
+            cumulativeDistance += segmentDistance
+            activeSeconds += segmentSeconds
+        }
+
+        if splits.count >= limit, limit != Int.max { reachedLimit = true }
+        if !reachedLimit, !splits.isEmpty {
+            let remainder = cumulativeDistance - Double(splits.count) * 1_000
+            let remainderSeconds = activeSeconds - lastBoundaryActiveSeconds
+            if remainder >= 100, remainderSeconds > 0 {
+                splits.append(KilometerSplit(
+                    km: splits.count + 1,
+                    paceSecondsPerKm: remainderSeconds / (remainder / 1_000),
+                    distanceMeters: remainder,
+                    isPartial: true
+                ))
+            }
         }
 
         return splits

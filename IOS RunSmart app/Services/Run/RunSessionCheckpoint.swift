@@ -15,6 +15,8 @@ struct RunSessionCheckpoint: Codable, Equatable {
     var distanceMeters: Double
     var workoutTitle: String?
     var savedAt: Date
+    /// Closed pauses so far. Optional so checkpoints written before this field existed still load.
+    var pauseIntervals: [RunPauseInterval]? = nil
 
     /// Moving time as it stood when the checkpoint was written.
     var movingSecondsAtSave: TimeInterval {
