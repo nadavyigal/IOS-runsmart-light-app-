@@ -6,7 +6,8 @@
 - [x] S7 Stats/Map pages — following and pause-boundary tests; standard-screen simulator verified
 - [x] S8 estimated calories — reference equation, fallback/persistence and legacy decoding passed
 - [x] Final full suite 518/0; simulator core smoke; independent review fixes
-- [ ] Integrate Claude S3, verify Start anyway cue, and complete device + small-screen/VoiceOver smoke
+- [x] Integrate Claude S3, verify Start anyway cue (merged into Release A, 2026-10-22)
+- [ ] Device + VoiceOver smoke (small-screen simulator check done: Stats fits and scrolls)
 - [x] Pushed implementation `50facbc`; draft PR #163 stacked on Release A
 
 Plan: `tasks/record-run-release-b.md`. Isolated branch `codex/2026-10-22-record-run-release-b`, base S2 `15e9edf`.

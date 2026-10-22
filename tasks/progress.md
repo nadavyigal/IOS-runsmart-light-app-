@@ -1,3 +1,10 @@
+## 2026-10-22: Release A + B leftovers (branch claude/2026-10-22-record-run-release-a)
+
+**Done:** (a) Start anyway speaks "Run started." and resets/arms auto-pause; auto-pause only judges fixes once the run has a first route point, so a run started without a fix cannot pause before its first fix. (b) Route matching treats a segment start as a break: no length and no resample points across a pause gap (`RouteMatchingService.resampled`). (c) Starting a new run while a recovery prompt is pending saves the recovered run without touching the new run's title and hands it to `onRecoveredRunAutoSaved`; the Run tab exports it to Health and processes it silently. (d) iPhone SE (3rd gen) simulator: pre-run and live Stats fit, Stats scrolls, controls reachable; no layout change needed. GPS wait state not reachable (the simulator delivers a fix within 4 s); Map page not swiped (simulator input tool not granted).
+**Validation:** full suite 552 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New: `RunMergeLeftoverTests` (4), `RouteMatchingPauseGapTests` (3), one voice-coach test.
+**Not done:** `SavedRoute.from(run:)` and `elevationGain(points:)` still sum altitude across pause breaks. Device smoke (locked phone, offline cues, Spotify ducking, Bluetooth, background GPS, VoiceOver) still pending. Not pushed.
+**Last Updated:** 2026-10-22
+
 ## 2026-10-22: Release A + Release B merged (branch claude/2026-10-22-record-run-release-a)
 
 **Merge:** `origin/codex/2026-10-22-record-run-release-b` (PR #163, S4-S8) merged into Release A (S0-S3 + PR #164 review fixes). One implementation kept where both solved the same problem: voice-coach session generation + live flag (A) with `cancelPlaybackForLocalCue()` (B) so a local spoken cue drops any in-flight server cue; map following and pause-gap polylines in `LiveRunMapPage` using `RouteMapView.lineSegments` (A tests kept, `RouteMapView` live mode removed); display route thinning keeps segment-start points (A), B's flag carry-forward removed; cached `completedKilometerSplits` (A) read by `LiveRunView`; checkpoint refresh in `tick(now:)` (A) plus cue updates (B). B's AI voice cue default is off.

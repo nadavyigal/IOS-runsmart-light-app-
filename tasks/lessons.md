@@ -1,3 +1,15 @@
+## 2026-10-22: Any code that walks route points must respect `startsNewSegment`
+
+Route matching summed straight-line distance across a pause break and resampled along it, so a pause walked or ridden off-route counted as route covered. Every consumer of `routePoints` (distance, splits, polylines, matching, elevation) treats a segment start as a break: no distance, no samples, no line across it. `SavedRoute.from(run:)` and `elevationGain(points:)` still sum altitude across breaks (not fixed yet).
+
+## 2026-10-22: Starting a run must not run the recovered-run save through the new run's state
+
+`startAcquiringLocation()` saves an unanswered recovered run, and `saveRecoveredRun()` cleared `activeWorkoutTitle`, wiping the title the Run tab had just set for the new run; the auto-saved run also skipped Health and processing. Saving a recovered run now leaves the new run's title alone and hands the run to `onRecoveredRunAutoSaved`. When two paths end a run (finish, auto-save), give both the same post-save tail.
+
+## 2026-10-22: After merging two branches that fixed the same problem, keep one implementation
+
+Release A and B each handled stale voice cues, map following and display-route thinning. Keep the side with tests, delete the other, and adapt only tests that asserted the deleted detail. Start paths must be compared after a merge: "Start anyway" (A) skipped B's start cue and auto-pause reset until both start paths were checked side by side.
+
 ## 2026-10-22 — Clamp device timestamps to the recording lifetime
 
 Core Location fixes can be fresh yet older than the callback that started the run. Clamp automatically inferred pause starts to startedAt and resume durations to zero or greater. A delayed-fix fixture must distinguish fix time from callback time.

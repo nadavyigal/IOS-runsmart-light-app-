@@ -74,6 +74,9 @@ struct RunTabView: View {
         .onAppear {
             updateTabBarVisibility()
             updateRunSessionSideEffects(for: recorder.phase)
+            recorder.onRecoveredRunAutoSaved = { [services] run in
+                Self.processRecoveredRunSilently(run, services: services)
+            }
         }
         .onDisappear {
             router.isTabBarHidden = false
@@ -413,6 +416,16 @@ struct RunTabView: View {
             }
         }
         updateTabBarVisibility()
+    }
+
+    /// A recovered run that was saved because a new run started: same Health export and
+    /// processing as any finished run, without taking over the screen the new run is using.
+    private static func processRecoveredRunSilently(_ run: RecordedRun, services: any RunSmartServiceProviding) {
+        NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+        Task {
+            await services.saveToHealth(run)
+            _ = await services.processCompletedActivity(run)
+        }
     }
 
     private func saveRecoveredRun() {

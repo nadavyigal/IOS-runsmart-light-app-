@@ -437,6 +437,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Title of the planned workout for the run in progress; stored in the checkpoint so a
     /// recovered run keeps its label. Set by the Run tab before `start()`.
     var activeWorkoutTitle: String?
+    /// Called when starting a new run saved an unanswered recovered run first. The Run tab uses
+    /// it to export that run to Health and process it silently (no summary screen).
+    var onRecoveredRunAutoSaved: ((RecordedRun) -> Void)?
     @Published private(set) var isAutoPaused = false
     var autoPauseEnabledProvider: (() -> Bool)?
     var isEndDecisionPending = false
@@ -553,9 +556,11 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     func startAcquiringLocation(startLocationUpdates: Bool = true) {
         shouldStartAfterPermission = false
         // A new run supersedes an unanswered recovery prompt; keep that run in history
-        // instead of letting the new run's checkpoint overwrite it.
-        if pendingRecovery != nil {
-            saveRecoveredRun()
+        // instead of letting the new run's checkpoint overwrite it. Saving it leaves
+        // `activeWorkoutTitle` alone (it belongs to the run starting now), and the owner gets
+        // the saved run so it can export and process it like any finished run.
+        if pendingRecovery != nil, let recovered = saveRecoveredRun() {
+            onRecoveredRunAutoSaved?(recovered)
         }
         resetCurrentRun()
         phase = .acquiringLocation
@@ -592,7 +597,12 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         pausedAt = nil
         accumulatedPausedSeconds = 0
         lastErrorMessage = nil
+        isAutoPaused = false
+        autoPauseDetector.reset()
         phase = .recording
+        setTrackingPower(low: false)
+        // Same start announcement as a run that began on a fix.
+        LocalRunCueService.shared.begin()
         startTimer()
         tick(now: now)
         // Written now, before any fix, so a crash in the first minute is still recoverable.
@@ -822,7 +832,6 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         store.saveRun(run)
         checkpointStore.delete()
         pendingRecovery = nil
-        activeWorkoutTitle = nil
         lastSavedRun = run
         resolveTerminalPhase()
         return run
@@ -989,7 +998,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
                 continue
             }
             horizontalAccuracy = location.horizontalAccuracy
-            if autoPauseEnabled, !isEndDecisionPending, location.horizontalAccuracy <= 25,
+            // Auto-pause starts judging once the run has a first route point. A run started
+            // with "Start anyway" therefore cannot pause before its first fix.
+            if autoPauseEnabled, !isEndDecisionPending, !routePoints.isEmpty, location.horizontalAccuracy <= 25,
                phase == .recording || isAutoPaused {
                 switch autoPauseDetector.update(speed: location.speed, at: location.timestamp, isAutoPaused: isAutoPaused) {
                 case .pause(let since):
