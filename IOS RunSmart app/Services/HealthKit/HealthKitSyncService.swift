@@ -273,6 +273,34 @@ struct HealthKitSyncService {
 #endif
     }
 
+    /// Body mass is requested separately, in context from the calorie settings.
+    /// A nil result covers unavailable/denied/no-data without inferring read consent.
+    func readBodyMassKg(requestPermission: Bool) async -> Double? {
+#if canImport(HealthKit)
+        guard HKHealthStore.isHealthDataAvailable(),
+              let type = HKObjectType.quantityType(forIdentifier: .bodyMass) else { return nil }
+        let store = HKHealthStore()
+        if requestPermission {
+            do {
+                try await store.requestAuthorization(toShare: [], read: [type])
+            } catch {
+                return nil
+            }
+        }
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+        let predicate = HKQuery.predicateForSamples(withStart: nil, end: Date(), options: .strictEndDate)
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: 1, sortDescriptors: [sort]) { _, samples, _ in
+                let value = (samples?.first as? HKQuantitySample)?.quantity.doubleValue(for: .gramUnit(with: .kilo))
+                continuation.resume(returning: value.flatMap { $0.isFinite && $0 > 0 ? $0 : nil })
+            }
+            store.execute(query)
+        }
+#else
+        return nil
+#endif
+    }
+
     private func unavailableStatus(message: String) -> ConnectedDeviceStatus {
         ConnectedDeviceStatus(provider: Self.providerName, state: .error, lastSuccessfulSync: nil, permissions: [], message: message)
     }

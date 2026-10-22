@@ -72,6 +72,25 @@ final class VoiceCoachServiceTests: XCTestCase {
         XCTAssertNotEqual(service.sessionGeneration, afterResume)
     }
 
+    func testLocalCueInvalidatesAnInFlightServerCueButKeepsTheTimer() {
+        let service = VoiceCoachService.shared
+        let wasEnabled = service.isEnabled
+        defer {
+            service.stopSession()
+            service.setEnabled(wasEnabled)
+        }
+
+        service.setEnabled(true)
+        service.startSession()
+        let requested = service.sessionGeneration
+
+        service.cancelPlaybackForLocalCue()
+
+        XCTAssertNotEqual(service.sessionGeneration, requested, "a server cue that returns after a local cue is stale")
+        XCTAssertTrue(service.isRunSessionLive)
+        XCTAssertTrue(service.isCueTimerRunning, "the 5 minute server cue timer is unaffected")
+    }
+
     func testResumeWithoutStartRunsTheCueTimer() {
         let service = VoiceCoachService.shared
         let wasEnabled = service.isEnabled

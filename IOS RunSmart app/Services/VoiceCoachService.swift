@@ -40,7 +40,7 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
 
     private override init() {
         isEnabled = UserDefaults.standard.object(forKey: VoiceCoachService.userDefaultsKey) == nil
-            ? true
+            ? false
             : UserDefaults.standard.bool(forKey: VoiceCoachService.userDefaultsKey)
         super.init()
     }
@@ -81,13 +81,22 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
         }
     }
 
+    /// Called by `LocalRunCueService` before it speaks: drops any in-flight or playing server cue
+    /// (the generation bump makes a late network response a no-op) but keeps the cue timer.
+    func cancelPlaybackForLocalCue() {
+        sessionGeneration += 1
+        player?.stop()
+        player = nil
+        deactivateAudioSession()
+    }
+
     /// A cue may play only if its session is still the current one, the run is live and cues are on.
     static func shouldPlayCue(startedIn generation: Int, current: Int, isRunSessionLive: Bool, isEnabled: Bool) -> Bool {
         generation == current && isRunSessionLive && isEnabled
     }
 
     func deliverCue(context: VoiceCueContext) {
-        guard isEnabled, !isFetching else { return }
+        guard isEnabled, isRunSessionLive, !isFetching, !LocalRunCueService.shared.isSpeaking else { return }
         isFetching = true
         let generation = sessionGeneration
         Task { [weak self] in
@@ -101,14 +110,17 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
     // MARK: AVAudioPlayerDelegate
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor [weak self] in
-            self?.deactivateAudioSession()
+            guard let self, self.player === player else { return }
+            self.player = nil
+            self.deactivateAudioSession()
         }
     }
 
     // MARK: Private
 
     private func canPlayCue(startedIn generation: Int) -> Bool {
-        Self.shouldPlayCue(
+        // A local spoken cue (LocalRunCueService) always wins over a server voice cue.
+        !LocalRunCueService.shared.isSpeaking && Self.shouldPlayCue(
             startedIn: generation,
             current: sessionGeneration,
             isRunSessionLive: isRunSessionLive,
@@ -174,6 +186,8 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
               let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200,
               !data.isEmpty else { return }
+
+        guard canPlayCue(startedIn: generation) else { return }
 
         if let encodedText = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "X-Coach-Text"),
            let text = encodedText.removingPercentEncoding {

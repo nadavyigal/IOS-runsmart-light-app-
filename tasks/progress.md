@@ -1,3 +1,18 @@
+## 2026-10-22: Release A + Release B merged (branch claude/2026-10-22-record-run-release-a)
+
+**Merge:** `origin/codex/2026-10-22-record-run-release-b` (PR #163, S4-S8) merged into Release A (S0-S3 + PR #164 review fixes). One implementation kept where both solved the same problem: voice-coach session generation + live flag (A) with `cancelPlaybackForLocalCue()` (B) so a local spoken cue drops any in-flight server cue; map following and pause-gap polylines in `LiveRunMapPage` using `RouteMapView.lineSegments` (A tests kept, `RouteMapView` live mode removed); display route thinning keeps segment-start points (A), B's flag carry-forward removed; cached `completedKilometerSplits` (A) read by `LiveRunView`; checkpoint refresh in `tick(now:)` (A) plus cue updates (B). B's AI voice cue default is off.
+**Validation:** full suite 544 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5).
+**Status:** Merged, not pushed. **Next:** leftovers (Start anyway cue + auto-pause arming, route matching across pause gaps, recovered-run title/processing, small-screen check), then device smoke.
+**Last Updated:** 2026-10-22
+
+## 2026-10-22 — Record-a-run Release B (Codex, separate from Claude Release A)
+
+**Review:** Draft PR #163 — https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/163; implementation commit `50facbc` pushed.
+**Scope:** S4 offline on-device cues and real settings; S5 default-on auto-pause; S6 hold-to-finish and one Save/Resume/Discard sheet; S7 Stats/Map pages with latest-fix following; S8 optional-weight active-calorie estimate, live and saved summary.
+**Branch/worktree:** `codex/2026-10-22-record-run-release-b`, `/Users/nadavyigal/Developer/runsmart-ios-worktrees/record-run-release-b`, based on S2 `15e9edf`. Claude's active Release A checkout was not changed.
+**Validation:** Final full simulator suite 518 passed / 0 failed / 0 skipped. Finish tap/hold, pause/resume, end sheet and demo save visually verified. Independent review findings fixed. Final caption-only typography adjustment passed a separate simulator build and maximum-text Stats smoke. Final metric-order/label and delayed-GPS fixes are included in that run. Small-screen simulator boot stalled; temporary device removed and that smoke remains pending.
+**Handoff:** `docs/qa/reports/record-run-release-b-2026-10-22/README.md`. S3 remains Claude-owned; integrate finished Release A and recheck its Start anyway branch before merging B. Physical locked-phone/offline/audio/background-GPS checks remain. No upload, submission, release or Release C work.
+
 ## 2026-10-22: Record-a-run Release A (branch claude/2026-10-22-record-run-release-a)
 
 **S0 quick fixes:** voice-coach audio session active only while a cue plays; live map follows the runner instead of freezing after ~1.2 km; debrief sends the planned workout type; template card renamed "RUN SUMMARY" without the AI label; elevation gain replaces "N pts".

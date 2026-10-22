@@ -5,46 +5,19 @@ import CoreLocation
 @MainActor
 final class RecordRunQuickFixTests: XCTestCase {
 
-    // MARK: - Live map follow
-
-    func testLiveFollowRegionCentersOnLastPointWithFixedSpan() {
-        let last = CLLocationCoordinate2D(latitude: 32.1, longitude: 34.8)
-        let region = RouteMapView.liveFollowRegion(for: last)
-
-        XCTAssertEqual(region.center.latitude, 32.1, accuracy: 1e-9)
-        XCTAssertEqual(region.center.longitude, 34.8, accuracy: 1e-9)
-        XCTAssertEqual(region.span.latitudeDelta, 0.008, accuracy: 1e-9)
-        XCTAssertEqual(region.span.longitudeDelta, 0.008, accuracy: 1e-9)
-    }
-
-    func testLiveCameraKeyChangesWithLastPointEvenWhenRouteIsCapped() {
-        // The live screen passes a display route capped at 240 points, so the count stops changing.
-        let base = (0..<240).map { CLLocationCoordinate2D(latitude: 32 + Double($0) * 0.0001, longitude: 34.8) }
-        var moved = base
-        moved.removeFirst()
-        moved.append(CLLocationCoordinate2D(latitude: 32.05, longitude: 34.8))
-
-        XCTAssertEqual(base.count, moved.count)
-        XCTAssertNotEqual(
-            RouteMapView.cameraKey(for: base, isLive: true),
-            RouteMapView.cameraKey(for: moved, isLive: true)
-        )
-        XCTAssertEqual(
-            RouteMapView.cameraKey(for: base, isLive: true),
-            RouteMapView.cameraKey(for: base, isLive: true)
-        )
-    }
+    // MARK: - Post-run map camera
+    // The live map follows the latest fix in LiveRunMapPage; see LiveRunPresentationTests.
 
     func testPostRunCameraKeyStillBucketsByPointCount() {
         let coords = (0..<100).map { CLLocationCoordinate2D(latitude: 32 + Double($0) * 0.0001, longitude: 34.8) }
         let sameBucket = Array(coords.prefix(95))
 
         XCTAssertEqual(
-            RouteMapView.cameraKey(for: coords, isLive: false),
-            RouteMapView.cameraKey(for: coords.dropLast(1).map { $0 } + [CLLocationCoordinate2D(latitude: 1, longitude: 1)], isLive: false)
+            RouteMapView.cameraKey(for: coords),
+            RouteMapView.cameraKey(for: coords.dropLast(1).map { $0 } + [CLLocationCoordinate2D(latitude: 1, longitude: 1)])
         )
-        XCTAssertEqual(RouteMapView.cameraKey(for: sameBucket, isLive: false).count, 4)
-        XCTAssertEqual(RouteMapView.cameraKey(for: coords, isLive: false).count, 5)
+        XCTAssertEqual(RouteMapView.cameraKey(for: sameBucket), 4)
+        XCTAssertEqual(RouteMapView.cameraKey(for: coords), 5)
     }
 
     // MARK: - Elevation gain

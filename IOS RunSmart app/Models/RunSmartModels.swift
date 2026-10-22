@@ -910,6 +910,8 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var sourceDeviceName: String? = nil
     /// Pauses recorded by RunSmart during the run. Nil for runs imported from Garmin or Health.
     var pauseIntervals: [RunPauseInterval]? = nil
+    /// On-device estimate of active running energy; nil when weight was unavailable.
+    var estimatedActiveKilocalories: Double? = nil
 }
 
 enum RunSmartAttribution {
