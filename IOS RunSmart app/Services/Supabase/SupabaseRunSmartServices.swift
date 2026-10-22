@@ -1226,12 +1226,22 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             .filter { $0.startedAt >= sevenDaysAgo }
             .count
 
+        // Planned type comes from the cached active plan (same match rule as completeMatchingWorkout),
+        // so the debrief can run in parallel with workout completion.
+        var plannedKind: WorkoutKind?
+        if let userID = currentUserID, let plan = await planRepo.activePlan(authUserID: userID) {
+            plannedKind = TrainingPlanRepository.bestWorkoutMatch(
+                for: run,
+                in: plan.workouts.filter { !$0.completed }.map { $0.toWorkoutSummary() }
+            )?.kind
+        }
+
         let request = RunSmartDTO.RunDebriefRequestDTO(
             runDistanceKm: distanceKm,
             runDurationSeconds: durationSec,
             averagePaceMinPerKm: paceMinPerKm,
             averageHeartRateBPM: run.averageHeartRateBPM,
-            workoutType: "easy",
+            workoutType: Self.debriefWorkoutType(planned: plannedKind, for: run),
             planPhase: nil,
             recentLoadDays: recentCount,
             limitations: []
@@ -2619,7 +2629,24 @@ extension SupabaseRunSmartServices {
         )
     }
 
-    private static func fallbackEffort(for run: RecordedRun) -> String {
+    /// Debrief `workoutType` (free text, max 40 chars on the backend): the matched planned workout's
+    /// type when there is one, otherwise a pace/HR classification of the run itself.
+    static func debriefWorkoutType(planned: WorkoutKind?, for run: RecordedRun) -> String {
+        guard let planned else { return fallbackEffort(for: run) }
+        switch planned {
+        case .easy: return "easy"
+        case .intervals: return "intervals"
+        case .tempo: return "tempo"
+        case .hills: return "hills"
+        case .strength: return "strength"
+        case .recovery: return "recovery"
+        case .long: return "long"
+        case .race: return "race"
+        case .parkrun: return "parkrun"
+        }
+    }
+
+    static func fallbackEffort(for run: RecordedRun) -> String {
         let pace = run.averagePaceSecondsPerKm
         if let heartRate = run.averageHeartRateBPM {
             if heartRate >= 165 { return "hard" }

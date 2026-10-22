@@ -48,13 +48,15 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
         timer = nil
         player?.stop()
         player = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        deactivateAudioSession()
     }
 
     func pauseSession() {
         timer?.invalidate()
         timer = nil
-        player?.pause()
+        player?.stop()
+        player = nil
+        deactivateAudioSession()
     }
 
     func resumeSession() {
@@ -81,14 +83,23 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
     }
 
     // MARK: AVAudioPlayerDelegate
-    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {}
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor [weak self] in
+            self?.deactivateAudioSession()
+        }
+    }
 
     // MARK: Private
 
+    /// Sets the category only. The session is activated around each cue (see `fetchAndPlay`),
+    /// so other apps' music is ducked only while a cue plays, not for the whole run.
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers, .allowBluetoothHFP])
-        try? session.setActive(true)
+    }
+
+    private func deactivateAudioSession() {
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     private func startTimer() {
@@ -140,11 +151,17 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
         await MainActor.run { [weak self] in
             guard let self else { return }
             self.player?.stop()
+            try? AVAudioSession.sharedInstance().setActive(true)
             if let p = try? AVAudioPlayer(data: data) {
                 p.delegate = self
                 p.prepareToPlay()
-                p.play()
-                self.player = p
+                if p.play() {
+                    self.player = p
+                } else {
+                    self.deactivateAudioSession()
+                }
+            } else {
+                self.deactivateAudioSession()
             }
         }
     }

@@ -824,6 +824,25 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         return String(format: "%d:%02d", Int32(total / 60), Int32(total % 60))
     }
 
+    /// Total positive elevation gain in metres from GPS altitude. Returns nil when fewer than
+    /// two points carry altitude. A climb only counts once altitude is at least `hysteresisMeters`
+    /// above the reference level, so GPS altitude noise does not inflate the total.
+    static func elevationGainMeters(from points: [RunRoutePoint], hysteresisMeters: Double = 3) -> Double? {
+        let altitudes = points.compactMap(\.altitude)
+        guard altitudes.count >= 2, let first = altitudes.first else { return nil }
+        var reference = first
+        var gain = 0.0
+        for altitude in altitudes.dropFirst() {
+            if altitude - reference >= hysteresisMeters {
+                gain += altitude - reference
+                reference = altitude
+            } else if reference - altitude >= hysteresisMeters {
+                reference = altitude
+            }
+        }
+        return gain
+    }
+
     /// Real per-kilometer splits derived from route-point GPS distance and
     /// timestamps — WP-37 S5. A split for kilometer N only appears once the
     /// recorded route has actually crossed N*1000m; a run that never completes

@@ -45,7 +45,7 @@ struct PostRunSummaryView: View {
                             // current pace, and both were labeled identically (the
                             // audit's unexplained 5:13 vs 7:24).
                             PostRunStatPill(title: "Avg Pace", value: paceLabel, tint: .accentEnergy)
-                            PostRunStatPill(title: "Route", value: routeLabel, tint: .accentRecovery)
+                            PostRunStatPill(title: "Elev Gain", value: elevationGainLabel, tint: .accentRecovery)
                         }
 
                         RouteMapView(points: displayRun?.routePoints ?? [], title: "Completed route")
@@ -196,9 +196,10 @@ struct PostRunSummaryView: View {
         return RunRecorder.paceLabel(secondsPerKm: run.averagePaceSecondsPerKm)
     }
 
-    private var routeLabel: String {
-        guard let run = displayRun else { return "--" }
-        return run.routePoints.isEmpty ? "No map" : "\(run.routePoints.count) pts"
+    private var elevationGainLabel: String {
+        guard let run = displayRun,
+              let gain = RunRecorder.elevationGainMeters(from: run.routePoints) else { return "--" }
+        return "\(Int(gain.rounded())) m"
     }
 
     private var isShortActivity: Bool {
@@ -518,7 +519,7 @@ private struct CoachAnalysisCard: View {
         RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Label("COACH ANALYSIS", systemImage: "sparkles")
+                    Label("RUN SUMMARY", systemImage: "chart.bar.fill")
                         .font(.labelLG)
                         .foregroundStyle(Color.accentPrimary)
                     Spacer()
@@ -546,11 +547,6 @@ private struct CoachAnalysisCard: View {
                         .foregroundStyle(Color.textSecondary)
                 }
                 .frame(minHeight: 46)
-
-                Text("AI - GPS - RunSmart")
-                    .font(.labelSM)
-                    .foregroundStyle(Color.textTertiary)
-                    .frame(maxWidth: .infinity)
             }
         }
     }

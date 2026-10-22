@@ -1,3 +1,16 @@
+## 2026-10-22: Record-a-run Release A, S0 quick fixes (branch claude/2026-10-22-record-run-release-a)
+
+**Change:** voice-coach audio session is active only while a cue plays, so music is no longer ducked for the whole run; live map follows the runner (camera keyed on the last fix, ~800 m span) instead of freezing after ~1.2 km; debrief sends the matched planned workout type (fallback pace/HR effort) instead of "easy"; template card renamed "RUN SUMMARY" and the "AI - GPS - RunSmart" label removed; "Route: N pts" pill replaced by elevation gain (3 m hysteresis).
+
+**Status:** S0 committed, Release A in progress (S1 next).
+**Current Phase:** Record-a-run Release A.
+**Active Story:** S1 crash and kill recovery.
+**Last Completed Story:** S0 quick fixes.
+**Next Recommended Story:** S1 crash and kill recovery.
+**Blockers:** None. Device check pending: Spotify volume between cues; UIBackgroundModes has only `location`, so cues with the phone locked are unverified (handle in S4).
+**Last Validation:** 2026-10-22: full suite 455 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New `RecordRunQuickFixTests` (9).
+**Last Updated:** 2026-10-22
+
 ## 2026-10-22: Record-a-run UX plan (plan only, no code)
 
 **Why:** the founder asked Grok to review the record-a-run flow against Strava and NRC, then asked for a deeper review and a fix plan.

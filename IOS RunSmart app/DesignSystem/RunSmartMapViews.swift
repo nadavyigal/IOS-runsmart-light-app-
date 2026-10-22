@@ -16,7 +16,37 @@ struct RouteMapView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
     )
 
+    /// Live span (~800 m) the camera keeps while following the runner.
+    static let liveFollowSpanDegrees: CLLocationDegrees = 0.008
+
+    /// Live camera: centered on the latest fix with a fixed span.
+    static func liveFollowRegion(for last: CLLocationCoordinate2D) -> MKCoordinateRegion {
+        MKCoordinateRegion(
+            center: last,
+            span: MKCoordinateSpan(latitudeDelta: liveFollowSpanDegrees, longitudeDelta: liveFollowSpanDegrees)
+        )
+    }
+
+    /// Changes whenever the camera should move. Live: the last coordinate (the display route is
+    /// capped, so a point count would stop changing). Post-run: the point count bucket.
+    struct CameraKey: Equatable {
+        var count: Int
+        var lastLatitude: Double?
+        var lastLongitude: Double?
+    }
+
+    static func cameraKey(for coordinates: [CLLocationCoordinate2D], isLive: Bool) -> CameraKey {
+        if isLive {
+            return CameraKey(count: min(coordinates.count, 2), lastLatitude: coordinates.last?.latitude, lastLongitude: coordinates.last?.longitude)
+        }
+        let bucket = coordinates.count < 3 ? coordinates.count : coordinates.count / 20
+        return CameraKey(count: bucket, lastLatitude: nil, lastLongitude: nil)
+    }
+
     private var region: MKCoordinateRegion {
+        if isLive, let last = coordinates.last {
+            return Self.liveFollowRegion(for: last)
+        }
         guard !coordinates.isEmpty else {
             return Self.defaultRegion
         }
@@ -32,9 +62,8 @@ struct RouteMapView: View {
         )
     }
 
-    private var cameraUpdateToken: Int {
-        if coordinates.count < 3 { return coordinates.count }
-        return coordinates.count / 20
+    private var cameraKey: CameraKey {
+        Self.cameraKey(for: coordinates, isLive: isLive)
     }
 
     var body: some View {
@@ -60,7 +89,7 @@ struct RouteMapView: View {
                 .onAppear {
                     position = .region(region)
                 }
-                .onChange(of: cameraUpdateToken) { _, _ in
+                .onChange(of: cameraKey) { _, _ in
                     position = .region(region)
                 }
             } else {
