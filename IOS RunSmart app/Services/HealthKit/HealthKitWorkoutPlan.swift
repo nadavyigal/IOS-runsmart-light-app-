@@ -228,6 +228,15 @@ struct HealthKitWorkoutPlan {
         )
     }
 
+    // MARK: Import
+
+    /// True when a Health workout was written by RunSmart for a run that is still stored on this
+    /// device. A workout whose run is gone (for example after a reinstall) is not skipped.
+    static func isStoredLocally(metadata: [String: Any]?, localRunIDs: Set<UUID>) -> Bool {
+        guard let value = metadata?[runIDMetadataKey] as? String, let id = UUID(uuidString: value) else { return false }
+        return localRunIDs.contains(id)
+    }
+
     // MARK: Metadata
 
     #if canImport(HealthKit)

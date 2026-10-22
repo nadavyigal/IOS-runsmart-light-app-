@@ -217,7 +217,8 @@ struct HealthKitSyncService {
             return providerID
         })
 
-        let runs = await readRecentRunningWorkouts(store: store, lookbackDays: lookbackDays, limit: limit)
+        let localRunIDs = Set(localStore.loadRuns().map(\.id))
+        let runs = await readRecentRunningWorkouts(store: store, lookbackDays: lookbackDays, limit: limit, localRunIDs: localRunIDs)
         var imported: [RecordedRun] = []
         var skipped = 0
         for run in runs {
@@ -451,7 +452,7 @@ private extension HealthKitSyncService {
         types.insert(objectType)
     }
 
-    func readRecentRunningWorkouts(store: HKHealthStore, lookbackDays: Int, limit: Int) async -> [RecordedRun] {
+    func readRecentRunningWorkouts(store: HKHealthStore, lookbackDays: Int, limit: Int, localRunIDs: Set<UUID>) async -> [RecordedRun] {
         let calendar = Calendar.current
         let start = calendar.date(byAdding: .day, value: -lookbackDays, to: Date()) ?? Date()
         let datePredicate = HKQuery.predicateForSamples(withStart: start, end: Date(), options: [])
@@ -469,8 +470,9 @@ private extension HealthKitSyncService {
 
         var runs: [RecordedRun] = []
         for workout in workouts {
-            // RunSmart wrote this one itself; the run is already in the app.
-            if workout.metadata?[HealthKitWorkoutPlan.runIDMetadataKey] != nil { continue }
+            // RunSmart wrote this one itself and still has the run. After a reinstall the run is
+            // not stored locally, so the Health copy is imported (it is where the GPS comes back from).
+            if HealthKitWorkoutPlan.isStoredLocally(metadata: workout.metadata, localRunIDs: localRunIDs) { continue }
             let heartRate = await averageHeartRateBPM(for: workout, store: store)
             let routePoints = await routePoints(for: workout, store: store)
             let snapshot = HealthKitWorkoutSnapshot(

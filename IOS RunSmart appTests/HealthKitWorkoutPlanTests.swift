@@ -201,6 +201,18 @@ final class HealthKitWorkoutPlanTests: XCTestCase {
         XCTAssertEqual(metadata[HKMetadataKeyIndoorWorkout] as? Bool, false)
     }
 
+    func testImportSkipsOwnWorkoutOnlyWhenTheRunIsStoredLocally() {
+        let run = makeRun()
+        let metadata = HealthKitWorkoutPlan.metadata(for: run)
+        XCTAssertTrue(HealthKitWorkoutPlan.isStoredLocally(metadata: metadata, localRunIDs: [run.id]))
+        // Local store empty (reinstall) or a different run: import it as before.
+        XCTAssertFalse(HealthKitWorkoutPlan.isStoredLocally(metadata: metadata, localRunIDs: []))
+        XCTAssertFalse(HealthKitWorkoutPlan.isStoredLocally(metadata: metadata, localRunIDs: [UUID()]))
+        // Workouts from other apps carry no RunSmart id.
+        XCTAssertFalse(HealthKitWorkoutPlan.isStoredLocally(metadata: nil, localRunIDs: [run.id]))
+        XCTAssertFalse(HealthKitWorkoutPlan.isStoredLocally(metadata: ["RunSmartRunID": "not-a-uuid"], localRunIDs: [run.id]))
+    }
+
     func testEndBeforeStartCollapsesToAnEmptyPlan() {
         var run = makeRun()
         run.endedAt = at(-60)
