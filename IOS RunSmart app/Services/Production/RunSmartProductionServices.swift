@@ -78,6 +78,16 @@ final class RunSmartLocalStore {
         return updated
     }
 
+    /// Applies title and notes to the stored copy of the run, so fields written since the caller loaded it
+    /// (route match, processing result) are not overwritten by a stale copy.
+    func updateRunDetails(_ run: RecordedRun, title: String?, notes: String?) -> RecordedRun {
+        var updated = loadRuns().first(where: { $0.id == run.id }) ?? run
+        updated.title = title
+        updated.notes = notes
+        saveRun(updated)
+        return updated
+    }
+
     func visibleRuns(_ runs: [RecordedRun]) -> [RecordedRun] {
         runs.filter { !isRunHidden($0) }
     }
@@ -738,7 +748,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             movingSeconds: moving,
             distanceMeters: distanceMeters,
             routePoints: routePoints,
-            pauseIntervals: finishedPauseIntervals
+            pauseIntervals: finishedPauseIntervals,
+            plannedTitle: activeWorkoutTitle
         )
         LocalRunCueService.shared.announce("Run finished. " + String(format: "%.2f kilometers. ", run.distanceMeters / 1_000) + "Moving time " + RunCueSchedule.duration(run.movingTimeSeconds))
         store.saveRun(run)
@@ -757,7 +768,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         movingSeconds: TimeInterval,
         distanceMeters: Double,
         routePoints: [RunRoutePoint],
-        pauseIntervals: [RunPauseInterval]
+        pauseIntervals: [RunPauseInterval],
+        plannedTitle: String? = nil
     ) -> RecordedRun {
         let pace = distanceMeters > 0 ? movingSeconds / (distanceMeters / 1_000) : 0
         return RecordedRun(
@@ -773,7 +785,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             routePoints: routePoints,
             syncedAt: nil,
             pauseIntervals: pauseIntervals,
-            estimatedActiveKilocalories: RunCalorieEstimator.activeKilocalories(distanceMeters: distanceMeters, weightKg: RunnerWeightStore.shared.weightKg)
+            estimatedActiveKilocalories: RunCalorieEstimator.activeKilocalories(distanceMeters: distanceMeters, weightKg: RunnerWeightStore.shared.weightKg),
+            title: RunTitle.normalized(plannedTitle, limit: RunTitle.maximumTitleLength)
         )
     }
 
@@ -839,7 +852,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             movingSeconds: moving,
             distanceMeters: checkpoint.distanceMeters,
             routePoints: checkpoint.routePoints,
-            pauseIntervals: recoveredPauseIntervals
+            pauseIntervals: recoveredPauseIntervals,
+            plannedTitle: checkpoint.workoutTitle
         )
         store.saveRun(run)
         checkpointStore.delete()
@@ -1572,6 +1586,14 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         return updated
     }
 
+    func updateRunDetails(_ run: RecordedRun, title: String?, notes: String?) async -> RecordedRun {
+        let updated = store.updateRunDetails(run, title: title, notes: notes)
+        await MainActor.run {
+            NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+        }
+        return updated
+    }
+
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult? {
         RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
     }
@@ -1879,13 +1901,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     }
 
     private func elevationGain(points: [RunRoutePoint]) -> Int {
-        var gain = 0.0
-        for pair in zip(points, points.dropFirst()) {
-            if let a = pair.0.altitude, let b = pair.1.altitude, b > a {
-                gain += b - a
-            }
-        }
-        return Int(gain.rounded())
+        Int(RunRoutePoint.ascentMeters(in: points).rounded())
     }
 }
 

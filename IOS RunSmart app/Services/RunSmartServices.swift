@@ -60,6 +60,7 @@ protocol RunLogging {
     func recentRuns() async -> [RecordedRun]
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun
     func updateRunRPE(_ run: RecordedRun, rpe: Int?) async -> RecordedRun
+    func updateRunDetails(_ run: RecordedRun, title: String?, notes: String?) async -> RecordedRun
     func removeRun(_ run: RecordedRun) async -> Bool
     func finishRun() async
 }
@@ -68,6 +69,13 @@ extension RunLogging {
     func updateRunRPE(_ run: RecordedRun, rpe: Int?) async -> RecordedRun {
         var updated = run
         updated.rpe = rpe
+        return updated
+    }
+
+    func updateRunDetails(_ run: RecordedRun, title: String?, notes: String?) async -> RecordedRun {
+        var updated = run
+        updated.title = title
+        updated.notes = notes
         return updated
     }
 }
@@ -492,6 +500,10 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
 
     func updateRunRPE(_ run: RecordedRun, rpe: Int?) async -> RecordedRun {
         store.updateRunRPE(run, rpe: rpe)
+    }
+
+    func updateRunDetails(_ run: RecordedRun, title: String?, notes: String?) async -> RecordedRun {
+        store.updateRunDetails(run, title: title, notes: notes)
     }
 
     func finishRun() async {}

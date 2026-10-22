@@ -1,3 +1,13 @@
+## 2026-10-23: S10 post-run summary, one coach voice (branch claude/2026-10-22-record-run-release-a)
+
+**Status:** Done, committed, not pushed. **Current Phase:** Record-a-run Release C. **Active Story:** None. **Last Completed Story:** S10 post-run summary redesign. **Next Recommended Story:** S11 Apple Health route + energy; device check of S9 and S10 first.
+**What:** `PostRunSummaryView` is one flow now: "Run saved" header with editable title, date and time, and an overflow menu (Save route, Delete run); hero stats (distance, moving time, avg pace, elevation, calories est.; unknown stats are hidden, not "--"); 220 pt route map, tap opens a dismissable full-screen map; effort; notes; ONE Coach section (the real debrief with its loading state, plan update and Recommended Next Run with Save to Training Plan folded in); per-km pace bar chart plus the split list (partial split included); benchmark; share; "Done" and a "View full report" link. Removed: template `CoachAnalysisCard`, static `RecoveryPlanCard`, "Keep Activity", "View Report (saves)". `PostRunLearningCard` is generic over a footer so the plan update sits inside its single panel.
+**Title and notes:** optional `title` and `notes` on `RecordedRun` (old data decodes). The planned workout title is stored as the title at Finish; otherwise the default is Morning/Afternoon/Evening/Night Run from the start time. Saved through `updateRunDetails` (RunLogging, local store, Supabase and demo services). LOCAL ONLY: the `runs` upsert (`DBRunInsert`) has no title column and its `notes` column holds a system source note, so nothing goes to Supabase (no migration added).
+**Leftover fixed:** `SavedRoute.from(run:)` and the production `elevationGain(points:)` no longer count a climb across a pause break (`RunRoutePoint.ascentMeters(in:)`).
+**Last Validation:** full suite 583 passed / 0 failed / 0 skipped (571 + 12 `PostRunSummaryTests`), iPhone 17 simulator. Screenshots of the summary from a simulated run.
+**Blockers:** Device check pending: keyboard behaviour of title and notes, full-screen map, VoiceOver on the new controls, the AI debrief on a real run (demo mode shows the deterministic coach text).
+**Last Updated:** 2026-10-23
+
 ## 2026-10-23: S9 guided planned workouts (branch claude/2026-10-22-record-run-release-a)
 
 **Status:** Done, committed, not pushed. **Current Phase:** Record-a-run Release C. **Active Story:** None. **Last Completed Story:** S9 guided planned workouts. **Next Recommended Story:** S10 post-run summary redesign; device check of S9 voice and card first.

@@ -636,6 +636,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return updated
     }
 
+    /// Title and notes stay on this device. The `runs` upsert (`DBRunInsert`) has no title column,
+    /// and its `notes` column holds a system source note, so nothing is sent to Supabase.
+    func updateRunDetails(_ run: RecordedRun, title: String?, notes: String?) async -> RecordedRun {
+        let updated = store.updateRunDetails(run, title: title, notes: notes)
+        await postRunsChanged()
+        return updated
+    }
+
     func removeRun(_ run: RecordedRun) async -> Bool {
         let removedLocally = store.removeRun(run)
 

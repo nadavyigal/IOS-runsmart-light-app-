@@ -912,6 +912,65 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var pauseIntervals: [RunPauseInterval]? = nil
     /// On-device estimate of active running energy; nil when weight was unavailable.
     var estimatedActiveKilocalories: Double? = nil
+    /// Runner-edited or planned-workout title. Nil falls back to `RunTitle.defaultTitle`. Optional so stored runs decode.
+    var title: String? = nil
+    /// Free-text notes the runner adds on the post-run summary. Local only. Optional so stored runs decode.
+    var notes: String? = nil
+}
+
+/// Title rules for the post-run summary. Pure so they can be tested without a view.
+enum RunTitle {
+    static let maximumTitleLength = 80
+    static let maximumNotesLength = 2_000
+
+    /// Planned workout title when there is one, else "Morning/Afternoon/Evening/Night Run" from the start time.
+    static func defaultTitle(startedAt: Date, plannedTitle: String? = nil, calendar: Calendar = .current) -> String {
+        if let planned = normalized(plannedTitle, limit: maximumTitleLength) { return planned }
+        let hour = calendar.component(.hour, from: startedAt)
+        switch hour {
+        case 5..<12: return "Morning Run"
+        case 12..<17: return "Afternoon Run"
+        case 17..<21: return "Evening Run"
+        default: return "Night Run"
+        }
+    }
+
+    static func displayTitle(for run: RecordedRun, calendar: Calendar = .current) -> String {
+        defaultTitle(startedAt: run.startedAt, plannedTitle: run.title, calendar: calendar)
+    }
+
+    /// Trimmed text, nil when empty, cut to `limit` characters.
+    static func normalized(_ text: String?, limit: Int) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(limit))
+    }
+
+    /// The title to store after the runner edits the field. Leaving the shown title untouched keeps what is stored;
+    /// clearing the field goes back to the default (nil).
+    static func updatedTitle(input: String, for run: RecordedRun, calendar: Calendar = .current) -> String? {
+        let cleaned = normalized(input, limit: maximumTitleLength)
+        if cleaned == displayTitle(for: run, calendar: calendar) { return run.title }
+        return cleaned
+    }
+
+    static func updatedNotes(input: String) -> String? {
+        normalized(input, limit: maximumNotesLength)
+    }
+}
+
+extension RunRoutePoint {
+    /// Total upward altitude change, never counting a climb across a segment start (a pause or
+    /// recovered-run resume). Each segment start re-anchors, as `RunRecorder.elevationGainMeters` does.
+    static func ascentMeters(in points: [RunRoutePoint]) -> Double {
+        var gain = 0.0
+        for pair in zip(points, points.dropFirst()) {
+            guard pair.1.startsNewSegment != true else { continue }
+            if let a = pair.0.altitude, let b = pair.1.altitude, b > a {
+                gain += b - a
+            }
+        }
+        return gain
+    }
 }
 
 enum RunSmartAttribution {
@@ -1062,12 +1121,7 @@ struct SavedRoute: Identifiable, Codable, Hashable {
 
     static func from(run: RecordedRun, name: String, tags: [String] = [], notes: String = "") -> SavedRoute {
         let source: RouteSource = run.source == .garmin ? .garmin : .recorded
-        var gain = 0.0
-        for pair in zip(run.routePoints, run.routePoints.dropFirst()) {
-            if let a = pair.0.altitude, let b = pair.1.altitude, b > a {
-                gain += b - a
-            }
-        }
+        let gain = RunRoutePoint.ascentMeters(in: run.routePoints)
         let now = Date()
         return SavedRoute(
             id: UUID(),
