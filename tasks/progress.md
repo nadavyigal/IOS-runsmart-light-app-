@@ -1,3 +1,18 @@
+## 2026-10-22: Record-a-run UX plan (plan only, no code)
+
+**Why:** the founder asked Grok to review the record-a-run flow against Strava and NRC, then asked for a deeper review and a fix plan.
+
+**Result:** `tasks/plan-record-run-ux-2026-10-22.md`. Grok's 12 gaps: 10 confirmed, 2 corrected (Tel Aviv map default is never visible; Health route is a read permission only, writing needs a new prompt). 11 new findings, 3 confirmed by a temporary simulator probe (not committed): live map camera stops refitting after ~1.2 km; splits after a pause read km1 5:05, km2 8:30 for an even 5:00 run; 2 min standing with noisy GPS added 735 m. 13 stories in 3 releases (S0 quick fixes first).
+
+**Status:** Plan written, waiting for founder OK.
+**Current Phase:** Record-a-run UX planning.
+**Active Story:** None (plan awaiting approval).
+**Last Completed Story:** Record-a-run UX plan.
+**Next Recommended Story:** S0 quick fixes (audio session only during cues, live map refit, debrief workout type, remove "AI" label on template card, replace "N pts" pill).
+**Blockers:** Founder decisions: auto-pause default, Strava upload.
+**Last Validation:** 2026-10-22: 5 probe tests passed on iPhone 17 simulator (iOS 26.5); probe file deleted after the run. No product code changed.
+**Last Updated:** 2026-10-22
+
 ## 2026-10-21: Coverage matching and route variants (PR open, not merged)
 
 **Why:** PR #160 (merged) re-matches stored runs, but the founder's Oct 18 and Oct 21 loop runs still did not compare: the Oct 21 run has a short detour (+9.8%), and the index-sampled shape score (0.653) and the 8% distance limit both rejected it. The founder accepted the recommendation (coverage matching plus a pace-only state) on 2026-10-21.
