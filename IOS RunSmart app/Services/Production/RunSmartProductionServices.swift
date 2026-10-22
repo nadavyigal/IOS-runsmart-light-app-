@@ -423,6 +423,11 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// An unfinished run found on disk at launch (the app was killed or crashed mid-run).
     /// The Run tab asks the runner to resume, save or discard it.
     @Published private(set) var pendingRecovery: RunSessionCheckpoint?
+    /// When the current GPS search began. Nil outside `.acquiringLocation`.
+    @Published private(set) var acquiringStartedAt: Date?
+    /// True once the GPS search has run long enough to offer "Start anyway". Refreshed once a
+    /// second by `acquiringTimer`, so the Run tab re-renders even when no fix ever arrives.
+    @Published private(set) var canStartWithoutFix = false
 
     /// Title of the planned workout for the run in progress; stored in the checkpoint so a
     /// recovered run keeps its label. Set by the Run tab before `start()`.
@@ -437,6 +442,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     private var accumulatedPausedSeconds: TimeInterval = 0
     private var pauseIntervals: [RunPauseInterval] = []
     private var timer: Timer?
+    private var acquiringTimer: Timer?
     private var lastAcceptedLocation: CLLocation?
     private var lastDisplayLocation: CLLocation?
     private var lastDisplayRouteUpdate: Date?
@@ -466,6 +472,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     nonisolated static let currentPaceMinimumDistance: CLLocationDistance = 15
     nonisolated static let checkpointMinimumInterval: TimeInterval = 10
     nonisolated static let maximumResumableCheckpointAge: TimeInterval = 12 * 3_600
+    /// How long the GPS search runs before the runner may start the clock without a fix.
+    nonisolated static let startWithoutFixDelay: TimeInterval = 20
 
     override convenience init() {
         self.init(store: .shared)
@@ -532,12 +540,78 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
         resetCurrentRun()
         phase = .acquiringLocation
+        beginAcquiringClock()
         if startLocationUpdates {
             manager.startUpdatingLocation()
         }
     }
 
+    /// True once the GPS search has run for `startWithoutFixDelay` seconds.
+    nonisolated static func canStartWithoutFix(acquiringSince: Date?, now: Date) -> Bool {
+        guard let acquiringSince else { return false }
+        return now.timeIntervalSince(acquiringSince) >= startWithoutFixDelay
+    }
+
+    /// Gives up the GPS search and returns to the pre-run screen. No-op outside `.acquiringLocation`.
+    func cancelAcquiring() {
+        guard phase == .acquiringLocation else { return }
+        shouldStartAfterPermission = false
+        stopTracking()
+        resetCurrentRun()
+        activeWorkoutTitle = nil
+        resolveTerminalPhase()
+    }
+
+    /// Starts the clock without waiting for a good fix. Location updates keep running; the
+    /// first usable fix that arrives later becomes the first route point and adds no distance.
+    /// No-op outside `.acquiringLocation`.
+    func startWithoutFix(now: Date = Date()) {
+        guard phase == .acquiringLocation else { return }
+        endAcquiringClock()
+        startedAt = now
+        pausedAt = nil
+        accumulatedPausedSeconds = 0
+        lastErrorMessage = nil
+        phase = .recording
+        startTimer()
+        tick()
+        // Written now, before any fix, so a crash in the first minute is still recoverable.
+        writeCheckpoint()
+    }
+
+    private func beginAcquiringClock() {
+        acquiringTimer?.invalidate()
+        acquiringStartedAt = Date()
+        canStartWithoutFix = false
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshCanStartWithoutFix()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        acquiringTimer = timer
+    }
+
+    private func refreshCanStartWithoutFix() {
+        guard phase == .acquiringLocation else {
+            endAcquiringClock()
+            return
+        }
+        let value = Self.canStartWithoutFix(acquiringSince: acquiringStartedAt, now: Date())
+        if value != canStartWithoutFix {
+            canStartWithoutFix = value
+        }
+    }
+
+    private func endAcquiringClock() {
+        acquiringTimer?.invalidate()
+        acquiringTimer = nil
+        if acquiringStartedAt != nil { acquiringStartedAt = nil }
+        if canStartWithoutFix { canStartWithoutFix = false }
+    }
+
     private func beginRecording(from firstLocation: CLLocation, startedAt startDate: Date = Date()) {
+        endAcquiringClock()
         startedAt = startDate
         pausedAt = nil
         accumulatedPausedSeconds = 0
@@ -796,6 +870,14 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             return
         }
 
+        // While searching for the first fix, kCLErrorLocationUnknown is the normal "no signal
+        // yet" answer. Keep searching so Cancel and Start anyway stay available; only a
+        // real failure (permission denied and the like) ends the search.
+        if phase == .acquiringLocation, (error as? CLError)?.code == .locationUnknown {
+            return
+        }
+
+        endAcquiringClock()
         lastErrorMessage = error.localizedDescription
         phase = .failed
     }
@@ -1001,6 +1083,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         pauseIntervals = []
         currentPaceSeconds = nil
         lastCheckpointLocationTime = nil
+        endAcquiringClock()
     }
 
     private func startTimer() {

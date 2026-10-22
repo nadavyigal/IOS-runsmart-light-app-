@@ -57,7 +57,7 @@ struct LiveRunView: View {
                     .frame(height: max(174, min(218, proxy.size.height * 0.25)))
 
                     if routePoints.isEmpty {
-                        RunSmartRoutePreview(title: "GPS", showGPS: true, height: max(82, min(124, proxy.size.height * 0.14)))
+                        RunSmartRoutePreview(title: "Waiting for GPS", showGPS: false, height: max(82, min(124, proxy.size.height * 0.14)))
                     } else {
                         RunSmartPanel(cornerRadius: 20, padding: 8) {
                             RouteMapView(points: routePoints, title: "GPS", isLive: true)

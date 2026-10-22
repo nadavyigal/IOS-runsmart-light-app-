@@ -43,7 +43,10 @@ struct RunTabView: View {
                     phase: recorder.phase,
                     gpsStatus: gpsStatus,
                     gpsDetail: gpsDetail,
+                    canStartWithoutGPS: recorder.canStartWithoutFix,
                     onStart: startRun,
+                    onCancelGPS: cancelGPSWait,
+                    onStartWithoutGPS: startWithoutGPS,
                     onRoute: openRouteCreator,
                     onAudio: openAudioCues
                 )
@@ -245,10 +248,13 @@ struct RunTabView: View {
             }
             return "Stand near open sky while RunSmart gets a clean first point."
         case .recording:
+            if recorder.routePoints.isEmpty {
+                return "Timer running. Waiting for the first good GPS point; distance starts then."
+            }
             if let accuracy = recorder.horizontalAccuracy {
                 return "Timer running. \(accuracyMessage(accuracy))"
             }
-            return "Timer running - finding the first GPS point."
+            return "Timer running."
         case .paused:
             return "Resume to continue distance tracking or finish to save."
         case .denied:
@@ -296,6 +302,17 @@ struct RunTabView: View {
         Analytics.trackRunStarted(source: source)
         recorder.activeWorkoutTitle = router.plannedWorkout?.title
         recorder.start()
+    }
+
+    private func cancelGPSWait() {
+        RunSmartHaptics.light()
+        recorder.cancelAcquiring()
+    }
+
+    private func startWithoutGPS() {
+        RunSmartHaptics.medium()
+        // run_started already fired when the runner tapped Start; no second event.
+        recorder.startWithoutFix()
     }
 
     private func openRouteCreator() {

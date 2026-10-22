@@ -6,13 +6,15 @@
 
 **S2 run data integrity:** splits skip pause gaps (segment flag on the first point after resume, pause intervals stored on the run), boundary times interpolated, no 8-split cap, partial final split (≥100 m). Jitter filter keeps an anchor and drops fixes over 12 m/s, under max(3 m, 0.5 × accuracy), or near-stationary (speed <0.5 m/s within 2 × accuracy; unknown speed within 1.5 × accuracy). Current pace = path distance over the last ~30 s, "--" when stopped. Four existing fixtures in `RunSmartReadinessTests` updated (implausible jumps, old end-timestamp split attribution).
 
-**Status:** S0, S1, S2 committed. Release A in progress.
-**Current Phase:** Record-a-run Release A.
-**Active Story:** S3 GPS start.
-**Last Completed Story:** S2 run data integrity.
-**Next Recommended Story:** S3 GPS start, then founder review before Release B.
+**S3 GPS start:** while finding GPS, Cancel is always shown; after 20 s "Start anyway" starts the clock (checkpoint written at once) and distance starts at the first good fix. `kCLErrorLocationUnknown` during acquisition no longer drops to `.failed` (lesson added). Live placeholder reads "Waiting for GPS".
+
+**Status:** Release A (S0-S3) committed; PR open for review.
+**Current Phase:** Record-a-run Release A in review.
+**Active Story:** None (Release A in review).
+**Last Completed Story:** S3 GPS start.
+**Next Recommended Story:** Device test of Release A, then S4 local voice cues (add `audio` background mode).
 **Blockers:** None. Device checks pending: Spotify volume between cues; cues with phone locked (UIBackgroundModes has only `location`, handle in S4); force-quit recovery while recording and while paused; paused run alive in background; jitter filter route density at 20 m accuracy.
-**Last Validation:** 2026-10-22: full suite 495 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New `RecordRunQuickFixTests` (9), `RunRecoveryTests` (21), `RunDataIntegrityTests` (20).
+**Last Validation:** 2026-10-22: full suite 507 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New `RecordRunQuickFixTests` (9), `RunRecoveryTests` (21), `RunDataIntegrityTests` (20), `RunGPSStartTests` (12). S3 screenshots on the iPhone 17 Pro simulator (Finding GPS with Cancel, Start anyway after 20 s, live at 0.00 km).
 **Last Updated:** 2026-10-22
 
 ## 2026-10-22: Record-a-run UX plan (plan only, no code)

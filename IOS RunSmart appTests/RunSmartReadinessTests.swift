@@ -2185,9 +2185,11 @@ final class RunSmartReadinessTests: XCTestCase {
         ], now: now)
         XCTAssertEqual(recorder.phase, .acquiringLocation, "weak accuracy should not have started recording yet")
 
-        recorder.locationManager(CLLocationManager(), didFailWithError: CLError(.locationUnknown))
+        // kCLErrorLocationUnknown is transient while searching (see RunGPSStartTests); any other
+        // error still surfaces as .failed before a run has started.
+        recorder.locationManager(CLLocationManager(), didFailWithError: CLError(.network))
 
-        XCTAssertEqual(recorder.phase, .failed, "pre-recording behavior is unchanged: any error still surfaces as .failed before a run has started")
+        XCTAssertEqual(recorder.phase, .failed, "pre-recording behavior is unchanged: a real error still surfaces as .failed before a run has started")
     }
 
     @MainActor

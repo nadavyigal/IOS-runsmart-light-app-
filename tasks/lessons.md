@@ -117,6 +117,8 @@ Review this file at the start of future tasks.
 - **RLS `WITH CHECK (user_id = auth.uid())` does not constrain what a row *points at*.** A child table whose FK only requires the referenced row to exist lets an authenticated user reference another user's row while passing RLS with their own `user_id`. Enforce ownership with a composite FK (`(child_fk, user_id) REFERENCES parent(id, user_id)`), which needs a `UNIQUE (id, user_id)` on the parent. Verify it by *attempting* the cross-user insert and asserting rejection; a structural constraint listing does not prove enforcement.
 - **After a red-check that rebuilds from a stashed tree, DerivedData Products holds the pre-fix binary.** Installing the app from Products after running tests against stashed HEAD silently installs the wrong build — the fixed behavior "stops working" for no visible reason (hit 2026-07-23: `-OPEN_SECONDARY routeCreator` went dead because the installed parse() predated the hook). Rebuild from the working tree before any simulator smoke that follows a stash/checkout validation cycle.
 
+- During GPS acquisition, `kCLErrorLocationUnknown` is the normal "no signal yet" answer, not a failure. `RunRecorder.locationManager(_:didFailWithError:)` used to set `.failed` on it, which dropped the runner out of `.acquiringLocation` and hid Cancel and "Start anyway". Only an explicit denial ends the search; verified in the simulator with location cleared (2026-10-22).
+
 ## Lesson Log
 
 ### 2026-07-19 - Adaptive Coach Device QA Exposed Calendar And Prescription Drift
