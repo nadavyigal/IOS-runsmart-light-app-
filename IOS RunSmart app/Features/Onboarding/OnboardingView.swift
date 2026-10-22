@@ -240,7 +240,7 @@ struct OnboardingView: View {
             subtitle: "Import workouts and wellness data you already track. You can skip and connect later from Profile.",
             symbol: "heart.fill"
         ) {
-            Text("RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health.")
+            Text("RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health with their route, pauses, and estimated active energy.")
                 .font(.caption)
                 .foregroundStyle(Color.textSecondary)
 

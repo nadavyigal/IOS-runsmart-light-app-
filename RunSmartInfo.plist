@@ -38,7 +38,7 @@
 	<key>NSHealthShareUsageDescription</key>
 	<string>RunSmart reads workouts, routes, heart rate, HRV, sleep, steps, and active energy to personalize coaching, readiness, and training load. With your permission, it reads weight to estimate calories during runs.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>RunSmart writes completed GPS runs to Health when you allow it.</string>
+	<string>RunSmart writes completed runs to Health when you allow it: the workout, route, distance, pauses, and estimated active energy.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>RunSmart uses background location only while an outdoor run is in progress, so distance, pace, and route history continue if you lock your phone.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

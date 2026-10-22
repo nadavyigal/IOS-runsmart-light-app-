@@ -494,7 +494,7 @@
 				INFOPLIST_FILE = RunSmartInfo.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "RunSmart reads workouts, routes, heart rate, HRV, sleep, steps, and active energy to personalize coaching, readiness, and training load. Optional weight access estimates running calories.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "RunSmart writes completed GPS runs to Health when you allow it.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "RunSmart writes completed runs to Health when you allow it: the workout, route, distance, pauses, and estimated active energy.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "RunSmart records GPS routes, pace, and distance during outdoor runs.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "RunSmart records GPS routes, pace, and distance during outdoor runs.";
 				INFOPLIST_KEY_RUNSMART_GARMIN_GATEWAY_URL = "";
@@ -537,7 +537,7 @@
 				INFOPLIST_FILE = RunSmartInfo.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "RunSmart reads workouts, routes, heart rate, HRV, sleep, steps, and active energy to personalize coaching, readiness, and training load. Optional weight access estimates running calories.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "RunSmart writes completed GPS runs to Health when you allow it.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "RunSmart writes completed runs to Health when you allow it: the workout, route, distance, pauses, and estimated active energy.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "RunSmart records GPS routes, pace, and distance during outdoor runs.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "RunSmart records GPS routes, pace, and distance during outdoor runs.";
 				INFOPLIST_KEY_RUNSMART_GARMIN_GATEWAY_URL = "";

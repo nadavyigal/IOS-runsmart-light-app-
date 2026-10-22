@@ -59,7 +59,7 @@ struct RouteMapView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack(alignment: .topLeading) {
             if coordinates.count >= 2 {
                 Map(position: $position) {
                     ForEach(Array(Self.lineSegments(for: points).enumerated()), id: \.offset) { _, segment in

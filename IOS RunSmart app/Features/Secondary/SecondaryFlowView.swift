@@ -2144,7 +2144,7 @@ private struct ConnectedServiceDetailScaffold: View {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Permissions")
                     if serviceName == "HealthKit" {
-                        Text("RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health.")
+                        Text("RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health with their route, pauses, and estimated active energy.")
                             .font(.callout)
                             .foregroundStyle(Color.mutedText)
                     }

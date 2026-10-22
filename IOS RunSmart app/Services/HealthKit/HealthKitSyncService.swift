@@ -255,21 +255,20 @@ struct HealthKitSyncService {
 
     func save(_ run: RecordedRun) async {
 #if canImport(HealthKit)
-        guard HKHealthStore.isHealthDataAvailable() else { return }
+        // Only RunSmart's own recordings go back to Health; imported runs came from there.
+        guard run.source == .runSmart, HKHealthStore.isHealthDataAvailable() else { return }
         let store = HKHealthStore()
-        let workout = HKWorkout(
-            activityType: .running,
-            start: run.startedAt,
-            end: run.endedAt,
-            duration: run.movingTimeSeconds,
-            totalEnergyBurned: nil,
-            totalDistance: HKQuantity(unit: .meter(), doubleValue: run.distanceMeters),
-            metadata: [
-                "RunSmartSource": run.source.rawValue,
-                "RunSmartRunID": run.id.uuidString
-            ]
-        )
-        try? await store.save(workout)
+        // No workout write access means the runner never connected Health: stay silent, as before.
+        guard store.authorizationStatus(for: workoutType) == .sharingAuthorized else { return }
+
+        // Runners who allowed the old set (workouts only) are asked for route, distance and
+        // energy here, right after a run, never at launch. Anything they decline is left out.
+        if (try? await authorizationRequestStatus(for: store)) == .shouldRequest {
+            _ = try? await store.requestAuthorization(toShare: shareTypes, read: readTypes)
+        }
+
+        guard !(await isAlreadySaved(run, store: store)) else { return }
+        await writeWorkout(for: run, store: store)
 #endif
     }
 
@@ -311,7 +310,103 @@ private extension HealthKitSyncService {
     var workoutType: HKWorkoutType { HKObjectType.workoutType() }
 
     var shareTypes: Set<HKSampleType> {
-        [workoutType]
+        var types: Set<HKSampleType> = [workoutType, HKSeriesType.workoutRoute()]
+        if let energy = optionalQuantity(.activeEnergyBurned) { types.insert(energy) }
+        if let distance = optionalQuantity(.distanceWalkingRunning) { types.insert(distance) }
+        return types
+    }
+
+    func canWrite(_ type: HKObjectType, store: HKHealthStore) -> Bool {
+        store.authorizationStatus(for: type) == .sharingAuthorized
+    }
+
+    /// True when Health already holds a workout written for this RunSmart run.
+    func isAlreadySaved(_ run: RecordedRun, store: HKHealthStore) async -> Bool {
+        let predicate = HKQuery.predicateForObjects(
+            withMetadataKey: HealthKitWorkoutPlan.runIDMetadataKey,
+            allowedValues: [run.id.uuidString]
+        )
+        let found = await samples(store: store, sampleType: workoutType, predicate: predicate, limit: 1, sortDescriptors: nil)
+        return !found.isEmpty
+    }
+
+    /// Writes the workout, then its route. Each step stands alone: a failed route, energy
+    /// or distance write never loses the workout.
+    func writeWorkout(for run: RecordedRun, store: HKHealthStore) async {
+        let plan = HealthKitWorkoutPlan.make(for: run)
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = .running
+        configuration.locationType = .outdoor
+        let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: .local())
+
+        do {
+            try await builder.beginCollection(at: plan.start)
+        } catch {
+            return
+        }
+        try? await builder.addMetadata(HealthKitWorkoutPlan.metadata(for: run))
+
+        if !plan.pauseEvents.isEmpty {
+            let events = plan.pauseEvents.map { event in
+                HKWorkoutEvent(
+                    type: event.kind == .pause ? .pause : .resume,
+                    dateInterval: DateInterval(start: event.date, duration: 0),
+                    metadata: nil
+                )
+            }
+            try? await builder.addWorkoutEvents(events)
+        }
+
+        var samples: [HKSample] = []
+        if let type = optionalQuantity(.distanceWalkingRunning), canWrite(type, store: store) {
+            samples += plan.distanceSamples.map { sample in
+                HKQuantitySample(
+                    type: type,
+                    quantity: HKQuantity(unit: .meter(), doubleValue: sample.meters),
+                    start: sample.start,
+                    end: sample.end
+                )
+            }
+        }
+        if let energy = plan.energy,
+           let type = optionalQuantity(.activeEnergyBurned),
+           canWrite(type, store: store) {
+            samples.append(HKQuantitySample(
+                type: type,
+                quantity: HKQuantity(unit: .kilocalorie(), doubleValue: energy.kilocalories),
+                start: energy.start,
+                end: energy.end,
+                metadata: [HealthKitWorkoutPlan.energyEstimateMetadataKey: true]
+            ))
+        }
+        if !samples.isEmpty {
+            try? await builder.addSamples(samples)
+        }
+
+        do {
+            try await builder.endCollection(at: plan.end)
+        } catch {
+            return
+        }
+        guard let workout = try? await builder.finishWorkout() else { return }
+
+        await writeRoute(plan.routeSegments, for: workout, runID: run.id, store: store)
+    }
+
+    func writeRoute(_ segments: [[RunRoutePoint]], for workout: HKWorkout, runID: UUID, store: HKHealthStore) async {
+        guard !segments.isEmpty, canWrite(HKSeriesType.workoutRoute(), store: store) else { return }
+        let routeBuilder = HKWorkoutRouteBuilder(healthStore: store, device: .local())
+        do {
+            for segment in segments {
+                try await routeBuilder.insertRouteData(segment.map(HealthKitWorkoutPlan.location(for:)))
+            }
+            _ = try await routeBuilder.finishRoute(
+                with: workout,
+                metadata: [HealthKitWorkoutPlan.runIDMetadataKey: runID.uuidString]
+            )
+        } catch {
+            routeBuilder.discard()
+        }
     }
 
     var readTypes: Set<HKObjectType> {
@@ -374,6 +469,8 @@ private extension HealthKitSyncService {
 
         var runs: [RecordedRun] = []
         for workout in workouts {
+            // RunSmart wrote this one itself; the run is already in the app.
+            if workout.metadata?[HealthKitWorkoutPlan.runIDMetadataKey] != nil { continue }
             let heartRate = await averageHeartRateBPM(for: workout, store: store)
             let routePoints = await routePoints(for: workout, store: store)
             let snapshot = HealthKitWorkoutSnapshot(
