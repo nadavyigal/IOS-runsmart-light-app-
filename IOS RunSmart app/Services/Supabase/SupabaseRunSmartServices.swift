@@ -2653,6 +2653,8 @@ extension SupabaseRunSmartServices {
             if heartRate >= 145 { return "moderate" }
             return "easy"
         }
+        // No distance means no pace: a zero pace must not read as a fast run.
+        guard run.distanceMeters > 0, pace > 0 else { return "easy" }
         if pace <= 300 || run.movingTimeSeconds >= 75 * 60 { return "moderate" }
         if pace >= 420 { return "easy" }
         return "steady"

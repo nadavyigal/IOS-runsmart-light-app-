@@ -3,8 +3,8 @@ import SwiftUI
 struct LiveRunView: View {
     var metrics: [MetricTile]
     var routePoints: [RunRoutePoint]
-    /// Full GPS route for split math — must match post-run `run.routePoints` (WP-38 S12).
-    var splitRoutePoints: [RunRoutePoint]
+    /// Completed full kilometers, cached by `RunRecorder` so the view never walks the whole route.
+    var completedKmSplits: [KilometerSplit]
     var phase: RunRecordingPhase
     var gpsStatus: String
     var gpsDetail: String
@@ -101,10 +101,6 @@ struct LiveRunView: View {
         }
         .foregroundStyle(Color.textPrimary)
         .background(Color.black.opacity(0.52).ignoresSafeArea())
-    }
-
-    private var completedKmSplits: [KilometerSplit] {
-        RunRecorder.kilometerSplits(from: splitRoutePoints).filter { !$0.isPartial }
     }
 }
 

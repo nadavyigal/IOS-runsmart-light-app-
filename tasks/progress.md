@@ -8,13 +8,15 @@
 
 **S3 GPS start:** while finding GPS, Cancel is always shown; after 20 s "Start anyway" starts the clock (checkpoint written at once) and distance starts at the first good fix. `kCLErrorLocationUnknown` during acquisition no longer drops to `.failed` (lesson added). Live placeholder reads "Waiting for GPS".
 
-**Status:** Release A (S0-S3) committed; PR open for review.
+**Review fixes (PR #164):** code-reviewer (8 fixed: denied-mid-run keeps a recoverable checkpoint, stale cue guard, voice setup on recovered resume and unmute, synchronous checkpoint delete, GPS stopped after failed search, live splits cached, per-segment map polylines, zero-distance effort). Codex (2 fixed: checkpoint refreshed every 10 s from the timer, elevation re-anchors per segment; async delete already fixed). Open: `RouteMatchingService.resampled` counts the pause gap in route length.
+
+**Status:** Release A (S0-S3) committed; PR #164 open for review.
 **Current Phase:** Record-a-run Release A in review.
 **Active Story:** None (Release A in review).
 **Last Completed Story:** S3 GPS start.
 **Next Recommended Story:** Device test of Release A, then S4 local voice cues (add `audio` background mode).
 **Blockers:** None. Device checks pending: Spotify volume between cues; cues with phone locked (UIBackgroundModes has only `location`, handle in S4); force-quit recovery while recording and while paused; paused run alive in background; jitter filter route density at 20 m accuracy.
-**Last Validation:** 2026-10-22: full suite 507 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New `RecordRunQuickFixTests` (9), `RunRecoveryTests` (21), `RunDataIntegrityTests` (20), `RunGPSStartTests` (12). S3 screenshots on the iPhone 17 Pro simulator (Finding GPS with Cancel, Start anyway after 20 s, live at 0.00 km).
+**Last Validation:** 2026-10-22: full suite 523 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New `RecordRunQuickFixTests` (9), `RunRecoveryTests` (21), `RunDataIntegrityTests` (20), `RunGPSStartTests` (12). S3 screenshots on the iPhone 17 Pro simulator (Finding GPS with Cancel, Start anyway after 20 s, live at 0.00 km).
 **Last Updated:** 2026-10-22
 
 ## 2026-10-22: Record-a-run UX plan (plan only, no code)

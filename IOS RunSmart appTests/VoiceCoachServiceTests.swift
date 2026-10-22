@@ -39,4 +39,77 @@ final class VoiceCoachServiceTests: XCTestCase {
             accessToken: ""
         ))
     }
+
+    // MARK: Session lifecycle (Release A review)
+
+    func testCueOnlyPlaysInTheSessionThatRequestedIt() {
+        XCTAssertTrue(VoiceCoachService.shouldPlayCue(startedIn: 3, current: 3, isRunSessionLive: true, isEnabled: true))
+        XCTAssertFalse(VoiceCoachService.shouldPlayCue(startedIn: 3, current: 4, isRunSessionLive: true, isEnabled: true), "a pause or stop after the request makes the cue stale")
+        XCTAssertFalse(VoiceCoachService.shouldPlayCue(startedIn: 3, current: 3, isRunSessionLive: false, isEnabled: true))
+        XCTAssertFalse(VoiceCoachService.shouldPlayCue(startedIn: 3, current: 3, isRunSessionLive: true, isEnabled: false))
+    }
+
+    func testPauseAndStopInvalidateAnInFlightCue() {
+        let service = VoiceCoachService.shared
+        let wasEnabled = service.isEnabled
+        defer {
+            service.stopSession()
+            service.setEnabled(wasEnabled)
+        }
+
+        service.setEnabled(true)
+        service.startSession()
+        let requested = service.sessionGeneration
+        XCTAssertTrue(service.isRunSessionLive)
+
+        service.pauseSession()
+        XCTAssertNotEqual(service.sessionGeneration, requested)
+        XCTAssertFalse(service.isRunSessionLive)
+
+        service.resumeSession()
+        let afterResume = service.sessionGeneration
+        service.stopSession()
+        XCTAssertNotEqual(service.sessionGeneration, afterResume)
+    }
+
+    func testResumeWithoutStartRunsTheCueTimer() {
+        let service = VoiceCoachService.shared
+        let wasEnabled = service.isEnabled
+        defer {
+            service.stopSession()
+            service.setEnabled(wasEnabled)
+        }
+
+        service.stopSession()
+        service.setEnabled(true)
+        service.resumeSession()  // a recovered run resumes without startSession()
+
+        XCTAssertTrue(service.isRunSessionLive)
+        XCTAssertTrue(service.isCueTimerRunning)
+    }
+
+    func testEnablingCuesMidRunRestartsTheTimer() {
+        let service = VoiceCoachService.shared
+        let wasEnabled = service.isEnabled
+        defer {
+            service.stopSession()
+            service.setEnabled(wasEnabled)
+        }
+
+        service.setEnabled(true)
+        service.startSession()
+        XCTAssertTrue(service.isCueTimerRunning)
+
+        service.setEnabled(false)
+        XCTAssertFalse(service.isCueTimerRunning)
+        XCTAssertTrue(service.isRunSessionLive, "switching cues off does not end the run session")
+
+        service.setEnabled(true)
+        XCTAssertTrue(service.isCueTimerRunning)
+
+        service.stopSession()
+        service.setEnabled(false)
+        service.setEnabled(true)
+        XCTAssertFalse(service.isCueTimerRunning, "no timer outside a live run")
+    }
 }

@@ -26,7 +26,7 @@ struct RunTabView: View {
                 LiveRunView(
                     metrics: liveMetrics,
                     routePoints: recorder.displayRoutePoints,
-                    splitRoutePoints: recorder.routePoints,
+                    completedKmSplits: recorder.completedKilometerSplits,
                     phase: recorder.phase,
                     gpsStatus: gpsStatus,
                     gpsDetail: gpsDetail,

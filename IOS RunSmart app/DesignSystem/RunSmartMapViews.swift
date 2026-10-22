@@ -11,6 +11,23 @@ struct RouteMapView: View {
         points.map(\.coordinate)
     }
 
+    /// One polyline per continuous stretch. A pause or a recovered-run resume starts a new
+    /// segment (`startsNewSegment`), and the runner may have moved while recording was off, so
+    /// the gap must not be drawn as a straight line. Stretches of a single point cannot be drawn.
+    static func lineSegments(for points: [RunRoutePoint]) -> [[CLLocationCoordinate2D]] {
+        var segments: [[CLLocationCoordinate2D]] = []
+        var current: [CLLocationCoordinate2D] = []
+        for point in points {
+            if point.startsNewSegment == true, !current.isEmpty {
+                segments.append(current)
+                current = []
+            }
+            current.append(point.coordinate)
+        }
+        if !current.isEmpty { segments.append(current) }
+        return segments.filter { $0.count >= 2 }
+    }
+
     private static let defaultRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 32.0853, longitude: 34.7818),
         span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)
@@ -70,8 +87,10 @@ struct RouteMapView: View {
         ZStack(alignment: .bottomLeading) {
             if coordinates.count >= 2 {
                 Map(position: $position) {
-                    MapPolyline(coordinates: coordinates)
-                        .stroke(Color.accentPrimary, lineWidth: 5)
+                    ForEach(Array(Self.lineSegments(for: points).enumerated()), id: \.offset) { _, segment in
+                        MapPolyline(coordinates: segment)
+                            .stroke(Color.accentPrimary, lineWidth: 5)
+                    }
                     if let first = coordinates.first {
                         Marker("Start", systemImage: "play.fill", coordinate: first)
                             .tint(.green)

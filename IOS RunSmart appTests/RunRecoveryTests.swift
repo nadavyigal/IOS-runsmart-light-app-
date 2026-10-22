@@ -379,4 +379,71 @@ final class RunRecoveryTests: XCTestCase {
         XCTAssertEqual(saved.distanceMeters, 5_210, accuracy: 0.001)
         XCTAssertEqual(recorder.phase, .acquiringLocation)
     }
+
+    // MARK: Release A review fixes
+
+    func testPermissionDeniedMidRunKeepsTheRunForTheRecoveryPrompt() throws {
+        let recorder = makeRecorder()
+        recordShortRun(recorder)
+        let distance = recorder.distanceMeters
+        XCTAssertGreaterThan(distance, 20)
+
+        recorder.authorizationStatusProvider = { .denied }
+        recorder.locationManager(CLLocationManager(), didFailWithError: CLError(.denied))
+
+        XCTAssertEqual(recorder.phase, .denied)
+        let pending = try XCTUnwrap(recorder.pendingRecovery, "the prompt must offer Save or Discard")
+        XCTAssertEqual(pending.distanceMeters, distance, accuracy: 0.001)
+        XCTAssertEqual(pending.routePoints.count, 2)
+        XCTAssertFalse(recorder.canResumeRecoveredRun, "resume is withheld without permission")
+        RunCheckpointStore.flush()
+        XCTAssertNotNil(checkpointStore.load(), "a later Start must not find an empty disk")
+
+        let run = try XCTUnwrap(recorder.saveRecoveredRun())
+        defer { RunSmartLocalStore.shared.removeRun(run) }
+        XCTAssertEqual(run.distanceMeters, distance, accuracy: 0.001)
+        XCTAssertEqual(run.routePoints.count, 2)
+        XCTAssertNil(recorder.pendingRecovery)
+    }
+
+    func testFinishAndSaveRecoveredRunDeleteTheCheckpointBeforeReturning() throws {
+        let recorder = makeRecorder()
+        recordShortRun(recorder)
+        XCTAssertTrue(checkpointFileExists())
+
+        let finished = try XCTUnwrap(recorder.finish())
+        defer { RunSmartLocalStore.shared.removeRun(finished) }
+        // No flush: a kill right after finish() must not find the file.
+        XCTAssertFalse(FileManager.default.fileExists(atPath: checkpointFile.path))
+
+        checkpointStore.save(makeCheckpoint())
+        let relaunched = makeRecorder()
+        XCTAssertNotNil(relaunched.pendingRecovery)
+        let saved = try XCTUnwrap(relaunched.saveRecoveredRun())
+        defer { RunSmartLocalStore.shared.removeRun(saved) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: checkpointFile.path))
+    }
+
+    func testCompletedKilometerSplitsAreCachedAndAppearAfterTheFirstKilometer() {
+        let recorder = makeRecorder()
+        let now = Date()
+        recorder.startAcquiringLocation(startLocationUpdates: false)
+        defer { recorder.discard() }
+
+        let fixes: [(Double, TimeInterval)] = [(32.0000, 0), (32.0045, 150), (32.0095, 300)]
+        var counts: [Int] = []
+        for (latitude, offset) in fixes {
+            let time = now.addingTimeInterval(offset)
+            recorder.handleLocationUpdates([makeLocation(latitude: latitude, timestamp: time)], now: time)
+            counts.append(recorder.completedKilometerSplits.count)
+        }
+
+        XCTAssertEqual(counts, [0, 0, 1])
+        XCTAssertEqual(recorder.completedKilometerSplits.first?.km, 1)
+        XCTAssertEqual(recorder.completedKilometerSplits.first?.isPartial, false)
+        XCTAssertEqual(
+            recorder.completedKilometerSplits,
+            RunRecorder.kilometerSplits(from: recorder.routePoints).filter { !$0.isPartial }
+        )
+    }
 }

@@ -423,6 +423,11 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// An unfinished run found on disk at launch (the app was killed or crashed mid-run).
     /// The Run tab asks the runner to resume, save or discard it.
     @Published private(set) var pendingRecovery: RunSessionCheckpoint?
+    /// Completed full kilometers of the run in progress. Recomputed only when the accepted
+    /// distance crosses a new kilometer, so the live screen never re-walks the whole route
+    /// on every redraw.
+    @Published private(set) var completedKilometerSplits: [KilometerSplit] = []
+    private var lastSplitCheckKilometer = 0
     /// When the current GPS search began. Nil outside `.acquiringLocation`.
     @Published private(set) var acquiringStartedAt: Date?
     /// True once the GPS search has run long enough to offer "Start anyway". Refreshed once a
@@ -437,6 +442,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let store: RunSmartLocalStore
     private let checkpointStore: RunCheckpointStore
     private var lastCheckpointLocationTime: Date?
+    /// Wall-clock time of the newest checkpoint write, so the 1 s timer can keep `savedAt`
+    /// fresh when no fixes arrive (Start anyway, standing still, a GPS outage).
+    private var lastCheckpointWriteAt: Date?
     private var startedAt: Date?
     private var pausedAt: Date?
     private var accumulatedPausedSeconds: TimeInterval = 0
@@ -574,9 +582,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         lastErrorMessage = nil
         phase = .recording
         startTimer()
-        tick()
+        tick(now: now)
         // Written now, before any fix, so a crash in the first minute is still recoverable.
-        writeCheckpoint()
+        writeCheckpoint(now: now)
     }
 
     private func beginAcquiringClock() {
@@ -747,6 +755,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         routePoints = checkpoint.routePoints
         displayRoutePoints = Self.simplifiedDisplayRoute(from: checkpoint.routePoints)
         distanceMeters = checkpoint.distanceMeters
+        lastSplitCheckKilometer = Int(checkpoint.distanceMeters / 1_000)
+        completedKilometerSplits = Self.kilometerSplits(from: checkpoint.routePoints).filter { !$0.isPartial }
         activeWorkoutTitle = checkpoint.workoutTitle
         pendingRecovery = nil
         phase = .paused
@@ -796,9 +806,15 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         pendingRecovery = nil
     }
 
-    private func writeCheckpoint() {
-        guard let startedAt, phase == .recording || phase == .paused else { return }
-        checkpointStore.save(RunSessionCheckpoint(
+    private func writeCheckpoint(now: Date = Date()) {
+        guard let checkpoint = currentCheckpoint(now: now) else { return }
+        lastCheckpointWriteAt = now
+        checkpointStore.save(checkpoint)
+    }
+
+    private func currentCheckpoint(now: Date = Date()) -> RunSessionCheckpoint? {
+        guard let startedAt, phase == .recording || phase == .paused else { return nil }
+        return RunSessionCheckpoint(
             startedAt: startedAt,
             accumulatedPausedSeconds: accumulatedPausedSeconds,
             pausedAt: pausedAt,
@@ -806,9 +822,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             routePoints: routePoints,
             distanceMeters: distanceMeters,
             workoutTitle: activeWorkoutTitle,
-            savedAt: Date(),
+            savedAt: now,
             pauseIntervals: pauseIntervals
-        ))
+        )
     }
 
     private func setTrackingPower(low: Bool) {
@@ -861,7 +877,15 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             // transient per Apple's docs and must not silently discard a run that's
             // already in progress; keep recording and surface degraded-GPS copy.
             if (error as? CLError)?.code == .denied {
+                // Keep the run: snapshot it to disk and hand it to the "Unfinished run"
+                // prompt (Save or Discard; Resume is withheld without permission). Without
+                // this the run vanished and a later Start overwrote its checkpoint.
+                if let checkpoint = currentCheckpoint() {
+                    checkpointStore.save(checkpoint)
+                    pendingRecovery = checkpoint
+                }
                 stopTracking()
+                resetCurrentRun()
                 lastErrorMessage = "Location permission is required to record GPS runs."
                 phase = .denied
                 return
@@ -877,6 +901,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             return
         }
 
+        // Stop the receiver and the acquiring clock first, or GPS keeps running behind a
+        // screen that says it has failed.
+        stopTracking()
         endAcquiringClock()
         lastErrorMessage = error.localizedDescription
         phase = .failed
@@ -963,6 +990,13 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         if result.last?.id != points.last?.id {
             result.append(points[lastIndex])
         }
+        // Thinning must not swallow a segment start, or the map would join the two stretches
+        // on either side of a pause with a straight line.
+        let keptIDs = Set(result.map(\.id))
+        if points.contains(where: { $0.startsNewSegment == true && !keptIDs.contains($0.id) }) {
+            let segmentStartIDs = Set(points.filter { $0.startsNewSegment == true }.map(\.id))
+            return points.filter { keptIDs.contains($0.id) || segmentStartIDs.contains($0.id) }
+        }
         return result
     }
 
@@ -990,6 +1024,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         )
         routePoints.append(point)
         lastAcceptedLocation = location
+        refreshCompletedSplitsIfNeeded()
         updateCurrentPace()
         updateDisplayRoute(with: location, force: forceDisplay)
 
@@ -1021,6 +1056,14 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             return false
         }
         return true
+    }
+
+    /// Recomputes full-kilometer splits once per newly crossed kilometer of accepted distance.
+    private func refreshCompletedSplitsIfNeeded() {
+        let crossed = Int(distanceMeters / 1_000)
+        guard crossed > lastSplitCheckKilometer else { return }
+        lastSplitCheckKilometer = crossed
+        completedKilometerSplits = Self.kilometerSplits(from: routePoints).filter { !$0.isPartial }
     }
 
     private func updateCurrentPace(now: Date = Date()) {
@@ -1083,6 +1126,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         pauseIntervals = []
         currentPaceSeconds = nil
         lastCheckpointLocationTime = nil
+        lastCheckpointWriteAt = nil
+        completedKilometerSplits = []
+        lastSplitCheckKilometer = 0
         endAcquiringClock()
     }
 
@@ -1097,9 +1143,11 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         self.timer = timer
     }
 
-    private func tick() {
+    /// Runs every second while a run is live. While recording it also refreshes the checkpoint
+    /// every `checkpointMinimumInterval`, independent of fixes: after a kill, `savedAt` is
+    /// where "Save" ends the run and where "Resume" starts counting paused time.
+    func tick(now: Date = Date()) {
         guard let startedAt else { return }
-        let now = Date()
         elapsedSeconds = now.timeIntervalSince(startedAt)
         movingSeconds = Self.movingDuration(
             startedAt: startedAt,
@@ -1108,6 +1156,10 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             activePauseStartedAt: pausedAt
         )
         updateCurrentPace(now: now)
+        if phase == .recording,
+           lastCheckpointWriteAt.map({ now.timeIntervalSince($0) >= Self.checkpointMinimumInterval }) ?? true {
+            writeCheckpoint(now: now)
+        }
     }
 
     private func stopTracking() {
@@ -1141,18 +1193,28 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// two points carry altitude. A climb only counts once altitude is at least `hysteresisMeters`
     /// above the reference level, so GPS altitude noise does not inflate the total.
     static func elevationGainMeters(from points: [RunRoutePoint], hysteresisMeters: Double = 3) -> Double? {
-        let altitudes = points.compactMap(\.altitude)
-        guard altitudes.count >= 2, let first = altitudes.first else { return nil }
-        var reference = first
+        var altitudeCount = 0
+        var reference: Double?
         var gain = 0.0
-        for altitude in altitudes.dropFirst() {
-            if altitude - reference >= hysteresisMeters {
-                gain += altitude - reference
+        for point in points {
+            guard let altitude = point.altitude else { continue }
+            altitudeCount += 1
+            // Altitude changed while recording was off (elevator, car) is not climbing:
+            // each segment start re-anchors the reference level.
+            if point.startsNewSegment == true || reference == nil {
                 reference = altitude
-            } else if reference - altitude >= hysteresisMeters {
-                reference = altitude
+                continue
+            }
+            if let level = reference {
+                if altitude - level >= hysteresisMeters {
+                    gain += altitude - level
+                    reference = altitude
+                } else if level - altitude >= hysteresisMeters {
+                    reference = altitude
+                }
             }
         }
+        guard altitudeCount >= 2 else { return nil }
         return gain
     }
 

@@ -47,9 +47,8 @@ struct RunSessionCheckpoint: Codable, Equatable {
 /// file and not a `UserDefaults` value like the rest of `RunSmartLocalStore`.
 /// A nil `directoryURL` makes the store inert (writes are dropped, reads return nil).
 ///
-/// `save` and `delete` return immediately: the caller hands over a value-type
-/// snapshot and encoding plus the atomic file write happen on one process-wide serial
-/// queue. Sharing the queue across instances keeps every operation on the file in
+/// `save` returns immediately: the caller hands over a value-type snapshot and encoding
+/// plus the atomic file write happen on one process-wide serial queue. `delete` waits. Sharing the queue across instances keeps every operation on the file in
 /// issue order, so a delete can never be overtaken by an earlier write. `load` runs on
 /// the same queue, so it always sees pending writes; tests call `flush()` before
 /// inspecting the file directly.
@@ -113,9 +112,13 @@ struct RunCheckpointStore {
         }
     }
 
+    /// Synchronous, and still ordered after every earlier queued write. `finish()` and
+    /// `saveRecoveredRun()` save the run first and delete the checkpoint second; if the
+    /// delete were still queued when the app is killed, the next launch would offer the
+    /// already saved run again.
     func delete() {
         guard let fileURL else { return }
-        Self.queue.async {
+        Self.queue.sync {
             try? FileManager.default.removeItem(at: fileURL)
         }
     }

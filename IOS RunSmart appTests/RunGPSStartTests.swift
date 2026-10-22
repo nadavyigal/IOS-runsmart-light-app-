@@ -235,4 +235,38 @@ final class RunGPSStartTests: XCTestCase {
         RunCheckpointStore.flush()
         XCTAssertNil(checkpointStore.load())
     }
+
+    func testCheckpointSavedAtAdvancesFromTheTimerWithoutAnyFix() throws {
+        let recorder = makeRecorder()
+        let start = Date().addingTimeInterval(-60)
+        startedWithoutFix(recorder, now: start)
+        defer { recorder.discard() }
+
+        RunCheckpointStore.flush()
+        XCTAssertEqual(try XCTUnwrap(checkpointStore.load()).savedAt.timeIntervalSince1970, start.timeIntervalSince1970, accuracy: 0.001)
+
+        recorder.tick(now: start.addingTimeInterval(5))
+        RunCheckpointStore.flush()
+        XCTAssertEqual(try XCTUnwrap(checkpointStore.load()).savedAt.timeIntervalSince1970, start.timeIntervalSince1970, accuracy: 0.001, "throttled to 10 s")
+
+        let later = start.addingTimeInterval(11)
+        recorder.tick(now: later)
+        RunCheckpointStore.flush()
+        XCTAssertEqual(try XCTUnwrap(checkpointStore.load()).savedAt.timeIntervalSince1970, later.timeIntervalSince1970, accuracy: 0.001)
+    }
+
+    func testTimerDoesNotWriteCheckpointsWhilePaused() throws {
+        let recorder = makeRecorder()
+        let start = Date().addingTimeInterval(-60)
+        startedWithoutFix(recorder, now: start)
+        defer { recorder.discard() }
+        recorder.pause()
+        RunCheckpointStore.flush()
+        let pausedSave = try XCTUnwrap(checkpointStore.load()).savedAt
+
+        recorder.tick(now: Date().addingTimeInterval(30))
+        RunCheckpointStore.flush()
+
+        XCTAssertEqual(try XCTUnwrap(checkpointStore.load()).savedAt, pausedSave)
+    }
 }
