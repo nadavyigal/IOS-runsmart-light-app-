@@ -1,3 +1,7 @@
+## 2026-10-23 — RunSmart 1.2.0 (35) ready in TestFlight
+
+All record-a-run releases A/B/C are implemented with Strava deferred. Signed archive, Apple Distribution IPA, app/extension versions, signatures, required entitlements, dSYMs, backend/analytics configuration and privacy packaging verified. Xcode upload succeeded; Apple processed build 35; RunSmart Internal now shows **Testing** with one build/one tester, and founder status **Invited** after explicit invitation approval. What to Test contains the focused device checklist. Source `0e3c389`; full code suite 724/0 before version/docs-only changes. Evidence in `docs/qa/releases/1.2.0/`. PR164 remains open. Owner requested testing first: physical iPhone pass is pending, then merge and App Store 1.2.0 submission. No App Review submission or public release yet.
+
 Founder specified **1.2.0 (35)**. The earlier 1.1.10 archive attempt was stopped before upload; no 1.1.10 build was sent to Apple.
 
 ## 2026-10-23 — Record-a-run production candidate 1.2.0 (35)

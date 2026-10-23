@@ -1,3 +1,7 @@
+## 2026-10-23 — RunSmart 1.2.0 (35) ready in TestFlight
+
+All record-a-run releases A/B/C are implemented with Strava deferred. Signed archive, Apple Distribution IPA, app/extension versions, signatures, required entitlements, dSYMs, backend/analytics configuration and privacy packaging verified. Xcode upload succeeded; Apple processed build 35; RunSmart Internal now shows **Testing** with one build/one tester, and founder status **Invited** after explicit invitation approval. What to Test contains the focused device checklist. Source `0e3c389`; full code suite 724/0 before version/docs-only changes. Evidence in `docs/qa/releases/1.2.0/`. PR164 remains open. Owner requested testing first: physical iPhone pass is pending, then merge and App Store 1.2.0 submission. No App Review submission or public release yet.
+
 ## 2026-10-23 — Record-a-run production candidate 1.2.0 (35)
 
 Founder requested production shipment, then confirmed real-iPhone checks are not yet done and requested a testing build. Preparing signed TestFlight candidate with all three releases; Strava remains deferred/hidden. Published 1.1.9 (34) is the prior App Store version. Full code suite already passed 724/0; privacy policy and ASC labels are complete. No public release or merge until device checks. Candidate source/build and results: `docs/qa/releases/1.2.0/`.
@@ -31,7 +35,7 @@ Plan: `tasks/record-run-release-b.md`. Isolated branch `codex/2026-10-22-record-
 - [x] Export distribution IPA after owner Keychain approval; app/extension Apple Distribution, debugging disabled, signatures and final privacy manifest verified.
 - [x] Final candidate: 421/421 simulator tests; fresh iPhone 17e launch inspected.
 - [x] Verify entitlements, permission strings, privacy packaging, public links and local metadata.
-- [ ] Publish corrected native privacy policy and reconcile ASC privacy answers; live policy is inaccurate.
+- [x] Publish corrected native privacy policy and reconcile ASC privacy answers (completed 23 October 2026).
 - [x] Prepare `docs/qa/releases/1.1.9/README.md`, reviewer notes and final device checklist.
 - [ ] Founder: final TestFlight/device smoke, ASC upload/metadata/build selection and submission.
 
