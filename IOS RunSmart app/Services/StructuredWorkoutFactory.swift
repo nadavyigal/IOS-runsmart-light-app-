@@ -340,7 +340,12 @@ enum StructuredWorkoutFactory {
     }
 
     private static let recoveryKeywordRegex = try? NSRegularExpression(
-        pattern: #"\b(recovery|recover|rest|jog|walk)\b"#,
+        pattern: #"\b(recovery|recover|rest)\b|\b(jog|walk)\b[^,;.()]*\bbetween\b"#,
+        options: [.caseInsensitive]
+    )
+    /// A clause about the warm-up or cool-down is never the recovery between reps.
+    private static let warmupCooldownRegex = try? NSRegularExpression(
+        pattern: #"warm[\s-]?up|cool[\s-]?down"#,
         options: [.caseInsensitive]
     )
     private static let quantityInTextRegex = try? NSRegularExpression(
@@ -352,13 +357,15 @@ enum StructuredWorkoutFactory {
     /// between reps". Looks only at clauses that name a recovery, so the rep distance is never
     /// mistaken for it. Returns nil when the text gives no usable length.
     static func parseRecovery(from text: String) -> GuideStep.Target? {
-        guard let keyword = recoveryKeywordRegex, let quantity = quantityInTextRegex else { return nil }
+        guard let keyword = recoveryKeywordRegex, let quantity = quantityInTextRegex,
+              let excluded = warmupCooldownRegex else { return nil }
         let clauses = text.components(separatedBy: CharacterSet(charactersIn: ",;.()")).flatMap {
             $0.components(separatedBy: " with ")
         }
         for clause in clauses {
             let whole = NSRange(clause.startIndex..., in: clause)
-            guard keyword.firstMatch(in: clause, options: [], range: whole) != nil else { continue }
+            guard excluded.firstMatch(in: clause, options: [], range: whole) == nil,
+                  keyword.firstMatch(in: clause, options: [], range: whole) != nil else { continue }
             for match in quantity.matches(in: clause, options: [], range: whole) {
                 guard let range = Range(match.range, in: clause),
                       let target = parseTarget(String(clause[range])) else { continue }

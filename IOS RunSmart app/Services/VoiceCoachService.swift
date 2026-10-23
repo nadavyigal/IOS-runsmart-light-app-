@@ -34,6 +34,13 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
     /// switching them back on mid-run can restart the timer.
     private(set) var isRunSessionLive = false
     var isCueTimerRunning: Bool { timer != nil }
+    /// Server cues speak only when the runner has them on and has not muted spoken cues (the
+    /// live Audio/Muted button turns off `LocalRunCueService`, which is the one mute for both).
+    var isActive: Bool { isEnabled && LocalRunCueService.shared.isEnabled }
+    /// Live run seconds left until the next cue. Kept across pause and resume, so stop-and-go
+    /// running still reaches it. Reset to a full interval when a run session starts or stops.
+    private(set) var cueSecondsRemaining: TimeInterval = VoiceCoachService.cueInterval
+    private var timerScheduledAt: Date?
 
     private static let userDefaultsKey = "voiceCoachEnabled"
     private static let cueInterval: TimeInterval = 300
@@ -45,39 +52,42 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
         super.init()
     }
 
-    func startSession() {
+    func startSession(now: Date = Date()) {
         isRunSessionLive = true
-        silenceCues()
+        silenceCues(now: now)
+        cueSecondsRemaining = Self.cueInterval
         configureAudioSession()
-        startTimer()
+        startTimer(now: now)
     }
 
-    func stopSession() {
+    func stopSession(now: Date = Date()) {
         isRunSessionLive = false
-        silenceCues()
+        silenceCues(now: now)
+        cueSecondsRemaining = Self.cueInterval
     }
 
-    func pauseSession() {
+    /// Keeps the time already run toward the next cue (see `cueSecondsRemaining`).
+    func pauseSession(now: Date = Date()) {
         isRunSessionLive = false
-        silenceCues()
+        silenceCues(now: now)
     }
 
     /// Also configures the audio category: a recovered run lands in `.paused` and resumes
     /// without ever calling `startSession()`. Setting the category twice is harmless.
-    func resumeSession() {
+    func resumeSession(now: Date = Date()) {
         isRunSessionLive = true
         configureAudioSession()
-        startTimer()
+        startTimer(now: now)
     }
 
-    func setEnabled(_ enabled: Bool) {
+    func setEnabled(_ enabled: Bool, now: Date = Date()) {
         isEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: VoiceCoachService.userDefaultsKey)
         if !enabled {
-            silenceCues()
+            silenceCues(now: now)
         } else if isRunSessionLive {
             configureAudioSession()
-            startTimer()
+            startTimer(now: now)
         }
     }
 
@@ -96,7 +106,7 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
     }
 
     func deliverCue(context: VoiceCueContext) {
-        guard isEnabled, isRunSessionLive, !isFetching, !LocalRunCueService.shared.isSpeaking else { return }
+        guard isActive, isRunSessionLive, !isFetching, !LocalRunCueService.shared.isSpeaking else { return }
         isFetching = true
         let generation = sessionGeneration
         Task { [weak self] in
@@ -124,12 +134,13 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
             startedIn: generation,
             current: sessionGeneration,
             isRunSessionLive: isRunSessionLive,
-            isEnabled: isEnabled
+            isEnabled: isActive
         )
     }
 
-    private func silenceCues() {
+    private func silenceCues(now: Date = Date()) {
         sessionGeneration += 1
+        bankElapsedCueTime(now: now)
         timer?.invalidate()
         timer = nil
         player?.stop()
@@ -148,10 +159,29 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    private func startTimer() {
+    /// Counts the live time run since the timer was scheduled toward the next cue, so a resume
+    /// continues from there instead of starting a fresh interval.
+    private func bankElapsedCueTime(now: Date) {
+        if timer != nil, let timerScheduledAt {
+            cueSecondsRemaining = max(1, cueSecondsRemaining - max(0, now.timeIntervalSince(timerScheduledAt)))
+        }
+        timerScheduledAt = nil
+    }
+
+    /// Fires once after the time still owed to the next cue, then every full interval.
+    private func startTimer(now: Date = Date()) {
+        bankElapsedCueTime(now: now)
         timer?.invalidate()
-        let t = Timer(timeInterval: VoiceCoachService.cueInterval, repeats: true) { _ in
-            NotificationCenter.default.post(name: .voiceCoachCueTimerFired, object: nil)
+        timerScheduledAt = now
+        let t = Timer(timeInterval: cueSecondsRemaining, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.timer != nil, self.isRunSessionLive else { return }
+                NotificationCenter.default.post(name: .voiceCoachCueTimerFired, object: nil)
+                self.timer = nil
+                self.timerScheduledAt = nil
+                self.cueSecondsRemaining = Self.cueInterval
+                self.startTimer()
+            }
         }
         RunLoop.main.add(t, forMode: .common)
         timer = t

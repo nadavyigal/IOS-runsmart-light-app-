@@ -1,3 +1,11 @@
+## 2026-10-23: Live-run review fixes on PR 164 (branch claude/2026-10-22-record-run-release-a)
+
+**Status:** Done, committed, not pushed. **Current Phase:** Record-a-run Release C. **Active Story:** None. **Last Completed Story:** ten live-run review findings. **Next Recommended Story:** device check of guide, cues and live map; then push and PR.
+**What:** `WorkoutGuide.rebase` after an auto-pause (guide clock follows the backdated moving time); no auto-pause while the guide is in a recovery step; the live Audio/Muted button now mutes the server voice cue too (`VoiceCoachService.isActive` needs spoken cues on; AI cues stay off by default for users with no stored value); pause, resume and auto-pause cues are queued, auto-pause and auto-resume are debounced 20 s; `tick(allowsCues:)` and cues stopped after tracking in `discard()`; server cue interval is kept across pause and resume; `parseRecovery` ignores warm-up and cool-down clauses; discard needs an alert confirmation; live map keeps the runner's zoom and uses a 30 m bearing held until 10 m of travel; `currentPace` clips or drops the boundary segment and needs 10 s of in-window fixes.
+**Last Validation:** full suite 673 passed / 0 failed / 0 skipped (654 + 19 `RunLiveReviewFixesTests`), iPhone 17 simulator.
+**Blockers:** Device check pending: recovery step standing still, Muted button with AI cues on, discard alert inside the end sheet, map zoom while running.
+**Last Updated:** 2026-10-23
+
 ## 2026-10-23: S12 route map share and Strava upload (branch claude/2026-10-22-record-run-release-a)
 
 **Status:** Done, committed, not pushed. **Current Phase:** Record-a-run Release C. **Active Story:** None. **Last Completed Story:** S12 opt-in route map share and Strava upload. **Next Recommended Story:** Strava app registration and device check (see Blockers), then device check of S9 to S12.

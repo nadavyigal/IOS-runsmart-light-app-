@@ -239,6 +239,21 @@ struct WorkoutGuide: Codable, Equatable {
         return reminder(currentPace: currentPace).map { [$0] } ?? []
     }
 
+    /// Moves the guide's clock back after the recorder removed time and distance it had already
+    /// reported: an auto-pause is backdated to when the runner actually stopped, and the drift
+    /// recorded during the stop is trimmed. `update` only ever moves forward, so without this the
+    /// guide keeps the larger old values and a timed step ends early, by the length of the stop.
+    mutating func rebase(distance: Double, movingTime: TimeInterval) {
+        guard distance.isFinite, movingTime.isFinite, distance >= 0, movingTime >= 0 else { return }
+        last = Snapshot(distance: distance, movingTime: movingTime)
+        // A finished workout keeps its end; a running step cannot start after the new clock.
+        if !isFinished, let index = starts.indices.last {
+            starts[index].distance = min(starts[index].distance, distance)
+            starts[index].movingTime = min(starts[index].movingTime, movingTime)
+        }
+        if let lastReminderAt, lastReminderAt > movingTime { self.lastReminderAt = movingTime }
+    }
+
     /// Where the step ends if the latest sample has reached its target. The unit the step
     /// is measured in is exact, so a 400 m rep cannot drift by a GPS fix per rep.
     private func endOfStep(_ index: Int) -> Snapshot? {

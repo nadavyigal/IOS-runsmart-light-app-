@@ -515,6 +515,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     nonisolated static let currentPaceWindow: TimeInterval = 30
     nonisolated static let currentPaceMaximumAge: TimeInterval = 10
     nonisolated static let currentPaceMinimumDistance: CLLocationDistance = 15
+    /// Seconds of in-window fixes needed before a current pace is shown (see `currentPace`).
+    nonisolated static let currentPaceMinimumHistory: TimeInterval = 10
     nonisolated static let checkpointMinimumInterval: TimeInterval = 10
     nonisolated static let maximumResumableCheckpointAge: TimeInterval = 12 * 3_600
     /// How long the GPS search runs before the runner may start the clock without a fix.
@@ -690,12 +692,23 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         isAutoPaused = automatic
         autoPauseDetector.reset()
         phase = .paused
-        LocalRunCueService.shared.announce(automatic ? "Auto-paused." : "Run paused.")
+        // Queued so a pause never cuts off a step or split cue; an auto-pause is also debounced so
+        // stop-and-go running does not repeat it.
+        if automatic {
+            LocalRunCueService.shared.announce("Auto-paused.", queued: true, debounce: .autoPause)
+        } else {
+            LocalRunCueService.shared.announce("Run paused.", queued: true)
+        }
         if automatic { RunSmartHaptics.light() }
         // Manual pauses use low-power GPS. Automatic pauses retain frequent fixes
         // so movement can resume the run, including while the phone is locked.
         setTrackingPower(low: !automatic)
         tick()
+        if automatic {
+            // The pause was backdated and drift distance trimmed, so moving time and distance just
+            // went down. Bring the guide back with them, before the checkpoint stores it.
+            workoutGuide?.rebase(distance: distanceMeters, movingTime: movingSeconds)
+        }
         writeCheckpoint()
     }
 
@@ -703,6 +716,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     private func resume(at now: Date) {
         guard phase == .paused else { return }
+        let wasAutoPaused = isAutoPaused
         isAutoPaused = false
         autoPauseDetector.reset()
         if let pausedAt {
@@ -715,7 +729,7 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         // instead of counting that gap.
         lastAcceptedLocation = nil
         phase = .recording
-        LocalRunCueService.shared.announce("Run resumed.")
+        LocalRunCueService.shared.announce("Run resumed.", queued: true, debounce: wasAutoPaused ? .autoResume : nil)
         setTrackingPower(low: false)
         manager.startUpdatingLocation()
         tick()
@@ -723,9 +737,10 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func discard() {
-        LocalRunCueService.shared.stop()
         shouldStartAfterPermission = false
         stopTracking()
+        // After tracking stops: nothing can speak once the run is gone.
+        LocalRunCueService.shared.stop()
         resetCurrentRun()
         checkpointStore.delete()
         activeWorkoutTitle = nil
@@ -1035,8 +1050,11 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             horizontalAccuracy = location.horizontalAccuracy
             // Auto-pause starts judging once the run has a first route point. A run started
             // with "Start anyway" therefore cannot pause before its first fix.
+            // Standing in a recovery step is part of the workout, not a stop: moving time would
+            // freeze and the step would never end. An auto-pause already in force can still resume.
+            let isInRecoveryStep = workoutGuide?.currentStep?.kind == .recovery
             if autoPauseEnabled, !isEndDecisionPending, !routePoints.isEmpty, location.horizontalAccuracy <= 25,
-               phase == .recording || isAutoPaused {
+               (phase == .recording && !isInRecoveryStep) || isAutoPaused {
                 switch autoPauseDetector.update(speed: location.speed, at: location.timestamp, isAutoPaused: isAutoPaused) {
                 case .pause(let since):
                     // Remove any low-speed drift recorded during the debounce. The
@@ -1176,28 +1194,47 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     /// Pace in seconds per kilometer over roughly the last 30 seconds of the current
-    /// segment, using summed path distance. Nil when that window covers under 15 m or the
-    /// newest point is more than 10 seconds old (stopped, or no GPS).
+    /// segment, using summed path distance. Nil when that window covers under 15 m, holds
+    /// under 10 s of fixes, or the newest point is more than 10 seconds old (stopped, or no GPS).
+    ///
+    /// The segment that crosses the start of the window is clipped in proportion to the window,
+    /// and dropped when it spans a GPS gap longer than the window: a fix that arrives minutes
+    /// after the previous one must not show the whole gap's average as the current pace.
     static func currentPace(points: [RunRoutePoint], now: Date) -> TimeInterval? {
         guard let newest = points.last else { return nil }
         guard now.timeIntervalSince(newest.timestamp) <= currentPaceMaximumAge else { return nil }
 
         let windowStart = newest.timestamp.addingTimeInterval(-currentPaceWindow)
         var meters: Double = 0
-        var oldest = newest
+        // Oldest fix that is itself inside the window; the clipped boundary segment is not one.
+        var oldestFix = newest.timestamp
+        // Start of the time span `meters` covers.
+        var spanStart = newest.timestamp
         var index = points.count - 1
         while index > 0 {
             let current = points[index]
-            if current.startsNewSegment == true || oldest.timestamp <= windowStart { break }
+            if current.startsNewSegment == true || spanStart <= windowStart { break }
             let previous = points[index - 1]
-            meters += CLLocation(latitude: previous.latitude, longitude: previous.longitude)
+            let segmentMeters = CLLocation(latitude: previous.latitude, longitude: previous.longitude)
                 .distance(from: CLLocation(latitude: current.latitude, longitude: current.longitude))
-            oldest = previous
+            if previous.timestamp >= windowStart {
+                meters += segmentMeters
+                oldestFix = previous.timestamp
+                spanStart = previous.timestamp
+            } else {
+                let segmentSeconds = current.timestamp.timeIntervalSince(previous.timestamp)
+                if segmentSeconds > 0, segmentSeconds <= currentPaceWindow {
+                    meters += segmentMeters * (current.timestamp.timeIntervalSince(windowStart) / segmentSeconds)
+                    spanStart = windowStart
+                }
+                break
+            }
             index -= 1
         }
 
-        let seconds = newest.timestamp.timeIntervalSince(oldest.timestamp)
-        guard meters >= currentPaceMinimumDistance, seconds > 0 else { return nil }
+        let seconds = newest.timestamp.timeIntervalSince(spanStart)
+        guard newest.timestamp.timeIntervalSince(oldestFix) >= currentPaceMinimumHistory,
+              meters >= currentPaceMinimumDistance, seconds > 0 else { return nil }
         return seconds / (meters / 1_000)
     }
 
@@ -1252,8 +1289,10 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// Runs every second while a run is live. While recording it also refreshes the checkpoint
     /// every `checkpointMinimumInterval`, independent of fixes: after a kill, `savedAt` is
     /// where "Save" ends the run and where "Resume" starts counting paused time.
-    func tick(now: Date = Date()) {
+    func tick(now: Date = Date(), allowsCues: Bool = true) {
         guard let startedAt else { return }
+        // Cues are decided from the phase at the start of the tick, while the run is still live.
+        let isRecordingRun = phase == .recording
         elapsedSeconds = now.timeIntervalSince(startedAt)
         movingSeconds = Self.movingDuration(
             startedAt: startedAt,
@@ -1266,13 +1305,15 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         } else if currentPaceSeconds != nil {
             currentPaceSeconds = nil
         }
-        guard phase == .recording else { return }
-        let guideCues = workoutGuide?.update(
-            distance: distanceMeters,
-            movingTime: movingSeconds,
-            currentPace: currentPaceSeconds
-        ) ?? []
-        LocalRunCueService.shared.update(distance: distanceMeters, movingTime: movingSeconds, guide: guideCues)
+        guard isRecordingRun, phase == .recording else { return }
+        if allowsCues {
+            let guideCues = workoutGuide?.update(
+                distance: distanceMeters,
+                movingTime: movingSeconds,
+                currentPace: currentPaceSeconds
+            ) ?? []
+            LocalRunCueService.shared.update(distance: distanceMeters, movingTime: movingSeconds, guide: guideCues)
+        }
         if lastCheckpointWriteAt.map({ now.timeIntervalSince($0) >= Self.checkpointMinimumInterval }) ?? true {
             writeCheckpoint(now: now)
         }
@@ -1283,7 +1324,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         setTrackingPower(low: false)
         timer?.invalidate()
         timer = nil
-        tick()
+        // Final clock update only. The run is ending (finished or discarded), so no cue may speak.
+        tick(allowsCues: false)
         startedAt = nil
         pausedAt = nil
     }

@@ -13,6 +13,7 @@ struct RunTabView: View {
     @State private var showsWeightSetup = false
     @State private var resumeAfterEndSheet = false
     @State private var isConfirmingFinish = false
+    @State private var isConfirmingDiscard = false
 
 #if DEBUG
     /// Simulator QA: `-RUNSMART_DEMO_MODE -AUTO_START_RUN -DEMO_GUIDE_INTERVALS` starts a run with a
@@ -173,15 +174,23 @@ struct RunTabView: View {
                 }
                     .buttonStyle(.bordered)
                 Button("Discard Run", role: .destructive) {
-                    resumeAfterEndSheet = false
-                    isConfirmingFinish = false
-                    discardRun()
+                    isConfirmingDiscard = true
                 }
             }
             .padding(28)
             .frame(maxWidth: .infinity)
             .presentationDetents([.medium, .large])
             .interactiveDismissDisabled()
+            .alert("Discard this run?", isPresented: $isConfirmingDiscard) {
+                Button("Discard Run", role: .destructive) {
+                    resumeAfterEndSheet = false
+                    isConfirmingFinish = false
+                    discardRun()
+                }
+                Button("Keep Run", role: .cancel) {}
+            } message: {
+                Text("The distance, time and route of this run will be deleted. This cannot be undone.")
+            }
         }
         .sheet(isPresented: $showsWeightSetup) {
             NavigationStack {

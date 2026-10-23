@@ -10,19 +10,58 @@ enum LiveRunMapPresentation {
         var heading: Double
     }
 
-    static func target(for points: [RunRoutePoint]) -> Target? {
+    /// Camera distance in metres when the runner has not zoomed yet.
+    static let defaultDistance = 800.0
+    /// Path length behind the latest fix that the travel bearing is measured over.
+    static let headingLookback = 30.0
+    /// The bearing is held until the latest fix is at least this far from the lookback point.
+    static let headingMinimumTravel = 10.0
+
+    /// `previousHeading` is kept while the runner has not moved far enough for a steady bearing,
+    /// so the map does not spin while standing still or on a GPS jitter.
+    static func target(for points: [RunRoutePoint], previousHeading: Double? = nil) -> Target? {
         guard let last = points.last else { return nil }
-        var heading = 0.0
-        if points.count >= 2, last.startsNewSegment != true {
-            let previous = points[points.count - 2]
-            let latitude1 = previous.latitude * .pi / 180
-            let latitude2 = last.latitude * .pi / 180
-            let deltaLongitude = (last.longitude - previous.longitude) * .pi / 180
-            let y = sin(deltaLongitude) * cos(latitude2)
-            let x = cos(latitude1) * sin(latitude2) - sin(latitude1) * cos(latitude2) * cos(deltaLongitude)
-            heading = (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
+        return Target(
+            latitude: last.latitude,
+            longitude: last.longitude,
+            heading: heading(for: points) ?? previousHeading ?? 0
+        )
+    }
+
+    /// Bearing from the point about `headingLookback` metres back along the current segment to the
+    /// latest fix. Nil when there is no history in the segment or the runner moved under
+    /// `headingMinimumTravel` metres from that point.
+    static func heading(for points: [RunRoutePoint]) -> Double? {
+        guard let last = points.last, points.count >= 2, last.startsNewSegment != true else { return nil }
+        var anchor = last
+        var pathMeters = 0.0
+        var index = points.count - 1
+        while index > 0, pathMeters < headingLookback {
+            let current = points[index]
+            if current.startsNewSegment == true { break }
+            let previous = points[index - 1]
+            pathMeters += meters(from: previous, to: current)
+            anchor = previous
+            index -= 1
         }
-        return Target(latitude: last.latitude, longitude: last.longitude, heading: heading)
+        guard meters(from: anchor, to: last) >= headingMinimumTravel else { return nil }
+        let latitude1 = anchor.latitude * .pi / 180
+        let latitude2 = last.latitude * .pi / 180
+        let deltaLongitude = (last.longitude - anchor.longitude) * .pi / 180
+        let y = sin(deltaLongitude) * cos(latitude2)
+        let x = cos(latitude1) * sin(latitude2) - sin(latitude1) * cos(latitude2) * cos(deltaLongitude)
+        return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
+    }
+
+    /// Camera distances outside this range are not a runner's zoom (the initial automatic camera
+    /// frames far more than a run), so they never replace the remembered distance.
+    static func rememberedDistance(from cameraDistance: Double, current: Double) -> Double {
+        (50.0...50_000.0).contains(cameraDistance) ? cameraDistance : current
+    }
+
+    private static func meters(from a: RunRoutePoint, to b: RunRoutePoint) -> Double {
+        CLLocation(latitude: a.latitude, longitude: a.longitude)
+            .distance(from: CLLocation(latitude: b.latitude, longitude: b.longitude))
     }
 }
 
@@ -32,10 +71,9 @@ struct LiveRunMapPage: View {
     var isPaused: Bool
     var isAutoPaused: Bool
     @State private var position: MapCameraPosition = .automatic
-
-    private var cameraTarget: LiveRunMapPresentation.Target? {
-        LiveRunMapPresentation.target(for: points)
-    }
+    /// Follows the runner's own pinch zoom; the camera keeps this distance on every new fix.
+    @State private var cameraDistance = LiveRunMapPresentation.defaultDistance
+    @State private var lastHeading: Double?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -56,8 +94,11 @@ struct LiveRunMapPage: View {
                     }
                 }
                 .mapStyle(.standard(elevation: .flat))
+                .onMapCameraChange(frequency: .onEnd) { context in
+                    cameraDistance = LiveRunMapPresentation.rememberedDistance(from: context.camera.distance, current: cameraDistance)
+                }
                 .onAppear { followLatestFix() }
-                .onChange(of: cameraTarget) { _, _ in followLatestFix() }
+                .onChange(of: points.last?.id) { _, _ in followLatestFix() }
                 .accessibilityLabel("Live route map, following your latest GPS position")
             } else {
                 Rectangle().fill(Color.surfaceElevated)
@@ -102,10 +143,11 @@ struct LiveRunMapPage: View {
     }
 
     private func followLatestFix() {
-        guard let target = cameraTarget else { return }
+        guard let target = LiveRunMapPresentation.target(for: points, previousHeading: lastHeading) else { return }
+        lastHeading = target.heading
         position = .camera(MapCamera(
             centerCoordinate: CLLocationCoordinate2D(latitude: target.latitude, longitude: target.longitude),
-            distance: 800,
+            distance: cameraDistance,
             heading: target.heading,
             pitch: 0
         ))

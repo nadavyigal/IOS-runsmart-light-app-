@@ -106,6 +106,25 @@ struct RunCueSchedule {
     }
 }
 
+/// Announcements that stop-and-go running can trigger over and over.
+enum RunCueRepeatKind: Hashable {
+    case autoPause, autoResume
+}
+
+/// Drops an announcement of a kind that was already made less than `interval` seconds ago.
+struct RunCueDebouncer {
+    static let defaultInterval: TimeInterval = 20
+    private var lastAt: [RunCueRepeatKind: Date] = [:]
+
+    mutating func allows(_ kind: RunCueRepeatKind, at date: Date, interval: TimeInterval = defaultInterval) -> Bool {
+        if let last = lastAt[kind], date.timeIntervalSince(last) < interval, date >= last { return false }
+        lastAt[kind] = date
+        return true
+    }
+
+    mutating func reset() { lastAt = [:] }
+}
+
 @MainActor
 final class LocalRunCueService: NSObject, ObservableObject {
     static let shared = LocalRunCueService()
@@ -113,13 +132,18 @@ final class LocalRunCueService: NSObject, ObservableObject {
         didSet {
             settings.save()
             if oldValue.cadence != settings.cadence { schedule.changeCadence(settings.cadence) }
-            if !settings.enabled { synthesizer.stopSpeaking(at: .immediate) }
+            if !settings.enabled {
+                synthesizer.stopSpeaking(at: .immediate)
+                // One mute for every spoken cue: the server voice cue stops with the local ones.
+                VoiceCoachService.shared.cancelPlaybackForLocalCue()
+            }
         }
     }
     var isEnabled: Bool { settings.enabled }
     var isSpeaking: Bool { synthesizer.isSpeaking }
     private let synthesizer = AVSpeechSynthesizer()
     private var schedule = RunCueSchedule()
+    private var debouncer = RunCueDebouncer()
     /// Injection avoids starting an audio device in recorder unit tests.
     var speechHandler: ((String) -> Void)?
 
@@ -134,6 +158,7 @@ final class LocalRunCueService: NSObject, ObservableObject {
     func setEnabled(_ enabled: Bool) { settings.enabled = enabled }
     func begin(distance: Double = 0, movingTime: TimeInterval = 0, recovered: Bool = false) {
         schedule.reset(distance: distance, movingTime: movingTime)
+        debouncer.reset()
         announce(recovered ? "Run restored. Paused." : "Run started.")
     }
     func update(distance: Double, movingTime: TimeInterval, guide: [WorkoutGuide.Announcement] = []) {
@@ -155,8 +180,11 @@ final class LocalRunCueService: NSObject, ObservableObject {
         return parts.isEmpty ? nil : parts.joined(separator: " ")
     }
 
-    func announce(_ text: String, queued: Bool = false) {
+    /// `queued` waits for speech in progress instead of cutting it off. `debounce` drops the
+    /// announcement when one of the same kind was made in the last 20 seconds.
+    func announce(_ text: String, queued: Bool = false, debounce kind: RunCueRepeatKind? = nil, now: Date = Date()) {
         guard settings.enabled else { return }
+        if let kind, !debouncer.allows(kind, at: now) { return }
         VoiceCoachService.shared.cancelPlaybackForLocalCue()
         if let speechHandler { speechHandler(text); return }
         if !queued { synthesizer.stopSpeaking(at: .immediate) }
