@@ -672,3 +672,7 @@ Trigger: on `main` (1.1.8 (33)) ten synchronous tests died with SIGABRT on the i
 - Not a shipped crash: app code and Supabase only bind task-locals with `async`, and below iOS 26 the back-deploy shim never calls the runtime function.
 
 Future rule: every new `final class` (not `NSObject`, not `nonisolated`) whose teardown only releases stored properties gets `nonisolated deinit {}`. Run the suite on the iOS 26.3 iPhone 17 simulator as well as 26.5 before calling a release green.
+
+## App Store privacy: verify new purposes after publishing
+
+Adding Analytics to an existing linked data type can leave the new purpose unlinked in Apple’s saved product preview even when the initial wizard shows Yes. Reopen the wizard and explicitly correct the persisted linkage; reload and inspect See Details before claiming the privacy labels match the app.

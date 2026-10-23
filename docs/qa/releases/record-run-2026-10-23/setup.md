@@ -18,4 +18,4 @@ Review updated PR #164 and complete the physical iPhone checks: locked-phone cue
 
 ## Privacy publication
 
-The corrected policy is live and browser-verified at https://www.runsmart-ai.com/privacy (web source `63e82cd6`, production `dpl_CDGcoK8VvKf87WYr6VdXjCw7m38Y`, web PR147 open). It covers native storage, identified analytics, optional Health weight/writes, and opt-in map sharing. App Store Connect currently redirects to Apple sign-in; actual answers remain unverified until the owner signs in. Prepared mapping: `app-privacy.md`.
+The corrected policy is live and browser-verified at https://www.runsmart-ai.com/privacy (web source `63e82cd6`, production `dpl_CDGcoK8VvKf87WYr6VdXjCw7m38Y`, web PR147 open). It covers native storage, identified analytics, optional Health weight/writes, and opt-in map sharing. App Store Connect privacy answers are now published and verified for app 6768297840: missing Name/User Content added; User ID/Fitness analytics and account-linked Product Interaction corrected. Final mapping and evidence: `app-privacy.md`. Physical-device checks remain.

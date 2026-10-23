@@ -3,7 +3,7 @@
 - [x] Founder deferred Strava; keep client ID empty and integration hidden; no deploy/subscription.
 - [x] Address final review weight-deletion and Health metadata/timestamp findings.
 - [x] Consolidated simulator tests 724/0 and final diff review.
-- [x] Correct native Health/share privacy policy in web branch and prepare App Privacy answers; ASC verification pending.
+- [x] Correct native Health/share privacy policy in web branch and publish and verify App Privacy answers in ASC (9 data types).
 - [x] Push fixes to existing PR #164; physical device and merge gates remain open.
 
 ## 2026-10-22 — Record-a-run Release B

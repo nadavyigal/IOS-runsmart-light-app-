@@ -1,0 +1,227 @@
+Browser tab: 4, Title: "App Store Connect", URL: "https://appstoreconnect.apple.com/apps/6768297840/distribution/privacy".
+1 AXWebArea App Store Connect, URL: appstoreconnect.apple.com/apps/6768297840/distribution/privacy
+	2 container
+		3 container App Store Connect
+			4 container
+				5 heading App Store Connect, Value: 1
+					16 link Description: App Store Connect, Value: appstoreconnect.apple.com/, ID: logo
+				6 container Global
+					17 content list
+						18 link Description: Apps, Value: appstoreconnect.apple.com/apps
+						19 link Description: Xcode Cloud, Value: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/xcode-cloud
+						20 link Description: Trends, Value: appstoreconnect.apple.com/trends
+						21 link Description: Reports, Value: appstoreconnect.apple.com/itc/payments_and_financial_reports
+						22 link Description: Business, Value: appstoreconnect.apple.com/business
+						23 link Description: Users and Access, Value: appstoreconnect.apple.com/access/users
+				24 button Nadav Yigal Nadav Yigal Account name menu
+		25 container sub
+			26 pop up button (collapsed) Description: Apps menu, RunSmart: AI Run Coaching, selected, Secondary Actions: Expand
+				27 container
+					28 image RunSmart: AI Run Coaching
+					29 text RunSmart: AI Run Coaching
+				30 image
+			31 container Apps
+				32 container
+					33 text Distribution
+					34 image
+				35 content list
+					36 link Description: Distribution, Value: appstoreconnect.apple.com/apps/6768297840/distribution
+					37 link Description: Analytics, Value: appstoreconnect.apple.com/apps/6768297840/analytics
+					38 link Description: TestFlight, Value: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight
+		39 container
+			192 container appstore
+				193 container
+					194 heading App Privacy, Value: 2
+						195 pop up button (collapsed) App Privacy, Secondary Actions: Expand
+							196 text App Privacy
+							197 image
+					198 text Published a few seconds ago by Nadav Yigal
+					199 image
+					200 text To make changes to the privacy policy, create a new app version. All other changes will be immediately available.
+					201 heading Privacy Policy, Value: 3
+						202 text Privacy Policy
+					203 container
+						204 pop up button (disabled, collapsed) English (U.S.), Secondary Actions: Expand
+						205 button ?
+					206 text Privacy Policy URL
+					207 button (collapsed) Description: More information, Secondary Actions: Expand
+					208 text https://www.runsmart-ai.com/privacy
+					209 text User Privacy Choices URL
+					210 button (collapsed) Description: More information, Secondary Actions: Expand
+					211 text –
+					212 heading Product Page Preview, Value: 3
+						213 text Product Page Preview
+					214 button See Details
+					215 image
+					216 text Data Linked to You The following data may be collected and linked to your identity:
+					217 image
+					218 text Identifiers
+					219 image
+					220 text Location
+					221 image
+					222 text Health & Fitness
+					223 image
+					224 text Usage Data
+					225 image
+					226 text Contact Info
+					227 image
+					228 text User Content
+					229 image
+					230 text Data Not Linked to You The following data may be collected but is not linked to your identity:
+					231 image
+					232 text Diagnostics
+					233 heading Data Types, Value: 3
+						234 text Data Types
+					235 button Edit
+					236 content list
+						237 container
+							238 AXListMarker • 
+							239 text 9 data types collected from this app:  User ID ,  Precise Location ,  Fitness ,  Product Interaction ,  Email Address ,  Crash Data ,  Health ,  Other User Content ,  Name
+					240 image
+					241 text Contact Info
+					242 text Name
+					243 button (collapsed) Description: More information, Secondary Actions: Expand
+					244 button Edit
+					245 content list
+						246 container
+							247 AXListMarker • 
+							248 text Used for App Functionality
+						249 container
+							250 AXListMarker • 
+							251 text Linked to the user's identity
+					252 text Email Address
+					253 button (collapsed) Description: More information, Secondary Actions: Expand
+					254 button Edit
+					255 content list
+						256 container
+							257 AXListMarker • 
+							258 text Used for App Functionality
+						259 container
+							260 AXListMarker • 
+							261 text Linked to the user's identity
+					262 image
+					263 text Health & Fitness
+					264 text Health
+					265 button (collapsed) Description: More information, Secondary Actions: Expand
+					266 button Edit
+					267 content list
+						268 container
+							269 AXListMarker • 
+							270 text Used for App Functionality
+						271 container
+							272 AXListMarker • 
+							273 text Linked to the user's identity
+					274 text Fitness
+					275 button (collapsed) Description: More information, Secondary Actions: Expand
+					276 button Edit
+					277 content list
+						278 container
+							279 AXListMarker • 
+							280 text Used for App Functionality, and Analytics
+						281 container
+							282 AXListMarker • 
+							283 text Linked to the user's identity
+					284 image
+					285 text Location
+					286 text Precise Location
+					287 button (collapsed) Description: More information, Secondary Actions: Expand
+					288 button Edit
+					289 content list
+						290 container
+							291 AXListMarker • 
+							292 text Used for App Functionality
+						293 container
+							294 AXListMarker • 
+							295 text Linked to the user's identity
+					296 image
+					297 text User Content
+					298 text Other User Content
+					299 button (collapsed) Description: More information, Secondary Actions: Expand
+					300 button Edit
+					301 content list
+						302 container
+							303 AXListMarker • 
+							304 text Used for App Functionality
+						305 container
+							306 AXListMarker • 
+							307 text Linked to the user's identity
+					308 image
+					309 text Identifiers
+					310 text User ID
+					311 button (collapsed) Description: More information, Secondary Actions: Expand
+					312 button Edit
+					313 content list
+						314 container
+							315 AXListMarker • 
+							316 text Used for App Functionality, and Analytics
+						317 container
+							318 AXListMarker • 
+							319 text Linked to the user's identity
+					320 image
+					321 text Usage Data
+					322 text Product Interaction
+					323 button (collapsed) Description: More information, Secondary Actions: Expand
+					324 button Edit
+					325 content list
+						326 container
+							327 AXListMarker • 
+							328 text Used for Analytics
+						329 container
+							330 AXListMarker • 
+							331 text Linked to the user's identity
+					332 image
+					333 text Diagnostics
+					334 text Crash Data
+					335 button (collapsed) Description: More information, Secondary Actions: Expand
+					336 button Edit
+					337 content list
+						338 container
+							339 AXListMarker • 
+							340 text Used for App Functionality
+				341 container Product Page Preview Details, ID: modal-dialog-0.30120475962665405-14
+					342 container
+						343 heading Product Page Preview Details, Value: 2, ID: modal-header-0.30120475962665405-14
+							344 text Product Page Preview Details
+						345 image
+						346 text Data Linked to You
+						347 text The following data may be collected and linked to your identity:
+						348 image
+						349 text Identifiers
+						350 text User ID
+						351 image
+						352 text Location
+						353 text Precise Location
+						354 image
+						355 text Health & Fitness
+						356 text Fitness
+						357 text Health
+						358 image
+						359 text Usage Data
+						360 text Product Interaction
+						361 image
+						362 text Contact Info
+						363 text Email Address
+						364 text Name
+						365 image
+						366 text User Content
+						367 text Other User Content
+						368 image
+						369 text Data Not Linked to You
+						370 text The following data may be collected but is not linked to your identity:
+						371 image
+						372 text Diagnostics
+						373 text Crash Data
+						374 button Done
+		188 content list
+			189 link Description: App Store Connect, Value: appstoreconnect.apple.com/apps
+		7 content list
+			8 text Copyright © 2026 Apple Inc. All rights reserved.
+			9 container
+				10 link Description: Terms of Service, Value: appstoreconnect.apple.com/WebObjects/iTunesConnect.woa/wa/termsOfService
+				190 text |
+			12 container
+				13 link Description: Privacy Policy, Value: apple.com/legal/privacy
+				191 text |
+			15 link Description: Contact Us, Value: appstoreconnect.apple.com/contact-us
+
+The focused UI element is 341 container Product Page Preview Details, ID: modal-dialog-0.30120475962665405-14
