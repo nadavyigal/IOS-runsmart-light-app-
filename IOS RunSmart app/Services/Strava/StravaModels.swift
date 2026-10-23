@@ -6,6 +6,8 @@ nonisolated struct StravaTokens: Codable, Equatable, Sendable {
     var expiresAt: Date
     var athleteID: Int?
     var athleteName: String?
+    /// The RunSmart (Supabase) user these tokens were issued to. Tokens without a matching owner are not used.
+    var ownerUserID: String? = nil
 }
 
 /// A plain, thread-safe snapshot of a run, so the upload work does not touch main-actor models.
@@ -59,6 +61,16 @@ nonisolated struct StravaActivityDraft: Equatable, Sendable {
     }
 }
 
+/// Copy and rules for telling the runner what Strava receives.
+nonisolated enum StravaCopy {
+    static let notesHint = "Title and notes are sent to Strava with this run."
+
+    /// Notes go to Strava as a public description, so say so wherever they are typed while that will happen.
+    static func showsNotesHint(stravaAvailable: Bool, autoUploadEnabled: Bool) -> Bool {
+        stravaAvailable && autoUploadEnabled
+    }
+}
+
 /// What to do with a run when the runner (or the auto-upload setting) asks for Strava.
 nonisolated enum StravaUploadDecision: Equatable {
     case alreadyOnStrava(Int)
@@ -103,7 +115,47 @@ nonisolated enum StravaError: Error, Equatable {
     case stateMismatch
     case unauthorized
     case rateLimited
+    /// Strava says the refresh token is no longer valid (access revoked). The only reason to forget the tokens.
+    case invalidGrant
     case http(Int)
     case rejected(String)
     case malformedResponse
+    /// The activity an edit was meant for is no longer on Strava.
+    case activityNotFound
+}
+
+/// One row of Strava's activity list, only the fields needed to recognise a run.
+nonisolated struct StravaActivitySummary: Decodable, Equatable, Sendable {
+    var id: Int
+    var distance: Double?
+    var startDate: Date?
+    /// The local wall-clock start, written by Strava with a trailing Z. Read as if it were UTC.
+    var startDateLocal: Date?
+
+    init(id: Int, distance: Double?, startDate: Date?, startDateLocal: Date?) {
+        self.id = id
+        self.distance = distance
+        self.startDate = startDate
+        self.startDateLocal = startDateLocal
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, distance
+        case startDate = "start_date"
+        case startDateLocal = "start_date_local"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        distance = try container.decodeIfPresent(Double.self, forKey: .distance)
+        startDate = try container.decodeIfPresent(String.self, forKey: .startDate).flatMap(Self.parse)
+        startDateLocal = try container.decodeIfPresent(String.self, forKey: .startDateLocal).flatMap(Self.parse)
+    }
+
+    static func parse(_ text: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: text)
+    }
 }

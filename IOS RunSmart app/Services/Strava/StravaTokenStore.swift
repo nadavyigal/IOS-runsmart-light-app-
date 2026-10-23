@@ -53,6 +53,37 @@ nonisolated struct KeychainStravaTokenStore: StravaTokenStoring {
     }
 }
 
+/// Whether stored tokens belong to the runner who is signed in now.
+nonisolated enum StravaTokenOwnership {
+    enum Verdict: Equatable {
+        /// Issued to the signed-in runner.
+        case owned
+        /// Issued to someone else, or to nobody known (tokens saved before owners were recorded). Delete them.
+        case foreign
+        /// Nobody is signed in (guest, or the session is not loaded yet): do not use the tokens, but do not delete them.
+        case unverifiable
+    }
+
+    static func verdict(tokenOwner: String?, currentUser: String?) -> Verdict {
+        guard let tokenOwner, !tokenOwner.isEmpty else { return .foreign }
+        guard let currentUser, !currentUser.isEmpty else { return .unverifiable }
+        return tokenOwner.caseInsensitiveCompare(currentUser) == .orderedSame ? .owned : .foreign
+    }
+}
+
+/// The Keychain outlives an uninstall, UserDefaults does not. A missing marker means this install has not run
+/// yet, so any Strava item in the Keychain came from a previous install (maybe another person) and is deleted.
+nonisolated struct StravaInstallGuard {
+    static let markerKey = "runsmart.strava.installMarker"
+    var defaults: UserDefaults = .standard
+
+    func wipeKeychainIfFirstLaunch(_ store: StravaTokenStoring) {
+        guard !defaults.bool(forKey: Self.markerKey) else { return }
+        store.clear()
+        defaults.set(true, forKey: Self.markerKey)
+    }
+}
+
 /// For tests.
 nonisolated final class InMemoryStravaTokenStore: StravaTokenStoring, @unchecked Sendable {
     private let lock = NSLock()

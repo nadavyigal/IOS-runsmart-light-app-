@@ -9,6 +9,8 @@ struct RunTabView: View {
     @State private var finishedRun: RecordedRun?
     @State private var postActivityOutcome: PostActivityOutcome?
     @State private var isProcessingFinishedRun = false
+    /// The run whose Strava auto-upload waits until the runner finishes the summary (title and notes may still change).
+    @State private var heldStravaRunID: UUID?
     @ObservedObject private var weight = RunnerWeightStore.shared
     @State private var showsWeightSetup = false
     @State private var resumeAfterEndSheet = false
@@ -418,6 +420,7 @@ struct RunTabView: View {
         if let run {
             presentFinishedRun(run)
         } else {
+            releaseHeldStravaUpload()
             finishedRun = nil
             postActivityOutcome = nil
             isProcessingFinishedRun = false
@@ -430,11 +433,17 @@ struct RunTabView: View {
     /// post-run summary and activity processing.
     private func presentFinishedRun(_ run: RecordedRun) {
         router.dismissPostRunSummaryIfNeeded()
-        Task { await services.saveToHealth(run) }
+        // A summary that is being replaced no longer waits for its Done tap.
+        releaseHeldStravaUpload()
+        Task { await services.saveToHealth(run, allowPermissionPrompt: true) }
         postActivityOutcome = nil
         isProcessingFinishedRun = true
         NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
         finishedRun = run
+        // Strava: the runner may still edit the title and notes on the summary, so the auto-upload waits
+        // until they tap Done (or the summary is left some other way). See `releaseHeldStravaUpload`.
+        StravaUploadCoordinator.shared.holdAutoUpload(for: run)
+        heldStravaRunID = StravaUploadCoordinator.shared.isHeld(run.id) ? run.id : nil
         Task {
             let outcome = await services.processCompletedActivity(run)
             await MainActor.run {
@@ -442,10 +451,16 @@ struct RunTabView: View {
                 isProcessingFinishedRun = false
                 updateTabBarVisibility()
             }
-            // Strava: after processing, off the main actor, never blocks. A failure is kept for the next foreground.
-            await StravaUploadCoordinator.shared.autoUploadIfEnabled(run)
         }
         updateTabBarVisibility()
+    }
+
+    /// The runner is done with the summary: send the held run to Strava with the title and notes as saved.
+    /// Off the main actor, never blocks. A failure is kept for the next foreground.
+    private func releaseHeldStravaUpload() {
+        guard let runID = heldStravaRunID else { return }
+        heldStravaRunID = nil
+        Task { await StravaUploadCoordinator.shared.releaseHeldUpload(runID: runID) }
     }
 
     /// A recovered run that was saved because a new run started: same Health export and
@@ -453,7 +468,8 @@ struct RunTabView: View {
     private static func processRecoveredRunSilently(_ run: RecordedRun, services: any RunSmartServiceProviding) {
         NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
         Task {
-            await services.saveToHealth(run)
+            // Silent: no Health permission sheet while a new run is starting, and no summary to wait for.
+            await services.saveToHealth(run, allowPermissionPrompt: false)
             _ = await services.processCompletedActivity(run)
             await StravaUploadCoordinator.shared.autoUploadIfEnabled(run)
         }
@@ -474,6 +490,7 @@ struct RunTabView: View {
             distanceKm: recorder.distanceMeters / 1000
         )
         recorder.discard()
+        releaseHeldStravaUpload()
         finishedRun = nil
         postActivityOutcome = nil
         isProcessingFinishedRun = false
@@ -483,6 +500,7 @@ struct RunTabView: View {
     }
 
     private func saveFinishedRun() {
+        releaseHeldStravaUpload()
         finishedRun = nil
         postActivityOutcome = nil
         isProcessingFinishedRun = false
@@ -493,6 +511,10 @@ struct RunTabView: View {
     }
 
     private func deleteFinishedRun() {
+        if let heldID = heldStravaRunID {
+            heldStravaRunID = nil
+            StravaUploadCoordinator.shared.dropHeldUpload(runID: heldID)
+        }
         guard let run = finishedRun else {
             finishedRun = nil
             postActivityOutcome = nil

@@ -196,7 +196,7 @@ final class StravaTests: XCTestCase {
         XCTAssertEqual(items["redirect_uri"], "runsmart://strava-callback")
         XCTAssertEqual(items["response_type"], "code")
         XCTAssertEqual(items["approval_prompt"], "auto")
-        XCTAssertEqual(items["scope"], "activity:write,read")
+        XCTAssertEqual(items["scope"], "activity:write,activity:read,read")
         XCTAssertEqual(items["state"], "s1")
     }
 
@@ -239,7 +239,7 @@ final class StravaTests: XCTestCase {
     // MARK: Token refresh
 
     private func sampleTokens(expiresIn: TimeInterval, now: Date = Date()) -> StravaTokens {
-        StravaTokens(accessToken: "access", refreshToken: "refresh", expiresAt: now.addingTimeInterval(expiresIn), athleteID: 7, athleteName: "Dana R")
+        StravaTokens(accessToken: "access", refreshToken: "refresh", expiresAt: now.addingTimeInterval(expiresIn), athleteID: 7, athleteName: "Dana R", ownerUserID: "user-1")
     }
 
     func testTokenNeedsRefreshWhenFiveMinutesOrLessRemain() {
@@ -272,8 +272,8 @@ final class StravaTests: XCTestCase {
         XCTAssertEqual(store.load()?.athleteName, "Dana R", "the athlete name survives a refresh")
     }
 
-    func testRefreshRejectedByStravaDisconnects() async {
-        let transport = ScriptedTransport(responses: [(400, #"{"error":"Strava rejected the request"}"#)])
+    func testRefreshTokenRefusedByStravaDisconnects() async {
+        let transport = ScriptedTransport(responses: [(401, #"{"error":"invalid_grant","strava_status":400}"#)])
         let store = InMemoryStravaTokenStore(tokens: sampleTokens(expiresIn: 60))
         let service = makeService(store: store, transport: transport)
         do {
@@ -284,6 +284,27 @@ final class StravaTests: XCTestCase {
         }
         XCTAssertNil(store.load())
         XCTAssertFalse(service.isConnected)
+    }
+
+    func testBusyOrFailingStravaDuringRefreshKeepsTheTokens() async {
+        let cases: [(Int, String, StravaError)] = [
+            (429, #"{"error":"rate_limited","strava_status":429}"#, .rateLimited),
+            (502, #"{"error":"strava_unavailable","strava_status":503}"#, .http(502)),
+            (400, #"{"error":"Strava rejected the request","strava_status":400}"#, .rejected("Strava did not accept the sign-in.")),
+            (401, #"{"error":"Invalid or expired access token"}"#, .unauthorized)
+        ]
+        for (status, body, expected) in cases {
+            let store = InMemoryStravaTokenStore(tokens: sampleTokens(expiresIn: 60))
+            let service = makeService(store: store, transport: ScriptedTransport(responses: [(status, body)]))
+            do {
+                _ = try await service.validAccessToken()
+                XCTFail("expected an error for \(status)")
+            } catch {
+                XCTAssertEqual(error as? StravaError, expected, "status \(status)")
+            }
+            XCTAssertNotNil(store.load(), "status \(status) must not delete the tokens")
+            XCTAssertTrue(service.isConnected, "status \(status) must not disconnect")
+        }
     }
 
     func testNoTokensMeansNotConnected() async {
@@ -323,6 +344,7 @@ final class StravaTests: XCTestCase {
         XCTAssertEqual(service.connectedAthleteName, "Dana R")
         XCTAssertEqual(store.load()?.accessToken, "a")
         XCTAssertEqual(String(decoding: transport.requests[0].httpBody ?? Data(), as: UTF8.self), #"{"action":"exchange","code":"CODE"}"#)
+        XCTAssertEqual(store.load()?.ownerUserID, "user-1", "the tokens are tied to the RunSmart user who connected")
     }
 
     func testConnectWithoutASupabaseSessionDoesNotOpenStrava() async {
@@ -331,6 +353,7 @@ final class StravaTests: XCTestCase {
             tokenStore: InMemoryStravaTokenStore(),
             clientID: { "123" },
             supabaseAccessToken: { nil },
+            currentUserID: { nil },
             makeClient: { fatalError("no client needed") },
             authorizer: authorizer
         )
@@ -400,19 +423,41 @@ final class StravaTests: XCTestCase {
         connected: Bool = true,
         defaults: UserDefaults? = nil
     ) -> (StravaUploadCoordinator, FakeRunStore, StravaPendingLedger) {
+        let parts = makeCoordinatorParts(run: run, stored: stored, transport: transport, connected: connected, defaults: defaults)
+        return (parts.coordinator, parts.runs, parts.ledger)
+    }
+
+    private struct CoordinatorParts {
+        var coordinator: StravaUploadCoordinator
+        var runs: FakeRunStore
+        var ledger: StravaPendingLedger
+        var details: StravaPendingLedger
+    }
+
+    private func makeCoordinatorParts(
+        run: RecordedRun,
+        stored: RecordedRun? = nil,
+        transport: ScriptedTransport,
+        connected: Bool = true,
+        defaults: UserDefaults? = nil,
+        now: @escaping () -> Date = Date.init
+    ) -> CoordinatorParts {
         let suite = defaults ?? UserDefaults(suiteName: "StravaTests-\(UUID().uuidString)")!
         let tokens = connected ? sampleTokens(expiresIn: 3_600) : nil
         let connection = makeService(tokens: tokens, transport: transport)
         let runs = FakeRunStore(runs: [stored ?? run])
         let ledger = StravaPendingLedger(defaults: suite, key: "pending")
+        let details = StravaPendingLedger(defaults: suite, key: "details")
         let coordinator = StravaUploadCoordinator(
             connection: connection,
             store: runs,
             ledger: ledger,
+            detailsLedger: details,
             defaults: suite,
+            now: now,
             makeClient: { self.makeClient(transport: transport) }
         )
-        return (coordinator, runs, ledger)
+        return CoordinatorParts(coordinator: coordinator, runs: runs, ledger: ledger, details: details)
     }
 
     func testSuccessfulUploadStoresTheActivityIDOnTheRun() async {
@@ -528,6 +573,308 @@ final class StravaTests: XCTestCase {
         XCTAssertEqual(store.loadRuns().first(where: { $0.id == id })?.stravaActivityID, 31)
     }
 
+
+    // MARK: PR 164 review: title and notes reach Strava
+
+    private func bodyText(_ request: URLRequest) -> String {
+        String(decoding: request.httpBody ?? Data(), as: UTF8.self)
+    }
+
+    func testAutoUploadWaitsForDoneSoTheEditedTitleAndNotesGoUp() async {
+        let run = makeRun(route: twoSegmentRoute())
+        let transport = ScriptedTransport(responses: [(201, #"{"id":5,"error":null,"activity_id":4242}"#)])
+        let parts = makeCoordinatorParts(run: run, transport: transport)
+        let coordinator = parts.coordinator
+
+        coordinator.holdAutoUpload(for: run)
+        XCTAssertTrue(coordinator.isHeld(run.id))
+        XCTAssertTrue(transport.requests.isEmpty, "nothing is sent while the summary is open")
+
+        parts.runs.edit(id: run.id, title: "Hill repeats", notes: "Legs felt great")
+        await coordinator.retryPending()
+        XCTAssertTrue(transport.requests.isEmpty, "a foreground retry must not send a held run")
+
+        await coordinator.releaseHeldUpload(runID: run.id)
+        XCTAssertEqual(transport.requests.count, 1)
+        let body = bodyText(transport.requests[0])
+        XCTAssertTrue(body.contains("name=\"name\"\r\n\r\nHill repeats"), body)
+        XCTAssertTrue(body.contains("name=\"description\"\r\n\r\nLegs felt great"), body)
+        XCTAssertEqual(parts.runs.activityIDs[run.id], 4_242)
+        XCTAssertFalse(coordinator.isHeld(run.id))
+    }
+
+    func testRunProcessedSilentlyUploadsAtOnce() async {
+        let run = makeRun(route: twoSegmentRoute())
+        let transport = ScriptedTransport(responses: [(201, #"{"id":5,"error":null,"activity_id":88}"#)])
+        let parts = makeCoordinatorParts(run: run, transport: transport)
+        await parts.coordinator.autoUploadIfEnabled(run)
+        XCTAssertEqual(parts.runs.activityIDs[run.id], 88)
+    }
+
+    func testHoldIsSkippedWithoutAutoUploadOrConnection() {
+        let run = makeRun(route: twoSegmentRoute())
+        let off = makeCoordinatorParts(run: run, transport: ScriptedTransport(responses: []))
+        off.coordinator.autoUploadEnabled = false
+        off.coordinator.holdAutoUpload(for: run)
+        XCTAssertFalse(off.coordinator.isHeld(run.id))
+
+        let offline = makeCoordinatorParts(run: run, transport: ScriptedTransport(responses: []), connected: false)
+        offline.coordinator.holdAutoUpload(for: run)
+        XCTAssertFalse(offline.coordinator.isHeld(run.id))
+        XCTAssertTrue(offline.ledger.all().isEmpty)
+    }
+
+    func testDeletingTheRunDropsTheHeldUpload() async {
+        let run = makeRun(route: twoSegmentRoute())
+        let transport = ScriptedTransport(responses: [])
+        let parts = makeCoordinatorParts(run: run, transport: transport)
+        parts.coordinator.holdAutoUpload(for: run)
+        XCTAssertEqual(parts.ledger.all().map(\.runID), [run.id], "kept so a killed app still sends it later")
+        parts.coordinator.dropHeldUpload(runID: run.id)
+        await parts.coordinator.releaseHeldUpload(runID: run.id)
+        XCTAssertTrue(transport.requests.isEmpty)
+        XCTAssertTrue(parts.ledger.all().isEmpty)
+    }
+
+    func testAHeldRunIsSentAnywayAfterTheHoldExpires() async {
+        let run = makeRun(route: twoSegmentRoute())
+        let transport = ScriptedTransport(responses: [(201, #"{"id":5,"error":null,"activity_id":9}"#)])
+        var clock = Date(timeIntervalSince1970: 1_800_000_000)
+        let parts = makeCoordinatorParts(run: run, transport: transport, now: { clock })
+        parts.coordinator.holdAutoUpload(for: run)
+        clock.addTimeInterval(StravaUploadCoordinator.maximumHold + 1)
+        await parts.coordinator.retryPending()
+        XCTAssertEqual(parts.runs.activityIDs[run.id], 9)
+    }
+
+    func testEditAfterUploadUpdatesTheActivityOnStrava() async {
+        let run = makeRun(route: twoSegmentRoute(), stravaID: 555)
+        let transport = ScriptedTransport(responses: [(200, "{}")])
+        let parts = makeCoordinatorParts(run: run, transport: transport)
+        parts.runs.edit(id: run.id, title: "Tempo", notes: "Windy")
+        await parts.coordinator.syncDetailsIfOnStrava(run)
+        XCTAssertEqual(transport.requests.count, 1)
+        let request = transport.requests[0]
+        XCTAssertEqual(request.httpMethod, "PUT")
+        XCTAssertEqual(request.url?.absoluteString, "https://www.strava.com/api/v3/activities/555")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access")
+        XCTAssertEqual(bodyText(request), #"{"description":"Windy","name":"Tempo"}"#)
+        XCTAssertTrue(parts.details.all().isEmpty)
+    }
+
+    func testFailedEditIsKeptAndRetriedOnTheNextForeground() async {
+        let run = makeRun(route: twoSegmentRoute(), stravaID: 555)
+        let transport = ScriptedTransport(responses: [(500, "{}"), (200, "{}")])
+        let parts = makeCoordinatorParts(run: run, transport: transport)
+        parts.runs.edit(id: run.id, title: "Tempo", notes: nil)
+        await parts.coordinator.syncDetailsIfOnStrava(run)
+        XCTAssertEqual(parts.details.all().map(\.runID), [run.id])
+        await parts.coordinator.retryPending()
+        XCTAssertEqual(transport.requests.filter { $0.httpMethod == "PUT" }.count, 2)
+        XCTAssertTrue(parts.details.all().isEmpty)
+    }
+
+    func testEditBeforeTheUploadSendsNothingExtra() async {
+        let run = makeRun(route: twoSegmentRoute())
+        let transport = ScriptedTransport(responses: [])
+        let parts = makeCoordinatorParts(run: run, transport: transport)
+        await parts.coordinator.syncDetailsIfOnStrava(run)
+        XCTAssertTrue(transport.requests.isEmpty)
+        XCTAssertTrue(parts.details.all().isEmpty)
+    }
+
+    func testUpdateRequestIsJSONAndClearsEmptyNotes() throws {
+        let request = StravaRequests.updateActivity(activityID: 12, name: "Easy", description: "", accessToken: "t")
+        XCTAssertEqual(request.httpMethod, "PUT")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        XCTAssertEqual(bodyText(request), #"{"description":"","name":"Easy"}"#)
+    }
+
+    func testNotesHintShowsOnlyWhenStravaIsConnectedAndAutoUploadIsOn() {
+        XCTAssertEqual(StravaCopy.notesHint, "Title and notes are sent to Strava with this run.")
+        XCTAssertTrue(StravaCopy.showsNotesHint(stravaAvailable: true, autoUploadEnabled: true))
+        XCTAssertFalse(StravaCopy.showsNotesHint(stravaAvailable: true, autoUploadEnabled: false))
+        XCTAssertFalse(StravaCopy.showsNotesHint(stravaAvailable: false, autoUploadEnabled: true))
+    }
+
+    // MARK: PR 164 review: tokens belong to one RunSmart user
+
+    func testTokensOfAnotherUserAreDeletedAtLaunch() {
+        let store = InMemoryStravaTokenStore(tokens: sampleTokens(expiresIn: 3_600))
+        let service = StravaConnectionService(tokenStore: store, clientID: { "123" }, currentUserID: { "someone-else" })
+        XCTAssertFalse(service.isConnected)
+        XCTAssertNil(store.load(), "another account must never inherit this Strava connection")
+    }
+
+    func testTokensWithoutAnOwnerAreDeleted() {
+        var tokens = sampleTokens(expiresIn: 3_600)
+        tokens.ownerUserID = nil
+        let store = InMemoryStravaTokenStore(tokens: tokens)
+        let service = StravaConnectionService(tokenStore: store, clientID: { "123" }, currentUserID: { "user-1" })
+        XCTAssertFalse(service.isConnected)
+        XCTAssertNil(store.load())
+    }
+
+    func testTokensOfTheSignedInUserStayConnected() {
+        let store = InMemoryStravaTokenStore(tokens: sampleTokens(expiresIn: 3_600))
+        let service = StravaConnectionService(tokenStore: store, clientID: { "123" }, currentUserID: { "USER-1" })
+        XCTAssertTrue(service.isConnected)
+        XCTAssertNotNil(store.load())
+    }
+
+    func testGuestSeesStravaAsDisconnectedAndCannotGetATokenButNothingIsDeleted() async {
+        let store = InMemoryStravaTokenStore(tokens: sampleTokens(expiresIn: 3_600))
+        let service = StravaConnectionService(tokenStore: store, clientID: { "123" }, currentUserID: { nil })
+        XCTAssertFalse(service.isConnected)
+        do {
+            _ = try await service.validAccessToken()
+            XCTFail("a guest must not get a Strava token")
+        } catch {
+            XCTAssertEqual(error as? StravaError, .notSignedIn)
+        }
+        XCTAssertNotNil(store.load(), "the session may just not be loaded yet")
+    }
+
+    func testSigningInAsADifferentUserDeletesTheTokensOnReconcile() async throws {
+        var user: String? = "user-1"
+        let store = InMemoryStravaTokenStore(tokens: sampleTokens(expiresIn: 3_600))
+        let service = StravaConnectionService(tokenStore: store, clientID: { "123" }, currentUserID: { user })
+        XCTAssertTrue(service.isConnected)
+        user = "user-2"
+        service.reconcileOwnership()
+        XCTAssertFalse(service.isConnected)
+        XCTAssertNil(store.load())
+    }
+
+    func testForeignTokensAreRefusedWhenAnUploadAsksForAToken() async {
+        var user: String? = "user-1"
+        let store = InMemoryStravaTokenStore(tokens: sampleTokens(expiresIn: 3_600))
+        let service = StravaConnectionService(tokenStore: store, clientID: { "123" }, currentUserID: { user })
+        user = "user-2"
+        do {
+            _ = try await service.validAccessToken()
+            XCTFail("expected an error")
+        } catch {
+            XCTAssertEqual(error as? StravaError, .notConnected)
+        }
+        XCTAssertNil(store.load())
+    }
+
+    func testRefreshKeepsTheOwner() async throws {
+        let transport = ScriptedTransport(responses: [
+            (200, #"{"access_token":"n","refresh_token":"r2","expires_at":2000000000,"athlete_id":null,"athlete_name":null}"#)
+        ])
+        let store = InMemoryStravaTokenStore(tokens: sampleTokens(expiresIn: 60))
+        let service = makeService(store: store, transport: transport)
+        _ = try await service.validAccessToken()
+        XCTAssertEqual(store.load()?.ownerUserID, "user-1")
+    }
+
+    func testFirstLaunchAfterInstallDeletesAKeychainItemFromAPreviousInstall() {
+        let suite = UserDefaults(suiteName: "StravaInstall-\(UUID().uuidString)")!
+        let store = InMemoryStravaTokenStore(tokens: sampleTokens(expiresIn: 3_600))
+        let guardian = StravaInstallGuard(defaults: suite)
+        guardian.wipeKeychainIfFirstLaunch(store)
+        XCTAssertNil(store.load(), "no marker means a fresh install: whatever is in the Keychain is not ours")
+
+        try? store.save(sampleTokens(expiresIn: 3_600))
+        guardian.wipeKeychainIfFirstLaunch(store)
+        XCTAssertNotNil(store.load(), "after the first launch the tokens are left alone")
+    }
+
+    func testOwnershipVerdicts() {
+        XCTAssertEqual(StravaTokenOwnership.verdict(tokenOwner: "a", currentUser: "a"), .owned)
+        XCTAssertEqual(StravaTokenOwnership.verdict(tokenOwner: "a", currentUser: "b"), .foreign)
+        XCTAssertEqual(StravaTokenOwnership.verdict(tokenOwner: nil, currentUser: "a"), .foreign)
+        XCTAssertEqual(StravaTokenOwnership.verdict(tokenOwner: "a", currentUser: nil), .unverifiable)
+    }
+
+    // MARK: PR 164 review: manual activities are not created twice
+
+    private let manualStart = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func summary(id: Int, distance: Double, startOffset: TimeInterval, localOffset: TimeInterval? = nil, timeZone: TimeZone = .current) -> StravaActivitySummary {
+        let local = StravaActivitySummary.parse(StravaRequests.localStartString(manualStart.addingTimeInterval(localOffset ?? startOffset), timeZone: timeZone))
+        return StravaActivitySummary(id: id, distance: distance, startDate: manualStart.addingTimeInterval(startOffset), startDateLocal: local)
+    }
+
+    func testManualMatchNeedsTheSameStartWithinAMinuteAndTheSameDistance() {
+        let draft = StravaActivityDraft(run: makeRun(route: [], distance: 5_000, seconds: 1_800))
+        let utc = TimeZone(identifier: "UTC")!
+        XCTAssertEqual(StravaClient.matchingActivityID(in: [summary(id: 1, distance: 5_000, startOffset: 59, timeZone: utc)], draft: draft, timeZone: utc), 1)
+        XCTAssertEqual(StravaClient.matchingActivityID(in: [summary(id: 2, distance: 5_040, startOffset: 0, timeZone: utc)], draft: draft, timeZone: utc), 2, "within 1%")
+        XCTAssertNil(StravaClient.matchingActivityID(in: [summary(id: 3, distance: 5_000, startOffset: 61, timeZone: utc)], draft: draft, timeZone: utc), "start too far")
+        XCTAssertNil(StravaClient.matchingActivityID(in: [summary(id: 4, distance: 5_200, startOffset: 0, timeZone: utc)], draft: draft, timeZone: utc), "distance too far")
+        XCTAssertNil(StravaClient.matchingActivityID(in: [], draft: draft, timeZone: utc))
+    }
+
+    func testManualMatchSurvivesAProfileTimeZoneThatIsNotThePhones() {
+        // Strava placed the activity hours away in UTC, but its local start still reads the same wall clock.
+        let draft = StravaActivityDraft(run: makeRun(route: [], distance: 5_000, seconds: 1_800))
+        let jerusalem = TimeZone(identifier: "Asia/Jerusalem")!
+        let shifted = summary(id: 9, distance: 5_000, startOffset: 3 * 3_600, localOffset: 0, timeZone: jerusalem)
+        XCTAssertEqual(StravaClient.matchingActivityID(in: [shifted], draft: draft, timeZone: jerusalem), 9)
+    }
+
+    func testAthleteActivitiesRequestAsksForTheWindow() throws {
+        let request = StravaRequests.athleteActivities(after: Date(timeIntervalSince1970: 100), before: Date(timeIntervalSince1970: 200), accessToken: "tok")
+        XCTAssertEqual(request.httpMethod, "GET")
+        let items = Dictionary(uniqueKeysWithValues: (URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(request.url?.path, "/api/v3/athlete/activities")
+        XCTAssertEqual(items["after"], "100")
+        XCTAssertEqual(items["before"], "200")
+    }
+
+    func testManualRetryFindsTheEarlierActivityInsteadOfCreatingAnother() async {
+        let run = makeRun(route: [], distance: 5_000, seconds: 1_800)
+        let utc = TimeZone.current
+        let startUTC = ISO8601DateFormatter().string(from: run.startedAt)
+        let startLocal = StravaRequests.localStartString(run.startedAt, timeZone: utc)
+        let transport = ScriptedTransport(responses: [
+            (500, "{}"), // first create: the app never hears whether Strava made the activity
+            (200, #"[{"id":777,"distance":5000.0,"start_date":"\#(startUTC)","start_date_local":"\#(startLocal)"}]"#)
+        ])
+        let parts = makeCoordinatorParts(run: run, transport: transport)
+        await parts.coordinator.upload(run)
+        XCTAssertEqual(parts.ledger.entry(for: run.id)?.manualAttemptStarted, true, "written before the call")
+        XCTAssertEqual(parts.coordinator.status(for: run), .failed)
+
+        await parts.coordinator.retryPending()
+        XCTAssertEqual(transport.requests.map { $0.httpMethod }, ["POST", "GET"])
+        XCTAssertEqual(transport.requests[1].url?.path, "/api/v3/athlete/activities")
+        XCTAssertEqual(parts.runs.activityIDs[run.id], 777)
+        XCTAssertTrue(parts.ledger.all().isEmpty)
+    }
+
+    func testManualRetryCreatesWhenNothingMatches() async {
+        let run = makeRun(route: [], distance: 5_000, seconds: 1_800)
+        let transport = ScriptedTransport(responses: [(500, "{}"), (200, "[]"), (201, #"{"id":321}"#)])
+        let parts = makeCoordinatorParts(run: run, transport: transport)
+        await parts.coordinator.upload(run)
+        await parts.coordinator.retryPending()
+        XCTAssertEqual(transport.requests.map { $0.httpMethod }, ["POST", "GET", "POST"])
+        XCTAssertEqual(parts.runs.activityIDs[run.id], 321)
+    }
+
+    func testFirstManualAttemptDoesNotSearch() async {
+        let run = makeRun(route: [])
+        let transport = ScriptedTransport(responses: [(201, #"{"id":5}"#)])
+        let parts = makeCoordinatorParts(run: run, transport: transport)
+        await parts.coordinator.upload(run)
+        XCTAssertEqual(transport.requests.map { $0.httpMethod }, ["POST"])
+    }
+
+    func testManualRetryNeverCreatesBlindlyWhenTheSearchFails() async {
+        let run = makeRun(route: [])
+        let transport = ScriptedTransport(responses: [(500, "{}"), (401, "{}")])
+        let parts = makeCoordinatorParts(run: run, transport: transport)
+        await parts.coordinator.upload(run)
+        await parts.coordinator.retryPending()
+        XCTAssertEqual(transport.requests.map { $0.httpMethod }, ["POST", "GET"], "no second create without knowing the first failed")
+        XCTAssertNil(parts.runs.activityIDs[run.id])
+        XCTAssertEqual(parts.ledger.entry(for: run.id)?.manualAttemptStarted, true)
+    }
+
     // MARK: Helpers
 
     private func makeService(
@@ -547,6 +894,7 @@ final class StravaTests: XCTestCase {
             tokenStore: store,
             clientID: { "123" },
             supabaseAccessToken: { "supabase-jwt" },
+            currentUserID: { "user-1" },
             makeClient: { self.makeClient(transport: transport) },
             authorizer: authorizer
         )
@@ -607,6 +955,12 @@ private final class FakeRunStore: StravaRunStoring {
     init(runs: [RecordedRun]) { self.runs = Dictionary(uniqueKeysWithValues: runs.map { ($0.id, $0) }) }
 
     func storedRun(id: UUID) -> RecordedRun? { runs[id] }
+
+    /// The runner edits the title and notes on the summary.
+    func edit(id: UUID, title: String?, notes: String?) {
+        runs[id]?.title = title
+        runs[id]?.notes = notes
+    }
 
     func setStravaActivityID(_ activityID: Int, forRunID runID: UUID) {
         activityIDs[runID] = activityID

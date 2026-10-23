@@ -48,7 +48,11 @@ nonisolated struct StravaClient: Sendable {
         let (data, http) = try await transport.send(request)
         guard (200..<300).contains(http.statusCode) else {
             switch http.statusCode {
-            case 401: throw StravaError.unauthorized
+            case 401:
+                // The edge function says "invalid_grant" only when Strava refused the refresh token itself.
+                // Any other 401 means the RunSmart session is not valid.
+                throw Self.errorCode(in: data) == "invalid_grant" ? StravaError.invalidGrant : StravaError.unauthorized
+            case 429: throw StravaError.rateLimited
             case 400: throw StravaError.rejected("Strava did not accept the sign-in.")
             default: throw StravaError.http(http.statusCode)
             }
@@ -71,7 +75,8 @@ nonisolated struct StravaClient: Sendable {
             refreshToken: response.refreshToken,
             expiresAt: Date(timeIntervalSince1970: response.expiresAt),
             athleteID: response.athleteId ?? previous?.athleteID,
-            athleteName: response.athleteName ?? previous?.athleteName
+            athleteName: response.athleteName ?? previous?.athleteName,
+            ownerUserID: previous?.ownerUserID
         )
     }
 
@@ -135,6 +140,37 @@ nonisolated struct StravaClient: Sendable {
         return created.id
     }
 
+    /// Looks for a manual activity that an earlier, unfinished attempt may already have created.
+    /// The window is a day either side of the start: Strava turns the local start time we send into
+    /// its own UTC `start_date` using the athlete's profile time zone, which may not be the phone's.
+    /// The match itself is strict (start within a minute, distance within 1%).
+    func findManualActivity(draft: StravaActivityDraft, accessToken: String, timeZone: TimeZone = .current) async throws -> Int? {
+        let request = StravaRequests.athleteActivities(
+            after: draft.startedAt.addingTimeInterval(-Self.lookupWindow),
+            before: draft.startedAt.addingTimeInterval(Self.lookupWindow),
+            accessToken: accessToken
+        )
+        let (data, http) = try await transport.send(request)
+        guard (200..<300).contains(http.statusCode) else {
+            throw Self.error(forStatus: http.statusCode, message: nil)
+        }
+        guard let activities = try? Self.activityDecoder.decode([StravaActivitySummary].self, from: data) else {
+            throw StravaError.malformedResponse
+        }
+        return Self.matchingActivityID(in: activities, draft: draft, timeZone: timeZone)
+    }
+
+    /// Edits title and notes of an activity that is already on Strava.
+    func updateActivity(activityID: Int, name: String, description: String, accessToken: String) async throws {
+        let (_, http) = try await transport.send(
+            StravaRequests.updateActivity(activityID: activityID, name: name, description: description, accessToken: accessToken)
+        )
+        guard (200..<300).contains(http.statusCode) else {
+            if http.statusCode == 404 { throw StravaError.activityNotFound }
+            throw Self.error(forStatus: http.statusCode, message: nil)
+        }
+    }
+
     /// Best effort: the app forgets the tokens whether or not Strava answers.
     func deauthorize(accessToken: String) async {
         _ = try? await transport.send(StravaRequests.deauthorize(accessToken: accessToken))
@@ -148,6 +184,34 @@ nonisolated struct StravaClient: Sendable {
         var status: String?
         var activityId: Int?
     }
+
+    static let lookupWindow: TimeInterval = 24 * 3_600
+    static let startTolerance: TimeInterval = 60
+
+    /// The id of an activity that is the same run as `draft`: same start (within a minute, by UTC start
+    /// or by the local wall-clock start) and the same distance (within 1%, at least 10 m).
+    static func matchingActivityID(in activities: [StravaActivitySummary], draft: StravaActivityDraft, timeZone: TimeZone = .current) -> Int? {
+        let localStart = StravaRequests.localStartString(draft.startedAt, timeZone: timeZone)
+        let wallClock = StravaActivitySummary.parse(localStart)
+        let distanceTolerance = max(10, draft.distanceMeters * 0.01)
+        return activities.first { activity in
+            guard abs((activity.distance ?? .infinity) - draft.distanceMeters) <= distanceTolerance else { return false }
+            let utcMatch = activity.startDate.map { abs($0.timeIntervalSince(draft.startedAt)) <= startTolerance } ?? false
+            let localMatch: Bool
+            if let wallClock, let activityLocal = activity.startDateLocal {
+                localMatch = abs(activityLocal.timeIntervalSince(wallClock)) <= startTolerance
+            } else {
+                localMatch = false
+            }
+            return utcMatch || localMatch
+        }?.id
+    }
+
+    static func errorCode(in data: Data) -> String? {
+        (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? String
+    }
+
+    private static var activityDecoder: JSONDecoder { JSONDecoder() }
 
     private static var uploadDecoder: JSONDecoder {
         let decoder = JSONDecoder()

@@ -741,7 +741,7 @@ final class RunSmartReadinessTests: XCTestCase {
         func disconnect(provider: String) async -> ConnectedDeviceStatus { ConnectedDeviceStatus(provider: provider, state: .disconnected, lastSuccessfulSync: nil, permissions: [], message: nil) }
         func requestHealthAccess() async -> ConnectedDeviceStatus { ConnectedDeviceStatus(provider: "HealthKit", state: .connected, lastSuccessfulSync: nil, permissions: [], message: nil) }
         func syncHealthData() async -> ConnectedDeviceStatus { ConnectedDeviceStatus(provider: "HealthKit", state: .connected, lastSuccessfulSync: nil, permissions: [], message: nil) }
-        func saveToHealth(_ run: RecordedRun) async {}
+        func saveToHealth(_ run: RecordedRun, allowPermissionPrompt: Bool) async {}
     }
 
     func testPlanWeeksGroupByCalendarWeekAndTotalDistance() {

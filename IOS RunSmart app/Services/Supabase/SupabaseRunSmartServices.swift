@@ -1096,8 +1096,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return status
     }
 
-    func saveToHealth(_ run: RecordedRun) async {
-        await healthSync.save(run)
+    func saveToHealth(_ run: RecordedRun, allowPermissionPrompt: Bool) async {
+        await healthSync.save(run, allowPermissionPrompt: allowPermissionPrompt)
     }
 
     func firstSyncReview(provider: String) async -> FirstSyncReview? {
@@ -1586,8 +1586,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     private func saveRouteMatch(for run: RecordedRun) -> RecordedRun {
         var matchedRun = run
         matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
-        store.saveRun(matchedRun)
-        return matchedRun
+        return store.saveRunKeepingLocalEdits(matchedRun)
     }
 
     func activeGoal() async -> GoalSummary {
@@ -1880,9 +1879,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     onConflict: "source_provider,source_activity_id"
                 )
                 .execute()
-            var synced = run
-            synced.syncedAt = Date()
-            store.saveRun(synced)
+            // The runner may have set effort, title or notes while the upsert ran: change only the sync time.
+            store.markRunSynced(run)
         } catch {
             if !(error is CancellationError) {
                 print("[SupabaseServices] completed run upsert error:", error)

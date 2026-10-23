@@ -16,6 +16,35 @@ function jsonResponse(req: Request, status: number, body: Record<string, unknown
   });
 }
 
+// What a failed Strava token call means for the app. The app forgets its Strava tokens only on
+// "invalid_grant" (Strava refused the refresh token itself). A busy or failing Strava must never
+// look like that, or a rate limit would disconnect the runner.
+function failureResponse(
+  req: Request,
+  action: unknown,
+  stravaStatus: number,
+  payload: Record<string, unknown> | null,
+): Response {
+  if (stravaStatus === 429) {
+    return jsonResponse(req, 429, { error: "rate_limited", strava_status: stravaStatus });
+  }
+  if (stravaStatus >= 500 || stravaStatus < 400) {
+    return jsonResponse(req, 502, { error: "strava_unavailable", strava_status: stravaStatus });
+  }
+  const problems = Array.isArray(payload?.errors) ? payload.errors as unknown[] : [];
+  const refreshTokenRefused = action === "refresh" && (stravaStatus === 400 || stravaStatus === 401) &&
+    problems.some((problem) => {
+      if (!problem || typeof problem !== "object") return false;
+      const entry = problem as Record<string, unknown>;
+      return entry.field === "refresh_token" || entry.resource === "RefreshToken";
+    });
+  if (refreshTokenRefused) {
+    return jsonResponse(req, 401, { error: "invalid_grant", strava_status: stravaStatus });
+  }
+  // Strava error bodies carry no tokens, but only the status is passed on.
+  return jsonResponse(req, 400, { error: "Strava rejected the request", strava_status: stravaStatus });
+}
+
 function credential(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -103,10 +132,11 @@ Deno.serve(async (req) => {
     payload = null;
   }
 
-  if (!stravaResponse.ok || !payload || typeof payload.access_token !== "string") {
-    // Strava error bodies carry no tokens, but only the status is passed on.
-    const status = stravaResponse.status >= 400 && stravaResponse.status < 500 ? 400 : 502;
-    return jsonResponse(req, status, { error: "Strava rejected the request", strava_status: stravaResponse.status });
+  if (!stravaResponse.ok) {
+    return failureResponse(req, body.action, stravaResponse.status, payload);
+  }
+  if (!payload || typeof payload.access_token !== "string") {
+    return jsonResponse(req, 502, { error: "strava_unavailable", strava_status: stravaResponse.status });
   }
 
   const athlete = payload.athlete && typeof payload.athlete === "object"

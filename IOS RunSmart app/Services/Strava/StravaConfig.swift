@@ -14,7 +14,8 @@ nonisolated enum StravaConfig {
     static let callbackScheme = "runsmart"
     /// Register this redirect URI's host (`strava-callback`) as the Authorization Callback Domain in Strava.
     static let redirectURI = "runsmart://strava-callback"
-    static let scope = "activity:write,read"
+    /// `activity:read` is only used to look for a manual activity an earlier attempt may have created, so a retry never adds a second one.
+    static let scope = "activity:write,activity:read,read"
     /// Scope Strava must have granted for uploads to work.
     static let requiredScope = "activity:write"
 

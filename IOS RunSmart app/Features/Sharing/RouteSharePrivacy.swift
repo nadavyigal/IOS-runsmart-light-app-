@@ -20,6 +20,11 @@ enum RouteSharePrivacy {
 
     /// The points that may appear on a shared map, or nil when the route is too short to show
     /// anything once both ends are cut (under 400 m of route, plus a small visible remainder).
+    ///
+    /// Two cuts apply. The first and last `trimMeters` of route are dropped. Then every point within
+    /// `trimMeters` in a straight line of the first or the last point is dropped too, so a loop that
+    /// passes the start or finish later does not show where they are. Where points were dropped in the
+    /// middle, the next kept point starts a new segment, so no line is drawn across the hidden area.
     static func shareableRoute(
         _ points: [RunRoutePoint],
         trimMeters: Double = RouteSharePrivacy.trimMeters
@@ -28,9 +33,25 @@ enum RouteSharePrivacy {
         let cumulative = cumulativeMeters(points)
         let total = cumulative.last ?? 0
         guard total >= 2 * trimMeters + minimumVisibleMeters else { return nil }
-        let kept = points.enumerated().filter { index, _ in
-            cumulative[index] >= trimMeters && total - cumulative[index] >= trimMeters
-        }.map(\.element)
+        let origin = CLLocation(latitude: points[0].latitude, longitude: points[0].longitude)
+        let finish = CLLocation(latitude: points[points.count - 1].latitude, longitude: points[points.count - 1].longitude)
+        var kept: [RunRoutePoint] = []
+        var droppedSinceLastKept = false
+        for (index, point) in points.enumerated() {
+            let location = CLLocation(latitude: point.latitude, longitude: point.longitude)
+            let isShown = cumulative[index] >= trimMeters
+                && total - cumulative[index] >= trimMeters
+                && location.distance(from: origin) >= trimMeters
+                && location.distance(from: finish) >= trimMeters
+            guard isShown else {
+                droppedSinceLastKept = true
+                continue
+            }
+            var shown = point
+            if droppedSinceLastKept, !kept.isEmpty { shown.startsNewSegment = true }
+            droppedSinceLastKept = false
+            kept.append(shown)
+        }
         guard RoutePointSegments.split(kept).contains(where: { $0.count >= 2 }) else { return nil }
         return kept
     }

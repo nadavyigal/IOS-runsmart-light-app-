@@ -323,6 +323,14 @@ struct PostRunSummaryView: View {
                     .lineLimit(2...6)
                     .focused($focusedField, equals: .notes)
                     .accessibilityLabel("Run notes")
+                if StravaCopy.showsNotesHint(
+                    stravaAvailable: showsStrava,
+                    autoUploadEnabled: stravaUploads.autoUploadEnabled
+                ) {
+                    Text(StravaCopy.notesHint)
+                        .font(.caption)
+                        .foregroundStyle(Color.textTertiary)
+                }
             }
         }
     }
@@ -494,6 +502,8 @@ struct PostRunSummaryView: View {
                 titleText = RunTitle.displayTitle(for: updated)
             }
         }
+        // A run that is already on Strava gets the new title and notes there too. Best effort.
+        await stravaUploads.syncDetailsIfOnStrava(updated)
     }
 
     private func leave(openingReport: Bool) async {

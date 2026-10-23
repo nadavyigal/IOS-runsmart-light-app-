@@ -125,6 +125,45 @@ enum HealthKitRecordedRunMapper {
     }
 }
 
+/// Whether to write a workout to Health, given what the duplicate check found.
+enum HealthKitSavePolicy {
+    /// Write only when Health is known not to hold this run. A failed query (nil) writes nothing:
+    /// a duplicate workout in Health is worse than a run that is missing there.
+    static func shouldWrite(alreadySaved: Bool?) -> Bool {
+        alreadySaved == false
+    }
+}
+
+/// Lets one Health save per run id run at a time. A second save for the same run waits for the first,
+/// then its duplicate check sees the first one's workout.
+actor HealthKitSaveGate {
+    static let shared = HealthKitSaveGate()
+
+    private var running: Set<UUID> = []
+    private var waiters: [UUID: [CheckedContinuation<Void, Never>]] = [:]
+
+    func acquire(_ id: UUID) async {
+        if running.contains(id) {
+            await withCheckedContinuation { continuation in
+                waiters[id, default: []].append(continuation)
+            }
+            // The previous holder handed its place over in `release`; `running` still contains the id.
+        } else {
+            running.insert(id)
+        }
+    }
+
+    func release(_ id: UUID) {
+        if var queue = waiters[id], !queue.isEmpty {
+            let next = queue.removeFirst()
+            waiters[id] = queue.isEmpty ? nil : queue
+            next.resume()
+        } else {
+            running.remove(id)
+        }
+    }
+}
+
 struct HealthKitSyncService {
     static let providerName = "HealthKit"
 
@@ -254,7 +293,10 @@ struct HealthKitSyncService {
 #endif
     }
 
-    func save(_ run: RecordedRun) async {
+    /// `allowPermissionPrompt` is true only for the save right after the runner finishes a run, where the
+    /// prompt has context. A background save (a recovered run saved while a new run starts) writes with
+    /// the permissions it already has and never shows the Health sheet.
+    func save(_ run: RecordedRun, allowPermissionPrompt: Bool = true) async {
 #if canImport(HealthKit)
         // Only RunSmart's own recordings go back to Health; imported runs came from there.
         guard run.source == .runSmart, HKHealthStore.isHealthDataAvailable() else { return }
@@ -262,13 +304,17 @@ struct HealthKitSyncService {
         // No workout write access means the runner never connected Health: stay silent, as before.
         guard store.authorizationStatus(for: workoutType) == .sharingAuthorized else { return }
 
+        // One save per run at a time: the second caller waits, then finds the first one's workout.
+        await HealthKitSaveGate.shared.acquire(run.id)
+        defer { Task { await HealthKitSaveGate.shared.release(run.id) } }
+
         // Runners who allowed the old set (workouts only) are asked for route, distance and
         // energy here, right after a run, never at launch. Anything they decline is left out.
-        if (try? await authorizationRequestStatus(for: store)) == .shouldRequest {
+        if allowPermissionPrompt, (try? await authorizationRequestStatus(for: store)) == .shouldRequest {
             _ = try? await store.requestAuthorization(toShare: shareTypes, read: readTypes)
         }
 
-        guard !(await isAlreadySaved(run, store: store)) else { return }
+        guard HealthKitSavePolicy.shouldWrite(alreadySaved: await isAlreadySaved(run, store: store)) else { return }
         await writeWorkout(for: run, store: store)
 #endif
     }
@@ -321,13 +367,16 @@ private extension HealthKitSyncService {
         store.authorizationStatus(for: type) == .sharingAuthorized
     }
 
-    /// True when Health already holds a workout written for this RunSmart run.
-    func isAlreadySaved(_ run: RecordedRun, store: HKHealthStore) async -> Bool {
+    /// True when Health already holds a workout written for this RunSmart run, false when it does not,
+    /// nil when the query failed (so nothing is known).
+    func isAlreadySaved(_ run: RecordedRun, store: HKHealthStore) async -> Bool? {
         let predicate = HKQuery.predicateForObjects(
             withMetadataKey: HealthKitWorkoutPlan.runIDMetadataKey,
             allowedValues: [run.id.uuidString]
         )
-        let found = await samples(store: store, sampleType: workoutType, predicate: predicate, limit: 1, sortDescriptors: nil)
+        guard let found = await queriedSamples(store: store, sampleType: workoutType, predicate: predicate, limit: 1, sortDescriptors: nil) else {
+            return nil
+        }
         return !found.isEmpty
     }
 
@@ -617,9 +666,24 @@ private extension HealthKitSyncService {
         limit: Int,
         sortDescriptors: [NSSortDescriptor]?
     ) async -> [HKSample] {
+        await queriedSamples(store: store, sampleType: sampleType, predicate: predicate, limit: limit, sortDescriptors: sortDescriptors) ?? []
+    }
+
+    /// Like `samples`, but nil when the query reports an error, so a failed read is not mistaken for "no samples".
+    func queriedSamples(
+        store: HKHealthStore,
+        sampleType: HKSampleType,
+        predicate: NSPredicate?,
+        limit: Int,
+        sortDescriptors: [NSSortDescriptor]?
+    ) async -> [HKSample]? {
         await withCheckedContinuation { continuation in
-            let query = HKSampleQuery(sampleType: sampleType, predicate: predicate, limit: limit, sortDescriptors: sortDescriptors) { _, samples, _ in
-                continuation.resume(returning: samples ?? [])
+            let query = HKSampleQuery(sampleType: sampleType, predicate: predicate, limit: limit, sortDescriptors: sortDescriptors) { _, samples, error in
+                if error != nil {
+                    continuation.resume(returning: nil)
+                } else {
+                    continuation.resume(returning: samples ?? [])
+                }
             }
             store.execute(query)
         }

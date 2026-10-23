@@ -769,7 +769,7 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
         ConnectedDeviceStatus(provider: "HealthKit", state: .connected, lastSuccessfulSync: Date(), permissions: ["Demo"], message: "Demo HealthKit sync. No HealthKit data was read.")
     }
 
-    func saveToHealth(_ run: RecordedRun) async {}
+    func saveToHealth(_ run: RecordedRun, allowPermissionPrompt: Bool) async {}
 
     func generateWeeklySummary() async -> WeeklyProgressSummary? {
         WeeklyProgressSummary(

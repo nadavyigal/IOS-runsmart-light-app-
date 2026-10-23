@@ -920,6 +920,20 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var stravaActivityID: Int? = nil
 }
 
+extension RecordedRun {
+    /// Fields only the runner or the Strava upload set on this device. A provider re-sync or a
+    /// stale copy carries nothing for them, so the stored values win when both exist.
+    func keepingLocalFields(from stored: RecordedRun?) -> RecordedRun {
+        guard let stored else { return self }
+        var merged = self
+        merged.rpe = stored.rpe ?? rpe
+        merged.title = stored.title ?? title
+        merged.notes = stored.notes ?? notes
+        merged.stravaActivityID = stored.stravaActivityID ?? stravaActivityID
+        return merged
+    }
+}
+
 /// Title rules for the post-run summary. Pure so they can be tested without a view.
 enum RunTitle {
     static let maximumTitleLength = 80

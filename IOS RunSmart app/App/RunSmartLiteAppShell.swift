@@ -272,6 +272,8 @@ struct RunSmartLiteAppShell: View {
         }
         .onChange(of: session.isAuthenticated) { _, isAuth in
             guard !RunSmartDemoMode.isEnabled else { return }
+            // Strava tokens belong to one RunSmart user: drop them if a different runner signed in.
+            StravaConnectionService.shared.reconcileOwnership()
             if isAuth, let userId = session.currentUserID {
                 Analytics.identifyUser(userId: userId.uuidString)
                 if guestJourney.state.isActive,

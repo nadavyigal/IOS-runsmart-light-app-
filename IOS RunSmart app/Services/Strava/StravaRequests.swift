@@ -85,6 +85,34 @@ nonisolated enum StravaRequests {
         return request
     }
 
+    /// Edit the title and notes of an activity that is already on Strava.
+    static func updateActivity(activityID: Int, name: String, description: String, accessToken: String) -> URLRequest {
+        var request = URLRequest(url: StravaConfig.apiBaseURL.appendingPathComponent("activities/\(activityID)"))
+        request.httpMethod = "PUT"
+        request.httpBody = try? JSONSerialization.data(
+            withJSONObject: ["name": name, "description": description],
+            options: [.sortedKeys]
+        )
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        return request
+    }
+
+    /// The runner's activities that started between `after` and `before`, used to find a manual activity
+    /// an earlier attempt may already have created.
+    static func athleteActivities(after: Date, before: Date, accessToken: String) -> URLRequest {
+        var components = URLComponents(url: StravaConfig.apiBaseURL.appendingPathComponent("athlete/activities"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "after", value: String(Int(after.timeIntervalSince1970))),
+            URLQueryItem(name: "before", value: String(Int(before.timeIntervalSince1970))),
+            URLQueryItem(name: "per_page", value: "50")
+        ]
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        return request
+    }
+
     static func deauthorize(accessToken: String) -> URLRequest {
         var request = URLRequest(url: StravaConfig.deauthorizeURL)
         request.httpMethod = "POST"

@@ -62,7 +62,7 @@ final class WebAuthenticationStravaAuthorizer: NSObject, StravaAuthorizing, ASWe
 /// Owns the Strava connection: sign-in, Keychain tokens, refresh and disconnect.
 @MainActor
 final class StravaConnectionService: ObservableObject {
-    static let shared = StravaConnectionService()
+    static let shared = StravaConnectionService(installGuard: StravaInstallGuard())
 
     /// Nil when not connected.
     @Published private(set) var connectedAthleteName: String?
@@ -73,6 +73,8 @@ final class StravaConnectionService: ObservableObject {
     private let tokenStore: StravaTokenStoring
     private let clientID: () -> String?
     private let supabaseAccessToken: () async -> String?
+    /// The signed-in RunSmart user. Tokens are only used for the user they were issued to.
+    private let currentUserID: () -> String?
     private let makeClient: () -> StravaClient
     private let authorizer: StravaAuthorizing
     private let now: () -> Date
@@ -84,6 +86,10 @@ final class StravaConnectionService: ObservableObject {
         supabaseAccessToken: @escaping () async -> String? = {
             try? await SupabaseManager.client.auth.session.accessToken
         },
+        currentUserID: @escaping () -> String? = {
+            SupabaseManager.client.auth.currentUser?.id.uuidString
+        },
+        installGuard: StravaInstallGuard? = nil,
         makeClient: @escaping () -> StravaClient = {
             StravaClient(
                 transport: URLSessionStravaTransport(),
@@ -97,12 +103,33 @@ final class StravaConnectionService: ObservableObject {
         self.tokenStore = tokenStore
         self.clientID = clientID
         self.supabaseAccessToken = supabaseAccessToken
+        self.currentUserID = currentUserID
         self.makeClient = makeClient
         self.authorizer = authorizer ?? WebAuthenticationStravaAuthorizer()
         self.now = now
-        let stored = clientID() == nil ? nil : tokenStore.load()
-        isConnected = stored != nil
-        connectedAthleteName = stored?.athleteName
+        installGuard?.wipeKeychainIfFirstLaunch(tokenStore)
+        isConnected = false
+        reconcileOwnership()
+    }
+
+    /// Connected means: tokens exist and belong to the runner signed in now. Tokens that belong to someone
+    /// else are deleted. With nobody signed in the tokens are kept but not used. Cheap, so callers run it
+    /// before they read `isConnected`.
+    func reconcileOwnership() {
+        guard clientID() != nil, let tokens = tokenStore.load() else {
+            isConnected = false
+            connectedAthleteName = nil
+            return
+        }
+        switch StravaTokenOwnership.verdict(tokenOwner: tokens.ownerUserID, currentUser: currentUserID()) {
+        case .owned:
+            apply(tokens)
+        case .foreign:
+            forgetTokens()
+        case .unverifiable:
+            isConnected = false
+            connectedAthleteName = nil
+        }
     }
 
     func availability(isSignedIn: Bool) -> StravaAvailability {
@@ -118,12 +145,13 @@ final class StravaConnectionService: ObservableObject {
         lastMessage = nil
         defer { isWorking = false }
         do {
-            guard let supabaseToken = await supabaseAccessToken() else { throw StravaError.notSignedIn }
+            guard let supabaseToken = await supabaseAccessToken(), let owner = currentUserID() else { throw StravaError.notSignedIn }
             let state = UUID().uuidString
             let url = StravaConfig.authorizeURL(clientID: clientID, state: state)
             let callback = try await authorizer.authorize(url: url, callbackScheme: StravaConfig.callbackScheme)
             let code = try StravaCallback.code(from: callback, expectedState: state)
-            let tokens = try await makeClient().tokens(.exchange(code: code), supabaseAccessToken: supabaseToken)
+            var tokens = try await makeClient().tokens(.exchange(code: code), supabaseAccessToken: supabaseToken)
+            tokens.ownerUserID = owner
             try tokenStore.save(tokens)
             apply(tokens)
         } catch StravaError.cancelled {
@@ -161,6 +189,16 @@ final class StravaConnectionService: ObservableObject {
             forgetTokens()
             throw StravaError.notConnected
         }
+        switch StravaTokenOwnership.verdict(tokenOwner: tokens.ownerUserID, currentUser: currentUserID()) {
+        case .owned:
+            break
+        case .foreign:
+            forgetTokens()
+            throw StravaError.notConnected
+        case .unverifiable:
+            isConnected = false
+            throw StravaError.notSignedIn
+        }
         guard StravaTokenPolicy.needsRefresh(expiresAt: tokens.expiresAt, now: now()) else {
             return tokens.accessToken
         }
@@ -183,8 +221,9 @@ final class StravaConnectionService: ObservableObject {
             let fresh = try await task.value
             apply(fresh)
             return fresh.accessToken
-        } catch StravaError.rejected {
-            // Strava no longer accepts the refresh token (access was revoked): ask the runner to reconnect.
+        } catch StravaError.invalidGrant {
+            // Strava says the refresh token itself is no longer valid (access was revoked): ask the runner to
+            // reconnect. Any other failure (Strava busy, offline, a server error) keeps the tokens for a later try.
             forgetTokens()
             lastMessage = "Strava access ended. Connect again to keep uploading."
             throw StravaError.notConnected

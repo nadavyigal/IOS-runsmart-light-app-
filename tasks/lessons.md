@@ -1,3 +1,7 @@
+## 2026-10-23: Anything read before an `await` is stale after it, and "save the whole run" is the bug
+
+`upsertCompletedRunIfPossible` and `saveRouteMatch` saved a copy read before a network call, erasing effort, title, notes and the Strava id set meanwhile. After an await, re-read the stored run and change only the fields you own (`markRunSynced`, `saveRunKeepingLocalEdits`). The same review found the pattern in three other places: an auto-upload fired before the runner finished editing, a rate-limited refresh treated as a revoked token, and a failed Health query treated as "no workout yet". When a failure and a normal empty result look the same, make the failure its own value (nil, a distinct error code) and never act on it as if it were the empty case.
+
 ## 2026-10-23: A local-only field on RecordedRun is lost if any writer saves a stale copy
 
 `updateRunRPE` saved the caller's copy of the run, so the post-run screen (holding a copy from before the Strava upload) would have erased `stravaActivityID` the moment the runner set an effort. Local-only fields (title, notes, Strava id) must be applied to the stored copy (`loadRuns().first { $0.id == run.id }`), as `updateRunDetails` does. `updateRunRPE` and `setStravaActivityID` now follow that rule.

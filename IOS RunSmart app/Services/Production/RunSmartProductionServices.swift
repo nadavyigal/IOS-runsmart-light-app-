@@ -48,12 +48,14 @@ final class RunSmartLocalStore {
         load(OnboardingProfile.self, key: "runsmart.onboarding.profile")
     }
 
-    func saveRun(_ run: RecordedRun) {
+    /// Saves a run. A provider copy (Garmin, Health) replaces the stored one, but the fields the runner set on
+    /// this device (effort, title, notes, Strava id) are kept unless the caller is the one changing them.
+    func saveRun(_ run: RecordedRun, replacingLocalFields: Bool = false) {
         guard !isRunHidden(run) else { return }
         var runs = loadRuns()
         if let providerID = run.providerActivityID,
            let index = runs.firstIndex(where: { $0.providerActivityID == providerID && $0.source == run.source }) {
-            runs[index] = run
+            runs[index] = replacingLocalFields ? run : run.keepingLocalFields(from: runs[index])
             runs.sort { $0.startedAt > $1.startedAt }
             save(runs, key: "runsmart.runs")
             return
@@ -67,6 +69,22 @@ final class RunSmartLocalStore {
         save(runs, key: "runsmart.runs")
     }
 
+    /// For a copy that was read before an `await`: keeps whatever the runner set on the stored run since then.
+    @discardableResult
+    func saveRunKeepingLocalEdits(_ run: RecordedRun) -> RecordedRun {
+        let stored = loadRuns().first { Self.isSameStoredRun($0, run) }
+        let merged = run.keepingLocalFields(from: stored)
+        saveRun(merged, replacingLocalFields: true)
+        return merged
+    }
+
+    /// Marks the stored copy as synced. Touches nothing else, and does not bring back a run that was deleted meanwhile.
+    func markRunSynced(_ run: RecordedRun, at date: Date = Date()) {
+        guard var stored = loadRuns().first(where: { Self.isSameStoredRun($0, run) }) else { return }
+        stored.syncedAt = date
+        saveRun(stored, replacingLocalFields: true)
+    }
+
     func loadRuns() -> [RecordedRun] {
         load([RecordedRun].self, key: "runsmart.runs") ?? []
     }
@@ -75,7 +93,7 @@ final class RunSmartLocalStore {
         // Apply to the stored copy so a field written since the caller loaded the run (such as the Strava activity id) is kept.
         var updated = loadRuns().first(where: { $0.id == run.id }) ?? run
         updated.rpe = rpe
-        saveRun(updated)
+        saveRun(updated, replacingLocalFields: true)
         return updated
     }
 
@@ -83,7 +101,7 @@ final class RunSmartLocalStore {
     func setStravaActivityID(_ activityID: Int, forRunID runID: UUID) {
         guard var stored = loadRuns().first(where: { $0.id == runID }) else { return }
         stored.stravaActivityID = activityID
-        saveRun(stored)
+        saveRun(stored, replacingLocalFields: true)
     }
 
     /// Applies title and notes to the stored copy of the run, so fields written since the caller loaded it
@@ -92,7 +110,7 @@ final class RunSmartLocalStore {
         var updated = loadRuns().first(where: { $0.id == run.id }) ?? run
         updated.title = title
         updated.notes = notes
-        saveRun(updated)
+        saveRun(updated, replacingLocalFields: true)
         return updated
     }
 
@@ -383,7 +401,7 @@ final class RunSmartLocalStore {
         )
         guard preferred == match else { return false }
         attached.routeMatchResult = match
-        saveRun(attached)
+        saveRun(attached, replacingLocalFields: true)
         return true
     }
 
@@ -1499,7 +1517,15 @@ extension DeviceSyncing {
 protocol HealthSyncing {
     func requestHealthAccess() async -> ConnectedDeviceStatus
     func syncHealthData() async -> ConnectedDeviceStatus
-    func saveToHealth(_ run: RecordedRun) async
+    /// `allowPermissionPrompt` is false for saves that happen in the background (no Health sheet may appear).
+    func saveToHealth(_ run: RecordedRun, allowPermissionPrompt: Bool) async
+}
+
+extension HealthSyncing {
+    /// The save right after a finished run, where the Health permission prompt has context.
+    func saveToHealth(_ run: RecordedRun) async {
+        await saveToHealth(run, allowPermissionPrompt: true)
+    }
 }
 
 struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, DeviceSyncing, HealthSyncing {
@@ -1660,8 +1686,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func saveRouteMatch(for run: RecordedRun) -> RecordedRun {
         var matchedRun = run
         matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
-        store.saveRun(matchedRun)
-        return matchedRun
+        return store.saveRunKeepingLocalEdits(matchedRun)
     }
 
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
@@ -1918,8 +1943,8 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         return result.status
     }
 
-    func saveToHealth(_ run: RecordedRun) async {
-        await health.save(run)
+    func saveToHealth(_ run: RecordedRun, allowPermissionPrompt: Bool) async {
+        await health.save(run, allowPermissionPrompt: allowPermissionPrompt)
     }
 
     func firstSyncReview(provider: String) async -> FirstSyncReview? {
