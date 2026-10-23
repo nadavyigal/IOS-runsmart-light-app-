@@ -168,6 +168,44 @@ final class HealthKitWorkoutPlanTests: XCTestCase {
         XCTAssertEqual(HealthKitWorkoutPlan.routeSegments(from: route).map(\.count), [2])
     }
 
+    func testRouteClampsCachedAndLateFixesToWorkoutWithoutDuplicateTimes() {
+        let route = [
+            point(-12, lat: 32.000), point(-8, lat: 32.001), point(10, lat: 32.002),
+            point(20, lat: 32.003, newSegment: true), point(30, lat: 32.004), point(110, lat: 32.005)
+        ]
+        let run = makeRun(durationSeconds: 100, route: route)
+        let segments = HealthKitWorkoutPlan.make(for: run).routeSegments
+        XCTAssertEqual(segments.map(\.count), [2, 3])
+        let exported = segments.flatMap { $0 }
+        XCTAssertEqual(exported.map(\.timestamp), [at(0), at(10), at(20), at(30), at(100)])
+        XCTAssertEqual(exported.first?.coordinate.latitude, route.first?.coordinate.latitude)
+        XCTAssertEqual(run.routePoints, route, "Health export must not rewrite the recorded route")
+    }
+
+    func testRouteKeepsPauseBoundaryWhenAnOutOfOrderFixIsDropped() {
+        let route = [
+            point(0, lat: 32.000), point(10, lat: 32.001),
+            point(5, lat: 32.002, newSegment: true), point(20, lat: 32.003), point(30, lat: 32.004)
+        ]
+        let segments = HealthKitWorkoutPlan.make(for: makeRun(route: route)).routeSegments
+        XCTAssertEqual(segments.map { $0.map(\.timestamp) }, [[at(0), at(10)], [at(20), at(30)]])
+        XCTAssertEqual(segments.last?.first?.startsNewSegment, true)
+    }
+
+    func testRouteKeepsPauseBoundaryWhenAnInvalidFixIsDropped() {
+        var invalid = point(15, lat: 32.002, newSegment: true)
+        invalid.horizontalAccuracy = -1
+        let route = [point(0, lat: 32.000), point(10, lat: 32.001), invalid,
+                     point(20, lat: 32.003), point(30, lat: 32.004)]
+        let segments = HealthKitWorkoutPlan.make(for: makeRun(route: route)).routeSegments
+        XCTAssertEqual(segments.map(\.count), [2, 2])
+    }
+
+    func testRouteIsSkippedForEmptyWorkoutInterval() {
+        let run = makeRun(durationSeconds: 0, route: [point(-1, lat: 32), point(1, lat: 32.001)])
+        XCTAssertTrue(HealthKitWorkoutPlan.make(for: run).routeSegments.isEmpty)
+    }
+
     func testLocationKeepsCoordinateTimeAndAltitude() {
         let location = HealthKitWorkoutPlan.location(for: point(42, lat: 32.5))
         XCTAssertEqual(location.coordinate.latitude, 32.5, accuracy: 1e-9)

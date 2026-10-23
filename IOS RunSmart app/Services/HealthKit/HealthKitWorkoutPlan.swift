@@ -52,7 +52,7 @@ struct HealthKitWorkoutPlan {
         let end = max(run.endedAt, run.startedAt)
         let pauses = normalizedPauses(run.pauseIntervals ?? [], start: start, end: end)
         let active = activeIntervals(excluding: pauses, start: start, end: end)
-        let segments = routeSegments(from: run.routePoints)
+        let segments = routeSegments(from: run.routePoints, start: start, end: end)
 
         var energy: EnergySample?
         if let kilocalories = run.estimatedActiveKilocalories, kilocalories.isFinite, kilocalories > 0, end > start {
@@ -200,21 +200,35 @@ struct HealthKitWorkoutPlan {
             && point.horizontalAccuracy >= 0
     }
 
-    /// Splits at every `startsNewSegment` point. A stretch of one point cannot be a route, and
-    /// the route is dropped entirely when fewer than two points remain.
-    static func routeSegments(from points: [RunRoutePoint]) -> [[RunRoutePoint]] {
+    /// Splits at every segment start, including boundaries on rejected fixes. Export timestamps
+    /// are clamped to the workout: an otherwise fresh initial GPS fix can predate recording.
+    /// Duplicate and reversed timestamps are dropped without sorting the traveled route.
+    static func routeSegments(from points: [RunRoutePoint], start: Date? = nil, end: Date? = nil) -> [[RunRoutePoint]] {
+        if let start, let end, end <= start { return [] }
         var segments: [[RunRoutePoint]] = []
         var current: [RunRoutePoint] = []
-        for point in points where isUsable(point) {
-            if point.startsNewSegment == true, !current.isEmpty {
-                segments.append(current)
-                current = []
+        var previousTimestamp: Date?
+        var pendingSegmentStart = false
+        for original in points {
+            pendingSegmentStart = pendingSegmentStart || original.startsNewSegment == true
+            guard isUsable(original), original.timestamp.timeIntervalSinceReferenceDate.isFinite else { continue }
+            var point = original
+            if let start { point.timestamp = max(point.timestamp, start) }
+            if let end { point.timestamp = min(point.timestamp, end) }
+            if let previousTimestamp, point.timestamp <= previousTimestamp { continue }
+            if pendingSegmentStart {
+                if !current.isEmpty {
+                    segments.append(current)
+                    current = []
+                }
+                point.startsNewSegment = true
             }
             current.append(point)
+            previousTimestamp = point.timestamp
+            pendingSegmentStart = false
         }
         if !current.isEmpty { segments.append(current) }
-        let drawable = segments.filter { $0.count >= 2 }
-        return drawable.reduce(0) { $0 + $1.count } >= 2 ? drawable : []
+        return segments.filter { $0.count >= 2 }
     }
 
     static func location(for point: RunRoutePoint) -> CLLocation {

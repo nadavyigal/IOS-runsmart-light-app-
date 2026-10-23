@@ -416,6 +416,7 @@ final class RunSmartLocalStore {
     }
 
     func clearUserData() {
+        RunnerWeightStore.shared.clearUserData()
         let keys = [
             "runsmart.runs",
             "runsmart.runReports",

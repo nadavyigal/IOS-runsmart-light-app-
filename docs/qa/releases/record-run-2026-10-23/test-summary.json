@@ -1,0 +1,46 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "x86_64",
+        "deviceId" : "BEC1533B-1E20-4AD8-B86F-E321B9F9DC53",
+        "deviceName" : "iPhone 17 Pro",
+        "modelName" : "iPhone 17 Pro",
+        "osBuildNumber" : "23F77",
+        "osVersion" : "26.5",
+        "platform" : "iOS Simulator"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 0,
+      "passedTests" : 724,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "IOS RunSmart app · Built with macOS 26.7.1",
+  "expectedFailures" : 0,
+  "failedTests" : 0,
+  "finishTime" : 1792757131.735,
+  "passedTests" : 724,
+  "result" : "Passed",
+  "skippedTests" : 0,
+  "startTime" : 1792756894.865,
+  "statistics" : [
+
+  ],
+  "testFailures" : [
+
+  ],
+  "title" : "Test - IOS RunSmart app",
+  "topInsights" : [
+    {
+      "category" : "Longest Test Runs",
+      "impact" : "31% of duration",
+      "text" : "10 longest test runs with outlier durations exceeding 0.11s (three standard deviations)"
+    }
+  ],
+  "totalTestCount" : 724
+}

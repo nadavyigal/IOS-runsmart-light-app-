@@ -1,3 +1,11 @@
+## 2026-10-23 — Finish record-a-run setup without Strava
+
+- [x] Founder deferred Strava; keep client ID empty and integration hidden; no deploy/subscription.
+- [x] Address final review weight-deletion and Health metadata/timestamp findings.
+- [x] Consolidated simulator tests 724/0 and final diff review.
+- [x] Correct native Health/share privacy policy in web branch and prepare App Privacy answers; ASC verification pending.
+- [x] Push fixes to existing PR #164; physical device and merge gates remain open.
+
 ## 2026-10-22 — Record-a-run Release B
 
 - [x] S4 offline cues/settings — automated checks passed; device audio smoke pending

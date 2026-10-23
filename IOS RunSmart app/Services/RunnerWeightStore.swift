@@ -11,12 +11,20 @@ final class RunnerWeightStore: ObservableObject {
     @Published private(set) var healthWeightKg: Double?
     @Published private(set) var isReadingHealth = false
     private let defaults: UserDefaults
+    private let healthWeightReader: @MainActor (Bool) async -> Double?
+    private var healthReadGeneration = UUID()
     private let manualKey = "runCalories.manualWeightKg"
     private let healthEnabledKey = "runCalories.healthWeightEnabled"
     private let setupOfferedKey = "runCalories.weightSetupOffered"
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        healthWeightReader: @escaping @MainActor (Bool) async -> Double? = {
+            await HealthKitSyncService().readBodyMassKg(requestPermission: $0)
+        }
+    ) {
         self.defaults = defaults
+        self.healthWeightReader = healthWeightReader
         let saved = defaults.double(forKey: manualKey)
         manualWeightKg = Self.validWeight(saved)
     }
@@ -57,7 +65,10 @@ final class RunnerWeightStore: ObservableObject {
         guard !isReadingHealth else { return }
         isReadingHealth = true
         defaults.set(true, forKey: healthEnabledKey)
-        updateHealthWeight(await HealthKitSyncService().readBodyMassKg(requestPermission: true))
+        let generation = healthReadGeneration
+        let value = await healthWeightReader(true)
+        guard generation == healthReadGeneration else { return }
+        updateHealthWeight(value)
         isReadingHealth = false
     }
 
@@ -65,13 +76,33 @@ final class RunnerWeightStore: ObservableObject {
     func refreshHealthWeightIfEnabled() async {
         guard defaults.bool(forKey: healthEnabledKey), !isReadingHealth else { return }
         isReadingHealth = true
-        updateHealthWeight(await HealthKitSyncService().readBodyMassKg(requestPermission: false))
+        let generation = healthReadGeneration
+        let value = await healthWeightReader(false)
+        guard generation == healthReadGeneration else { return }
+        updateHealthWeight(value)
         isReadingHealth = false
     }
 
     func stopUsingHealthWeight() {
+        invalidateHealthRead()
         defaults.set(false, forKey: healthEnabledKey)
         healthWeightKg = nil
+    }
+
+    /// Account deletion removes both the persisted settings and the observed in-memory
+    /// values. A Health query started before deletion cannot restore them afterward.
+    func clearUserData() {
+        invalidateHealthRead()
+        manualWeightKg = nil
+        healthWeightKg = nil
+        for key in [manualKey, healthEnabledKey, setupOfferedKey] {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    private func invalidateHealthRead() {
+        healthReadGeneration = UUID()
+        isReadingHealth = false
     }
 
     private static func validWeight(_ value: Double) -> Double? {

@@ -134,6 +134,24 @@ enum HealthKitSavePolicy {
     }
 }
 
+/// Identity metadata is required for safe duplicate detection and reimport. A builder whose
+/// collection or metadata step fails is discarded before optional samples or finish can run.
+enum HealthKitWorkoutPreparation {
+    static func run(
+        beginCollection: () async throws -> Void,
+        addMetadata: () async throws -> Void,
+        discard: () -> Void
+    ) async throws {
+        do {
+            try await beginCollection()
+            try await addMetadata()
+        } catch {
+            discard()
+            throw error
+        }
+    }
+}
+
 /// Lets one Health save per run id run at a time. A second save for the same run waits for the first,
 /// then its duplicate check sees the first one's workout.
 actor HealthKitSaveGate {
@@ -390,11 +408,14 @@ private extension HealthKitSyncService {
         let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: .local())
 
         do {
-            try await builder.beginCollection(at: plan.start)
+            try await HealthKitWorkoutPreparation.run(
+                beginCollection: { try await builder.beginCollection(at: plan.start) },
+                addMetadata: { try await builder.addMetadata(HealthKitWorkoutPlan.metadata(for: run)) },
+                discard: { builder.discardWorkout() }
+            )
         } catch {
             return
         }
-        try? await builder.addMetadata(HealthKitWorkoutPlan.metadata(for: run))
 
         if !plan.pauseEvents.isEmpty {
             let events = plan.pauseEvents.map { event in

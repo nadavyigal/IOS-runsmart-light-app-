@@ -1,3 +1,7 @@
+## 2026-10-23 — Final record-a-run setup, Strava deferred
+
+**Status:** Final three review findings fixed; full simulator suite **724 passed / 0 failed / 0 skipped**. Founder declined a Strava subscription: client ID remains empty, UI hidden, no OAuth registration/secrets/deployment. Fixed weight deletion and stale Health reads, required Health identity metadata before finishing, and normalized route timestamps/segment boundaries. Added 12 regressions. Privacy policy corrected separately in web repo; App Privacy reconciliation prepared in `docs/qa/releases/record-run-2026-10-23/`. ASC answers have not been edited. Physical iPhone checks remain required before merge/release. Health duplicate-query failure remains fail-closed without an eventual retry; title/notes remain local-only. No merge/store upload/submission.
+
 ## 2026-10-22 — Record-a-run Release B implementation and QA
 
 Implemented S4–S8 on isolated `codex/2026-10-22-record-run-release-b` at `/Users/nadavyigal/Developer/runsmart-ios-worktrees/record-run-release-b`, based on Claude S2 `15e9edf`. The Release A checkout was not modified; S3 remains Claude-owned.

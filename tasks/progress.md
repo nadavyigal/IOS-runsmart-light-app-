@@ -1,3 +1,7 @@
+## 2026-10-23 — Final record-a-run setup, Strava deferred
+
+**Status:** Final three review findings fixed; full simulator suite **724 passed / 0 failed / 0 skipped**. Founder declined a Strava subscription: client ID remains empty, UI hidden, no OAuth registration/secrets/deployment. Fixed weight deletion and stale Health reads, required Health identity metadata before finishing, and normalized route timestamps/segment boundaries. Added 12 regressions. Privacy policy corrected separately in web repo; App Privacy reconciliation prepared in `docs/qa/releases/record-run-2026-10-23/`. ASC answers have not been edited. Physical iPhone checks remain required before merge/release. Health duplicate-query failure remains fail-closed without an eventual retry; title/notes remain local-only. No merge/store upload/submission.
+
 ## 2026-10-23: Review findings on PR 164, Strava and Health (branch claude/2026-10-22-record-run-release-a)
 
 **Status:** Done, committed, not pushed. **Current Phase:** Record-a-run Release C. **Active Story:** None. **Last Completed Story:** nine review findings on Strava and Apple Health. **Next Recommended Story:** deploy `strava_oauth` (needs founder yes), Strava app registration and device check, then push and PR.
