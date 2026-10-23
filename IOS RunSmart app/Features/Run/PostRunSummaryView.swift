@@ -30,6 +30,9 @@ enum SplitPaceChart {
 struct PostRunSummaryView: View {
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var session: SupabaseSession
+    @ObservedObject private var strava = StravaConnectionService.shared
+    @ObservedObject private var stravaUploads = StravaUploadCoordinator.shared
     var run: RecordedRun?
     var outcome: PostActivityOutcome? = nil
     var isProcessing: Bool = false
@@ -76,6 +79,7 @@ struct PostRunSummaryView: View {
                     coachSection
                     SplitPreviewCard(splits: splitRows)
                     BenchmarkComparisonLoaderView(run: outcome?.canonicalRun ?? run)
+                    stravaStatusLine
                     shareSection
                     actionButtons
                 }
@@ -200,6 +204,7 @@ struct PostRunSummaryView: View {
                     Label("Save route", systemImage: "map")
                 }
             }
+            stravaMenuItem
             Button(role: .destructive) {
                 showDeleteConfirmation = true
             } label: {
@@ -213,7 +218,68 @@ struct PostRunSummaryView: View {
                 .contentShape(Rectangle())
         }
         .accessibilityLabel("More actions")
-        .accessibilityHint("Save route or delete this run.")
+        .accessibilityHint("Save route, send to Strava, or delete this run.")
+    }
+
+    // MARK: Strava
+
+    /// Strava UI exists only when the build has a client id and the runner is signed in.
+    private var showsStrava: Bool {
+        strava.availability(isSignedIn: session.isAuthenticated) == .available && strava.isConnected
+    }
+
+    private var stravaStatus: StravaUploadStatus {
+        guard let current = displayRun ?? run else { return .notEligible }
+        return stravaUploads.status(for: current)
+    }
+
+    @ViewBuilder
+    private var stravaMenuItem: some View {
+        if showsStrava, let current = displayRun ?? run {
+            switch stravaStatus {
+            case .ready, .failed:
+                Button {
+                    Task { await stravaUploads.upload(current) }
+                } label: {
+                    Label("Send to Strava", systemImage: "arrow.up.right.circle")
+                }
+            case .sending:
+                Button {} label: { Label("Sending to Strava...", systemImage: "arrow.up.right.circle") }
+                    .disabled(true)
+            case .onStrava:
+                Button {} label: { Label("On Strava", systemImage: "checkmark.circle") }
+                    .disabled(true)
+            case .notEligible:
+                EmptyView()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var stravaStatusLine: some View {
+        if showsStrava, let line = stravaStatus.statusLine, let current = displayRun ?? run {
+            HStack(spacing: 8) {
+                switch stravaStatus {
+                case .sending:
+                    ProgressView().controlSize(.small)
+                case .onStrava:
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentSuccess)
+                default:
+                    Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Color.accentEnergy)
+                }
+                Text(line)
+                    .font(.bodyMD)
+                    .foregroundStyle(Color.textSecondary)
+                Spacer()
+                if stravaStatus == .failed {
+                    Button("Retry") { Task { await stravaUploads.upload(current) } }
+                        .font(.buttonLabel)
+                        .foregroundStyle(Color.accentPrimary)
+                }
+            }
+            .padding(.horizontal, 4)
+            .accessibilityElement(children: .combine)
+        }
     }
 
     private var routeMap: some View {

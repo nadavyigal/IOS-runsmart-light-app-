@@ -10,4 +10,7 @@ POSTHOG_API_KEY = phc_2RcjPhReYKSisINOVVehHusghrUtyyiR6sN87SzJLZ6
 SUPABASE_URL = https:/$()/dxqglotcyirxzyqaxqln.supabase.co
 SUPABASE_PUBLISHABLE_KEY = sb_publishable_PpDpqkqVaKFnOyoLR7mdyA_UNTeeoqN
 
+// Strava stays off (all Strava UI hidden) until the client id is set in RunSmartSecrets.xcconfig.
+RUNSMART_STRAVA_CLIENT_ID =
+
 #include? "RunSmartSecrets.xcconfig"

@@ -1,3 +1,7 @@
+## 2026-10-23: A local-only field on RecordedRun is lost if any writer saves a stale copy
+
+`updateRunRPE` saved the caller's copy of the run, so the post-run screen (holding a copy from before the Strava upload) would have erased `stravaActivityID` the moment the runner set an effort. Local-only fields (title, notes, Strava id) must be applied to the stored copy (`loadRuns().first { $0.id == run.id }`), as `updateRunDetails` does. `updateRunRPE` and `setStravaActivityID` now follow that rule.
+
 ## 2026-10-22: Any code that walks route points must respect `startsNewSegment`
 
 Route matching summed straight-line distance across a pause break and resampled along it, so a pause walked or ridden off-route counted as route covered. Every consumer of `routePoints` (distance, splits, polylines, matching, elevation) treats a segment start as a break: no distance, no samples, no line across it. `SavedRoute.from(run:)` and `elevationGain(points:)` still sum altitude across breaks (not fixed yet).

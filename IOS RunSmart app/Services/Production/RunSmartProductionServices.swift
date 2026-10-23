@@ -72,10 +72,18 @@ final class RunSmartLocalStore {
     }
 
     func updateRunRPE(_ run: RecordedRun, rpe: Int?) -> RecordedRun {
-        var updated = run
+        // Apply to the stored copy so a field written since the caller loaded the run (such as the Strava activity id) is kept.
+        var updated = loadRuns().first(where: { $0.id == run.id }) ?? run
         updated.rpe = rpe
         saveRun(updated)
         return updated
+    }
+
+    /// Records that a run is on Strava. Applied to the stored copy, like `updateRunDetails`.
+    func setStravaActivityID(_ activityID: Int, forRunID runID: UUID) {
+        guard var stored = loadRuns().first(where: { $0.id == runID }) else { return }
+        stored.stravaActivityID = activityID
+        saveRun(stored)
     }
 
     /// Applies title and notes to the stored copy of the run, so fields written since the caller loaded it

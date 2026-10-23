@@ -141,6 +141,7 @@ enum RunSmartRecordingMode {
 #endif
 
 struct RunSmartLiteAppShell: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var router = AppRouter()
     @StateObject private var session = SupabaseSession()
     @StateObject private var recorder = RunRecorder()
@@ -232,6 +233,7 @@ struct RunSmartLiteAppShell: View {
                 router.selectedTab = .run
             }
             isAnalyticsReady = setupAnalyticsIfNeeded()
+            Task { await StravaUploadCoordinator.shared.retryPending() }
             PushService.shared.configureNavigation { destination in
                 router.openNotificationDestination(destination)
             }
@@ -255,6 +257,11 @@ struct RunSmartLiteAppShell: View {
                   let screen = resolvedActivationFirstFrameScreen
             else { return }
             activationFirstFrameTracker.screenRendered(screen)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Strava: finish uploads that failed or were still processing. Quiet, no UI.
+            guard phase == .active, !RunSmartDemoMode.isEnabled else { return }
+            Task { await StravaUploadCoordinator.shared.retryPending() }
         }
         .onChange(of: router.selectedTab) { _, newTab in
             guard !RunSmartDemoMode.isEnabled else { return }

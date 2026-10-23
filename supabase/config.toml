@@ -8,3 +8,7 @@ verify_jwt = false
 [functions.delete_account]
 # Performs its own JWT validation, same pattern as coach_message.
 verify_jwt = false
+
+[functions.strava_oauth]
+# Performs its own JWT validation, same pattern as coach_message and delete_account.
+verify_jwt = false

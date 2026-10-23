@@ -916,6 +916,8 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var title: String? = nil
     /// Free-text notes the runner adds on the post-run summary. Local only. Optional so stored runs decode.
     var notes: String? = nil
+    /// Strava activity id once the run is on Strava. Local only; set by the Strava upload so it is never sent twice. Optional so stored runs decode.
+    var stravaActivityID: Int? = nil
 }
 
 /// Title rules for the post-run summary. Pure so they can be tested without a view.

@@ -433,6 +433,8 @@ struct RunTabView: View {
                 isProcessingFinishedRun = false
                 updateTabBarVisibility()
             }
+            // Strava: after processing, off the main actor, never blocks. A failure is kept for the next foreground.
+            await StravaUploadCoordinator.shared.autoUploadIfEnabled(run)
         }
         updateTabBarVisibility()
     }
@@ -444,6 +446,7 @@ struct RunTabView: View {
         Task {
             await services.saveToHealth(run)
             _ = await services.processCompletedActivity(run)
+            await StravaUploadCoordinator.shared.autoUploadIfEnabled(run)
         }
     }
 
