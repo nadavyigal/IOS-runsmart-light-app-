@@ -1,3 +1,7 @@
+## 2026-10-23 — Record-a-run production candidate 1.1.10 (35)
+
+Founder requested production shipment, then confirmed real-iPhone checks are not yet done and requested a testing build. Preparing signed TestFlight candidate with all three releases; Strava remains deferred/hidden. Published 1.1.9 (34) is the prior App Store version. Full code suite already passed 724/0; privacy policy and ASC labels are complete. No public release or merge until device checks. Candidate source/build and results: `docs/qa/releases/1.1.10/`.
+
 ## 2026-10-23 — Finish record-a-run setup without Strava
 
 - [x] Founder deferred Strava; keep client ID empty and integration hidden; no deploy/subscription.

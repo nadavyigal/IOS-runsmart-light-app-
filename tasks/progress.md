@@ -1,3 +1,7 @@
+## 2026-10-23 — Record-a-run production candidate 1.1.10 (35)
+
+Founder requested production shipment, then confirmed real-iPhone checks are not yet done and requested a testing build. Preparing signed TestFlight candidate with all three releases; Strava remains deferred/hidden. Published 1.1.9 (34) is the prior App Store version. Full code suite already passed 724/0; privacy policy and ASC labels are complete. No public release or merge until device checks. Candidate source/build and results: `docs/qa/releases/1.1.10/`.
+
 ## 2026-10-23 — App Store Connect privacy reconciled and published
 
 RunSmart app 6768297840: added Name and Other User Content for linked App Functionality; added linked Analytics purposes for Fitness/User ID; corrected Product Interaction Analytics to linked. No advertising tracking. Existing policy URL already matched the now-live policy. Verified published state and persisted preview; no pending data setup. Apple initially persisted new Analytics purposes as unlinked despite the initial wizard selection: explicitly re-entered and corrected them before final verification. Evidence in `docs/qa/releases/record-run-2026-10-23/`. No app binary upload, merge, submission or release. Remaining gate: real-iPhone test pass. This was metadata/documentation only; no code change or new test run (latest suite 724/0).
