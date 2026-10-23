@@ -680,3 +680,7 @@ Adding Analytics to an existing linked data type can leave the new purpose unlin
 ## Release verification must gate upload
 
 Use separate sequential tool calls (or explicit shell failure handling) so a failed artifact check cannot fall through to upload. Use `codesign -dvv` when checking Authority; `-dv` may omit certificate authority while the signature is valid.
+
+## A present backend key is not a working backend key
+
+Build 35 passed key-presence checks but live Auth rejected its packaged publishable key. Before upload, extract configuration from the actual archive/export and query live Auth settings; require success and expected providers. Keep ignored overrides aligned with committed defaults. Unit tests with injected gateways cannot prove production credentials work.
