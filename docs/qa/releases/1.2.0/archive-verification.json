@@ -1,0 +1,27 @@
+{
+  "source_commit": "0e3c389b557bceb93cc582f60c23239ced6cb59c",
+  "distribution": false,
+  "bundles": [
+    {
+      "bundle_id": "com.runsmart.lite",
+      "version": "1.2.0",
+      "build": "35",
+      "apple_distribution": false,
+      "get_task_allow": true,
+      "deep_strict_verified": true
+    },
+    {
+      "bundle_id": "com.runsmart.lite.runliveactivity",
+      "version": "1.2.0",
+      "build": "35",
+      "apple_distribution": false,
+      "get_task_allow": true,
+      "deep_strict_verified": true
+    }
+  ],
+  "strava_hidden": true,
+  "production_backend_verified": true,
+  "analytics_config_present": true,
+  "privacy_manifest_matches": true,
+  "non_exempt_encryption": false
+}

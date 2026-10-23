@@ -676,3 +676,7 @@ Future rule: every new `final class` (not `NSObject`, not `nonisolated`) whose t
 ## App Store privacy: verify new purposes after publishing
 
 Adding Analytics to an existing linked data type can leave the new purpose unlinked in Apple’s saved product preview even when the initial wizard shows Yes. Reopen the wizard and explicitly correct the persisted linkage; reload and inspect See Details before claiming the privacy labels match the app.
+
+## Release verification must gate upload
+
+Use separate sequential tool calls (or explicit shell failure handling) so a failed artifact check cannot fall through to upload. Use `codesign -dvv` when checking Authority; `-dv` may omit certificate authority while the signature is valid.
