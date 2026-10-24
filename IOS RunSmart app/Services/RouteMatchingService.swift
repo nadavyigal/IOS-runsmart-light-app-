@@ -224,6 +224,9 @@ enum RouteMatchingService {
     fileprivate struct PlanePoint {
         var x: Double
         var y: Double
+        /// True for the first point after a pause or recovered-run resume. The runner may have
+        /// moved while recording was off, so nothing is measured or sampled across this point.
+        var startsNewSegment = false
     }
 
     /// A trace resampled by distance in a flat frame around its first point, with a grid for
@@ -243,13 +246,15 @@ enum RouteMatchingService {
         nonisolated init(_ points: [RunRoutePoint]) {
             originLatitude = points.first?.latitude ?? 0
             originLongitude = points.first?.longitude ?? 0
-            let flat = points.map {
-                RouteMatchingService.projected(
-                    latitude: $0.latitude,
-                    longitude: $0.longitude,
+            let flat = points.map { point -> PlanePoint in
+                var flat = RouteMatchingService.projected(
+                    latitude: point.latitude,
+                    longitude: point.longitude,
                     originLatitude: points.first?.latitude ?? 0,
                     originLongitude: points.first?.longitude ?? 0
                 )
+                flat.startsNewSegment = point.startsNewSegment == true
+                return flat
             }
             samples = RouteMatchingService.resampled(flat)
             minX = samples.map(\.x).min() ?? 0
@@ -306,11 +311,14 @@ enum RouteMatchingService {
         )
     }
 
-    /// Evenly spaced points along the line, at most about `maxCount` of them.
+    /// Evenly spaced points along the line, at most about `maxCount` of them. A segment start
+    /// is a break: the gap before it adds no length and gets no samples, and the new stretch
+    /// begins with a sample at its first point, so length and coverage come from real
+    /// recording only.
     nonisolated fileprivate static func resampled(_ points: [PlanePoint], maxCount: Int = 200) -> [PlanePoint] {
         guard points.count > 1, let first = points.first, let last = points.last else { return points }
         var length = 0.0
-        for (a, b) in zip(points, points.dropFirst()) {
+        for (a, b) in zip(points, points.dropFirst()) where !b.startsNewSegment {
             length += hypot(b.x - a.x, b.y - a.y)
         }
         guard length > 0 else { return [first] }
@@ -320,6 +328,11 @@ enum RouteMatchingService {
         var travelled = 0.0
         var nextSampleAt = spacing
         for (a, b) in zip(points, points.dropFirst()) {
+            if b.startsNewSegment {
+                result.append(PlanePoint(x: b.x, y: b.y))
+                nextSampleAt = travelled + spacing
+                continue
+            }
             let segment = hypot(b.x - a.x, b.y - a.y)
             guard segment > 0 else { continue }
             while nextSampleAt <= travelled + segment {
@@ -329,7 +342,7 @@ enum RouteMatchingService {
             }
             travelled += segment
         }
-        result.append(last)
+        result.append(PlanePoint(x: last.x, y: last.y))
         return result
     }
 

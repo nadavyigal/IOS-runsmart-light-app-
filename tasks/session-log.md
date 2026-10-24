@@ -1,3 +1,43 @@
+## 2026-10-24 — Corrected 1.2.0 (36) available in TestFlight
+
+Build 36 uploaded, processed and assigned to RunSmart Internal; Apple shows Testing. Removed known-bad build 35 from the group (reversible group association removal; no build expiration). Saved login guidance and field-test notes. Root cause: ignored local xcconfig override replaced a valid committed/public-1.1.9 key with an invalid one. Corrected override, retained valid committed default, added live actual-artifact backend gate in script/Fastlane/AGENTS. Both archive and IPA live Auth settings pass; 25 focused auth tests and fresh full 724-test suite pass, zero failures/skips. Malformed-token probe reaches Auth validation rather than API-key rejection. Source archive 477bdcc; package signatures, entitlements, dSYMs and privacy verified. See docs/qa/releases/1.2.0/build36-* evidence. Owner still needs to update in TestFlight and complete real Apple authorization/field checks; no merge, public release or App Review submission.
+
+## 2026-10-23 — Build 35 sign-in failure; preparing 1.2.0 (36)
+
+Founder reported Apple sign-in failure. Live logs and the packaged-key probe confirm an invalid API key in build 35, before Apple token validation. Active project publishable key succeeds, Apple/email providers enabled. Committed default was valid; corrected the invalid ignored local override that replaced it in build 35; no backend key rotation or security changes. Adding live archived-key preflight before upload. Build 35 must not ship to production; replacement build 36 pending verification and TestFlight upload. Evidence: docs/qa/releases/1.2.0/build36-auth-fix.md.
+
+## 2026-10-23 — RunSmart 1.2.0 (35) ready in TestFlight
+
+All record-a-run releases A/B/C are implemented with Strava deferred. Signed archive, Apple Distribution IPA, app/extension versions, signatures, required entitlements, dSYMs, backend/analytics configuration and privacy packaging verified. Xcode upload succeeded; Apple processed build 35; RunSmart Internal now shows **Testing** with one build/one tester, and founder status **Invited** after explicit invitation approval. What to Test contains the focused device checklist. Source `0e3c389`; full code suite 724/0 before version/docs-only changes. Evidence in `docs/qa/releases/1.2.0/`. PR164 remains open. Owner requested testing first: physical iPhone pass is pending, then merge and App Store 1.2.0 submission. No App Review submission or public release yet.
+
+Founder specified **1.2.0 (35)**. The earlier 1.1.10 archive attempt was stopped before upload; no 1.1.10 build was sent to Apple.
+
+## 2026-10-23 — Record-a-run production candidate 1.2.0 (35)
+
+Founder requested production shipment, then confirmed real-iPhone checks are not yet done and requested a testing build. Signed archive and distribution export verified; uploading TestFlight candidate with all three releases; Strava remains deferred/hidden. Published 1.1.9 (34) is the prior App Store version. Full code suite already passed 724/0; privacy policy and ASC labels are complete. No public release or merge until device checks. Candidate source/build and results: `docs/qa/releases/1.2.0/`.
+
+## 2026-10-23 — App Store Connect privacy reconciled and published
+
+RunSmart app 6768297840: added Name and Other User Content for linked App Functionality; added linked Analytics purposes for Fitness/User ID; corrected Product Interaction Analytics to linked. No advertising tracking. Existing policy URL already matched the now-live policy. Verified published state and persisted preview; no pending data setup. Apple initially persisted new Analytics purposes as unlinked despite the initial wizard selection: explicitly re-entered and corrected them before final verification. Evidence in `docs/qa/releases/record-run-2026-10-23/`. No app binary upload, merge, submission or release. Remaining gate: real-iPhone test pass. This was metadata/documentation only; no code change or new test run (latest suite 724/0).
+
+## 2026-10-23 — Final record-a-run setup, Strava deferred
+
+**Status:** Final three review findings fixed; full simulator suite **724 passed / 0 failed / 0 skipped**. Founder declined a Strava subscription: client ID remains empty, UI hidden, no OAuth registration/secrets/deployment. Fixed weight deletion and stale Health reads, required Health identity metadata before finishing, and normalized route timestamps/segment boundaries. Added 12 regressions. Privacy policy published and verified at https://www.runsmart-ai.com/privacy (web PR147); App Privacy reconciliation prepared in `docs/qa/releases/record-run-2026-10-23/`. ASC answers have not been edited. Physical iPhone checks remain required before merge/release. Health duplicate-query failure remains fail-closed without an eventual retry; title/notes remain local-only. No merge/store upload/submission.
+
+## 2026-10-22 — Record-a-run Release B implementation and QA
+
+Implemented S4–S8 on isolated `codex/2026-10-22-record-run-release-b` at `/Users/nadavyigal/Developer/runsmart-ios-worktrees/record-run-release-b`, based on Claude S2 `15e9edf`. The Release A checkout was not modified; S3 remains Claude-owned.
+
+Offline AVSpeechSynthesizer cues run from recorder events and GPS/timer progress, with persisted cadence/metrics and optional authenticated AI extra; stale AI playback is canceled. Auto-pause is default-on, uses accurate speed fixes, excludes the full detected stop, resumes automatic pauses only, and preserves manual pauses. Finish needs a 1.5-second hold or accessibility action; a single paused decision sheet owns Save/Resume/Discard. Stats/Map pages show average/current pace and follow the latest fix; simplification preserves pause boundaries. Optional Health/manual weight powers ACSM net active calorie estimates, persisted on saved runs and marked est.
+
+Final full XCTest/Swift Testing run: **518 passed / 0 failed / 0 skipped**, iPhone 17 Pro / iOS 26.5. Focused suite 21/0 before two final timing regressions; final auto-pause suite 5/0. Simulator smoke verified short tap, hold, pause, Resume from recording and manual pause, Map, and demo Save -> Activity saved. See `docs/qa/reports/record-run-release-b-2026-10-22/README.md` for result summaries and images. A new SE boot stalled at BackBoard and a concurrent test-host launch timed out; the attempt was interrupted and the temporary SE removed. Final isolated rerun passed.
+
+Independent review caught manual-pause sheet Resume, recovery/weight presentation priority, stationary callback filtering, exact milestone interpolation, stale AI callbacks, skipped route segment markers, and delayed fixes predating run start. All fixed. Retrospective: isolation protected Claude's work and review found cross-story edge cases; keep simulator boot and test startup sequential. No skill changes made.
+
+Review: implementation `50facbc` pushed; draft PR #163 (https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/163). Final caption-only adjustment built successfully and Stats/controls were visually checked at maximum Dynamic Type; simulator text size restored afterwards.
+
+Handoff: integrate Claude S3 before merging, recheck Start anyway + start speech, then perform guest airplane-mode/locked-phone/Spotify/Bluetooth/background GPS, small-screen/maximum Dynamic Type and VoiceOver smoke. No Release C, store upload, submission or release.
+
 ## 2026-10-17 — Distribution IPA export completed
 
 **Status:** App Store distribution IPA verified after release-owner Keychain approval. App and Live Activity extension are 1.1.9 (34), Apple Distribution signed, `get-task-allow=false`, deep/strict signature checks passed, final privacy manifest included. Durable IPA: `build/release-1.1.9-34/AppStoreExport/RunSmart.ipa` (12,207,508 bytes); fingerprint in `docs/qa/releases/1.1.9/ipa-verification.json`.

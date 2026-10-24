@@ -859,6 +859,10 @@ struct RunRoutePoint: Identifiable, Codable, Hashable {
     var timestamp: Date
     var horizontalAccuracy: Double
     var altitude: Double?
+    /// True on the first accepted point after a pause (or a recovered-run resume).
+    /// Distance and time between the previous point and this one are never counted.
+    /// Optional so stored runs and Health imports without the field still decode.
+    var startsNewSegment: Bool? = nil
 
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -872,7 +876,18 @@ struct RunRoutePoint: Identifiable, Codable, Hashable {
 struct KilometerSplit: Identifiable, Equatable {
     var id: Int { km }
     var km: Int
+    /// Pace for this split in seconds per kilometer. For a partial split it is
+    /// normalized to one kilometer.
     var paceSecondsPerKm: Double
+    /// 1000 for a full split; the remaining distance for a partial final split.
+    var distanceMeters: Double = 1_000
+    var isPartial: Bool = false
+}
+
+/// A stretch of a run during which the runner had recording paused.
+struct RunPauseInterval: Codable, Hashable, Equatable {
+    var start: Date
+    var end: Date
 }
 
 struct RecordedRun: Identifiable, Codable, Hashable {
@@ -893,6 +908,85 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     /// Garmin device model (e.g. "Garmin Forerunner 265"), when known. Required for the
     /// "Garmin [device model]" attribution on Garmin-sourced rows per brand guidelines.
     var sourceDeviceName: String? = nil
+    /// Pauses recorded by RunSmart during the run. Nil for runs imported from Garmin or Health.
+    var pauseIntervals: [RunPauseInterval]? = nil
+    /// On-device estimate of active running energy; nil when weight was unavailable.
+    var estimatedActiveKilocalories: Double? = nil
+    /// Runner-edited or planned-workout title. Nil falls back to `RunTitle.defaultTitle`. Optional so stored runs decode.
+    var title: String? = nil
+    /// Free-text notes the runner adds on the post-run summary. Local only. Optional so stored runs decode.
+    var notes: String? = nil
+    /// Strava activity id once the run is on Strava. Local only; set by the Strava upload so it is never sent twice. Optional so stored runs decode.
+    var stravaActivityID: Int? = nil
+}
+
+extension RecordedRun {
+    /// Fields only the runner or the Strava upload set on this device. A provider re-sync or a
+    /// stale copy carries nothing for them, so the stored values win when both exist.
+    func keepingLocalFields(from stored: RecordedRun?) -> RecordedRun {
+        guard let stored else { return self }
+        var merged = self
+        merged.rpe = stored.rpe ?? rpe
+        merged.title = stored.title ?? title
+        merged.notes = stored.notes ?? notes
+        merged.stravaActivityID = stored.stravaActivityID ?? stravaActivityID
+        return merged
+    }
+}
+
+/// Title rules for the post-run summary. Pure so they can be tested without a view.
+enum RunTitle {
+    static let maximumTitleLength = 80
+    static let maximumNotesLength = 2_000
+
+    /// Planned workout title when there is one, else "Morning/Afternoon/Evening/Night Run" from the start time.
+    static func defaultTitle(startedAt: Date, plannedTitle: String? = nil, calendar: Calendar = .current) -> String {
+        if let planned = normalized(plannedTitle, limit: maximumTitleLength) { return planned }
+        let hour = calendar.component(.hour, from: startedAt)
+        switch hour {
+        case 5..<12: return "Morning Run"
+        case 12..<17: return "Afternoon Run"
+        case 17..<21: return "Evening Run"
+        default: return "Night Run"
+        }
+    }
+
+    static func displayTitle(for run: RecordedRun, calendar: Calendar = .current) -> String {
+        defaultTitle(startedAt: run.startedAt, plannedTitle: run.title, calendar: calendar)
+    }
+
+    /// Trimmed text, nil when empty, cut to `limit` characters.
+    static func normalized(_ text: String?, limit: Int) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(limit))
+    }
+
+    /// The title to store after the runner edits the field. Leaving the shown title untouched keeps what is stored;
+    /// clearing the field goes back to the default (nil).
+    static func updatedTitle(input: String, for run: RecordedRun, calendar: Calendar = .current) -> String? {
+        let cleaned = normalized(input, limit: maximumTitleLength)
+        if cleaned == displayTitle(for: run, calendar: calendar) { return run.title }
+        return cleaned
+    }
+
+    static func updatedNotes(input: String) -> String? {
+        normalized(input, limit: maximumNotesLength)
+    }
+}
+
+extension RunRoutePoint {
+    /// Total upward altitude change, never counting a climb across a segment start (a pause or
+    /// recovered-run resume). Each segment start re-anchors, as `RunRecorder.elevationGainMeters` does.
+    static func ascentMeters(in points: [RunRoutePoint]) -> Double {
+        var gain = 0.0
+        for pair in zip(points, points.dropFirst()) {
+            guard pair.1.startsNewSegment != true else { continue }
+            if let a = pair.0.altitude, let b = pair.1.altitude, b > a {
+                gain += b - a
+            }
+        }
+        return gain
+    }
 }
 
 enum RunSmartAttribution {
@@ -1043,12 +1137,7 @@ struct SavedRoute: Identifiable, Codable, Hashable {
 
     static func from(run: RecordedRun, name: String, tags: [String] = [], notes: String = "") -> SavedRoute {
         let source: RouteSource = run.source == .garmin ? .garmin : .recorded
-        var gain = 0.0
-        for pair in zip(run.routePoints, run.routePoints.dropFirst()) {
-            if let a = pair.0.altitude, let b = pair.1.altitude, b > a {
-                gain += b - a
-            }
-        }
+        let gain = RunRoutePoint.ascentMeters(in: run.routePoints)
         let now = Date()
         return SavedRoute(
             id: UUID(),

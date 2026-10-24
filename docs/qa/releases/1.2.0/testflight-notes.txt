@@ -1,0 +1,13 @@
+Record-a-run testing build — Releases A, B and C combined.
+
+Please test:
+1. Start a run, including Cancel GPS search and Start anyway after 20 seconds.
+2. Record with the phone locked and Spotify playing; check speech cues and restored music volume.
+3. Force-quit while recording and while paused, reopen, and restore the unfinished run.
+4. Stop at a traffic light, then resume running. Check auto-pause, moving time, distance and splits.
+5. Start a planned interval workout and check each step card and spoken cue.
+6. Finish using the hold gesture. Review the summary, title, notes and splits.
+7. Check the completed workout route, pauses and estimated calories in Apple Health.
+8. Share with the route map off, then on. Check the map excludes the start/finish area.
+
+Strava is deferred and hidden. Title and notes are stored on this device only. Calorie values are estimates. A Health save skipped after a failed duplicate check currently has no automatic retry.

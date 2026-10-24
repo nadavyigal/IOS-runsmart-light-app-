@@ -36,9 +36,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>RunSmart reads workouts, routes, heart rate, HRV, sleep, steps, and active energy to personalize coaching, readiness, and training load.</string>
+	<string>RunSmart reads workouts, routes, heart rate, HRV, sleep, steps, and active energy to personalize coaching, readiness, and training load. With your permission, it reads weight to estimate calories during runs.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>RunSmart writes completed GPS runs to Health when you allow it.</string>
+	<string>RunSmart writes completed runs to Health when you allow it: the workout, route, distance, pauses, and estimated active energy.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>RunSmart uses background location only while an outdoor run is in progress, so distance, pace, and route history continue if you lock your phone.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
@@ -53,6 +53,8 @@
 	<string>YES</string>
 	<key>RUNSMART_GARMIN_GATEWAY_URL</key>
 	<string>https://www.runsmart-ai.com/api/devices/garmin/connect</string>
+	<key>RUNSMART_STRAVA_CLIENT_ID</key>
+	<string>$(RUNSMART_STRAVA_CLIENT_ID)</string>
 	<key>RUNSMART_GUEST_MODE_ENABLED</key>
 	<string>YES</string>
 	<key>RunSmartAPIBaseURL</key>
@@ -73,6 +75,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
+		<string>audio</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict>

@@ -1,3 +1,136 @@
+## 2026-10-24 — Corrected 1.2.0 (36) available in TestFlight
+
+Build 36 uploaded, processed and assigned to RunSmart Internal; Apple shows Testing. Removed known-bad build 35 from the group (reversible group association removal; no build expiration). Saved login guidance and field-test notes. Root cause: ignored local xcconfig override replaced a valid committed/public-1.1.9 key with an invalid one. Corrected override, retained valid committed default, added live actual-artifact backend gate in script/Fastlane/AGENTS. Both archive and IPA live Auth settings pass; 25 focused auth tests and fresh full 724-test suite pass, zero failures/skips. Malformed-token probe reaches Auth validation rather than API-key rejection. Source archive 477bdcc; package signatures, entitlements, dSYMs and privacy verified. See docs/qa/releases/1.2.0/build36-* evidence. Owner still needs to update in TestFlight and complete real Apple authorization/field checks; no merge, public release or App Review submission.
+
+## 2026-10-23 — Build 35 sign-in failure; preparing 1.2.0 (36)
+
+Founder reported Apple sign-in failure. Live logs and the packaged-key probe confirm an invalid API key in build 35, before Apple token validation. Active project publishable key succeeds, Apple/email providers enabled. Committed default was valid; corrected the invalid ignored local override that replaced it in build 35; no backend key rotation or security changes. Adding live archived-key preflight before upload. Build 35 must not ship to production; replacement build 36 pending verification and TestFlight upload. Evidence: docs/qa/releases/1.2.0/build36-auth-fix.md.
+
+## 2026-10-23 — RunSmart 1.2.0 (35) ready in TestFlight
+
+All record-a-run releases A/B/C are implemented with Strava deferred. Signed archive, Apple Distribution IPA, app/extension versions, signatures, required entitlements, dSYMs, backend/analytics configuration and privacy packaging verified. Xcode upload succeeded; Apple processed build 35; RunSmart Internal now shows **Testing** with one build/one tester, and founder status **Invited** after explicit invitation approval. What to Test contains the focused device checklist. Source `0e3c389`; full code suite 724/0 before version/docs-only changes. Evidence in `docs/qa/releases/1.2.0/`. PR164 remains open. Owner requested testing first: physical iPhone pass is pending, then merge and App Store 1.2.0 submission. No App Review submission or public release yet.
+
+## 2026-10-23 — Record-a-run production candidate 1.2.0 (35)
+
+Founder requested production shipment, then confirmed real-iPhone checks are not yet done and requested a testing build. Signed archive and distribution export verified; uploading TestFlight candidate with all three releases; Strava remains deferred/hidden. Published 1.1.9 (34) is the prior App Store version. Full code suite already passed 724/0; privacy policy and ASC labels are complete. No public release or merge until device checks. Candidate source/build and results: `docs/qa/releases/1.2.0/`.
+
+## 2026-10-23 — App Store Connect privacy reconciled and published
+
+RunSmart app 6768297840: added Name and Other User Content for linked App Functionality; added linked Analytics purposes for Fitness/User ID; corrected Product Interaction Analytics to linked. No advertising tracking. Existing policy URL already matched the now-live policy. Verified published state and persisted preview; no pending data setup. Apple initially persisted new Analytics purposes as unlinked despite the initial wizard selection: explicitly re-entered and corrected them before final verification. Evidence in `docs/qa/releases/record-run-2026-10-23/`. No app binary upload, merge, submission or release. Remaining gate: real-iPhone test pass. This was metadata/documentation only; no code change or new test run (latest suite 724/0).
+
+## 2026-10-23 — Final record-a-run setup, Strava deferred
+
+**Status:** Final three review findings fixed; full simulator suite **724 passed / 0 failed / 0 skipped**. Founder declined a Strava subscription: client ID remains empty, UI hidden, no OAuth registration/secrets/deployment. Fixed weight deletion and stale Health reads, required Health identity metadata before finishing, and normalized route timestamps/segment boundaries. Added 12 regressions. Privacy policy published and verified at https://www.runsmart-ai.com/privacy (web PR147); App Privacy reconciliation prepared in `docs/qa/releases/record-run-2026-10-23/`. ASC answers have not been edited. Physical iPhone checks remain required before merge/release. Health duplicate-query failure remains fail-closed without an eventual retry; title/notes remain local-only. No merge/store upload/submission.
+
+## 2026-10-23: Review findings on PR 164, Strava and Health (branch claude/2026-10-22-record-run-release-a)
+
+**Status:** Done, committed, not pushed. **Current Phase:** Record-a-run Release C. **Active Story:** None. **Last Completed Story:** nine review findings on Strava and Apple Health. **Next Recommended Story:** deploy `strava_oauth` (needs founder yes), Strava app registration and device check, then push and PR.
+**What:** (1) Auto-upload now waits for Done on the post-run summary (`holdAutoUpload` / `releaseHeldUpload`), so the edited title and notes go up; recovered auto-saves still upload at once; later edits go to Strava with `PUT /activities/{id}`, kept in a retry ledger. (2) `strava_oauth` passes 429 as 429 and 5xx as 502; `{error:"invalid_grant"}` with 401 only when Strava refuses the refresh token; the app forgets tokens only on that. (3) `markRunSynced`, `saveRunKeepingLocalEdits` and `RecordedRun.keepingLocalFields` stop stale copies erasing rpe, title, notes and Strava id; `saveRun` merges them on the provider-id path. (4) Strava tokens carry the Supabase user id; a mismatch or missing owner deletes them; first launch after install wipes the Keychain item. (5) Share map also drops points within 200 m straight-line of the first and last point and splits segments there. (6) Manual activities: ledger entry before the create call, retry searches `/athlete/activities` first. (7) Health saves are serialized per run (`HealthKitSaveGate`); a failed duplicate check writes nothing. (8) Background saves never show the Health sheet. (9) One-line hint under notes.
+**Last Validation:** full suite 712 passed / 0 failed / 0 skipped (673 + 39 new), iPhone 17 simulator; `deno check supabase/functions/strava_oauth/index.ts` passes.
+**Blockers:** `strava_oauth` must be redeployed for fix 2 (not done here). The scope now includes `activity:read` (needed for the manual duplicate search), so Strava connections made before this build must reconnect. Health: a save skipped because the duplicate check failed is not retried (no retry path exists).
+**Last Updated:** 2026-10-23
+
+## 2026-10-23: Live-run review fixes on PR 164 (branch claude/2026-10-22-record-run-release-a)
+
+**Status:** Done, committed, not pushed. **Current Phase:** Record-a-run Release C. **Active Story:** None. **Last Completed Story:** ten live-run review findings. **Next Recommended Story:** device check of guide, cues and live map; then push and PR.
+**What:** `WorkoutGuide.rebase` after an auto-pause (guide clock follows the backdated moving time); no auto-pause while the guide is in a recovery step; the live Audio/Muted button now mutes the server voice cue too (`VoiceCoachService.isActive` needs spoken cues on; AI cues stay off by default for users with no stored value); pause, resume and auto-pause cues are queued, auto-pause and auto-resume are debounced 20 s; `tick(allowsCues:)` and cues stopped after tracking in `discard()`; server cue interval is kept across pause and resume; `parseRecovery` ignores warm-up and cool-down clauses; discard needs an alert confirmation; live map keeps the runner's zoom and uses a 30 m bearing held until 10 m of travel; `currentPace` clips or drops the boundary segment and needs 10 s of in-window fixes.
+**Last Validation:** full suite 673 passed / 0 failed / 0 skipped (654 + 19 `RunLiveReviewFixesTests`), iPhone 17 simulator.
+**Blockers:** Device check pending: recovery step standing still, Muted button with AI cues on, discard alert inside the end sheet, map zoom while running.
+**Last Updated:** 2026-10-23
+
+## 2026-10-23: S12 route map share and Strava upload (branch claude/2026-10-22-record-run-release-a)
+
+**Status:** Done, committed, not pushed. **Current Phase:** Record-a-run Release C. **Active Story:** None. **Last Completed Story:** S12 opt-in route map share and Strava upload. **Next Recommended Story:** Strava app registration and device check (see Blockers), then device check of S9 to S12.
+**What:** (A) Post-run share has an "Include route map" toggle, default off. On: `MKMapSnapshotter` image with one polyline per segment, first and last 200 m cut (`RouteSharePrivacy`), privacy note "Route shown without the first and last 200 m."; routes under 450 m (400 m plus 50 m visible) offer no toggle. Off: same private text share as before. (B) Strava, config-gated: with `RUNSMART_STRAVA_CLIENT_ID` empty, no Strava UI exists. Edge function `supabase/functions/strava_oauth` (exchange and refresh, secret stays server-side, not deployed). iOS: `Services/Strava/` (`GPXBuilder`, `StravaRequests`, `StravaClient`, Keychain `StravaTokenStore`, `StravaConnectionService` with `ASWebAuthenticationSession`, `StravaUploadCoordinator` with a retry ledger), `Features/Strava/StravaConnectionView`, Profile "Strava" row, post-run overflow "Send to Strava" and status line. `RecordedRun.stravaActivityID` is local only. Auto-upload (default on when connected) runs after processing; failures retry on next foreground. Upload dedupes by `external_id` `runsmart-<run id>.gpx`; a duplicate refusal is read as "already on Strava". `updateRunRPE` now applies to the stored copy so the activity id is not overwritten by a stale run.
+**Last Validation:** full suite 654 passed / 0 failed / 0 skipped (600 + 12 `RouteSharePrivacyTests` + 42 `StravaTests`), iPhone 17 simulator; `deno check supabase/functions/strava_oauth/index.ts` passes. No network in tests.
+**Blockers:** Founder setup: register the Strava API app, set `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET` Supabase secrets, deploy `strava_oauth`, set `RUNSMART_STRAVA_CLIENT_ID` in `RunSmartSecrets.xcconfig` (and the release build config). Device check pending: Strava sign-in round trip and the callback domain, real upload on a recorded run, share sheet with the map image, disconnect. Strava brand rules (official "Connect with Strava" button, "Powered by Strava" mark) and the privacy policy and App Privacy answers need review before shipping with a client id.
+**Last Updated:** 2026-10-23
+
+## 2026-10-23: S11 Apple Health route, pauses and energy (branch claude/2026-10-22-record-run-release-a)
+
+**Status:** Done, committed, not pushed. **Current Phase:** Record-a-run Release C. **Active Story:** None. **Last Completed Story:** S11 Apple Health route and energy. **Next Recommended Story:** S12 (sharing and Strava, decision needed); device check of S9, S10 and S11 first.
+**What:** `HealthKitSyncService.save` now writes with `HKWorkoutBuilder`: pause and resume events from `pauseIntervals` (a pause still open at the end has no resume), one distance sample per moving stretch (sums to the run distance, nothing during pauses), an active energy sample only when `estimatedActiveKilocalories` exists, metadata `RunSmartSource`, `RunSmartRunID`, `HKMetadataKeyIndoorWorkout: false`. Then `HKWorkoutRouteBuilder` per route segment (skipped under 2 points). Each step fails alone; a failed route or energy write keeps the workout. The pure decisions live in `HealthKitWorkoutPlan` (tested). `shareTypes` now holds workout, route, distance and active energy. Existing Health users are asked for the new types once, right after their next run (only if workout write was already allowed, so people who never connected Health get no prompt). Saving twice is skipped by `RunSmartRunID`; only `.runSmart` runs are written. Import skips a workout carrying `RunSmartRunID` only when a local run with that id exists; after a reinstall it is imported as before (that is how GPS comes back). `NSHealthUpdateUsageDescription` and the two in-app HealthKit disclosures name route, pauses and estimated energy. `RouteMapView` title chip moved to top-leading.
+**Last Validation:** full suite 600 passed / 0 failed / 0 skipped (583 + 17 `HealthKitWorkoutPlanTests`), iPhone 17 simulator. Two earlier runs hit "test runner hung" because the simulator had shut down; booting it first fixed that.
+**Blockers:** Device check pending: the new Health prompt after a run, route and pauses visible in the Health app, energy shown only when weight is known, no duplicate import of the run, map chip placement.
+**Last Updated:** 2026-10-23
+
+## 2026-10-23: S10 post-run summary, one coach voice (branch claude/2026-10-22-record-run-release-a)
+
+**Status:** Done, committed, not pushed. **Current Phase:** Record-a-run Release C. **Active Story:** None. **Last Completed Story:** S10 post-run summary redesign. **Next Recommended Story:** S11 Apple Health route + energy; device check of S9 and S10 first.
+**What:** `PostRunSummaryView` is one flow now: "Run saved" header with editable title, date and time, and an overflow menu (Save route, Delete run); hero stats (distance, moving time, avg pace, elevation, calories est.; unknown stats are hidden, not "--"); 220 pt route map, tap opens a dismissable full-screen map; effort; notes; ONE Coach section (the real debrief with its loading state, plan update and Recommended Next Run with Save to Training Plan folded in); per-km pace bar chart plus the split list (partial split included); benchmark; share; "Done" and a "View full report" link. Removed: template `CoachAnalysisCard`, static `RecoveryPlanCard`, "Keep Activity", "View Report (saves)". `PostRunLearningCard` is generic over a footer so the plan update sits inside its single panel.
+**Title and notes:** optional `title` and `notes` on `RecordedRun` (old data decodes). The planned workout title is stored as the title at Finish; otherwise the default is Morning/Afternoon/Evening/Night Run from the start time. Saved through `updateRunDetails` (RunLogging, local store, Supabase and demo services). LOCAL ONLY: the `runs` upsert (`DBRunInsert`) has no title column and its `notes` column holds a system source note, so nothing goes to Supabase (no migration added).
+**Leftover fixed:** `SavedRoute.from(run:)` and the production `elevationGain(points:)` no longer count a climb across a pause break (`RunRoutePoint.ascentMeters(in:)`).
+**Last Validation:** full suite 583 passed / 0 failed / 0 skipped (571 + 12 `PostRunSummaryTests`), iPhone 17 simulator. Screenshots of the summary from a simulated run.
+**Blockers:** Device check pending: keyboard behaviour of title and notes, full-screen map, VoiceOver on the new controls, the AI debrief on a real run (demo mode shows the deterministic coach text).
+**Last Updated:** 2026-10-23
+
+## 2026-10-23: S9 guided planned workouts (branch claude/2026-10-22-record-run-release-a)
+
+**Status:** Done, committed, not pushed. **Current Phase:** Record-a-run Release C. **Active Story:** None. **Last Completed Story:** S9 guided planned workouts. **Next Recommended Story:** S10 post-run summary redesign; device check of S9 voice and card first.
+**What:** `StructuredWorkoutFactory.makeGuideSteps(for:)` builds guide stages from the same rows as the pre-run list (`WorkoutStep.guideSteps`). `WorkoutGuide` (new, `Services/WorkoutGuide.swift`) follows moving time and distance: step progress, next step, pace status (5 s/km tolerance), completion, one pace reminder per 60 s in work steps. Stats page step card (`LiveWorkoutGuideCard`). Voice through `LocalRunCueService` (step cue joins the km split cue in one utterance). Guide and its step start points are stored in the run checkpoint and catch up from recovered moving time and distance.
+**Guided:** easy, parkrun, tempo, long (main block from plan duration, else plan distance), intervals (rep notation in `distance` plus a recovery length in `detail`), JSON `workoutStructure` timed steps. Not guided (free-run behaviour): hills, race, recovery, strength, reps with no stated recovery, unparseable distance. Pace band only from the plan's explicit target pace (plus or minus 5 s/km). Default interval note changed to "Recover between reps" (the old "Jog 200 m" was not plan data).
+**Last Validation:** full suite 571 passed / 0 failed / 0 skipped (552 + 19 `WorkoutGuideTests`), iPhone 17 simulator. Simulator screenshot of the step card taken with the DEBUG-only `-DEMO_GUIDE_INTERVALS` launch argument.
+**Blockers:** Device check pending: spoken step cues with Spotify and locked phone, pace reminders on a real run, crash recovery mid-rep.
+**Last Updated:** 2026-10-23
+
+## 2026-10-22: Release A + B leftovers (branch claude/2026-10-22-record-run-release-a)
+
+**Done:** (a) Start anyway speaks "Run started." and resets/arms auto-pause; auto-pause only judges fixes once the run has a first route point, so a run started without a fix cannot pause before its first fix. (b) Route matching treats a segment start as a break: no length and no resample points across a pause gap (`RouteMatchingService.resampled`). (c) Starting a new run while a recovery prompt is pending saves the recovered run without touching the new run's title and hands it to `onRecoveredRunAutoSaved`; the Run tab exports it to Health and processes it silently. (d) iPhone SE (3rd gen) simulator: pre-run and live Stats fit, Stats scrolls, controls reachable; no layout change needed. GPS wait state not reachable (the simulator delivers a fix within 4 s); Map page not swiped (simulator input tool not granted).
+**Validation:** full suite 552 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New: `RunMergeLeftoverTests` (4), `RouteMatchingPauseGapTests` (3), one voice-coach test.
+**Not done:** `SavedRoute.from(run:)` and `elevationGain(points:)` still sum altitude across pause breaks. Device smoke (locked phone, offline cues, Spotify ducking, Bluetooth, background GPS, VoiceOver) still pending. Not pushed.
+**Last Updated:** 2026-10-22
+
+## 2026-10-22: Release A + Release B merged (branch claude/2026-10-22-record-run-release-a)
+
+**Merge:** `origin/codex/2026-10-22-record-run-release-b` (PR #163, S4-S8) merged into Release A (S0-S3 + PR #164 review fixes). One implementation kept where both solved the same problem: voice-coach session generation + live flag (A) with `cancelPlaybackForLocalCue()` (B) so a local spoken cue drops any in-flight server cue; map following and pause-gap polylines in `LiveRunMapPage` using `RouteMapView.lineSegments` (A tests kept, `RouteMapView` live mode removed); display route thinning keeps segment-start points (A), B's flag carry-forward removed; cached `completedKilometerSplits` (A) read by `LiveRunView`; checkpoint refresh in `tick(now:)` (A) plus cue updates (B). B's AI voice cue default is off.
+**Validation:** full suite 544 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5).
+**Status:** Merged, not pushed. **Next:** leftovers (Start anyway cue + auto-pause arming, route matching across pause gaps, recovered-run title/processing, small-screen check), then device smoke.
+**Last Updated:** 2026-10-22
+
+## 2026-10-22 — Record-a-run Release B (Codex, separate from Claude Release A)
+
+**Review:** Draft PR #163 — https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/163; implementation commit `50facbc` pushed.
+**Scope:** S4 offline on-device cues and real settings; S5 default-on auto-pause; S6 hold-to-finish and one Save/Resume/Discard sheet; S7 Stats/Map pages with latest-fix following; S8 optional-weight active-calorie estimate, live and saved summary.
+**Branch/worktree:** `codex/2026-10-22-record-run-release-b`, `/Users/nadavyigal/Developer/runsmart-ios-worktrees/record-run-release-b`, based on S2 `15e9edf`. Claude's active Release A checkout was not changed.
+**Validation:** Final full simulator suite 518 passed / 0 failed / 0 skipped. Finish tap/hold, pause/resume, end sheet and demo save visually verified. Independent review findings fixed. Final caption-only typography adjustment passed a separate simulator build and maximum-text Stats smoke. Final metric-order/label and delayed-GPS fixes are included in that run. Small-screen simulator boot stalled; temporary device removed and that smoke remains pending.
+**Handoff:** `docs/qa/reports/record-run-release-b-2026-10-22/README.md`. S3 remains Claude-owned; integrate finished Release A and recheck its Start anyway branch before merging B. Physical locked-phone/offline/audio/background-GPS checks remain. No upload, submission, release or Release C work.
+
+## 2026-10-22: Record-a-run Release A (branch claude/2026-10-22-record-run-release-a)
+
+**S0 quick fixes:** voice-coach audio session active only while a cue plays; live map follows the runner instead of freezing after ~1.2 km; debrief sends the planned workout type; template card renamed "RUN SUMMARY" without the AI label; elevation gain replaces "N pts".
+
+**S1 crash and kill recovery:** `RunSessionCheckpoint` written to Application Support (first fix, pause, resume, every 10 s; serial background queue; deleted on finish/discard). On launch an "Unfinished run found" alert offers Resume (lands paused; the gap counts as pause), Save, Discard; app switches to the Run tab. Resume withheld after 12 h. Pause keeps GPS on at low power so iOS keeps the app alive; paused fixes are ignored.
+
+**S2 run data integrity:** splits skip pause gaps (segment flag on the first point after resume, pause intervals stored on the run), boundary times interpolated, no 8-split cap, partial final split (≥100 m). Jitter filter keeps an anchor and drops fixes over 12 m/s, under max(3 m, 0.5 × accuracy), or near-stationary (speed <0.5 m/s within 2 × accuracy; unknown speed within 1.5 × accuracy). Current pace = path distance over the last ~30 s, "--" when stopped. Four existing fixtures in `RunSmartReadinessTests` updated (implausible jumps, old end-timestamp split attribution).
+
+**S3 GPS start:** while finding GPS, Cancel is always shown; after 20 s "Start anyway" starts the clock (checkpoint written at once) and distance starts at the first good fix. `kCLErrorLocationUnknown` during acquisition no longer drops to `.failed` (lesson added). Live placeholder reads "Waiting for GPS".
+
+**Review fixes (PR #164):** code-reviewer (8 fixed: denied-mid-run keeps a recoverable checkpoint, stale cue guard, voice setup on recovered resume and unmute, synchronous checkpoint delete, GPS stopped after failed search, live splits cached, per-segment map polylines, zero-distance effort). Codex (2 fixed: checkpoint refreshed every 10 s from the timer, elevation re-anchors per segment; async delete already fixed). Open: `RouteMatchingService.resampled` counts the pause gap in route length.
+
+**Status:** Release A (S0-S3) committed; PR #164 open for review.
+**Current Phase:** Record-a-run Release A in review.
+**Active Story:** None (Release A in review).
+**Last Completed Story:** S3 GPS start.
+**Next Recommended Story:** Device test of Release A, then S4 local voice cues (add `audio` background mode).
+**Blockers:** None. Device checks pending: Spotify volume between cues; cues with phone locked (UIBackgroundModes has only `location`, handle in S4); force-quit recovery while recording and while paused; paused run alive in background; jitter filter route density at 20 m accuracy.
+**Last Validation:** 2026-10-22: full suite 523 passed / 0 failed / 0 skipped, iPhone 17 simulator (iOS 26.5). New `RecordRunQuickFixTests` (9), `RunRecoveryTests` (21), `RunDataIntegrityTests` (20), `RunGPSStartTests` (12). S3 screenshots on the iPhone 17 Pro simulator (Finding GPS with Cancel, Start anyway after 20 s, live at 0.00 km).
+**Last Updated:** 2026-10-22
+
+## 2026-10-22: Record-a-run UX plan (plan only, no code)
+
+**Why:** the founder asked Grok to review the record-a-run flow against Strava and NRC, then asked for a deeper review and a fix plan.
+
+**Result:** `tasks/plan-record-run-ux-2026-10-22.md`. Grok's 12 gaps: 10 confirmed, 2 corrected (Tel Aviv map default is never visible; Health route is a read permission only, writing needs a new prompt). 11 new findings, 3 confirmed by a temporary simulator probe (not committed): live map camera stops refitting after ~1.2 km; splits after a pause read km1 5:05, km2 8:30 for an even 5:00 run; 2 min standing with noisy GPS added 735 m. 13 stories in 3 releases (S0 quick fixes first).
+
+**Status:** Plan written, waiting for founder OK.
+**Current Phase:** Record-a-run UX planning.
+**Active Story:** None (plan awaiting approval).
+**Last Completed Story:** Record-a-run UX plan.
+**Next Recommended Story:** S0 quick fixes (audio session only during cues, live map refit, debrief workout type, remove "AI" label on template card, replace "N pts" pill).
+**Blockers:** Founder decisions: auto-pause default, Strava upload.
+**Last Validation:** 2026-10-22: 5 probe tests passed on iPhone 17 simulator (iOS 26.5); probe file deleted after the run. No product code changed.
+**Last Updated:** 2026-10-22
+
 ## 2026-10-21: Coverage matching and route variants (PR open, not merged)
 
 **Why:** PR #160 (merged) re-matches stored runs, but the founder's Oct 18 and Oct 21 loop runs still did not compare: the Oct 21 run has a short detour (+9.8%), and the index-sampled shape score (0.653) and the 8% distance limit both rejected it. The founder accepted the recommendation (coverage matching plus a pace-only state) on 2026-10-21.

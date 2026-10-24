@@ -209,13 +209,40 @@ struct PostRunLearningCardModel: Hashable {
     }
 }
 
-struct PostRunLearningCard: View {
+struct PostRunLearningCard<Footer: View>: View {
     @Environment(\.runSmartServices) private var services
     var run: RecordedRun?
     var outcome: PostActivityOutcome?
     var report: RunReportDetail?
     var isProcessing: Bool = false
     var debrief: PostRunDebriefModel? = nil   // E6: AI debrief
+    /// Replaces the section label ("COACH LEARNED" / "COACH REACTION"), used by the post-run summary's single Coach section.
+    var title: String? = nil
+    /// False when the caller shows the suggested next run with its own save button (the summary's footer does).
+    var showsSaveAction: Bool = true
+    private let footer: Footer
+    private let hasFooter: Bool
+
+    init(
+        run: RecordedRun?,
+        outcome: PostActivityOutcome?,
+        report: RunReportDetail?,
+        isProcessing: Bool = false,
+        debrief: PostRunDebriefModel? = nil,
+        title: String? = nil,
+        showsSaveAction: Bool = true,
+        @ViewBuilder footer: () -> Footer
+    ) {
+        self.run = run
+        self.outcome = outcome
+        self.report = report
+        self.isProcessing = isProcessing
+        self.debrief = debrief
+        self.title = title
+        self.showsSaveAction = showsSaveAction
+        self.footer = footer()
+        self.hasFooter = true
+    }
 
     @State private var activePlan: TrainingPlanSnapshot?
     @State private var benchmarkRouteIDs: Set<UUID> = []
@@ -232,6 +259,14 @@ struct PostRunLearningCard: View {
         )
     }
 
+    @ViewBuilder
+    private var footerSection: some View {
+        if hasFooter {
+            Divider()
+            footer
+        }
+    }
+
     var body: some View {
         if isProcessing && debrief == nil {
             skeletonBody
@@ -246,7 +281,7 @@ struct PostRunLearningCard: View {
         RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top, spacing: 10) {
-                    Label("COACH LEARNED", systemImage: "sparkles")
+                    Label(title ?? "COACH LEARNED", systemImage: "sparkles")
                         .font(.labelLG)
                         .foregroundStyle(Color.accentPrimary)
                     Spacer()
@@ -263,6 +298,7 @@ struct PostRunLearningCard: View {
                     }
                 } else {
                     learningContent
+                    footerSection
                 }
             }
         }
@@ -282,7 +318,7 @@ struct PostRunLearningCard: View {
         RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Label("COACH REACTION", systemImage: "sparkles")
+                    Label(title ?? "COACH REACTION", systemImage: "sparkles")
                         .font(.labelLG)
                         .foregroundStyle(Color.accentPrimary)
                     Spacer()
@@ -304,7 +340,7 @@ struct PostRunLearningCard: View {
         RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top, spacing: 10) {
-                    Label("COACH REACTION", systemImage: "sparkles")
+                    Label(title ?? "COACH REACTION", systemImage: "sparkles")
                         .font(.labelLG)
                         .foregroundStyle(Color.accentPrimary)
                     Spacer()
@@ -344,6 +380,8 @@ struct PostRunLearningCard: View {
                             .foregroundStyle(Color.textSecondary)
                     }
                 }
+
+                footerSection
             }
         }
     }
@@ -364,7 +402,7 @@ struct PostRunLearningCard: View {
             // button AND a caption with the same text (the audit's duplicate
             // "Review manually", §10 B6). A control that can never be tapped is
             // not a control — keep only the explanatory message.
-            if case .saveSuggestedWorkout = model.action {
+            if showsSaveAction, case .saveSuggestedWorkout = model.action {
                 Button {
                     Task { await performAction() }
                 } label: {
@@ -387,7 +425,8 @@ struct PostRunLearningCard: View {
                 }
             }
 
-            if case let .unavailable(message) = model.action {
+            if case let .unavailable(message) = model.action,
+               showsSaveAction || (report ?? outcome?.report)?.structuredNextWorkout == nil {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(model.planImpact == .needsReview ? Color.accentEnergy : Color.textSecondary)
@@ -458,5 +497,25 @@ private struct PostRunLearningLine: View {
                 .foregroundStyle(Color.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+extension PostRunLearningCard where Footer == EmptyView {
+    init(
+        run: RecordedRun?,
+        outcome: PostActivityOutcome?,
+        report: RunReportDetail?,
+        isProcessing: Bool = false,
+        debrief: PostRunDebriefModel? = nil,
+        title: String? = nil
+    ) {
+        self.run = run
+        self.outcome = outcome
+        self.report = report
+        self.isProcessing = isProcessing
+        self.debrief = debrief
+        self.title = title
+        self.footer = EmptyView()
+        self.hasFooter = false
     }
 }

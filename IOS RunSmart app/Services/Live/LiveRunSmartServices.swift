@@ -263,7 +263,7 @@ struct LiveRunSmartServices: RunSmartServiceProviding {
         await ProductionRunSmartServices().syncHealthData()
     }
 
-    func saveToHealth(_ run: RecordedRun) async {
-        await ProductionRunSmartServices().saveToHealth(run)
+    func saveToHealth(_ run: RecordedRun, allowPermissionPrompt: Bool) async {
+        await ProductionRunSmartServices().saveToHealth(run, allowPermissionPrompt: allowPermissionPrompt)
     }
 }

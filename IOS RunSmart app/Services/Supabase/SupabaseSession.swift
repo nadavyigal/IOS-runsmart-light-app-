@@ -248,6 +248,9 @@ final class SupabaseSession: ObservableObject {
         }
 #endif
         try? await supabase.auth.signOut()
+        // A different runner may sign in next: the Strava connection belongs to this one.
+        StravaConnectionService.shared.forgetTokens()
+        StravaUploadCoordinator.shared.clearPending()
     }
 
     struct AccountDeletionError: LocalizedError {
@@ -359,6 +362,8 @@ final class SupabaseSession: ObservableObject {
         if clearLocalData {
             RunSmartLocalStore.shared.clearUserData()
             GarminBridge.shared.invalidateActivityCache()
+            StravaConnectionService.shared.forgetTokens()
+            StravaUploadCoordinator.shared.clearPending()
         }
     }
 

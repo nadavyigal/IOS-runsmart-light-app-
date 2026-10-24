@@ -1,0 +1,20 @@
+{
+  "version": "1.2.0",
+  "build": "35",
+  "apple_app_id": "6768297840",
+  "build_id": "ebf0d2a2-41de-45bb-bba6-a0566415af05",
+  "source_commit": "0e3c389b557bceb93cc582f60c23239ced6cb59c",
+  "upload_result": "succeeded",
+  "upload_completed_utc": "2026-10-23T12:55:39Z",
+  "apple_processing_status": "Testing",
+  "internal_group": "RunSmart Internal",
+  "automatic_distribution": false,
+  "founder_tester_added": true,
+  "app_review_submitted": false,
+  "public_release": false,
+  "processing_completed_verified_utc": "2026-10-23T12:59:29.574151+00:00",
+  "test_notes_saved": true,
+  "internal_group_build_assigned": true,
+  "founder_tester_status": "Invited",
+  "distribution_verified_utc": "2026-10-23T13:01:00.793954+00:00"
+}

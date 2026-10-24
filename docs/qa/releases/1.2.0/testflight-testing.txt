@@ -1,0 +1,86 @@
+Browser tab: 4, Title: "App Store Connect", URL: "https://appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight/groups/df3e9311-4134-4407-973f-cb2a2e4de3b6/builds".
+0 AXWebArea App Store Connect, URL: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight/groups/df3e9311-4134-4407-973f-cb2a2e4de3b6/builds
+	1 container
+		2 container App Store Connect
+			3 container
+				4 heading App Store Connect, Value: 1
+					5 link Description: App Store Connect, Value: appstoreconnect.apple.com/, ID: logo
+				6 container Global
+					7 content list
+						8 link Description: Apps, Value: appstoreconnect.apple.com/apps
+						9 link Description: Xcode Cloud, Value: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/xcode-cloud
+						10 link Description: Trends, Value: appstoreconnect.apple.com/trends
+						11 link Description: Reports, Value: appstoreconnect.apple.com/itc/payments_and_financial_reports
+						12 link Description: Business, Value: appstoreconnect.apple.com/business
+						13 link Description: Users and Access, Value: appstoreconnect.apple.com/access/users
+				14 button Nadav Yigal Nadav Yigal Account name menu
+		15 container sub
+			16 pop up button (collapsed) Description: Apps menu, RunSmart: AI Run Coaching, selected, Secondary Actions: Expand
+				17 container
+					18 image RunSmart: AI Run Coaching
+					19 text RunSmart: AI Run Coaching
+				20 image
+			21 container Apps
+				22 container
+					23 text TestFlight
+					24 image
+				25 content list
+					26 link Description: Distribution, Value: appstoreconnect.apple.com/apps/6768297840/distribution
+					27 link Description: Analytics, Value: appstoreconnect.apple.com/apps/6768297840/analytics
+					28 link Description: TestFlight, Value: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight
+		29 container
+			72 container
+				73 text RunSmart Internal
+				74 heading RunSmart Internal, Value: 2
+					75 pop up button (collapsed) RunSmart Internal, Secondary Actions: Expand
+						76 text RunSmart Internal
+						77 image
+				78 text Internal Group ∙ 1 Tester ∙ 1 Build
+				79 container
+					85 link Testers
+						86 text Testers
+					81 link Builds
+						82 text Builds
+					83 link Settings
+						84 text Settings
+				87 heading Build (1), Value: 3
+					88 text Build (1)
+				89 button Add Build to Group
+					90 image
+				91 table Description: Builds, ID: react-aria4611131117-170
+					92 row Description: 35, ID: react-aria4611131117-170-ebf0d2a2-41de-45bb-bba6-a0566415af05
+						93 heading Build 1.2.0 (35) Delete, Value: 5
+							94 link Description: Build 1.2.0 (35), Help: 1.2.0 (35), Value: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight/ios/ebf0d2a2-41de-45bb-bba6-a0566415af05
+							95 button Delete
+						96 definition list
+							97 container Status
+								98 text Status
+							99 text Testing
+							100 container Platform
+								101 text Platform
+							102 text iOS
+							103 container Upload Date
+								104 text Upload Date
+							105 text Oct 23, 2026 at 3:56 PM
+							106 container Expiration
+								107 text Expiration
+							108 text Expires in 90 days
+							109 container Last 7 Days
+								110 text Last 7 Days
+							111 text –
+							112 container Crashes
+								113 text Crashes
+							114 text –
+		61 content list
+			62 link Description: App Store Connect, Value: appstoreconnect.apple.com/apps
+		63 content list
+			64 text Copyright © 2026 Apple Inc. All rights reserved.
+			65 container
+				66 link Description: Terms of Service, Value: appstoreconnect.apple.com/WebObjects/iTunesConnect.woa/wa/termsOfService
+				67 text |
+			68 container
+				69 link Description: Privacy Policy, Value: apple.com/legal/privacy
+				70 text |
+			71 link Description: Contact Us, Value: appstoreconnect.apple.com/contact-us
+
+The focused UI element is 0 AXWebArea App Store Connect, URL: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight/groups/df3e9311-4134-4407-973f-cb2a2e4de3b6/builds

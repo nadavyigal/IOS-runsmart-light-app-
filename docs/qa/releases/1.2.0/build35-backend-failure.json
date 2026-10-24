@@ -1,0 +1,8 @@
+{
+  "version": "1.2.0",
+  "build": "35",
+  "backend_host": "dxqglotcyirxzyqaxqln.supabase.co",
+  "passed": false,
+  "auth_settings_status": 401,
+  "failure": "Packaged key rejected by Auth settings endpoint"
+}

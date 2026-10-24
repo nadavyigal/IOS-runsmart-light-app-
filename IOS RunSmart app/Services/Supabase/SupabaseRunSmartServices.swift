@@ -636,6 +636,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return updated
     }
 
+    /// Title and notes stay on this device. The `runs` upsert (`DBRunInsert`) has no title column,
+    /// and its `notes` column holds a system source note, so nothing is sent to Supabase.
+    func updateRunDetails(_ run: RecordedRun, title: String?, notes: String?) async -> RecordedRun {
+        let updated = store.updateRunDetails(run, title: title, notes: notes)
+        await postRunsChanged()
+        return updated
+    }
+
     func removeRun(_ run: RecordedRun) async -> Bool {
         let removedLocally = store.removeRun(run)
 
@@ -1088,8 +1096,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return status
     }
 
-    func saveToHealth(_ run: RecordedRun) async {
-        await healthSync.save(run)
+    func saveToHealth(_ run: RecordedRun, allowPermissionPrompt: Bool) async {
+        await healthSync.save(run, allowPermissionPrompt: allowPermissionPrompt)
     }
 
     func firstSyncReview(provider: String) async -> FirstSyncReview? {
@@ -1226,12 +1234,22 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             .filter { $0.startedAt >= sevenDaysAgo }
             .count
 
+        // Planned type comes from the cached active plan (same match rule as completeMatchingWorkout),
+        // so the debrief can run in parallel with workout completion.
+        var plannedKind: WorkoutKind?
+        if let userID = currentUserID, let plan = await planRepo.activePlan(authUserID: userID) {
+            plannedKind = TrainingPlanRepository.bestWorkoutMatch(
+                for: run,
+                in: plan.workouts.filter { !$0.completed }.map { $0.toWorkoutSummary() }
+            )?.kind
+        }
+
         let request = RunSmartDTO.RunDebriefRequestDTO(
             runDistanceKm: distanceKm,
             runDurationSeconds: durationSec,
             averagePaceMinPerKm: paceMinPerKm,
             averageHeartRateBPM: run.averageHeartRateBPM,
-            workoutType: "easy",
+            workoutType: Self.debriefWorkoutType(planned: plannedKind, for: run),
             planPhase: nil,
             recentLoadDays: recentCount,
             limitations: []
@@ -1568,8 +1586,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     private func saveRouteMatch(for run: RecordedRun) -> RecordedRun {
         var matchedRun = run
         matchedRun.routeMatchResult = RouteMatchingService.match(run: run, savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
-        store.saveRun(matchedRun)
-        return matchedRun
+        return store.saveRunKeepingLocalEdits(matchedRun)
     }
 
     func activeGoal() async -> GoalSummary {
@@ -1862,9 +1879,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     onConflict: "source_provider,source_activity_id"
                 )
                 .execute()
-            var synced = run
-            synced.syncedAt = Date()
-            store.saveRun(synced)
+            // The runner may have set effort, title or notes while the upsert ran: change only the sync time.
+            store.markRunSynced(run)
         } catch {
             if !(error is CancellationError) {
                 print("[SupabaseServices] completed run upsert error:", error)
@@ -2619,13 +2635,32 @@ extension SupabaseRunSmartServices {
         )
     }
 
-    private static func fallbackEffort(for run: RecordedRun) -> String {
+    /// Debrief `workoutType` (free text, max 40 chars on the backend): the matched planned workout's
+    /// type when there is one, otherwise a pace/HR classification of the run itself.
+    static func debriefWorkoutType(planned: WorkoutKind?, for run: RecordedRun) -> String {
+        guard let planned else { return fallbackEffort(for: run) }
+        switch planned {
+        case .easy: return "easy"
+        case .intervals: return "intervals"
+        case .tempo: return "tempo"
+        case .hills: return "hills"
+        case .strength: return "strength"
+        case .recovery: return "recovery"
+        case .long: return "long"
+        case .race: return "race"
+        case .parkrun: return "parkrun"
+        }
+    }
+
+    static func fallbackEffort(for run: RecordedRun) -> String {
         let pace = run.averagePaceSecondsPerKm
         if let heartRate = run.averageHeartRateBPM {
             if heartRate >= 165 { return "hard" }
             if heartRate >= 145 { return "moderate" }
             return "easy"
         }
+        // No distance means no pace: a zero pace must not read as a fast run.
+        guard run.distanceMeters > 0, pace > 0 else { return "easy" }
         if pace <= 300 || run.movingTimeSeconds >= 75 * 60 { return "moderate" }
         if pace >= 420 { return "easy" }
         return "steady"

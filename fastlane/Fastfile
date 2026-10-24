@@ -26,6 +26,14 @@ def selected_simulator(kind, env_key)
   sh("ruby #{Shellwords.escape(SIMULATOR_SELECTOR)} #{kind}").strip
 end
 
+def verify_release_backend(archive_path)
+  project_root = File.expand_path("..", __dir__)
+  archive = File.expand_path(archive_path, project_root)
+  apps = Dir.glob(File.join(archive, "Products", "Applications", "*.app"))
+  UI.user_error!("Expected one archived app for live backend verification") unless apps.length == 1
+  sh("python3", File.join(project_root, "scripts", "verify-release-backend.py"), apps.first)
+end
+
 platform :ios do
   desc "Run tests"
   lane :test do
@@ -53,6 +61,8 @@ platform :ios do
       archive_path: "build/RunSmart.xcarchive"
     )
 
+    verify_release_backend("build/RunSmart.xcarchive")
+
     upload_to_testflight(
       api_key: api_key,
       app_identifier: APP_IDENTIFIER,
@@ -79,6 +89,8 @@ platform :ios do
       output_name: "RunSmart.ipa",
       archive_path: "build/RunSmart.xcarchive"
     )
+
+    verify_release_backend("build/RunSmart.xcarchive")
 
     upload_to_app_store(
       api_key: api_key,

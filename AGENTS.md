@@ -3,6 +3,10 @@
 > Read tasks/progress.md, tasks/todo.md, and tasks/session-log.md at session start.
 > Update tasks/progress.md before ending any session that changes project state.
 
+## Release Backend Gate
+
+Before uploading a release or TestFlight build, run `python3 scripts/verify-release-backend.py <built-app-path>` against the actual archived/exported app. A nonempty key is insufficient: require the live check to pass. Check ignored xcconfig overrides when the packaged key differs from committed defaults.
+
 ## Session End Rule: Nothing Stays Local
 
 Every session that produces committed code ends with a push and an open PR (or an explicit handoff) before declaring done. No exceptions. This applies to Claude Code, Codex, and Cursor alike.

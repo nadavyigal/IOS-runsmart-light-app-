@@ -27,53 +27,90 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
     private var timer: Timer?
     private var player: AVAudioPlayer?
     private var isFetching = false
+    /// Bumped every time the run session starts, pauses, stops or cues are switched off, so a
+    /// cue whose network call returns later can tell it belongs to an earlier session.
+    private(set) var sessionGeneration = 0
+    /// True from start/resume until pause/stop. Stays true while cues are switched off, so
+    /// switching them back on mid-run can restart the timer.
+    private(set) var isRunSessionLive = false
+    var isCueTimerRunning: Bool { timer != nil }
+    /// Server cues speak only when the runner has them on and has not muted spoken cues (the
+    /// live Audio/Muted button turns off `LocalRunCueService`, which is the one mute for both).
+    var isActive: Bool { isEnabled && LocalRunCueService.shared.isEnabled }
+    /// Live run seconds left until the next cue. Kept across pause and resume, so stop-and-go
+    /// running still reaches it. Reset to a full interval when a run session starts or stops.
+    private(set) var cueSecondsRemaining: TimeInterval = VoiceCoachService.cueInterval
+    private var timerScheduledAt: Date?
 
     private static let userDefaultsKey = "voiceCoachEnabled"
     private static let cueInterval: TimeInterval = 300
 
     private override init() {
         isEnabled = UserDefaults.standard.object(forKey: VoiceCoachService.userDefaultsKey) == nil
-            ? true
+            ? false
             : UserDefaults.standard.bool(forKey: VoiceCoachService.userDefaultsKey)
         super.init()
     }
 
-    func startSession() {
+    func startSession(now: Date = Date()) {
+        isRunSessionLive = true
+        silenceCues(now: now)
+        cueSecondsRemaining = Self.cueInterval
         configureAudioSession()
-        startTimer()
+        startTimer(now: now)
     }
 
-    func stopSession() {
-        timer?.invalidate()
-        timer = nil
-        player?.stop()
-        player = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    func stopSession(now: Date = Date()) {
+        isRunSessionLive = false
+        silenceCues(now: now)
+        cueSecondsRemaining = Self.cueInterval
     }
 
-    func pauseSession() {
-        timer?.invalidate()
-        timer = nil
-        player?.pause()
+    /// Keeps the time already run toward the next cue (see `cueSecondsRemaining`).
+    func pauseSession(now: Date = Date()) {
+        isRunSessionLive = false
+        silenceCues(now: now)
     }
 
-    func resumeSession() {
-        startTimer()
+    /// Also configures the audio category: a recovered run lands in `.paused` and resumes
+    /// without ever calling `startSession()`. Setting the category twice is harmless.
+    func resumeSession(now: Date = Date()) {
+        isRunSessionLive = true
+        configureAudioSession()
+        startTimer(now: now)
     }
 
-    func setEnabled(_ enabled: Bool) {
+    func setEnabled(_ enabled: Bool, now: Date = Date()) {
         isEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: VoiceCoachService.userDefaultsKey)
         if !enabled {
-            stopSession()
+            silenceCues(now: now)
+        } else if isRunSessionLive {
+            configureAudioSession()
+            startTimer(now: now)
         }
     }
 
+    /// Called by `LocalRunCueService` before it speaks: drops any in-flight or playing server cue
+    /// (the generation bump makes a late network response a no-op) but keeps the cue timer.
+    func cancelPlaybackForLocalCue() {
+        sessionGeneration += 1
+        player?.stop()
+        player = nil
+        deactivateAudioSession()
+    }
+
+    /// A cue may play only if its session is still the current one, the run is live and cues are on.
+    static func shouldPlayCue(startedIn generation: Int, current: Int, isRunSessionLive: Bool, isEnabled: Bool) -> Bool {
+        generation == current && isRunSessionLive && isEnabled
+    }
+
     func deliverCue(context: VoiceCueContext) {
-        guard isEnabled, !isFetching else { return }
+        guard isActive, isRunSessionLive, !isFetching, !LocalRunCueService.shared.isSpeaking else { return }
         isFetching = true
+        let generation = sessionGeneration
         Task { [weak self] in
-            await self?.fetchAndPlay(context: context)
+            await self?.fetchAndPlay(context: context, generation: generation)
             await MainActor.run { [weak self] in
                 self?.isFetching = false
             }
@@ -81,20 +118,70 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
     }
 
     // MARK: AVAudioPlayerDelegate
-    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {}
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor [weak self] in
+            guard let self, self.player === player else { return }
+            self.player = nil
+            self.deactivateAudioSession()
+        }
+    }
 
     // MARK: Private
 
+    private func canPlayCue(startedIn generation: Int) -> Bool {
+        // A local spoken cue (LocalRunCueService) always wins over a server voice cue.
+        !LocalRunCueService.shared.isSpeaking && Self.shouldPlayCue(
+            startedIn: generation,
+            current: sessionGeneration,
+            isRunSessionLive: isRunSessionLive,
+            isEnabled: isActive
+        )
+    }
+
+    private func silenceCues(now: Date = Date()) {
+        sessionGeneration += 1
+        bankElapsedCueTime(now: now)
+        timer?.invalidate()
+        timer = nil
+        player?.stop()
+        player = nil
+        deactivateAudioSession()
+    }
+
+    /// Sets the category only. The session is activated around each cue (see `fetchAndPlay`),
+    /// so other apps' music is ducked only while a cue plays, not for the whole run.
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers, .allowBluetoothHFP])
-        try? session.setActive(true)
     }
 
-    private func startTimer() {
+    private func deactivateAudioSession() {
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    /// Counts the live time run since the timer was scheduled toward the next cue, so a resume
+    /// continues from there instead of starting a fresh interval.
+    private func bankElapsedCueTime(now: Date) {
+        if timer != nil, let timerScheduledAt {
+            cueSecondsRemaining = max(1, cueSecondsRemaining - max(0, now.timeIntervalSince(timerScheduledAt)))
+        }
+        timerScheduledAt = nil
+    }
+
+    /// Fires once after the time still owed to the next cue, then every full interval.
+    private func startTimer(now: Date = Date()) {
+        bankElapsedCueTime(now: now)
         timer?.invalidate()
-        let t = Timer(timeInterval: VoiceCoachService.cueInterval, repeats: true) { _ in
-            NotificationCenter.default.post(name: .voiceCoachCueTimerFired, object: nil)
+        timerScheduledAt = now
+        let t = Timer(timeInterval: cueSecondsRemaining, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.timer != nil, self.isRunSessionLive else { return }
+                NotificationCenter.default.post(name: .voiceCoachCueTimerFired, object: nil)
+                self.timer = nil
+                self.timerScheduledAt = nil
+                self.cueSecondsRemaining = Self.cueInterval
+                self.startTimer()
+            }
         }
         RunLoop.main.add(t, forMode: .common)
         timer = t
@@ -115,7 +202,7 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
         return request
     }
 
-    private func fetchAndPlay(context: VoiceCueContext) async {
+    private func fetchAndPlay(context: VoiceCueContext, generation: Int) async {
         guard let baseURLString = Bundle.main.object(forInfoDictionaryKey: "RunSmartAPIBaseURL") as? String else { return }
 
         let accessToken = try? await SupabaseManager.client.auth.session.accessToken
@@ -130,21 +217,32 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
               httpResponse.statusCode == 200,
               !data.isEmpty else { return }
 
+        guard canPlayCue(startedIn: generation) else { return }
+
         if let encodedText = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "X-Coach-Text"),
            let text = encodedText.removingPercentEncoding {
             await MainActor.run { [weak self] in
-                self?.lastCueText = text
+                guard let self, self.canPlayCue(startedIn: generation) else { return }
+                self.lastCueText = text
             }
         }
 
         await MainActor.run { [weak self] in
-            guard let self else { return }
+            // The network call can outlive the session that asked for it (pause, finish,
+            // cues switched off). Check on the main actor, right before touching audio.
+            guard let self, self.canPlayCue(startedIn: generation) else { return }
             self.player?.stop()
+            try? AVAudioSession.sharedInstance().setActive(true)
             if let p = try? AVAudioPlayer(data: data) {
                 p.delegate = self
                 p.prepareToPlay()
-                p.play()
-                self.player = p
+                if p.play() {
+                    self.player = p
+                } else {
+                    self.deactivateAudioSession()
+                }
+            } else {
+                self.deactivateAudioSession()
             }
         }
     }
