@@ -25,5 +25,11 @@
   "privacy_manifest_matches": true,
   "non_exempt_encryption": false,
   "ipa_sha256": "e0ba7b09de9fe9f53bc30ce9bf9945f58ccad2f773a9f48de507d548b292f047",
-  "size_bytes": 12909947
+  "size_bytes": 12909947,
+  "required_entitlements_verified": {
+    "healthkit": true,
+    "sign_in_with_apple": true,
+    "associated_domains": true,
+    "correct_team": true
+  }
 }

@@ -1,0 +1,12 @@
+[
+  {
+    "bundle_id": "com.runsmart.lite",
+    "uuid": "71D21282-EB57-3391-AD39-E3ECFE8B56A5",
+    "dsym_matches": true
+  },
+  {
+    "bundle_id": "com.runsmart.lite.runliveactivity",
+    "uuid": "BAB7BA7F-1771-3621-B42E-0B9B040F318F",
+    "dsym_matches": true
+  }
+]

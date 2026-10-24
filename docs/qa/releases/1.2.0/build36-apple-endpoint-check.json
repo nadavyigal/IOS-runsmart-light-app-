@@ -1,0 +1,8 @@
+{
+  "build": "36",
+  "request": "Deliberately malformed Apple identity token; no user credentials",
+  "http_status": 400,
+  "auth_error_code": "validation_failed",
+  "api_key_rejection": false,
+  "full_apple_account_login_verified": false
+}

@@ -1,0 +1,16 @@
+{
+  "version": "1.2.0",
+  "build": "36",
+  "source_commit": "477bdcc42f602901fbda61b6b31c89eca9bb23e9",
+  "upload_succeeded": true,
+  "verified_utc": "2026-10-24T04:28:48.032064+00:00",
+  "processing_status": "Testing",
+  "internal_group": "RunSmart Internal",
+  "full_user_apple_login_verified": false,
+  "public_release": false,
+  "build_id": "e44b512d-b7b0-4494-996b-9f044c305686",
+  "internal_group_build_assigned": true,
+  "distribution_verified_utc": "2026-10-24T04:31:59.718188+00:00",
+  "test_notes_saved": true,
+  "superseded_build35_removed_from_group": true
+}

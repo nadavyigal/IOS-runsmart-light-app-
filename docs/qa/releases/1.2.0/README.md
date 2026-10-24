@@ -1,3 +1,15 @@
+# Current candidate: 1.2.0 (36) — beta sign-in repair
+
+Build 35 is superseded because an ignored local xcconfig override supplied an invalid client API key. The committed default and public 1.1.9 archive were valid. Build 36 corrects that local override; no backend credentials were rotated and no authentication security was relaxed.
+
+Build 36: signed archive/export, actual packaged-key live Auth check (HTTP 200, Apple/email enabled), 25 focused auth tests and fresh full suite **724/724** passed. Both distribution signatures and required entitlements are valid; both dSYMs match. Supabase Auth also rejected a deliberately malformed Apple token with HTTP 400/validation_failed rather than an API-key 401. This is configuration/endpoint verification, not a completed real-user Apple authorization.
+
+**TestFlight status:** uploaded and processed; build 36 is Testing in RunSmart Internal with the existing founder tester. Build 35 is removed from that group. No App Review submission or public release.
+
+Evidence and owner sign-in instructions: `build36-auth-fix.md`, `build36-testflight-notes.txt`, and the `build36-*` JSON files. Source archive: `477bdcc`; exported IPA SHA-256 `e0ba7b09de9fe9f53bc30ce9bf9945f58ccad2f773a9f48de507d548b292f047` (12,909,947 bytes). Archive: `/Users/nadavyigal/Library/Developer/Xcode/Archives/2026-10-23/RunSmart 1.2.0 (36) - Auth Fix.xcarchive`. Export: `build/release-1.2.0-36/AppStoreExport/RunSmart.ipa`.
+
+The record below for build 35 is historical. Do not select build 35 for production or use its earlier presence-only config checks as a live sign-in pass.
+
 # RunSmart 1.2.0 (35) — record-a-run test candidate
 
 Scope: Releases A/S0–S3, B/S4–S8, C/S9–S12, with Strava deferred and config-hidden. Latest unchanged-code simulator suite: 724 passed, 0 failed, 0 skipped. Privacy policy and App Store Connect answers are published and verified. GitHub head checks passed (secret scan; CodeRabbit skipped). Real-iPhone testing has not been completed; founder requested a testing build before public production release.

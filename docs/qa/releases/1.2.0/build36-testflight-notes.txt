@@ -1,0 +1,15 @@
+Build 36 fixes the beta sign-in configuration from build 35.
+
+Update RunSmart in TestFlight, open it, and choose Sign in with Apple using the same Apple account you previously used for RunSmart. No new RunSmart account is needed. If you previously used email/password instead, choose Continue with email and use your existing RunSmart credentials.
+
+After sign-in, please test:
+1. GPS search Cancel and Start anyway.
+2. A short outdoor run with the phone locked and Spotify playing; check speech cues and music volume between cues.
+3. Force-quit while recording and while paused, then reopen and restore the run.
+4. Traffic-light auto-pause and resume; review moving time, distance and splits.
+5. A planned interval workout, including step cards and spoken transitions.
+6. Hold to finish, then edit the run title, notes and effort in the summary.
+7. Workout route, pauses and estimated calories in Apple Health.
+8. Sharing with the route map off, then on with the start/finish area trimmed.
+
+Strava remains deferred and hidden. Calorie values are estimates. Title and notes remain local-only. A Health save skipped after a failed duplicate check has no automatic retry.
