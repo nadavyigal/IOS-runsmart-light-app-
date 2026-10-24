@@ -1,6 +1,6 @@
 ## 2026-10-23 — Build 35 sign-in failure; preparing 1.2.0 (36)
 
-Founder reported Apple sign-in failure. Live logs and the packaged-key probe confirm an invalid API key in build 35, before Apple token validation. Active project publishable key succeeds, Apple/email providers enabled. Corrected committed config plus ignored override; no backend key rotation or security changes. Adding live archived-key preflight before upload. Build 35 must not ship to production; replacement build 36 pending verification and TestFlight upload. Evidence: docs/qa/releases/1.2.0/build36-auth-fix.md.
+Founder reported Apple sign-in failure. Live logs and the packaged-key probe confirm an invalid API key in build 35, before Apple token validation. Active project publishable key succeeds, Apple/email providers enabled. Committed default was valid; corrected the invalid ignored local override that replaced it in build 35; no backend key rotation or security changes. Adding live archived-key preflight before upload. Build 35 must not ship to production; replacement build 36 pending verification and TestFlight upload. Evidence: docs/qa/releases/1.2.0/build36-auth-fix.md.
 
 ## 2026-10-23 — RunSmart 1.2.0 (35) ready in TestFlight
 

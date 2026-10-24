@@ -27,9 +27,11 @@ def selected_simulator(kind, env_key)
 end
 
 def verify_release_backend(archive_path)
-  apps = Dir.glob(File.join(archive_path, "Products", "Applications", "*.app"))
+  project_root = File.expand_path("..", __dir__)
+  archive = File.expand_path(archive_path, project_root)
+  apps = Dir.glob(File.join(archive, "Products", "Applications", "*.app"))
   UI.user_error!("Expected one archived app for live backend verification") unless apps.length == 1
-  sh("python3", "scripts/verify-release-backend.py", apps.first)
+  sh("python3", File.join(project_root, "scripts", "verify-release-backend.py"), apps.first)
 end
 
 platform :ios do
