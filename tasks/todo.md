@@ -6,7 +6,7 @@
 - [x] S2 WorkoutKit send/edit/cancel.
 - [x] S3 exact completion identity.
 - [x] Final simulator suite: 739/739, zero failures; real scheduling-denial UI smoke.
-- [ ] Push and open draft PR.
+- [x] Pushed and opened draft PR #165: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/165
 - [ ] Physical paired iPhone/Watch round-trip QA (owner gate).
 
 ## 2026-10-25 — RunSmart 1.2.0 (37) submitted: Waiting for Review
