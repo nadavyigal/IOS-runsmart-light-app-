@@ -1,4 +1,16 @@
-# Current candidate: 1.2.0 (36) — beta sign-in repair
+# Current candidate: 1.2.0 (37)
+
+Owner reported build-36 TestFlight testing passed on 25 October 2026 and authorized the recommended release steps. Build 37 fixes the initial GPS checkpoint losing a planned workout guide after immediate termination. The new disk/relaunch recovery regression failed before the fix and passes afterward; the full simulator suite passed **725 tests, zero failures/skips**. No additional physical build-37 test is claimed.
+
+Source archive: `760364f4749665fe70cac700207ecf37067f4d62`. Archive/export succeeded. App and Live Activity extension are 1.2.0 (37); exported Apple Distribution signatures are valid with debugging disabled; required entitlements/permission strings/background location and matching dSYMs verified. Packaged privacy manifest equals source, Strava remains hidden, and the keys extracted from both archive and IPA pass the live Auth settings gate with Apple/email enabled.
+
+IPA SHA-256: `e8733b962aeb9fa6acc2e556fac0b409df0f78d48cedd401cbe6d57301708e1e`; size 12,911,084 bytes. Archive: `build/release-1.2.0-37/RunSmart.xcarchive`; export: `build/release-1.2.0-37/AppStoreExport/RunSmart.ipa`.
+
+App Store 1.2.0 draft created, current release/reviewer notes saved, inherited reviewer credentials/assets retained. Privacy/support pages reachable; App Privacy remains published with nine data types. Upload succeeded and Apple processing completed. Build 37 is assigned to RunSmart Internal, with notes saved. App Store version 1.2.0 selects build 37 and is **Waiting for Review** after verified successful submission on 25 October 2026. Submission `d03f75e6-03cc-43ad-9f8d-9bffc12e6659`; automatic release after approval, all users immediately. Source PR164 merge is the final handoff step. Public production remains 1.1.9 until Apple approval/release.
+
+Known limits: run titles/notes remain local-only; a Health save skipped after duplicate-query failure has no automatic retry; Strava is disabled. Prior candidate records below are historical.
+
+# Historical candidate: 1.2.0 (36) — beta sign-in repair
 
 Build 35 is superseded because an ignored local xcconfig override supplied an invalid client API key. The committed default and public 1.1.9 archive were valid. Build 36 corrects that local override; no backend credentials were rotated and no authentication security was relaxed.
 

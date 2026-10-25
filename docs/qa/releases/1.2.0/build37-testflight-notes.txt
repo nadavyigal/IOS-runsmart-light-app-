@@ -1,0 +1,8 @@
+Build 37 preserves the planned workout guide in the first GPS recovery checkpoint. All other release features match the tested build 36.
+
+Optional focused iPhone retest:
+1. Open a planned workout and start recording with a GPS fix.
+2. Force-quit within the first few seconds, then reopen RunSmart.
+3. Restore the unfinished run, resume, and check that the workout step card and interval guidance remain available.
+
+Automated verification: the new recovery regression failed before the fix and passes after; full simulator suite 725 passed, zero failures/skips. Strava remains hidden. Your build-36 TestFlight pass is recorded.
