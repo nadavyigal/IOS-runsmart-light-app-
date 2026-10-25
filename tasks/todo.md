@@ -1,3 +1,14 @@
+## 2026-10-25 — Apple Workout round trip
+
+- [x] Inspect latest main/release work; isolate `codex/apple-watch-workoutkit` at 61b7cfb.
+- [x] Define brief, scoped spec, stories and device gate in `docs/specs/2026-10-25-apple-workout.md`.
+- [x] S1 reliable Health import.
+- [x] S2 WorkoutKit send/edit/cancel.
+- [x] S3 exact completion identity.
+- [x] Final simulator suite: 739/739, zero failures; real scheduling-denial UI smoke.
+- [ ] Push and open draft PR.
+- [ ] Physical paired iPhone/Watch round-trip QA (owner gate).
+
 ## 2026-10-25 — RunSmart 1.2.0 (37) submitted: Waiting for Review
 
 Owner reported TestFlight build 36 passed and authorized next steps. Fixed initial GPS recovery checkpoint losing the planned guide; red regression reproduced nil guide, then full suite passed 725/725 with no failures/skips. Source archive `760364f`. Archive/export, app/extension distribution signatures, versions, entitlements, permissions, privacy, dSYMs and live actual-artifact Auth checks passed. Upload succeeded, Apple processed build 37, and RunSmart Internal assignment/test notes verified. App Store 1.2.0 selects build 37; release notes/reviewer instructions saved; existing reviewer credentials/screenshots retained; published privacy labels verified. Apple accepted submission `d03f75e6-03cc-43ad-9f8d-9bffc12e6659`, status **Waiting for Review**, automatic release after approval, all users immediately. No additional physical build-37 test claimed; owner build-36 pass plus automated recovery retest used. Strava stays hidden; no backend/pricing changes. Public production remains 1.1.9 until approval. Evidence: docs/qa/releases/1.2.0/build37-*. Source delivery is tracked in PR164.

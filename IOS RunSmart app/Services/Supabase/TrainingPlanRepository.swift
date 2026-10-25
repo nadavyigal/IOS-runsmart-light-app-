@@ -616,6 +616,7 @@ final class TrainingPlanRepository {
     }
 
     func completeBestMatchingWorkout(authUserID: UUID, for run: RecordedRun) async -> WorkoutSummary? {
+        invalidateActivePlanCache(authUserID: authUserID)
         guard let active = await activePlan(authUserID: authUserID) else { return nil }
         let candidates = active.workouts
             .filter { !$0.completed }
@@ -623,11 +624,16 @@ final class TrainingPlanRepository {
 
         guard let match = Self.bestWorkoutMatch(for: run, in: candidates) else { return nil }
         do {
-            try await supabase
+            let updated: [DBWorkout] = try await supabase
                 .from("workouts")
                 .update(DBWorkoutCompletionUpdate(run: run))
                 .eq("id", value: match.id.uuidString)
+                .eq("completed", value: false)
+                .select()
                 .execute()
+                .value
+            guard !updated.isEmpty else { return nil }
+            invalidateActivePlanCache(authUserID: authUserID)
             var completed = match
             completed.isComplete = true
             print("[TrainingPlanRepo] ✅ completed workout=\(match.id) from run=\(run.consolidatedActivityID ?? run.providerActivityID ?? run.id.uuidString)")
@@ -959,6 +965,11 @@ final class TrainingPlanRepository {
     }
 
     static func bestWorkoutMatch(for run: RecordedRun, in workouts: [WorkoutSummary], calendar: Calendar = .current) -> WorkoutSummary? {
+        guard run.healthPlanLookupFailed != true else { return nil }
+        if let id = run.plannedWorkoutID {
+            // Missing, canceled, old-plan or already completed IDs never fall back to another item.
+            return workouts.first { $0.id == id && !$0.isComplete }
+        }
         let sameDay = workouts.filter { workout in
             !workout.isComplete && calendar.isDate(workout.scheduledDate, inSameDayAs: run.startedAt)
         }

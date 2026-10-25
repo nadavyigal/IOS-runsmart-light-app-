@@ -891,6 +891,10 @@ struct RunPauseInterval: Codable, Hashable, Equatable {
 }
 
 struct RecordedRun: Identifiable, Codable, Hashable {
+    /// WorkoutKit identity returned by Apple Health. Never inferred from date or distance.
+    var plannedWorkoutID: UUID? = nil
+    /// Failed association read defers plan completion until a later Health sync.
+    var healthPlanLookupFailed: Bool? = nil
     var id: UUID
     var providerActivityID: String?
     var consolidatedActivityID: String? = nil
@@ -930,6 +934,8 @@ extension RecordedRun {
         merged.title = stored.title ?? title
         merged.notes = stored.notes ?? notes
         merged.stravaActivityID = stored.stravaActivityID ?? stravaActivityID
+        merged.plannedWorkoutID = plannedWorkoutID ?? stored.plannedWorkoutID
+        merged.healthPlanLookupFailed = healthPlanLookupFailed ?? stored.healthPlanLookupFailed
         return merged
     }
 }

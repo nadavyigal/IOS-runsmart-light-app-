@@ -122,6 +122,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     func weeklyPlan() async -> [WorkoutSummary] {
         guard let userID = currentUserID else { return [] }
         guard let activePlan = await planRepo.activePlan(authUserID: userID) else { return [] }
+        await AppleWorkoutService.shared.reconcile(workouts: activePlan.workouts.map { $0.toWorkoutSummary() })
         return activePlan.currentWeekWorkouts.primaryWorkoutPerDay().map { $0.toWorkoutSummary() }
     }
 
@@ -272,6 +273,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
             let persisted = await planRepo.persistGeneratedPlan(authUserID: userID, request: request, generated: generated)
             if persisted {
+                await refreshAppleWorkoutExports()
                 Analytics.trackPlanGenerated(
                     planType: request.goal,
                     durationWeeks: planWeeks(until: request.targetDate) ?? 0
@@ -289,9 +291,17 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
     }
 
+    private func refreshAppleWorkoutExports() async {
+        guard let userID = currentUserID else { return }
+        planRepo.invalidateActivePlanCache(authUserID: userID)
+        guard let active = await planRepo.activePlan(authUserID: userID) else { return }
+        await AppleWorkoutService.shared.reconcile(workouts: active.workouts.map { $0.toWorkoutSummary() })
+    }
+
     func moveWorkout(workoutID: UUID, to date: Date) async -> Bool {
         let moved = await planRepo.moveWorkout(workoutID: workoutID, to: date)
         if moved {
+            await refreshAppleWorkoutExports()
             await MainActor.run {
                 NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
             }
@@ -302,6 +312,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     func pushWorkoutTomorrow(workoutID: UUID) async -> Bool {
         let pushed = await planRepo.pushWorkoutTomorrow(workoutID: workoutID)
         if pushed {
+            await refreshAppleWorkoutExports()
             await MainActor.run {
                 NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
             }
@@ -312,6 +323,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool {
         let amended = await planRepo.amendWorkout(workoutID: workoutID, patch: patch)
         if amended {
+            await refreshAppleWorkoutExports()
             await MainActor.run {
                 NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
             }
@@ -322,6 +334,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     func removeWorkout(workoutID: UUID) async -> Bool {
         let removed = await planRepo.removeWorkout(workoutID: workoutID)
         if removed {
+            await refreshAppleWorkoutExports()
             await MainActor.run {
                 NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
             }
@@ -333,6 +346,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         guard let userID = currentUserID else { return false }
         let applied = await planRepo.applyFlexWeek(authUserID: userID, outcome: outcome)
         guard applied else { return false }
+        await refreshAppleWorkoutExports()
 
         let notificationsEnabled = UserDefaults.standard.object(forKey: "runsmart.notifications.enabled") as? Bool ?? false
         let planAdjustmentConfirmationsEnabled = UserDefaults.standard.object(forKey: "runsmart.notifications.planAdjustmentConfirmations") as? Bool ?? true
@@ -1065,20 +1079,21 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     func syncHealthData() async -> ConnectedDeviceStatus {
         let result = await healthSync.importHealthData(localStore: store)
         var status = result.status
-        if !result.runs.isEmpty {
-            let syncedCount = await upsertHealthKitRuns(result.runs)
-            status.message = "Imported \(result.runs.count) Health workouts. Synced \(syncedCount) to RunSmart."
-            if result.skippedDuplicates > 0 {
-                status.message?.append(" Skipped \(result.skippedDuplicates) already saved or hidden.")
+        let allImports = result.runs + result.refreshedRuns
+        if !allImports.isEmpty {
+            let syncedCount = await upsertHealthKitRuns(allImports)
+            status.message = "Imported \(result.runs.count) Health workouts. Refreshed \(result.refreshedRuns.count). Synced \(syncedCount) to RunSmart."
+            let newRuns = ActivityConsolidationService.consolidatedRuns(result.runs).sorted { $0.startedAt < $1.startedAt }
+            // Reconcile all imported sessions, while retaining the existing one-newest-run AI/report behavior.
+            for run in Array(newRuns.dropLast()) + result.completionRetries {
+                if let completed = await completeMatchingWorkout(for: run) {
+                    await MainActor.run { PushService.shared.cancelWorkoutReminder(workoutID: completed.id) }
+                }
             }
-            if let newest = result.runs.sorted(by: { $0.startedAt > $1.startedAt }).first {
-                _ = await processCompletedActivity(newest)
-            } else {
-                await postRunsChanged()
-            }
-            // Imported history (often months of the same loops) only counts toward a saved
-            // route once it is matched against it.
+            if let newest = newRuns.last { _ = await processCompletedActivity(newest) }
             await store.rematchStoredRuns()
+            await postRunsChanged()
+            await MainActor.run { NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil) }
         }
         // Today's activity card (steps/calories/sleep) only refreshes on this notification — the
         // run-import notifications above don't fire when only the daily wellness snapshot changed.

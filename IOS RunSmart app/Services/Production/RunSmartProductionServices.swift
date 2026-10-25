@@ -1924,7 +1924,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func syncHealthData() async -> ConnectedDeviceStatus {
         let result = await health.importHealthData(localStore: store)
         store.saveDeviceStatus(result.status)
-        if !result.runs.isEmpty {
+        if !result.runs.isEmpty || !result.refreshedRuns.isEmpty {
             // Imported history (often months of the same loops) only counts toward a saved
             // route once it is matched against it.
             await store.rematchStoredRuns()
