@@ -150,6 +150,29 @@ final class RunRecoveryTests: XCTestCase {
 
     // MARK: Writing from the recorder
 
+    func testImmediateGPSStartRecoveryKeepsPlannedWorkoutGuide() throws {
+        let first = makeRecorder()
+        first.activeWorkoutTitle = "Intervals"
+        let steps = [GuideStep(kind: .work, target: .duration(seconds: 60)),
+                     GuideStep(kind: .recovery, target: .duration(seconds: 30))]
+        first.activeGuideSteps = steps
+        first.startAcquiringLocation(startLocationUpdates: false)
+        let now = Date()
+        first.handleLocationUpdates([makeLocation(latitude: 32.0800, timestamp: now)], now: now)
+        defer { first.discard() }
+
+        let checkpoint = try XCTUnwrap(checkpointStore.load())
+        let savedGuide = try XCTUnwrap(checkpoint.workoutGuide,
+                                      "The very first checkpoint must contain interval guidance")
+        XCTAssertEqual(savedGuide.steps, steps)
+        let relaunched = makeRecorder()
+        defer { relaunched.discard() }
+        relaunched.resumeRecoveredRun(startLocationUpdates: false)
+        XCTAssertEqual(relaunched.phase, .paused)
+        XCTAssertEqual(relaunched.workoutGuide?.steps, steps)
+        XCTAssertEqual(relaunched.activeWorkoutTitle, "Intervals")
+    }
+
     func testCheckpointIsWrittenWhenRecordingBeginsAndOnPauseAndResume() throws {
         let recorder = makeRecorder()
         recorder.activeWorkoutTitle = "Easy Run"

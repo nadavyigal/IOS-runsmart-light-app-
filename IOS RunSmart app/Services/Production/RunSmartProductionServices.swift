@@ -693,14 +693,15 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         accumulatedPausedSeconds = 0
         lastErrorMessage = nil
         phase = .recording
+        LocalRunCueService.shared.begin()
+        // Prepare the guide before the first fix writes the opening checkpoint. The
+        // start cue still precedes the first step announcement from tick().
+        workoutGuide = activeGuideSteps.flatMap { WorkoutGuide(steps: $0) }
         // The first accepted fix always writes the opening checkpoint (see
         // acceptRecordingLocation), so a run that dies seconds in is still recoverable.
         acceptRecordingLocation(firstLocation, forceDisplay: true)
         startTimer()
         tick()
-        LocalRunCueService.shared.begin()
-        // After the start cue, so the first step cue queues behind it instead of cutting it off.
-        workoutGuide = activeGuideSteps.flatMap { WorkoutGuide(steps: $0) }
     }
 
     func pause() { pause(at: Date(), automatic: false) }
