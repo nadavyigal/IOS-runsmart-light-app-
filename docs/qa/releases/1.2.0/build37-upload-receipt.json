@@ -22,5 +22,5 @@
   "submission_verified_utc": "2026-10-25T12:56:40.891035+00:00",
   "automatic_release_after_approval": true,
   "phased_release": false,
-  "source_merge_status": "pending"
+  "source_pull_request": "https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/164"
 }
