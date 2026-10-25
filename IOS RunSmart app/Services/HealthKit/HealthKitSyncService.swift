@@ -125,6 +125,63 @@ enum HealthKitRecordedRunMapper {
     }
 }
 
+/// Whether to write a workout to Health, given what the duplicate check found.
+enum HealthKitSavePolicy {
+    /// Write only when Health is known not to hold this run. A failed query (nil) writes nothing:
+    /// a duplicate workout in Health is worse than a run that is missing there.
+    static func shouldWrite(alreadySaved: Bool?) -> Bool {
+        alreadySaved == false
+    }
+}
+
+/// Identity metadata is required for safe duplicate detection and reimport. A builder whose
+/// collection or metadata step fails is discarded before optional samples or finish can run.
+enum HealthKitWorkoutPreparation {
+    static func run(
+        beginCollection: () async throws -> Void,
+        addMetadata: () async throws -> Void,
+        discard: () -> Void
+    ) async throws {
+        do {
+            try await beginCollection()
+            try await addMetadata()
+        } catch {
+            discard()
+            throw error
+        }
+    }
+}
+
+/// Lets one Health save per run id run at a time. A second save for the same run waits for the first,
+/// then its duplicate check sees the first one's workout.
+actor HealthKitSaveGate {
+    static let shared = HealthKitSaveGate()
+
+    private var running: Set<UUID> = []
+    private var waiters: [UUID: [CheckedContinuation<Void, Never>]] = [:]
+
+    func acquire(_ id: UUID) async {
+        if running.contains(id) {
+            await withCheckedContinuation { continuation in
+                waiters[id, default: []].append(continuation)
+            }
+            // The previous holder handed its place over in `release`; `running` still contains the id.
+        } else {
+            running.insert(id)
+        }
+    }
+
+    func release(_ id: UUID) {
+        if var queue = waiters[id], !queue.isEmpty {
+            let next = queue.removeFirst()
+            waiters[id] = queue.isEmpty ? nil : queue
+            next.resume()
+        } else {
+            running.remove(id)
+        }
+    }
+}
+
 struct HealthKitSyncService {
     static let providerName = "HealthKit"
 
@@ -217,7 +274,8 @@ struct HealthKitSyncService {
             return providerID
         })
 
-        let runs = await readRecentRunningWorkouts(store: store, lookbackDays: lookbackDays, limit: limit)
+        let localRunIDs = Set(localStore.loadRuns().map(\.id))
+        let runs = await readRecentRunningWorkouts(store: store, lookbackDays: lookbackDays, limit: limit, localRunIDs: localRunIDs)
         var imported: [RecordedRun] = []
         var skipped = 0
         for run in runs {
@@ -253,23 +311,57 @@ struct HealthKitSyncService {
 #endif
     }
 
-    func save(_ run: RecordedRun) async {
+    /// `allowPermissionPrompt` is true only for the save right after the runner finishes a run, where the
+    /// prompt has context. A background save (a recovered run saved while a new run starts) writes with
+    /// the permissions it already has and never shows the Health sheet.
+    func save(_ run: RecordedRun, allowPermissionPrompt: Bool = true) async {
 #if canImport(HealthKit)
-        guard HKHealthStore.isHealthDataAvailable() else { return }
+        // Only RunSmart's own recordings go back to Health; imported runs came from there.
+        guard run.source == .runSmart, HKHealthStore.isHealthDataAvailable() else { return }
         let store = HKHealthStore()
-        let workout = HKWorkout(
-            activityType: .running,
-            start: run.startedAt,
-            end: run.endedAt,
-            duration: run.movingTimeSeconds,
-            totalEnergyBurned: nil,
-            totalDistance: HKQuantity(unit: .meter(), doubleValue: run.distanceMeters),
-            metadata: [
-                "RunSmartSource": run.source.rawValue,
-                "RunSmartRunID": run.id.uuidString
-            ]
-        )
-        try? await store.save(workout)
+        // No workout write access means the runner never connected Health: stay silent, as before.
+        guard store.authorizationStatus(for: workoutType) == .sharingAuthorized else { return }
+
+        // One save per run at a time: the second caller waits, then finds the first one's workout.
+        await HealthKitSaveGate.shared.acquire(run.id)
+        defer { Task { await HealthKitSaveGate.shared.release(run.id) } }
+
+        // Runners who allowed the old set (workouts only) are asked for route, distance and
+        // energy here, right after a run, never at launch. Anything they decline is left out.
+        if allowPermissionPrompt, (try? await authorizationRequestStatus(for: store)) == .shouldRequest {
+            _ = try? await store.requestAuthorization(toShare: shareTypes, read: readTypes)
+        }
+
+        guard HealthKitSavePolicy.shouldWrite(alreadySaved: await isAlreadySaved(run, store: store)) else { return }
+        await writeWorkout(for: run, store: store)
+#endif
+    }
+
+    /// Body mass is requested separately, in context from the calorie settings.
+    /// A nil result covers unavailable/denied/no-data without inferring read consent.
+    func readBodyMassKg(requestPermission: Bool) async -> Double? {
+#if canImport(HealthKit)
+        guard HKHealthStore.isHealthDataAvailable(),
+              let type = HKObjectType.quantityType(forIdentifier: .bodyMass) else { return nil }
+        let store = HKHealthStore()
+        if requestPermission {
+            do {
+                try await store.requestAuthorization(toShare: [], read: [type])
+            } catch {
+                return nil
+            }
+        }
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+        let predicate = HKQuery.predicateForSamples(withStart: nil, end: Date(), options: .strictEndDate)
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: 1, sortDescriptors: [sort]) { _, samples, _ in
+                let value = (samples?.first as? HKQuantitySample)?.quantity.doubleValue(for: .gramUnit(with: .kilo))
+                continuation.resume(returning: value.flatMap { $0.isFinite && $0 > 0 ? $0 : nil })
+            }
+            store.execute(query)
+        }
+#else
+        return nil
 #endif
     }
 
@@ -283,7 +375,109 @@ private extension HealthKitSyncService {
     var workoutType: HKWorkoutType { HKObjectType.workoutType() }
 
     var shareTypes: Set<HKSampleType> {
-        [workoutType]
+        var types: Set<HKSampleType> = [workoutType, HKSeriesType.workoutRoute()]
+        if let energy = optionalQuantity(.activeEnergyBurned) { types.insert(energy) }
+        if let distance = optionalQuantity(.distanceWalkingRunning) { types.insert(distance) }
+        return types
+    }
+
+    func canWrite(_ type: HKObjectType, store: HKHealthStore) -> Bool {
+        store.authorizationStatus(for: type) == .sharingAuthorized
+    }
+
+    /// True when Health already holds a workout written for this RunSmart run, false when it does not,
+    /// nil when the query failed (so nothing is known).
+    func isAlreadySaved(_ run: RecordedRun, store: HKHealthStore) async -> Bool? {
+        let predicate = HKQuery.predicateForObjects(
+            withMetadataKey: HealthKitWorkoutPlan.runIDMetadataKey,
+            allowedValues: [run.id.uuidString]
+        )
+        guard let found = await queriedSamples(store: store, sampleType: workoutType, predicate: predicate, limit: 1, sortDescriptors: nil) else {
+            return nil
+        }
+        return !found.isEmpty
+    }
+
+    /// Writes the workout, then its route. Each step stands alone: a failed route, energy
+    /// or distance write never loses the workout.
+    func writeWorkout(for run: RecordedRun, store: HKHealthStore) async {
+        let plan = HealthKitWorkoutPlan.make(for: run)
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = .running
+        configuration.locationType = .outdoor
+        let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: .local())
+
+        do {
+            try await HealthKitWorkoutPreparation.run(
+                beginCollection: { try await builder.beginCollection(at: plan.start) },
+                addMetadata: { try await builder.addMetadata(HealthKitWorkoutPlan.metadata(for: run)) },
+                discard: { builder.discardWorkout() }
+            )
+        } catch {
+            return
+        }
+
+        if !plan.pauseEvents.isEmpty {
+            let events = plan.pauseEvents.map { event in
+                HKWorkoutEvent(
+                    type: event.kind == .pause ? .pause : .resume,
+                    dateInterval: DateInterval(start: event.date, duration: 0),
+                    metadata: nil
+                )
+            }
+            try? await builder.addWorkoutEvents(events)
+        }
+
+        var samples: [HKSample] = []
+        if let type = optionalQuantity(.distanceWalkingRunning), canWrite(type, store: store) {
+            samples += plan.distanceSamples.map { sample in
+                HKQuantitySample(
+                    type: type,
+                    quantity: HKQuantity(unit: .meter(), doubleValue: sample.meters),
+                    start: sample.start,
+                    end: sample.end
+                )
+            }
+        }
+        if let energy = plan.energy,
+           let type = optionalQuantity(.activeEnergyBurned),
+           canWrite(type, store: store) {
+            samples.append(HKQuantitySample(
+                type: type,
+                quantity: HKQuantity(unit: .kilocalorie(), doubleValue: energy.kilocalories),
+                start: energy.start,
+                end: energy.end,
+                metadata: [HealthKitWorkoutPlan.energyEstimateMetadataKey: true]
+            ))
+        }
+        if !samples.isEmpty {
+            try? await builder.addSamples(samples)
+        }
+
+        do {
+            try await builder.endCollection(at: plan.end)
+        } catch {
+            return
+        }
+        guard let workout = try? await builder.finishWorkout() else { return }
+
+        await writeRoute(plan.routeSegments, for: workout, runID: run.id, store: store)
+    }
+
+    func writeRoute(_ segments: [[RunRoutePoint]], for workout: HKWorkout, runID: UUID, store: HKHealthStore) async {
+        guard !segments.isEmpty, canWrite(HKSeriesType.workoutRoute(), store: store) else { return }
+        let routeBuilder = HKWorkoutRouteBuilder(healthStore: store, device: .local())
+        do {
+            for segment in segments {
+                try await routeBuilder.insertRouteData(segment.map(HealthKitWorkoutPlan.location(for:)))
+            }
+            _ = try await routeBuilder.finishRoute(
+                with: workout,
+                metadata: [HealthKitWorkoutPlan.runIDMetadataKey: runID.uuidString]
+            )
+        } catch {
+            routeBuilder.discard()
+        }
     }
 
     var readTypes: Set<HKObjectType> {
@@ -328,7 +522,7 @@ private extension HealthKitSyncService {
         types.insert(objectType)
     }
 
-    func readRecentRunningWorkouts(store: HKHealthStore, lookbackDays: Int, limit: Int) async -> [RecordedRun] {
+    func readRecentRunningWorkouts(store: HKHealthStore, lookbackDays: Int, limit: Int, localRunIDs: Set<UUID>) async -> [RecordedRun] {
         let calendar = Calendar.current
         let start = calendar.date(byAdding: .day, value: -lookbackDays, to: Date()) ?? Date()
         let datePredicate = HKQuery.predicateForSamples(withStart: start, end: Date(), options: [])
@@ -346,6 +540,9 @@ private extension HealthKitSyncService {
 
         var runs: [RecordedRun] = []
         for workout in workouts {
+            // RunSmart wrote this one itself and still has the run. After a reinstall the run is
+            // not stored locally, so the Health copy is imported (it is where the GPS comes back from).
+            if HealthKitWorkoutPlan.isStoredLocally(metadata: workout.metadata, localRunIDs: localRunIDs) { continue }
             let heartRate = await averageHeartRateBPM(for: workout, store: store)
             let routePoints = await routePoints(for: workout, store: store)
             let snapshot = HealthKitWorkoutSnapshot(
@@ -490,9 +687,24 @@ private extension HealthKitSyncService {
         limit: Int,
         sortDescriptors: [NSSortDescriptor]?
     ) async -> [HKSample] {
+        await queriedSamples(store: store, sampleType: sampleType, predicate: predicate, limit: limit, sortDescriptors: sortDescriptors) ?? []
+    }
+
+    /// Like `samples`, but nil when the query reports an error, so a failed read is not mistaken for "no samples".
+    func queriedSamples(
+        store: HKHealthStore,
+        sampleType: HKSampleType,
+        predicate: NSPredicate?,
+        limit: Int,
+        sortDescriptors: [NSSortDescriptor]?
+    ) async -> [HKSample]? {
         await withCheckedContinuation { continuation in
-            let query = HKSampleQuery(sampleType: sampleType, predicate: predicate, limit: limit, sortDescriptors: sortDescriptors) { _, samples, _ in
-                continuation.resume(returning: samples ?? [])
+            let query = HKSampleQuery(sampleType: sampleType, predicate: predicate, limit: limit, sortDescriptors: sortDescriptors) { _, samples, error in
+                if error != nil {
+                    continuation.resume(returning: nil)
+                } else {
+                    continuation.resume(returning: samples ?? [])
+                }
             }
             store.execute(query)
         }

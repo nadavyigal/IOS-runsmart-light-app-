@@ -1,0 +1,19 @@
+Reviewer access
+Use the existing demo credentials provided in App Store Connect. Apple sign-in is also supported.
+
+Suggested review flow
+1. Sign in and open Today and Plan.
+2. Start a planned workout from Run. GPS search offers Cancel and, after 20 seconds, Start anyway for indoor review.
+3. Inspect the live Stats and Map pages, spoken cues, pause/resume, and hold-to-finish control.
+4. Review the saved run summary, editable title/notes/effort, splits, and coach guidance.
+5. Optional: allow Apple Health access to save the workout, route, pause events and estimated energy when weight is available.
+6. Optional: share a run. Route maps are off by default; when enabled, the first and last 200 metres and points near the endpoints are excluded.
+
+Integration and privacy notes
+- Location and background location are used for active GPS run recording.
+- Apple Health access is optional. Health data is labeled Apple Health.
+- Garmin connection is optional; Garmin data is labeled Garmin.
+- Strava integration is disabled and hidden in this release.
+- Run titles and notes are stored locally. Calories are estimates.
+- Coach guidance is informational fitness guidance, not medical advice.
+- Version 1.2.0 adds run recovery, automatic pause, offline spoken cues, guided workouts, a redesigned summary, and optional Health route export/map sharing.

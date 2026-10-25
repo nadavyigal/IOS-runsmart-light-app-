@@ -7,6 +7,10 @@ struct WorkoutStep: Identifiable {
     var target: String
     var note: String
     var tint: Color
+    /// The live-run guide stages this row stands for, built at the same place as the row so the
+    /// pre-run list and the guide cannot disagree. Empty when the row has no target the data
+    /// really contains; one empty row means the whole workout has no live guide.
+    var guideSteps: [GuideStep] = []
 }
 
 enum StructuredWorkoutFactory {
@@ -19,6 +23,18 @@ enum StructuredWorkoutFactory {
             return steps
         }
         return derivedSteps(for: workout)
+    }
+
+    /// Live-run guide stages for a planned workout, or nil when any part of it lacks a target the
+    /// workout data contains (the run then behaves like a free run).
+    static func makeGuideSteps(for workout: WorkoutSummary) -> [GuideStep]? {
+        guard let steps = makeSteps(for: workout), !steps.isEmpty,
+              steps.allSatisfy({ !$0.guideSteps.isEmpty }) else { return nil }
+        return steps.flatMap(\.guideSteps)
+    }
+
+    static func makeGuide(for workout: WorkoutSummary) -> WorkoutGuide? {
+        makeGuideSteps(for: workout).flatMap { WorkoutGuide(steps: $0) }
     }
 
     static func derivedPaceLabel(workout: WorkoutSummary) -> String? {
@@ -79,8 +95,39 @@ enum StructuredWorkoutFactory {
                 duration: duration,
                 target: target,
                 note: s.note ?? "",
-                tint: tintForType(s.type)
+                tint: tintForType(s.type),
+                guideSteps: jsonGuideSteps(for: s)
             )
+        }
+    }
+
+    private static func jsonGuideSteps(for s: JSONWorkoutStructure.Step) -> [GuideStep] {
+        let pace = s.pace_seconds_per_km.flatMap { $0 > 0 ? GuidePaceBand(center: Double($0)) : nil }
+        if let reps = s.reps_count {
+            guard let dist = s.rep_distance, let meters = parseDistanceMeters(dist) else { return [] }
+            return repeatGuideSteps(
+                reps: reps,
+                repMeters: meters,
+                recovery: parseRecovery(from: [s.note, s.description].compactMap { $0 }.joined(separator: ". ")),
+                pace: pace
+            )
+        }
+        guard let secs = s.duration_seconds, secs > 0 else { return [] }
+        let kind = guideKind(for: s.type)
+        return [GuideStep(
+            kind: kind,
+            target: .duration(seconds: Double(secs)),
+            paceBand: (kind == .work || kind == .steady) ? pace : nil
+        )]
+    }
+
+    private static func guideKind(for type: String) -> GuideStep.Kind {
+        switch type.lowercased() {
+        case "warmup", "warm_up", "warm-up": return .warmup
+        case "cooldown", "cool_down", "cool-down": return .cooldown
+        case "rest", "recovery", "recovery_jog": return .recovery
+        case "tempo", "hill", "hills", "repeat", "repeats": return .work
+        default: return .steady
         }
     }
 
@@ -105,9 +152,9 @@ enum StructuredWorkoutFactory {
         let pace = derivedPaceLabel(workout: workout) ?? "6:10 /km"
         let dur = durationLabel(workout: workout, warmup: 5, cooldown: 5)
         return [
-            WorkoutStep(title: "Warm Up", duration: "5:00", target: "Easy walk/jog", note: "Let the body wake up", tint: .orange),
-            WorkoutStep(title: "Easy Run", duration: dur, target: pace, note: note.isEmpty ? "Conversational pace" : note, tint: .blue),
-            WorkoutStep(title: "Cool Down", duration: "5:00", target: "Walk", note: "Lower heart rate gradually", tint: .green)
+            WorkoutStep(title: "Warm Up", duration: "5:00", target: "Easy walk/jog", note: "Let the body wake up", tint: .orange, guideSteps: [timedGuideStep(.warmup, seconds: 300)]),
+            WorkoutStep(title: "Easy Run", duration: dur, target: pace, note: note.isEmpty ? "Conversational pace" : note, tint: .blue, guideSteps: mainBlockGuideSteps(workout: workout, warmup: 5, cooldown: 5, kind: .steady)),
+            WorkoutStep(title: "Cool Down", duration: "5:00", target: "Walk", note: "Lower heart rate gradually", tint: .green, guideSteps: [timedGuideStep(.cooldown, seconds: 300)])
         ]
     }
 
@@ -115,9 +162,9 @@ enum StructuredWorkoutFactory {
         let pace = derivedPaceLabel(workout: workout) ?? "5:15 /km"
         let dur = durationLabel(workout: workout, warmup: 12, cooldown: 8)
         return [
-            WorkoutStep(title: "Warm Up", duration: "12:00", target: "Easy jog", note: "Shake loose, add a few strides", tint: .orange),
-            WorkoutStep(title: "Tempo Block", duration: dur, target: pace, note: note.isEmpty ? "Controlled threshold effort" : note, tint: .red),
-            WorkoutStep(title: "Cool Down", duration: "8:00", target: "Easy jog", note: "Relax and breathe", tint: .green)
+            WorkoutStep(title: "Warm Up", duration: "12:00", target: "Easy jog", note: "Shake loose, add a few strides", tint: .orange, guideSteps: [timedGuideStep(.warmup, seconds: 720)]),
+            WorkoutStep(title: "Tempo Block", duration: dur, target: pace, note: note.isEmpty ? "Controlled threshold effort" : note, tint: .red, guideSteps: mainBlockGuideSteps(workout: workout, warmup: 12, cooldown: 8, kind: .work)),
+            WorkoutStep(title: "Cool Down", duration: "8:00", target: "Easy jog", note: "Relax and breathe", tint: .green, guideSteps: [timedGuideStep(.cooldown, seconds: 480)])
         ]
     }
 
@@ -142,10 +189,23 @@ enum StructuredWorkoutFactory {
             repsLabel = "6 × 400 m"
         }
 
+        // The guide needs the rep count and rep distance from the plan's own notation, and a
+        // recovery written in the plan's own text. Without both there is no guide.
+        var repeatGuide: [GuideStep] = []
+        if let parsed = parseIntervalReps(from: workout.distance),
+           let meters = parseDistanceMeters(parsed.repDistance) {
+            repeatGuide = repeatGuideSteps(
+                reps: parsed.reps,
+                repMeters: meters,
+                recovery: parseRecovery(from: workout.detail),
+                pace: explicitPaceBand(for: workout)
+            )
+        }
+
         return [
-            WorkoutStep(title: "Warm Up", duration: "10:00", target: "Easy jog", note: "Add mobility before speed", tint: .orange),
-            WorkoutStep(title: "Repeats", duration: repsLabel, target: target, note: note.isEmpty ? "Jog 200 m between reps" : note, tint: .red),
-            WorkoutStep(title: "Cool Down", duration: "10:00", target: "Easy jog", note: "Let heart rate settle", tint: .green)
+            WorkoutStep(title: "Warm Up", duration: "10:00", target: "Easy jog", note: "Add mobility before speed", tint: .orange, guideSteps: [timedGuideStep(.warmup, seconds: 600)]),
+            WorkoutStep(title: "Repeats", duration: repsLabel, target: target, note: note.isEmpty ? "Recover between reps" : note, tint: .red, guideSteps: repeatGuide),
+            WorkoutStep(title: "Cool Down", duration: "10:00", target: "Easy jog", note: "Let heart rate settle", tint: .green, guideSteps: [timedGuideStep(.cooldown, seconds: 600)])
         ]
     }
 
@@ -189,9 +249,9 @@ enum StructuredWorkoutFactory {
         let pace = derivedPaceLabel(workout: workout) ?? "6:30 /km"
         let dur = durationLabel(workout: workout, warmup: 10, cooldown: 5)
         return [
-            WorkoutStep(title: "Settle In", duration: "10:00", target: "Easy jog", note: "Start softer than you think", tint: .orange),
-            WorkoutStep(title: "Endurance Run", duration: dur, target: pace, note: note.isEmpty ? "Fuel if over 75 min" : note, tint: .blue),
-            WorkoutStep(title: "Finish Smooth", duration: "5:00", target: "Easy", note: "No sprint finish", tint: .green)
+            WorkoutStep(title: "Settle In", duration: "10:00", target: "Easy jog", note: "Start softer than you think", tint: .orange, guideSteps: [timedGuideStep(.warmup, seconds: 600)]),
+            WorkoutStep(title: "Endurance Run", duration: dur, target: pace, note: note.isEmpty ? "Fuel if over 75 min" : note, tint: .blue, guideSteps: mainBlockGuideSteps(workout: workout, warmup: 10, cooldown: 5, kind: .steady)),
+            WorkoutStep(title: "Finish Smooth", duration: "5:00", target: "Easy", note: "No sprint finish", tint: .green, guideSteps: [timedGuideStep(.cooldown, seconds: 300)])
         ]
     }
 
@@ -209,6 +269,114 @@ enum StructuredWorkoutFactory {
             WorkoutStep(title: "Race", duration: "Goal effort", target: "Race pace", note: note.isEmpty ? "Patient start, steady middle" : note, tint: .red),
             WorkoutStep(title: "Cool Down", duration: "10:00", target: "Easy walk/jog", note: "Recovery starts now", tint: .green)
         ]
+    }
+
+    // MARK: - Guide helpers
+
+    private static func timedGuideStep(_ kind: GuideStep.Kind, seconds: Double, pace: GuidePaceBand? = nil) -> GuideStep {
+        GuideStep(kind: kind, target: .duration(seconds: seconds), paceBand: pace)
+    }
+
+    /// Pace band only from the plan's explicit target pace. The pace label on the pre-run list can
+    /// be an average over the whole workout, which is not a target for one block.
+    private static func explicitPaceBand(for workout: WorkoutSummary) -> GuidePaceBand? {
+        guard let pace = workout.targetPaceSecondsPerKm, pace > 0 else { return nil }
+        return GuidePaceBand(center: Double(pace))
+    }
+
+    /// The main block of a derived workout, measured the way the pre-run row shows it: the plan's
+    /// duration minus warm-up and cool-down when that fits, otherwise the plan's own distance.
+    private static func mainBlockGuideSteps(workout: WorkoutSummary, warmup: Int, cooldown: Int, kind: GuideStep.Kind) -> [GuideStep] {
+        let pace = explicitPaceBand(for: workout)
+        if let mins = workout.durationMinutes, mins > warmup + cooldown {
+            return [timedGuideStep(kind, seconds: Double((mins - warmup - cooldown) * 60), pace: pace)]
+        }
+        guard let target = parseTarget(workout.distance) else { return [] }
+        return [GuideStep(kind: kind, target: target, paceBand: pace)]
+    }
+
+    /// Reps with a recovery between each pair. Returns [] (no guide) when the recovery is not known:
+    /// running reps back to back is not what any plan means.
+    private static func repeatGuideSteps(reps: Int, repMeters: Double, recovery: GuideStep.Target?, pace: GuidePaceBand?) -> [GuideStep] {
+        guard reps > 0, reps <= 50, repMeters > 0 else { return [] }
+        if reps > 1, recovery == nil { return [] }
+        var steps: [GuideStep] = []
+        for rep in 1...reps {
+            steps.append(GuideStep(kind: .work, target: .distance(meters: repMeters), paceBand: pace, repIndex: rep, repTotal: reps))
+            if rep < reps, let recovery {
+                steps.append(GuideStep(kind: .recovery, target: recovery))
+            }
+        }
+        return steps
+    }
+
+    private static let quantityRegex = try? NSRegularExpression(
+        pattern: #"^\s*(\d+(?:\.\d+)?)\s*(km|kilometers?|kilometres?|meters?|metres?|miles?|mi|minutes?|mins?|min|seconds?|secs?|sec|s|m)\s*$"#,
+        options: [.caseInsensitive]
+    )
+
+    /// "400 m", "1.5 km", "45 min" or "90 sec" as a guide target. Anything else, including rep
+    /// notation like "8 x 400m" or a bare number, is not a target.
+    static func parseTarget(_ text: String) -> GuideStep.Target? {
+        guard let regex = quantityRegex else { return nil }
+        let range = NSRange(text.startIndex..., in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: range),
+              let valueRange = Range(match.range(at: 1), in: text),
+              let unitRange = Range(match.range(at: 2), in: text),
+              let value = Double(text[valueRange]), value > 0 else { return nil }
+        let unit = text[unitRange].lowercased()
+        switch unit {
+        case "km", "kilometer", "kilometers", "kilometre", "kilometres": return .distance(meters: value * 1_000)
+        case "m", "meter", "meters", "metre", "metres": return .distance(meters: value)
+        case "mi", "mile", "miles": return .distance(meters: value * 1_609.344)
+        case "min", "mins", "minute", "minutes": return .duration(seconds: value * 60)
+        default: return .duration(seconds: value)
+        }
+    }
+
+    static func parseDistanceMeters(_ text: String) -> Double? {
+        if case .distance(let meters)? = parseTarget(text) { return meters }
+        return nil
+    }
+
+    private static let recoveryKeywordRegex = try? NSRegularExpression(
+        pattern: #"\b(recovery|recover|rest)\b|\b(jog|walk)\b[^,;.()]*\bbetween\b"#,
+        options: [.caseInsensitive]
+    )
+    /// A clause about the warm-up or cool-down is never the recovery between reps.
+    private static let warmupCooldownRegex = try? NSRegularExpression(
+        pattern: #"warm[\s-]?up|cool[\s-]?down"#,
+        options: [.caseInsensitive]
+    )
+    private static let quantityInTextRegex = try? NSRegularExpression(
+        pattern: #"(\d+(?:\.\d+)?)\s*(km|meters?|metres?|minutes?|mins?|seconds?|secs?|sec|s|m)\b"#,
+        options: [.caseInsensitive]
+    )
+
+    /// Recovery written in the plan text, such as "6 x 400m with 90 s recovery" or "Jog 200 m
+    /// between reps". Looks only at clauses that name a recovery, so the rep distance is never
+    /// mistaken for it. Returns nil when the text gives no usable length.
+    static func parseRecovery(from text: String) -> GuideStep.Target? {
+        guard let keyword = recoveryKeywordRegex, let quantity = quantityInTextRegex,
+              let excluded = warmupCooldownRegex else { return nil }
+        let clauses = text.components(separatedBy: CharacterSet(charactersIn: ",;.()")).flatMap {
+            $0.components(separatedBy: " with ")
+        }
+        for clause in clauses {
+            let whole = NSRange(clause.startIndex..., in: clause)
+            guard excluded.firstMatch(in: clause, options: [], range: whole) == nil,
+                  keyword.firstMatch(in: clause, options: [], range: whole) != nil else { continue }
+            for match in quantity.matches(in: clause, options: [], range: whole) {
+                guard let range = Range(match.range, in: clause),
+                      let target = parseTarget(String(clause[range])) else { continue }
+                switch target {
+                case .duration(let seconds) where (10...600).contains(seconds): return target
+                case .distance(let meters) where (20...2_000).contains(meters): return target
+                default: continue
+                }
+            }
+        }
+        return nil
     }
 
     // MARK: - Helpers

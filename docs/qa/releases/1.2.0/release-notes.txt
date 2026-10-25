@@ -1,0 +1,5 @@
+Run recording is more reliable, with recovery for unfinished runs, clearer GPS start controls, and improved distance, pace and splits.
+
+Spoken cues, automatic pause, a hold-to-finish control, and live Stats and Map views make it easier to follow your run. Planned workouts now show each step as you go.
+
+Review your run in the new summary, save its route and pauses to Apple Health, and optionally share a map with the start and finish trimmed. Calorie estimates are available when a weight is provided.

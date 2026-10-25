@@ -9,8 +9,24 @@ struct RunTabView: View {
     @State private var finishedRun: RecordedRun?
     @State private var postActivityOutcome: PostActivityOutcome?
     @State private var isProcessingFinishedRun = false
-    @State private var isConfirmingDiscard = false
+    /// The run whose Strava auto-upload waits until the runner finishes the summary (title and notes may still change).
+    @State private var heldStravaRunID: UUID?
+    @ObservedObject private var weight = RunnerWeightStore.shared
+    @State private var showsWeightSetup = false
+    @State private var resumeAfterEndSheet = false
     @State private var isConfirmingFinish = false
+    @State private var isConfirmingDiscard = false
+
+#if DEBUG
+    /// Simulator QA: `-RUNSMART_DEMO_MODE -AUTO_START_RUN -DEMO_GUIDE_INTERVALS` starts a run with a
+    /// short warm-up and 6 x 400 m reps so the live guide card shows a rep without a 10 minute wait.
+    private static let demoIntervalWorkout = WorkoutSummary(
+        id: UUID(), scheduledDate: Date(), planID: nil, weekday: "Thu", date: "22", kind: .intervals,
+        title: "6 x 400 m", distance: "6 x 400m", detail: "", isToday: true, isComplete: false,
+        durationMinutes: nil, targetPaceSecondsPerKm: nil, intensity: nil, trainingPhase: nil,
+        workoutStructure: #"{"steps":[{"type":"warmup","duration_seconds":4},{"type":"repeat","reps_count":6,"rep_distance":"400 m","pace_seconds_per_km":270,"note":"90 s recovery"},{"type":"cooldown","duration_seconds":300}]}"#
+    )
+#endif
 
     var body: some View {
         Group {
@@ -26,14 +42,17 @@ struct RunTabView: View {
                 LiveRunView(
                     metrics: liveMetrics,
                     routePoints: recorder.displayRoutePoints,
-                    splitRoutePoints: recorder.routePoints,
+                    completedKmSplits: recorder.completedKilometerSplits,
                     phase: recorder.phase,
+                    isAutoPaused: recorder.isAutoPaused,
+                    guide: recorder.workoutGuide,
+                    currentPaceSeconds: recorder.currentPaceSeconds,
                     gpsStatus: gpsStatus,
                     gpsDetail: gpsDetail,
                     elapsedSeconds: recorder.movingSeconds,
                     onPauseResume: primaryRunAction,
                     onFinish: requestFinishRun,
-                    onDiscard: requestDiscardRun
+                    onDiscard: requestFinishRun
                 )
             } else {
                 PreRunView(
@@ -43,7 +62,10 @@ struct RunTabView: View {
                     phase: recorder.phase,
                     gpsStatus: gpsStatus,
                     gpsDetail: gpsDetail,
+                    canStartWithoutGPS: recorder.canStartWithoutFix,
                     onStart: startRun,
+                    onCancelGPS: cancelGPSWait,
+                    onStartWithoutGPS: startWithoutGPS,
                     onRoute: openRouteCreator,
                     onAudio: openAudioCues
                 )
@@ -51,18 +73,31 @@ struct RunTabView: View {
         }
         .task {
             await reloadMetrics()
+            await weight.refreshHealthWeightIfEnabled()
+            if weight.shouldOfferWeightSetup, recorder.pendingRecovery == nil, finishedRun == nil, recorder.phase != .recording, recorder.phase != .paused {
+                weight.markWeightSetupOffered()
+                showsWeightSetup = true
+            }
         }
 #if DEBUG
         .onAppear {
             guard RunSmartDemoMode.isEnabled,
                   ProcessInfo.processInfo.arguments.contains("-AUTO_START_RUN"),
                   recorder.phase == .ready else { return }
+            if ProcessInfo.processInfo.arguments.contains("-DEMO_GUIDE_INTERVALS"), router.plannedWorkout == nil {
+                router.plannedWorkout = Self.demoIntervalWorkout
+            }
+            recorder.activeWorkoutTitle = router.plannedWorkout?.title
+            recorder.activeGuideSteps = router.plannedWorkout.flatMap { StructuredWorkoutFactory.makeGuideSteps(for: $0) }
             recorder.start()
         }
 #endif
         .onAppear {
             updateTabBarVisibility()
             updateRunSessionSideEffects(for: recorder.phase)
+            recorder.onRecoveredRunAutoSaved = { [services] run in
+                Self.processRecoveredRunSilently(run, services: services)
+            }
         }
         .onDisappear {
             router.isTabBarHidden = false
@@ -120,40 +155,108 @@ struct RunTabView: View {
         .onChange(of: recorder.currentPaceLabel) { _, _ in
             syncRunLiveActivity()
         }
-        // WP-37 S4: confirmationDialog rendered with only the destructive/confirm
-        // action visible on iOS 26 (device-confirmed) — "Keep Workout"/"Keep
-        // Recording" never appeared, leaving a mid-run mis-tap with no visible way
-        // back. .alert reliably renders both actions; same copy, same roles.
-        .alert(
-            "Discard this workout?",
-            isPresented: $isConfirmingDiscard
-        ) {
-            Button("Discard Workout", role: .destructive) {
-                discardRun()
+        .sheet(isPresented: $isConfirmingFinish, onDismiss: {
+            recorder.isEndDecisionPending = false
+            if resumeAfterEndSheet, recorder.phase == .paused { recorder.resume() }
+            resumeAfterEndSheet = false
+        }) {
+            VStack(spacing: 22) {
+                Text("End this run?").font(.title2.bold())
+                Text("\(recorder.distanceLabel) km · \(recorder.movingLabel)")
+                    .font(.title3.monospacedDigit())
+                Text(isVeryShortRun ? "Short activities may be saved for review without counting as meaningful training." : "Your run stays paused while you decide.")
+                    .font(.callout).foregroundStyle(.secondary)
+                Button("Save Run") {
+                    resumeAfterEndSheet = false
+                    finishRun()
+                }.buttonStyle(.borderedProminent)
+                Button("Resume") {
+                    resumeAfterEndSheet = true
+                    isConfirmingFinish = false
+                }
+                    .buttonStyle(.bordered)
+                Button("Discard Run", role: .destructive) {
+                    isConfirmingDiscard = true
+                }
             }
-            Button("Keep Workout", role: .cancel) {}
-        } message: {
-            Text("This removes the current timer, distance, and route.")
-        }
-        .alert(
-            finishConfirmationTitle,
-            isPresented: $isConfirmingFinish
-        ) {
-            Button("Finish and Save") {
-                finishRun()
+            .padding(28)
+            .frame(maxWidth: .infinity)
+            .presentationDetents([.medium, .large])
+            .interactiveDismissDisabled()
+            .alert("Discard this run?", isPresented: $isConfirmingDiscard) {
+                Button("Discard Run", role: .destructive) {
+                    resumeAfterEndSheet = false
+                    isConfirmingFinish = false
+                    discardRun()
+                }
+                Button("Keep Run", role: .cancel) {}
+            } message: {
+                Text("The distance, time and route of this run will be deleted. This cannot be undone.")
             }
-            Button("Keep Recording", role: .cancel) {}
-        } message: {
-            Text(finishConfirmationMessage)
         }
+        .sheet(isPresented: $showsWeightSetup) {
+            NavigationStack {
+                ScrollView { RunnerWeightSettingsView().padding() }
+                    .navigationTitle("Calorie estimate")
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showsWeightSetup = false }
+                        }
+                    }
+            }
+        }
+        // The app was killed or crashed mid-run. Every button clears
+        // `pendingRecovery`, so the alert cannot be dismissed without an answer.
+        .alert(
+            "Unfinished run found",
+            isPresented: Binding(
+                get: { isRecoveryPromptVisible },
+                set: { _ in }
+            )
+        ) {
+            if recorder.canResumeRecoveredRun {
+                Button("Resume Run") {
+                    recorder.resumeRecoveredRun()
+                }
+            }
+            Button("Save Run") {
+                saveRecoveredRun()
+            }
+            Button("Discard", role: .destructive) {
+                recorder.discardRecoveredRun()
+            }
+        } message: {
+            Text(recoveryMessage)
+        }
+    }
+
+    private var isRecoveryPromptVisible: Bool {
+        recorder.pendingRecovery != nil
+            && recorder.phase != .recording
+            && recorder.phase != .paused
+            && finishedRun == nil
+    }
+
+    private var recoveryMessage: String {
+        guard let checkpoint = recorder.pendingRecovery else { return "" }
+        let distance = String(format: "%.2f km", checkpoint.distanceMeters / 1_000)
+        let moving = RunRecorder.timeLabel(checkpoint.movingSecondsAtSave)
+        let started = Calendar.current.isDateInToday(checkpoint.startedAt)
+            ? checkpoint.startedAt.formatted(date: .omitted, time: .shortened)
+            : checkpoint.startedAt.formatted(date: .abbreviated, time: .shortened)
+        let choices = recorder.canResumeRecoveredRun
+            ? "Resume it, save it, or discard it."
+            : "Save it or discard it."
+        return "\(distance), \(moving) moving time, started \(started). \(choices)"
     }
 
     private var liveMetrics: [MetricTile] {
         [
             MetricTile(title: "Distance", value: recorder.distanceLabel, unit: "km", symbol: "point.topleft.down.curvedto.point.bottomright.up", tint: .accentPrimary),
-            MetricTile(title: "Current Pace", value: recorder.currentPaceLabel, unit: "/km", symbol: "timer", tint: .accentEnergy),
             MetricTile(title: "Moving time", value: recorder.movingLabel, unit: "", symbol: "stopwatch", tint: .textPrimary),
-            MetricTile(title: "GPS", value: recorder.horizontalAccuracy.map { "\(Int($0))" } ?? "--", unit: "m", symbol: "location.fill", tint: .accentRecovery)
+            MetricTile(title: "Average Pace", value: recorder.averagePaceLabel, unit: "/km", symbol: "speedometer", tint: .accentRecovery),
+            MetricTile(title: "Current Pace", value: recorder.currentPaceLabel, unit: "/km", symbol: "timer", tint: .accentEnergy),
+            MetricTile(title: "Calories", value: recorder.estimatedActiveKilocalories.map { String(format: "%.0f", $0) } ?? "--", unit: weight.weightKg == nil ? "Weight needed" : "kcal · est.", symbol: "flame", tint: .accentEnergy)
         ]
     }
 
@@ -202,10 +305,13 @@ struct RunTabView: View {
             }
             return "Stand near open sky while RunSmart gets a clean first point."
         case .recording:
+            if recorder.routePoints.isEmpty {
+                return "Timer running. Waiting for the first good GPS point; distance starts then."
+            }
             if let accuracy = recorder.horizontalAccuracy {
                 return "Timer running. \(accuracyMessage(accuracy))"
             }
-            return "Timer running - finding the first GPS point."
+            return "Timer running."
         case .paused:
             return "Resume to continue distance tracking or finish to save."
         case .denied:
@@ -217,17 +323,6 @@ struct RunTabView: View {
 
     private var shouldHideTabBar: Bool {
         finishedRun != nil || recorder.phase == .recording || recorder.phase == .paused
-    }
-
-    private var finishConfirmationTitle: String {
-        isVeryShortRun ? "Finish this short run?" : "Finish this run?"
-    }
-
-    private var finishConfirmationMessage: String {
-        if isVeryShortRun {
-            return "This activity is very short, so RunSmart may save it as a review-only activity instead of counting it as meaningful training."
-        }
-        return "RunSmart will stop GPS recording and save this activity for your report."
     }
 
     private var isVeryShortRun: Bool {
@@ -251,7 +346,20 @@ struct RunTabView: View {
         RunSmartHaptics.medium()
         let source = router.plannedWorkout != nil ? "planned" : "free"
         Analytics.trackRunStarted(source: source)
+        recorder.activeWorkoutTitle = router.plannedWorkout?.title
+        recorder.activeGuideSteps = router.plannedWorkout.flatMap { StructuredWorkoutFactory.makeGuideSteps(for: $0) }
         recorder.start()
+    }
+
+    private func cancelGPSWait() {
+        RunSmartHaptics.light()
+        recorder.cancelAcquiring()
+    }
+
+    private func startWithoutGPS() {
+        RunSmartHaptics.medium()
+        // run_started already fired when the runner tapped Start; no second event.
+        recorder.startWithoutFix()
     }
 
     private func openRouteCreator() {
@@ -267,13 +375,12 @@ struct RunTabView: View {
     }
 
     private func requestFinishRun() {
+        guard recorder.phase == .recording || recorder.phase == .paused, !isConfirmingFinish else { return }
         RunSmartHaptics.light()
+        resumeAfterEndSheet = recorder.phase == .recording
+        recorder.isEndDecisionPending = true
+        if resumeAfterEndSheet { recorder.pause() }
         isConfirmingFinish = true
-    }
-
-    private func requestDiscardRun() {
-        RunSmartHaptics.light()
-        isConfirmingDiscard = true
     }
 
     private func updateRunSessionSideEffects(for phase: RunRecordingPhase) {
@@ -288,7 +395,7 @@ struct RunTabView: View {
     private func syncRunLiveActivity() {
         let isLiveRun = recorder.phase == .recording || recorder.phase == .paused
         RunLiveActivityController.sync(
-            workoutTitle: router.plannedWorkout?.title ?? "Free Run",
+            workoutTitle: router.plannedWorkout?.title ?? recorder.activeWorkoutTitle ?? "Free Run",
             distanceLabel: recorder.distanceLabel,
             movingTimeLabel: recorder.movingLabel,
             paceLabel: recorder.currentPaceLabel,
@@ -311,27 +418,68 @@ struct RunTabView: View {
         VoiceCoachService.shared.stopSession()
         let run = recorder.finish()
         if let run {
-            router.dismissPostRunSummaryIfNeeded()
-            Task { await services.saveToHealth(run) }
-            postActivityOutcome = nil
-            isProcessingFinishedRun = true
-            NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
-            finishedRun = run
-            Task {
-                let outcome = await services.processCompletedActivity(run)
-                await MainActor.run {
-                    postActivityOutcome = outcome
-                    isProcessingFinishedRun = false
-                    updateTabBarVisibility()
-                }
-            }
+            presentFinishedRun(run)
         } else {
+            releaseHeldStravaUpload()
             finishedRun = nil
             postActivityOutcome = nil
             isProcessingFinishedRun = false
             router.dismissPostRunSummaryIfNeeded()
         }
         updateTabBarVisibility()
+    }
+
+    /// Shared tail of finishing a live run and saving a recovered one: health export,
+    /// post-run summary and activity processing.
+    private func presentFinishedRun(_ run: RecordedRun) {
+        router.dismissPostRunSummaryIfNeeded()
+        // A summary that is being replaced no longer waits for its Done tap.
+        releaseHeldStravaUpload()
+        Task { await services.saveToHealth(run, allowPermissionPrompt: true) }
+        postActivityOutcome = nil
+        isProcessingFinishedRun = true
+        NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+        finishedRun = run
+        // Strava: the runner may still edit the title and notes on the summary, so the auto-upload waits
+        // until they tap Done (or the summary is left some other way). See `releaseHeldStravaUpload`.
+        StravaUploadCoordinator.shared.holdAutoUpload(for: run)
+        heldStravaRunID = StravaUploadCoordinator.shared.isHeld(run.id) ? run.id : nil
+        Task {
+            let outcome = await services.processCompletedActivity(run)
+            await MainActor.run {
+                postActivityOutcome = outcome
+                isProcessingFinishedRun = false
+                updateTabBarVisibility()
+            }
+        }
+        updateTabBarVisibility()
+    }
+
+    /// The runner is done with the summary: send the held run to Strava with the title and notes as saved.
+    /// Off the main actor, never blocks. A failure is kept for the next foreground.
+    private func releaseHeldStravaUpload() {
+        guard let runID = heldStravaRunID else { return }
+        heldStravaRunID = nil
+        Task { await StravaUploadCoordinator.shared.releaseHeldUpload(runID: runID) }
+    }
+
+    /// A recovered run that was saved because a new run started: same Health export and
+    /// processing as any finished run, without taking over the screen the new run is using.
+    private static func processRecoveredRunSilently(_ run: RecordedRun, services: any RunSmartServiceProviding) {
+        NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+        Task {
+            // Silent: no Health permission sheet while a new run is starting, and no summary to wait for.
+            await services.saveToHealth(run, allowPermissionPrompt: false)
+            _ = await services.processCompletedActivity(run)
+            await StravaUploadCoordinator.shared.autoUploadIfEnabled(run)
+        }
+    }
+
+    private func saveRecoveredRun() {
+        RunSmartHaptics.medium()
+        if let run = recorder.saveRecoveredRun() {
+            presentFinishedRun(run)
+        }
     }
 
     private func discardRun() {
@@ -342,6 +490,7 @@ struct RunTabView: View {
             distanceKm: recorder.distanceMeters / 1000
         )
         recorder.discard()
+        releaseHeldStravaUpload()
         finishedRun = nil
         postActivityOutcome = nil
         isProcessingFinishedRun = false
@@ -351,6 +500,7 @@ struct RunTabView: View {
     }
 
     private func saveFinishedRun() {
+        releaseHeldStravaUpload()
         finishedRun = nil
         postActivityOutcome = nil
         isProcessingFinishedRun = false
@@ -361,6 +511,10 @@ struct RunTabView: View {
     }
 
     private func deleteFinishedRun() {
+        if let heldID = heldStravaRunID {
+            heldStravaRunID = nil
+            StravaUploadCoordinator.shared.dropHeldUpload(runID: heldID)
+        }
         guard let run = finishedRun else {
             finishedRun = nil
             postActivityOutcome = nil

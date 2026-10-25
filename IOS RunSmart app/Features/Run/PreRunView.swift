@@ -7,7 +7,11 @@ struct PreRunView: View {
     var phase: RunRecordingPhase
     var gpsStatus: String
     var gpsDetail: String
+    /// True once the GPS search has run long enough to offer "Start anyway".
+    var canStartWithoutGPS = false
     var onStart: () -> Void
+    var onCancelGPS: () -> Void = {}
+    var onStartWithoutGPS: () -> Void = {}
     var onRoute: () -> Void
     var onAudio: () -> Void
 
@@ -45,6 +49,14 @@ struct PreRunView: View {
                                 .font(.bodyMD.weight(.semibold))
                                 .foregroundStyle(Color.textSecondary)
                                 .frame(width: 132, alignment: .leading)
+                            }
+
+                            if phase == .acquiringLocation {
+                                GPSWaitActions(
+                                    canStartWithoutGPS: canStartWithoutGPS,
+                                    onStartWithoutGPS: onStartWithoutGPS,
+                                    onCancel: onCancelGPS
+                                )
                             }
 
                             HStack(spacing: 10) {
@@ -179,6 +191,39 @@ private struct RunOptionButton: View {
         .buttonStyle(.plain)
         .accessibilityLabel(title)
         .accessibilityHint("Opens \(title.lowercased()) options for this run.")
+    }
+}
+
+/// Shown under the start button while GPS is searching: Cancel always, and after the
+/// search has run long enough, a way to start the clock without a fix.
+private struct GPSWaitActions: View {
+    var canStartWithoutGPS: Bool
+    var onStartWithoutGPS: () -> Void
+    var onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            if canStartWithoutGPS {
+                Text("GPS is still weak. The clock starts now; distance starts at the first good GPS point.")
+                    .font(.caption)
+                    .foregroundStyle(Color.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Start anyway", action: onStartWithoutGPS)
+                    .buttonStyle(NeonButtonStyle())
+                    .accessibilityHint("Starts the run clock without waiting for GPS.")
+            }
+            Button(action: onCancel) {
+                Text("Cancel")
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(Color.surfaceBase.opacity(0.34), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Stops searching for GPS and returns to the run screen.")
+        }
     }
 }
 

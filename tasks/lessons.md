@@ -1,3 +1,31 @@
+## 2026-10-23: Anything read before an `await` is stale after it, and "save the whole run" is the bug
+
+`upsertCompletedRunIfPossible` and `saveRouteMatch` saved a copy read before a network call, erasing effort, title, notes and the Strava id set meanwhile. After an await, re-read the stored run and change only the fields you own (`markRunSynced`, `saveRunKeepingLocalEdits`). The same review found the pattern in three other places: an auto-upload fired before the runner finished editing, a rate-limited refresh treated as a revoked token, and a failed Health query treated as "no workout yet". When a failure and a normal empty result look the same, make the failure its own value (nil, a distinct error code) and never act on it as if it were the empty case.
+
+## 2026-10-23: A local-only field on RecordedRun is lost if any writer saves a stale copy
+
+`updateRunRPE` saved the caller's copy of the run, so the post-run screen (holding a copy from before the Strava upload) would have erased `stravaActivityID` the moment the runner set an effort. Local-only fields (title, notes, Strava id) must be applied to the stored copy (`loadRuns().first { $0.id == run.id }`), as `updateRunDetails` does. `updateRunRPE` and `setStravaActivityID` now follow that rule.
+
+## 2026-10-22: Any code that walks route points must respect `startsNewSegment`
+
+Route matching summed straight-line distance across a pause break and resampled along it, so a pause walked or ridden off-route counted as route covered. Every consumer of `routePoints` (distance, splits, polylines, matching, elevation) treats a segment start as a break: no distance, no samples, no line across it. `SavedRoute.from(run:)` and `elevationGain(points:)` still sum altitude across breaks (not fixed yet).
+
+## 2026-10-22: Starting a run must not run the recovered-run save through the new run's state
+
+`startAcquiringLocation()` saves an unanswered recovered run, and `saveRecoveredRun()` cleared `activeWorkoutTitle`, wiping the title the Run tab had just set for the new run; the auto-saved run also skipped Health and processing. Saving a recovered run now leaves the new run's title alone and hands the run to `onRecoveredRunAutoSaved`. When two paths end a run (finish, auto-save), give both the same post-save tail.
+
+## 2026-10-22: After merging two branches that fixed the same problem, keep one implementation
+
+Release A and B each handled stale voice cues, map following and display-route thinning. Keep the side with tests, delete the other, and adapt only tests that asserted the deleted detail. Start paths must be compared after a merge: "Start anyway" (A) skipped B's start cue and auto-pause reset until both start paths were checked side by side.
+
+## 2026-10-22 — Clamp device timestamps to the recording lifetime
+
+Core Location fixes can be fresh yet older than the callback that started the run. Clamp automatically inferred pause starts to startedAt and resume durations to zero or greater. A delayed-fix fixture must distinguish fix time from callback time.
+
+## 2026-10-22 — Auto-pause needs unfiltered stationary callbacks
+
+A GPS distance filter can suppress the repeated stationary fixes that an eight-second stop detector needs. While automatic pausing is enabled, request distanceFilterNone during recording and automatic pauses; keep manual pauses low power. Test the recorder integration as well as the pure detector, including manual pauses and GPS gaps.
+
 ## 2026-10-21: A route fixture "offset" can run along the street, not beside it
 
 `testRouteMatchingMarksNearbyNoisyRouteAsPossibleWithoutAttaching` shifted the run by equal latitude and longitude steps. On that diagonal route the shift was 87 m along the street and only 10.5 m to the side, so it was the same path, not a nearby one. Index-based shape matching could not tell the difference; coverage matching can. When a fixture means "a parallel street", offset it perpendicular to the route and check the sideways distance.
@@ -116,6 +144,8 @@ Review this file at the start of future tasks.
 - **A SwiftUI `Button` nested inside another `Button` silently does not work.** The route card's "Details" control was declared inside the card's selection `Button`; the tap resolved to a button in the accessibility tree but fired nothing, and the outer `.accessibilityElement(children: .combine)` additionally hid it from VoiceOver. Device-confirmed both before (dead tap) and after (opens route detail). Render secondary actions as **siblings** in a `ZStack` overlay, never nested — and treat "the tap registers but nothing happens" as a nesting smell before hunting the action's body.
 - **RLS `WITH CHECK (user_id = auth.uid())` does not constrain what a row *points at*.** A child table whose FK only requires the referenced row to exist lets an authenticated user reference another user's row while passing RLS with their own `user_id`. Enforce ownership with a composite FK (`(child_fk, user_id) REFERENCES parent(id, user_id)`), which needs a `UNIQUE (id, user_id)` on the parent. Verify it by *attempting* the cross-user insert and asserting rejection; a structural constraint listing does not prove enforcement.
 - **After a red-check that rebuilds from a stashed tree, DerivedData Products holds the pre-fix binary.** Installing the app from Products after running tests against stashed HEAD silently installs the wrong build — the fixed behavior "stops working" for no visible reason (hit 2026-07-23: `-OPEN_SECONDARY routeCreator` went dead because the installed parse() predated the hook). Rebuild from the working tree before any simulator smoke that follows a stash/checkout validation cycle.
+
+- During GPS acquisition, `kCLErrorLocationUnknown` is the normal "no signal yet" answer, not a failure. `RunRecorder.locationManager(_:didFailWithError:)` used to set `.failed` on it, which dropped the runner out of `.acquiringLocation` and hid Cancel and "Start anyway". Only an explicit denial ends the search; verified in the simulator with location cleared (2026-10-22).
 
 ## Lesson Log
 
@@ -642,3 +672,15 @@ Trigger: on `main` (1.1.8 (33)) ten synchronous tests died with SIGABRT on the i
 - Not a shipped crash: app code and Supabase only bind task-locals with `async`, and below iOS 26 the back-deploy shim never calls the runtime function.
 
 Future rule: every new `final class` (not `NSObject`, not `nonisolated`) whose teardown only releases stored properties gets `nonisolated deinit {}`. Run the suite on the iOS 26.3 iPhone 17 simulator as well as 26.5 before calling a release green.
+
+## App Store privacy: verify new purposes after publishing
+
+Adding Analytics to an existing linked data type can leave the new purpose unlinked in Apple’s saved product preview even when the initial wizard shows Yes. Reopen the wizard and explicitly correct the persisted linkage; reload and inspect See Details before claiming the privacy labels match the app.
+
+## Release verification must gate upload
+
+Use separate sequential tool calls (or explicit shell failure handling) so a failed artifact check cannot fall through to upload. Use `codesign -dvv` when checking Authority; `-dv` may omit certificate authority while the signature is valid.
+
+## A present backend key is not a working backend key
+
+Build 35 passed key-presence checks but live Auth rejected its packaged publishable key. Before upload, extract configuration from the actual archive/export and query live Auth settings; require success and expected providers. Keep ignored overrides aligned with committed defaults. Unit tests with injected gateways cannot prove production credentials work.

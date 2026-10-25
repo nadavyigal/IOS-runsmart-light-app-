@@ -1,0 +1,119 @@
+Browser tab: 1861331251, Title: "App Store Connect", URL: "https://appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight/ios/77748393-3e2b-4c52-aa17-54b580896c20".
+0 AXWebArea App Store Connect, URL: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight/ios/77748393-3e2b-4c52-aa17-54b580896c20
+	1 container
+		2 container App Store Connect
+			3 container
+				4 heading App Store Connect, Value: 1
+					5 link Description: App Store Connect, Value: appstoreconnect.apple.com/, ID: logo
+				6 container Global
+					7 content list
+						8 link Description: Apps, Value: appstoreconnect.apple.com/apps
+						9 link Description: Xcode Cloud, Value: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/xcode-cloud
+						10 link Description: Trends, Value: appstoreconnect.apple.com/trends
+						11 link Description: Reports, Value: appstoreconnect.apple.com/itc/payments_and_financial_reports
+						12 link Description: Business, Value: appstoreconnect.apple.com/business
+						13 link Description: Users and Access, Value: appstoreconnect.apple.com/access/users
+				14 button Nadav Yigal Nadav Yigal Account name menu
+					15 text Nadav Yigal
+					16 text Nadav Yigal
+					17 image
+		18 container
+			19 pop up button (collapsed) Description: Apps menu, RunSmart: AI Run Coaching, selected, Secondary Actions: Expand
+				20 container
+					21 image RunSmart: AI Run Coaching
+					22 text RunSmart: AI Run Coaching
+				23 image
+			24 container Apps
+				25 content list
+					26 link Description: Distribution, Value: appstoreconnect.apple.com/apps/6768297840/distribution
+					27 link Description: Analytics, Value: appstoreconnect.apple.com/apps/6768297840/analytics
+					28 link Description: TestFlight, Value: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight
+		29 container
+			30 container
+				31 link Description: iOS Builds, Value: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight/ios
+				32 heading 1.2.0 (37), Value: 2
+					33 text 1.2.0 (37)
+				34 container
+					35 button Expire Build
+					36 button (disabled) Saved
+						37 image
+						38 text Saved
+				39 tab group
+					40 tab (selected, settable, boolean) Test Information, Value: 1
+Test Information
+					41 tab (selectable, settable, boolean) Build Metadata, Value: 0
+Build Metadata
+				42 container
+					43 heading Test Details, Value: 3
+						44 text Test Details
+					45 pop up button (disabled, collapsed) English (U.S.), Secondary Actions: Expand
+				46 container
+					47 text What to Test
+					48 button (collapsed) Description: More information, Secondary Actions: Expand
+				49 text Let your testers know what you would like them to test in this build. This information will be available to testers in all groups who have access to this build.
+				50 text entry area (settable) What to Test, ID: whatsNew, Value: Build 37 preserves the planned workout guide in the first GPS recovery checkpoint. All other release features match the tested build 36.
+
+Optional focused iPhone retest:
+1. Open a planned workout and start recording with a GPS fix.
+2. Force-quit within the first few seconds, then reopen RunSmart.
+3. Restore the unfinished run, resume, and check that the workout step card and interval guidance remain available.
+
+Automated verification: the new recovery regression failed before the fix and passes after; full simulator suite 725 passed, zero failures/skips. Strava remains hidden. Your build-36 TestFlight pass is recorded.
+				51 container Characters remaining
+					52 text 3,374
+				53 container
+					54 heading Group (1), Value: 3
+						55 text Group (1)
+					56 button Add Group
+						57 image
+				58 container
+					59 text Add groups to this build. All testers in these groups will have access to this build.
+					60 table Description: Group (1), ID: react-aria2264154739-312
+						61 row GROUP NAME GROUP TYPE TESTERS Actions
+							62 cell react-aria2264154739-312-name
+								63 button GROUP NAME
+							64 cell react-aria2264154739-312-column-key-1
+								65 text GROUP TYPE
+							66 cell react-aria2264154739-312-column-key-2
+								67 text TESTERS
+							68 cell Description: Actions, ID: react-aria2264154739-312-column-key-delete
+						69 row RunSmart Internal Internal 1, ID: react-aria2264154739-358
+							70 cell react-aria2264154739-312-df3e9311-4134-4407-973f-cb2a2e4de3b6-name
+								71 link Description: RunSmart Internal, Value: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight/groups/df3e9311-4134-4407-973f-cb2a2e4de3b6
+							72 cell react-aria2264154739-312-df3e9311-4134-4407-973f-cb2a2e4de3b6-column-key-1
+								73 text Internal
+							74 cell react-aria2264154739-312-df3e9311-4134-4407-973f-cb2a2e4de3b6-column-key-2
+								75 text 1
+							76 cell react-aria2264154739-362
+								77 button Delete
+				78 container
+					79 heading Individual Testers (0), Value: 3
+						80 text Individual Testers (0)
+					81 button (collapsed) Description: Add Testers, Secondary Actions: Expand
+						82 image
+				83 text Add an individual tester to this specific build.
+				84 table Description: ITC.apps.tf.labels.testersNotInGroups, ID: react-aria2264154739-217
+					85 row בחר הכול TESTER STATUS
+						86 cell react-aria2264154739-217-row-header-column-8b8gshojer9
+							87 text בחר הכול
+						88 cell react-aria2264154739-217-email
+							89 text TESTER
+						90 cell react-aria2264154739-217-state
+							91 text STATUS
+					92 row No testers have been added for this build.
+						93 cell
+							94 text No testers have been added for this build.
+		95 content list
+			96 link Description: App Store Connect, Value: appstoreconnect.apple.com/apps
+		97 content list
+			98 container
+				99 text Copyright © 2026 Apple Inc. All rights reserved. |
+			100 container
+				101 link Description: Terms of Service, Value: appstoreconnect.apple.com/WebObjects/iTunesConnect.woa/wa/termsOfService
+				102 text |
+			103 container
+				104 link Description: Privacy Policy, Value: apple.com/legal/privacy
+				105 text |
+			106 link Description: Contact Us, Value: appstoreconnect.apple.com/contact-us
+
+The focused UI element is 56 button Add Group

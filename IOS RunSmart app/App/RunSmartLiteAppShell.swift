@@ -141,6 +141,7 @@ enum RunSmartRecordingMode {
 #endif
 
 struct RunSmartLiteAppShell: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var router = AppRouter()
     @StateObject private var session = SupabaseSession()
     @StateObject private var recorder = RunRecorder()
@@ -226,7 +227,13 @@ struct RunSmartLiteAppShell: View {
         }
         .task {
             guard !RunSmartDemoMode.isEnabled else { return }
+            // An unfinished run from a killed session is answered on the Run tab, so
+            // land there on launch or the prompt would wait for a manual tab switch.
+            if recorder.pendingRecovery != nil {
+                router.selectedTab = .run
+            }
             isAnalyticsReady = setupAnalyticsIfNeeded()
+            Task { await StravaUploadCoordinator.shared.retryPending() }
             PushService.shared.configureNavigation { destination in
                 router.openNotificationDestination(destination)
             }
@@ -251,6 +258,11 @@ struct RunSmartLiteAppShell: View {
             else { return }
             activationFirstFrameTracker.screenRendered(screen)
         }
+        .onChange(of: scenePhase) { _, phase in
+            // Strava: finish uploads that failed or were still processing. Quiet, no UI.
+            guard phase == .active, !RunSmartDemoMode.isEnabled else { return }
+            Task { await StravaUploadCoordinator.shared.retryPending() }
+        }
         .onChange(of: router.selectedTab) { _, newTab in
             guard !RunSmartDemoMode.isEnabled else { return }
             // Register before tracking so the tab_viewed event itself, and every
@@ -260,6 +272,8 @@ struct RunSmartLiteAppShell: View {
         }
         .onChange(of: session.isAuthenticated) { _, isAuth in
             guard !RunSmartDemoMode.isEnabled else { return }
+            // Strava tokens belong to one RunSmart user: drop them if a different runner signed in.
+            StravaConnectionService.shared.reconcileOwnership()
             if isAuth, let userId = session.currentUserID {
                 Analytics.identifyUser(userId: userId.uuidString)
                 if guestJourney.state.isActive,

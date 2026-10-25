@@ -1535,29 +1535,40 @@ private struct RunReportNextWorkoutCard: View {
 }
 
 private struct AudioCuesScaffold: View {
+    @ObservedObject private var cues = LocalRunCueService.shared
+    @ObservedObject private var coach = VoiceCoachService.shared
+    @AppStorage("runAutoPauseEnabled") private var autoPause = true
+
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Cue Timing")
-                    PreferenceRow(title: "Pace checks", value: "Every 1 km", symbol: "timer")
-                    PreferenceRow(title: "Form reminders", value: "Every 8 min", symbol: "figure.run")
-                    PreferenceRow(title: "Heart-rate alerts", value: "Zone 4+", symbol: "heart")
-                    PreferenceRow(title: "Milestone callouts", value: "On", symbol: "flag")
+                    SectionLabel(title: "Offline run cues")
+                    Toggle("Spoken run cues", isOn: $cues.settings.enabled)
+                    Picker("Announce", selection: $cues.settings.cadence) {
+                        ForEach(RunCueSettings.Cadence.allCases) { cadence in
+                            Text(cadence.label).tag(cadence)
+                        }
+                    }
+                    Toggle("Distance", isOn: $cues.settings.distance)
+                    Toggle("Split pace", isOn: $cues.settings.pace)
+                    Toggle("Moving time", isOn: $cues.settings.time)
+                    Text("Start, pause, resume and finish are announced too. Works offline, including guest runs.")
+                        .font(.caption).foregroundStyle(Color.mutedText)
                 }
             }
-
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Preview")
-                    Text("Cue audio will play during a run with your selected coach tone.")
-                        .font(.callout)
-                        .foregroundStyle(Color.mutedText)
-                        .padding(12)
-                        .background(Color.lime.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    SectionLabel(title: "Run preferences")
+                    Toggle("Auto-pause at stops", isOn: $autoPause)
+                    Text("Pauses after 8 seconds below 0.5 m/s. Manual pauses resume only when you tap Resume.")
+                        .font(.caption).foregroundStyle(Color.mutedText)
+                    Toggle("Extra AI coach cues", isOn: Binding(get: { coach.isEnabled }, set: { coach.setEnabled($0) }))
+                    Text("AI cues need a signed-in account and an internet connection.")
+                        .font(.caption).foregroundStyle(Color.mutedText)
                 }
             }
+            RunnerWeightSettingsView()
         }
     }
 }
@@ -2133,7 +2144,7 @@ private struct ConnectedServiceDetailScaffold: View {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Permissions")
                     if serviceName == "HealthKit" {
-                        Text("RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health.")
+                        Text("RunSmart uses HealthKit to read only the workout and wellness data you approve, including workouts, routes, heart rate, HRV, sleep, steps, and active energy. If you allow write access, completed GPS runs can be saved back to Health with their route, pauses, and estimated active energy.")
                             .font(.callout)
                             .foregroundStyle(Color.mutedText)
                     }

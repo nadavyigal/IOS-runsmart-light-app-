@@ -1,0 +1,90 @@
+Browser tab: 4, Title: "App Store Connect", URL: "https://appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight/groups/df3e9311-4134-4407-973f-cb2a2e4de3b6/builds".
+1 AXWebArea App Store Connect, URL: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight/groups/df3e9311-4134-4407-973f-cb2a2e4de3b6/builds
+	2 container
+		3 container App Store Connect
+			4 container
+				5 heading App Store Connect, Value: 1
+					6 link Description: App Store Connect, Value: appstoreconnect.apple.com/, ID: logo
+				7 container Global
+					8 content list
+						9 link Description: Apps, Value: appstoreconnect.apple.com/apps
+						10 link Description: Xcode Cloud, Value: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/xcode-cloud
+						11 link Description: Trends, Value: appstoreconnect.apple.com/trends
+						12 link Description: Reports, Value: appstoreconnect.apple.com/itc/payments_and_financial_reports
+						13 link Description: Business, Value: appstoreconnect.apple.com/business
+						14 link Description: Users and Access, Value: appstoreconnect.apple.com/access/users
+				15 button Nadav Yigal Nadav Yigal Account name menu
+		16 container sub
+			17 pop up button (collapsed) Description: Apps menu, RunSmart: AI Run Coaching, selected, Secondary Actions: Expand
+				18 container
+					19 image RunSmart: AI Run Coaching
+					20 text RunSmart: AI Run Coaching
+				21 image
+			22 container Apps
+				23 container
+					24 text TestFlight
+					25 image
+				26 content list
+					27 link Description: Distribution, Value: appstoreconnect.apple.com/apps/6768297840/distribution
+					28 link Description: Analytics, Value: appstoreconnect.apple.com/apps/6768297840/analytics
+					29 link Description: TestFlight, Value: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight
+		30 container
+			106 container
+				107 text RunSmart Internal
+				108 heading RunSmart Internal, Value: 2
+					109 pop up button (collapsed) RunSmart Internal, Secondary Actions: Expand
+						110 text RunSmart Internal
+						111 image
+				112 text Internal Group ∙ 1 Tester ∙ 1 Build
+				113 container
+					114 link Testers
+						115 text Testers
+					116 text Builds
+					117 link Settings
+						118 text Settings
+				119 image
+				120 container
+					121 text Build  1.2.0 (35)  has been removed from the group  RunSmart Internal .
+				122 button
+					123 image
+				124 heading Build (1), Value: 3
+					125 text Build (1)
+				126 button Add Build to Group
+					127 image
+				128 table Description: Builds, ID: react-aria3084980792-2
+					129 row Description: 36, ID: react-aria3084980792-2-e44b512d-b7b0-4494-996b-9f044c305686
+						130 heading Build 1.2.0 (36) Delete, Value: 5
+							131 link Description: Build 1.2.0 (36), Help: 1.2.0 (36), Value: appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight/ios/e44b512d-b7b0-4494-996b-9f044c305686
+							132 button Delete
+						133 definition list
+							134 container Status
+								135 text Status
+							136 text Testing
+							137 container Platform
+								138 text Platform
+							139 text iOS
+							140 container Upload Date
+								141 text Upload Date
+							142 text Oct 24, 2026 at 7:28 AM
+							143 container Expiration
+								144 text Expiration
+							145 text Expires in 90 days
+							146 container Last 7 Days
+								147 text Last 7 Days
+							148 text –
+							149 container Crashes
+								150 text Crashes
+							151 text –
+		95 content list
+			96 link Description: App Store Connect, Value: appstoreconnect.apple.com/apps
+		97 content list
+			98 text Copyright © 2026 Apple Inc. All rights reserved.
+			99 container
+				100 link Description: Terms of Service, Value: appstoreconnect.apple.com/WebObjects/iTunesConnect.woa/wa/termsOfService
+				101 text |
+			102 container
+				103 link Description: Privacy Policy, Value: apple.com/legal/privacy
+				104 text |
+			105 link Description: Contact Us, Value: appstoreconnect.apple.com/contact-us
+
+The focused UI element is 129 row Description: 36, ID: react-aria3084980792-2-e44b512d-b7b0-4494-996b-9f044c305686

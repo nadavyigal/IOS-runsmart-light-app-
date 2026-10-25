@@ -1,0 +1,49 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "x86_64",
+        "deviceId" : "1B78DC7A-8A2C-4387-8151-1789371FD9F1",
+        "deviceName" : "Resumely Diagnosis 17 Pro",
+        "modelName" : "iPhone 17 Pro",
+        "osBuildNumber" : "23F77",
+        "osVersion" : "26.5",
+        "platform" : "iOS Simulator"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 1,
+      "passedTests" : 0,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "IOS RunSmart app · Built with macOS 26.7.1",
+  "expectedFailures" : 0,
+  "failedTests" : 1,
+  "finishTime" : 1792930907.73,
+  "passedTests" : 0,
+  "result" : "Failed",
+  "skippedTests" : 0,
+  "startTime" : 1792930793.669,
+  "statistics" : [
+
+  ],
+  "testFailures" : [
+    {
+      "failureText" : "XCTUnwrap failed: expected non-nil value of type \"WorkoutGuide\" - The very first checkpoint must contain interval guidance",
+      "targetName" : "IOS RunSmart appTests",
+      "testIdentifier" : 1,
+      "testIdentifierString" : "RunRecoveryTests/testImmediateGPSStartRecoveryKeepsPlannedWorkoutGuide()",
+      "testIdentifierURL" : "test://com.apple.xcode/IOS%20RunSmart%20app/IOS%20RunSmart%20appTests/RunRecoveryTests/testImmediateGPSStartRecoveryKeepsPlannedWorkoutGuide",
+      "testName" : "testImmediateGPSStartRecoveryKeepsPlannedWorkoutGuide()"
+    }
+  ],
+  "title" : "Test - IOS RunSmart app",
+  "topInsights" : [
+
+  ],
+  "totalTestCount" : 1
+}

@@ -11,6 +11,8 @@ struct ProfileTabView: View {
     @State private var recentRuns: [RecordedRun] = []
     @State private var challenge: ChallengeSummary = .loading
     @State private var navPath: [SecondaryDestination] = []
+    @State private var showStravaSheet = false
+    @ObservedObject private var strava = StravaConnectionService.shared
 
     var body: some View {
         NavigationStack(path: $navPath) {
@@ -38,6 +40,9 @@ struct ProfileTabView: View {
             .navigationDestination(for: SecondaryDestination.self) { destination in
                 SecondaryFlowView(destination: destination)
             }
+        }
+        .sheet(isPresented: $showStravaSheet) {
+            StravaConnectionView()
         }
         .task {
             await loadProfileData()
@@ -325,6 +330,7 @@ struct ProfileTabView: View {
                     ConnectedServiceTile(title: "HealthKit", detail: "HealthKit read/write", status: statusLabel("HealthKit"), symbol: "heart.fill", tint: .accentHeart) {
                         open(.connectedService("HealthKit"))
                     }
+                    stravaTile
                     ConnectedServiceTile(title: "Prefs", detail: "Reminders", status: session.onboardingProfile.notificationsEnabled ? "On" : "Manage", symbol: "bell.fill", tint: .accentRecovery) {
                         open(.reminders)
                     }
@@ -332,6 +338,30 @@ struct ProfileTabView: View {
                         open(.account)
                     }
                 }
+            }
+        }
+    }
+
+    /// Hidden entirely when the build has no Strava client id.
+    @ViewBuilder
+    private var stravaTile: some View {
+        switch strava.availability(isSignedIn: session.isAuthenticated) {
+        case .hidden:
+            EmptyView()
+        case .signInRequired:
+            ConnectedServiceTile(title: "Strava", detail: "Sign in to connect Strava", status: "Sign in", symbol: "figure.run.circle.fill", tint: .accentEnergy, showsStatusDot: false) {
+                showStravaSheet = true
+            }
+        case .available:
+            ConnectedServiceTile(
+                title: "Strava",
+                detail: strava.connectedAthleteName.map { "Connected as \($0)" } ?? "Send runs to Strava",
+                status: strava.isConnected ? "Connected" : "Connect",
+                symbol: "figure.run.circle.fill",
+                tint: .accentEnergy,
+                showsStatusDot: strava.isConnected
+            ) {
+                showStravaSheet = true
             }
         }
     }
