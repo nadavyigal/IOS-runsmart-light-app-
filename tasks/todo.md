@@ -1,3 +1,15 @@
+## 2026-10-26 — Approved external Apple Watch TestFlight beta
+
+Owner explicitly approved the external TestFlight plan and invitation to the named tester in chat. Public 1.2.0 stays unchanged; PR165 stays draft through physical Watch QA.
+
+- [x] Check live ASC: latest build37 complete; no newer pending upload. Select 1.2.1 (38).
+- [ ] Archive/export and verify actual 1.2.1 (38) distribution package/backend.
+- [ ] Upload and verify Apple processing.
+- [ ] Create Apple Watch Beta external group, add build and beta review information.
+- [ ] Invite the approved tester when eligible; verify delivery state.
+- [ ] Save exact tester instructions and distribution evidence; push PR165 updates.
+- [ ] Paired Watch round-trip QA; keep draft.
+
 ## 2026-10-26 — PR165 review fix and Watch device candidate
 
 - [x] Reconcile current-head hosted Codex/CodeRabbit reviews; verify unchanged-import finding.
