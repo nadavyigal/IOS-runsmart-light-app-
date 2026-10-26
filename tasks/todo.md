@@ -7,7 +7,7 @@ Owner request: save a route once, then compare repeat runs (nearby endpoints, sa
 - [x] Regression tests: original-run identity/history, hidden runs, three-run benchmark, current-copy precedence, missing/stale comparison states (20 added).
 - [x] Implement direct report-run resolution, reopened map/save flow, benchmark-on default, stable loading view and live comparison refresh.
 - [x] Full simulator suite 745/0; visual fresh-save and relaunch smoke; independent review. Synthetic preferences restored.
-- [ ] Push branch and open PR; update progress/session memory. Public App Store fix requires a later release.
+- [x] Pushed `codex/repeat-route-benchmarks`; PR #166 open with tests/screenshots; progress/session memory updated. Public App Store fix requires a later release.
 
 ## 2026-10-25 — RunSmart 1.2.0 (37) submitted: Waiting for Review
 
