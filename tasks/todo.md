@@ -1,3 +1,14 @@
+## 2026-10-26 — Repeat-route comparisons from saved reports
+
+Owner request: save a route once, then compare repeat runs (nearby endpoints, same route) to previous/PB/average, including three runs already recorded. Screenshots show the reopened report lacks route controls and all benchmark states.
+
+- [x] Trace current origin/main and existing rematch/variant implementation; keep its geometry safeguards.
+- [x] Define acceptance/stories: docs/plans/2026-10-26-repeat-route-benchmarks.md.
+- [x] Regression tests: original-run identity/history, hidden runs, three-run benchmark, current-copy precedence, missing/stale comparison states (20 added).
+- [x] Implement direct report-run resolution, reopened map/save flow, benchmark-on default, stable loading view and live comparison refresh.
+- [x] Full simulator suite 745/0; visual fresh-save and relaunch smoke; independent review. Synthetic preferences restored.
+- [ ] Push branch and open PR; update progress/session memory. Public App Store fix requires a later release.
+
 ## 2026-10-25 — RunSmart 1.2.0 (37) submitted: Waiting for Review
 
 Owner reported TestFlight build 36 passed and authorized next steps. Fixed initial GPS recovery checkpoint losing the planned guide; red regression reproduced nil guide, then full suite passed 725/725 with no failures/skips. Source archive `760364f`. Archive/export, app/extension distribution signatures, versions, entitlements, permissions, privacy, dSYMs and live actual-artifact Auth checks passed. Upload succeeded, Apple processed build 37, and RunSmart Internal assignment/test notes verified. App Store 1.2.0 selects build 37; release notes/reviewer instructions saved; existing reviewer credentials/screenshots retained; published privacy labels verified. Apple accepted submission `d03f75e6-03cc-43ad-9f8d-9bffc12e6659`, status **Waiting for Review**, automatic release after approval, all users immediately. No additional physical build-37 test claimed; owner build-36 pass plus automated recovery retest used. Strava stays hidden; no backend/pricing changes. Public production remains 1.1.9 until approval. Evidence: docs/qa/releases/1.2.0/build37-*. Source delivery is tracked in PR164.
