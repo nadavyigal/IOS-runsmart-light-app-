@@ -1,3 +1,40 @@
+## 2026-10-26 — Approved external Apple Watch TestFlight beta
+
+Owner explicitly approved the external TestFlight plan and invitation to the named tester in chat. Public 1.2.0 stays unchanged; PR165 stays draft through physical Watch QA.
+
+- [x] Check live ASC: latest build37 complete; no newer pending upload. Select 1.2.1 (38).
+- [x] Archive/export and verify actual 1.2.1 (38) distribution package/backend.
+- [x] Upload succeeded after owner signing approval.
+- [x] Verify Apple processing and attach build38 to external group.
+- [x] Create Apple Watch Beta external group and enroll only the approved tester (No Builds Available).
+- [x] Owner approved signing and reports private reviewer fields saved.
+- [x] Verify persisted reviewer fields after browser session recovery.
+- [x] Add processed build and submit beta review: Waiting for Review.
+- [x] Enable Automatically notify testers on submission.
+- [ ] Apple beta approval and actual invitation delivery/acceptance (currently No Builds Available).
+- [x] Save exact tester instructions and distribution evidence; push PR165 updates.
+- [ ] Paired Watch round-trip QA; keep draft.
+
+## 2026-10-26 — PR165 review fix and Watch device candidate
+
+- [x] Reconcile current-head hosted Codex/CodeRabbit reviews; verify unchanged-import finding.
+- [x] Red contracts, unchanged-import fix, independent completion/upload retries and persistence/precision regressions.
+- [x] Independent QA; final 749/749 tests; signed device Release archive and actual-artifact backend/config precheck.
+- [x] Public 1.2.0/build37 phone-run sequence compatible with founder report; no independent identity proof, activation or Watch claim.
+- [x] Pushed PR165 fix and saved signed local diagnostic archive plus exact paired-device checklist; still draft.
+- [ ] Paired physical Watch QA; keep draft.
+
+## 2026-10-25 — Apple Workout round trip
+
+- [x] Inspect latest main/release work; isolate `codex/apple-watch-workoutkit` at 61b7cfb.
+- [x] Define brief, scoped spec, stories and device gate in `docs/specs/2026-10-25-apple-workout.md`.
+- [x] S1 reliable Health import.
+- [x] S2 WorkoutKit send/edit/cancel.
+- [x] S3 exact completion identity.
+- [x] Final simulator suite: 739/739, zero failures; real scheduling-denial UI smoke.
+- [x] Pushed and opened draft PR #165: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/165
+- [ ] Physical paired iPhone/Watch round-trip QA (owner gate).
+
 ## 2026-10-25 — RunSmart 1.2.0 (37) submitted: Waiting for Review
 
 Owner reported TestFlight build 36 passed and authorized next steps. Fixed initial GPS recovery checkpoint losing the planned guide; red regression reproduced nil guide, then full suite passed 725/725 with no failures/skips. Source archive `760364f`. Archive/export, app/extension distribution signatures, versions, entitlements, permissions, privacy, dSYMs and live actual-artifact Auth checks passed. Upload succeeded, Apple processed build 37, and RunSmart Internal assignment/test notes verified. App Store 1.2.0 selects build 37; release notes/reviewer instructions saved; existing reviewer credentials/screenshots retained; published privacy labels verified. Apple accepted submission `d03f75e6-03cc-43ad-9f8d-9bffc12e6659`, status **Waiting for Review**, automatic release after approval, all users immediately. No additional physical build-37 test claimed; owner build-36 pass plus automated recovery retest used. Strava stays hidden; no backend/pricing changes. Public production remains 1.1.9 until approval. Evidence: docs/qa/releases/1.2.0/build37-*. Source delivery is tracked in PR164.

@@ -2,6 +2,7 @@ import Foundation
 import CoreLocation
 #if canImport(HealthKit)
 import HealthKit
+import WorkoutKit
 #endif
 
 struct HealthKitDailySnapshot: Codable, Hashable {
@@ -48,6 +49,74 @@ struct HealthKitImportResult {
     var runs: [RecordedRun]
     var wellness: HealthKitDailySnapshot?
     var skippedDuplicates: Int
+    var refreshedRuns: [RecordedRun] = []
+    var completionRetries: [RecordedRun] = []
+    var uploadRetries: [RecordedRun] = []
+}
+
+/// Separates changed data from completion retry eligibility. An unchanged Health read is not a refresh.
+struct HealthKitImportBatch {
+    var imported: [RecordedRun] = []
+    var refreshed: [RecordedRun] = []
+    var retries: [RecordedRun] = []
+    var uploadRetries: [RecordedRun] = []
+    var skipped = 0
+
+    static func apply(_ runs: [RecordedRun], existing: [RecordedRun], isHidden: (RecordedRun) -> Bool,
+                      save: (RecordedRun) -> Void) -> Self {
+        var batch = Self()
+        for run in runs {
+            guard !isHidden(run) else { batch.skipped += 1; continue }
+            if let stored = existing.first(where: { $0.source == .healthKit && $0.providerActivityID == run.providerActivityID }) {
+                var merged = HealthKitImportMerge.merge(run, stored: stored)
+                if merged != stored {
+                    merged.healthUploadPending = true
+                    save(merged)
+                    batch.refreshed.append(merged)
+                } else if merged.healthUploadPending == true {
+                    batch.uploadRetries.append(merged)
+                }
+                // Retry exact completion even when the run data has not changed.
+                if merged.plannedWorkoutID != nil, merged.healthPlanLookupFailed != true { batch.retries.append(merged) }
+                batch.skipped += 1
+            } else {
+                var pending = run
+                pending.healthUploadPending = true
+                save(pending)
+                batch.imported.append(pending)
+            }
+        }
+        return batch
+    }
+}
+
+/// Runs import side effects only for changed data; retry-only syncs can update the plan independently.
+enum HealthKitImportProcessor {
+    static func process(_ result: HealthKitImportResult,
+                        upload: ([RecordedRun]) async -> Int,
+                        complete: (RecordedRun) async -> Bool,
+                        processNewest: (RecordedRun) async -> Void,
+                        refreshRuns: () async -> Void,
+                        notifyPlan: () async -> Void) async -> Int? {
+        let changed = result.runs + result.refreshedRuns
+        let newRuns = ActivityConsolidationService.consolidatedRuns(result.runs).sorted { $0.startedAt < $1.startedAt }
+        var synced: Int?
+        var completed = false
+        let uploads = changed + result.uploadRetries
+        if !uploads.isEmpty { synced = await upload(uploads) }
+        if !changed.isEmpty {
+            for run in newRuns.dropLast() {
+                if await complete(run) { completed = true }
+            }
+            if let newest = newRuns.last { await processNewest(newest) }
+            await refreshRuns()
+        }
+        for run in result.completionRetries {
+            if await complete(run) { completed = true }
+        }
+        if !changed.isEmpty || completed { await notifyPlan() }
+        return synced
+    }
 }
 
 struct HealthKitWorkoutSnapshot {
@@ -58,6 +127,8 @@ struct HealthKitWorkoutSnapshot {
     var distanceMeters: Double?
     var averageHeartRateBPM: Int?
     var routePoints: [RunRoutePoint]
+    var plannedWorkoutID: UUID? = nil
+    var planLookupFailed: Bool = false
 }
 
 enum HealthKitRecordedRunMapper {
@@ -65,6 +136,8 @@ enum HealthKitRecordedRunMapper {
         let distance = max(0, snapshot.distanceMeters ?? 0)
         let movingTime = max(0, snapshot.duration)
         return RecordedRun(
+            plannedWorkoutID: snapshot.plannedWorkoutID,
+            healthPlanLookupFailed: snapshot.planLookupFailed,
             id: stableUUID(for: snapshot.uuid.uuidString),
             providerActivityID: snapshot.uuid.uuidString,
             source: .healthKit,
@@ -122,6 +195,44 @@ enum HealthKitRecordedRunMapper {
     private enum FNV1a64 {
         static let offset: UInt64 = 0xcbf29ce484222325
         static let prime: UInt64 = 0x100000001b3
+    }
+}
+
+enum HealthKitImportMerge {
+    /// A slow upload must not clear a newer pending payload. Local notes/route matches are not
+    /// part of the backend run insert; these provider-owned values are.
+    static func uploadConfirms(_ uploaded: RecordedRun, stored: RecordedRun) -> Bool {
+        persistedDate(uploaded.startedAt) == persistedDate(stored.startedAt) && uploaded.distanceMeters == stored.distanceMeters &&
+        uploaded.movingTimeSeconds == stored.movingTimeSeconds &&
+        uploaded.averagePaceSecondsPerKm == stored.averagePaceSecondsPerKm &&
+        uploaded.averageHeartRateBPM == stored.averageHeartRateBPM
+    }
+
+    static func merge(_ incoming: RecordedRun, stored: RecordedRun) -> RecordedRun {
+        var result = incoming.keepingLocalFields(from: stored)
+        // RunSmartLocalStore's ISO8601 encoding stores whole seconds. Raw Health timestamps
+        // can include fractions; compare at the persisted precision to avoid false refreshes.
+        result.startedAt = persistedDate(result.startedAt)
+        result.endedAt = persistedDate(result.endedAt)
+        result.routePoints = result.routePoints.map { point in
+            var normalized = point
+            normalized.timestamp = persistedDate(point.timestamp)
+            return normalized
+        }
+        if result.routePoints.count < stored.routePoints.count { result.routePoints = stored.routePoints }
+        result.averageHeartRateBPM = incoming.averageHeartRateBPM ?? stored.averageHeartRateBPM
+        result.syncedAt = stored.syncedAt
+        result.consolidatedActivityID = stored.consolidatedActivityID
+        // These fields are derived locally, absent in a raw Health snapshot. Preserve the route
+        // match only while its geometry and distance inputs remain unchanged.
+        if result.routePoints == stored.routePoints, result.distanceMeters == stored.distanceMeters {
+            result.routeMatchResult = stored.routeMatchResult
+        }
+        return result
+    }
+
+    private static func persistedDate(_ date: Date) -> Date {
+        Date(timeIntervalSince1970: floor(date.timeIntervalSince1970))
     }
 }
 
@@ -218,21 +329,13 @@ struct HealthKitSyncService {
                     outcome: Self.permissionOutcome(for: authorization)
                 )
             }
-            guard authorization != .notDetermined else {
-                return ConnectedDeviceStatus(
-                    provider: Self.providerName,
-                    state: .disconnected,
-                    lastSuccessfulSync: nil,
-                    permissions: [],
-                    message: "Health access was not granted."
-                )
-            }
+            // Sharing status says nothing about read access. Read-only usage is supported.
             return ConnectedDeviceStatus(
                 provider: Self.providerName,
                 state: .connected,
                 lastSuccessfulSync: nil,
-                permissions: permissionLabels,
-                message: "Health access granted. Sync to import recent running data."
+                permissions: [],
+                message: "Health permission request finished. Sync to check for available running data. Read access is controlled in Health."
             )
         } catch {
             if shouldTrackPrompt {
@@ -269,42 +372,34 @@ struct HealthKitSyncService {
         }
 
         let store = HKHealthStore()
-        let existingKeys = Set(localStore.loadRuns().compactMap { run -> String? in
-            guard run.source == .healthKit, let providerID = run.providerActivityID else { return nil }
-            return providerID
-        })
-
-        let localRunIDs = Set(localStore.loadRuns().map(\.id))
-        let runs = await readRecentRunningWorkouts(store: store, lookbackDays: lookbackDays, limit: limit, localRunIDs: localRunIDs)
-        var imported: [RecordedRun] = []
-        var skipped = 0
-        for run in runs {
-            guard !localStore.isRunHidden(run) else {
-                skipped += 1
-                continue
-            }
-            if let providerID = run.providerActivityID, existingKeys.contains(providerID) {
-                skipped += 1
-                continue
-            }
-            localStore.saveRun(run)
-            imported.append(run)
+        let existing = localStore.loadRuns()
+        let localRunIDs = Set(existing.map(\.id))
+        guard let runs = await readRecentRunningWorkouts(store: store, lookbackDays: lookbackDays, limit: limit, localRunIDs: localRunIDs) else {
+            let failed = ConnectedDeviceStatus(provider: Self.providerName, state: .error, lastSuccessfulSync: nil,
+                                               permissions: [], message: "Apple Health could not be read. Please try syncing again.")
+            return HealthKitImportResult(status: failed, runs: [], wellness: nil, skippedDuplicates: 0)
         }
+        let batch = HealthKitImportBatch.apply(runs, existing: existing,
+                                              isHidden: localStore.isRunHidden, save: { localStore.stageHealthImport($0) })
+        let imported = batch.imported
+        let refreshed = batch.refreshed
 
         let wellness = await readDailySnapshot(store: store)
         if let wellness {
             localStore.saveHealthKitDailySnapshot(wellness)
         }
 
-        let message = "Imported \(imported.count) Health workouts" + (skipped > 0 ? " and skipped \(skipped) already saved or hidden." : ".")
+        let message = runs.isEmpty && wellness == nil
+            ? "No readable Health workouts or daily data found. Check running data and read permissions in Health, then sync again."
+            : "Imported \(imported.count) Health workouts. Refreshed \(refreshed.count) existing workouts."
         let importStatus = ConnectedDeviceStatus(
             provider: Self.providerName,
             state: .connected,
-            lastSuccessfulSync: Date(),
-            permissions: permissionLabels,
+            lastSuccessfulSync: runs.isEmpty && wellness == nil ? nil : Date(),
+            permissions: [],
             message: message
         )
-        return HealthKitImportResult(status: importStatus, runs: imported, wellness: wellness, skippedDuplicates: skipped)
+        return HealthKitImportResult(status: importStatus, runs: imported, wellness: wellness, skippedDuplicates: batch.skipped, refreshedRuns: refreshed, completionRetries: batch.retries, uploadRetries: batch.uploadRetries)
 #else
         let status = unavailableStatus(message: "HealthKit is unavailable in this build.")
         return HealthKitImportResult(status: status, runs: [], wellness: nil, skippedDuplicates: 0)
@@ -522,7 +617,7 @@ private extension HealthKitSyncService {
         types.insert(objectType)
     }
 
-    func readRecentRunningWorkouts(store: HKHealthStore, lookbackDays: Int, limit: Int, localRunIDs: Set<UUID>) async -> [RecordedRun] {
+    func readRecentRunningWorkouts(store: HKHealthStore, lookbackDays: Int, limit: Int, localRunIDs: Set<UUID>) async -> [RecordedRun]? {
         let calendar = Calendar.current
         let start = calendar.date(byAdding: .day, value: -lookbackDays, to: Date()) ?? Date()
         let datePredicate = HKQuery.predicateForSamples(withStart: start, end: Date(), options: [])
@@ -530,13 +625,14 @@ private extension HealthKitSyncService {
         let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [datePredicate, runPredicate])
         let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
 
-        let workouts = await samples(
+        guard let samples = await queriedSamples(
             store: store,
             sampleType: workoutType,
             predicate: predicate,
             limit: limit,
             sortDescriptors: [sort]
-        ) as? [HKWorkout] ?? []
+        ) else { return nil }
+        let workouts = samples as? [HKWorkout] ?? []
 
         var runs: [RecordedRun] = []
         for workout in workouts {
@@ -545,6 +641,10 @@ private extension HealthKitSyncService {
             if HealthKitWorkoutPlan.isStoredLocally(metadata: workout.metadata, localRunIDs: localRunIDs) { continue }
             let heartRate = await averageHeartRateBPM(for: workout, store: store)
             let routePoints = await routePoints(for: workout, store: store)
+            var planID: UUID?
+            var planLookupFailed = false
+            do { planID = try await workout.workoutPlan?.id }
+            catch { planLookupFailed = true }
             let snapshot = HealthKitWorkoutSnapshot(
                 uuid: workout.uuid,
                 startedAt: workout.startDate,
@@ -552,7 +652,9 @@ private extension HealthKitSyncService {
                 duration: workout.duration,
                 distanceMeters: workout.totalDistance?.doubleValue(for: .meter()),
                 averageHeartRateBPM: heartRate,
-                routePoints: routePoints
+                routePoints: routePoints,
+                plannedWorkoutID: planID,
+                planLookupFailed: planLookupFailed
             )
             runs.append(HealthKitRecordedRunMapper.recordedRun(from: snapshot))
         }
@@ -577,16 +679,17 @@ private extension HealthKitSyncService {
 
     func routePoints(for workout: HKWorkout, store: HKHealthStore) async -> [RunRoutePoint] {
         let predicate = HKQuery.predicateForObjects(from: workout)
-        let routes = await samples(store: store, sampleType: HKSeriesType.workoutRoute(), predicate: predicate, limit: 5, sortDescriptors: nil) as? [HKWorkoutRoute] ?? []
+        let routes = await samples(store: store, sampleType: HKSeriesType.workoutRoute(), predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]) as? [HKWorkoutRoute] ?? []
         var points: [RunRoutePoint] = []
         for route in routes {
-            points.append(contentsOf: await locations(for: route, store: store).map { location in
+            points.append(contentsOf: await locations(for: route, store: store).enumerated().map { index, location in
                 RunRoutePoint(
                     latitude: location.coordinate.latitude,
                     longitude: location.coordinate.longitude,
                     timestamp: location.timestamp,
                     horizontalAccuracy: location.horizontalAccuracy,
-                    altitude: location.altitude
+                    altitude: location.altitude,
+                    startsNewSegment: index == 0
                 )
             })
         }

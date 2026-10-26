@@ -1,0 +1,22 @@
+{
+  "version": "1.2.1",
+  "build": "38",
+  "apple_app_id": "6768297840",
+  "source_commit": "feee81cdaa4a6304a76ab2342c7fb653290e639d",
+  "upload_succeeded": true,
+  "upload_log_timestamp": "2026-10-26 15:09:18 (host-local log; Jerusalem)",
+  "processing_status": "Complete",
+  "external_group": "Apple Watch Beta",
+  "external_group_id": "f49ada75-e4c3-497c-95dc-90f853aa71c2",
+  "approved_tester_enrolled": true,
+  "beta_review_submitted": true,
+  "public_release": false,
+  "apple_build_id": "1792958d-9264-4ad2-b09e-5f741d314128",
+  "external_group_build_assigned": true,
+  "beta_review_fields_present": true,
+  "beta_review_status": "Waiting for Review",
+  "automatically_notify_testers": true,
+  "tester_status": "No Builds Available",
+  "invitation_delivery_verified": false,
+  "physical_watch_qa_passed": false
+}

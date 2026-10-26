@@ -30,9 +30,15 @@ enum ActivityConsolidationService {
 
     static func canonicalRun(for target: RecordedRun, in runs: [RecordedRun], calendar: Calendar = .current) -> RecordedRun {
         let allRuns = runs.contains(where: { isSameStoredRun($0, target) }) ? runs : runs + [target]
-        return groups(for: allRuns, calendar: calendar)
-            .first { group in group.runs.contains(where: { isSameStoredRun($0, target) || matches($0, target, calendar: calendar) }) }?
-            .canonicalRun ?? assignConsolidatedID(to: target, groupID: stableGroupID(for: [target], calendar: calendar))
+        let grouped = groups(for: allRuns, calendar: calendar)
+        // A heuristic match in an earlier group must never override this exact stored identity.
+        let exact = grouped.first { group in group.runs.contains { isSameStoredRun($0, target) } }
+        let fallback = grouped.first { group in
+            (target.plannedWorkoutID == nil || group.runs.allSatisfy { $0.plannedWorkoutID == nil || $0.plannedWorkoutID == target.plannedWorkoutID }) &&
+            group.runs.contains { matches($0, target, calendar: calendar) }
+        }
+        return (exact ?? fallback)?.canonicalRun
+            ?? assignConsolidatedID(to: target, groupID: stableGroupID(for: [target], calendar: calendar))
     }
 
     static func groups(for runs: [RecordedRun], calendar: Calendar = .current) -> [ActivityConsolidationGroup] {
@@ -41,6 +47,7 @@ enum ActivityConsolidationService {
 
         for run in candidates.sorted(by: { $0.startedAt < $1.startedAt }) {
             if let index = groups.firstIndex(where: { group in
+                (run.plannedWorkoutID == nil || group.allSatisfy { $0.plannedWorkoutID == nil || $0.plannedWorkoutID == run.plannedWorkoutID }) &&
                 group.contains(where: { matches($0, run, calendar: calendar) })
             }) {
                 groups[index].append(run)
@@ -59,6 +66,7 @@ enum ActivityConsolidationService {
 
     static func matches(_ lhs: RecordedRun, _ rhs: RecordedRun, calendar: Calendar = .current) -> Bool {
         guard !isSameStoredRun(lhs, rhs) else { return true }
+        if let a = lhs.plannedWorkoutID, let b = rhs.plannedWorkoutID, a != b { return false }
         guard lhs.distanceMeters > 0 || rhs.distanceMeters > 0 else { return false }
 
         let startDelta = abs(lhs.startedAt.timeIntervalSince(rhs.startedAt))
@@ -130,6 +138,9 @@ enum ActivityConsolidationService {
     private static func mergedCanonicalRun(from runs: [RecordedRun], groupID: String) -> RecordedRun {
         var canonical = runs.max { richnessScore($0) < richnessScore($1) } ?? runs[0]
         canonical.consolidatedActivityID = groupID
+        let planIDs = Set(runs.compactMap(\.plannedWorkoutID))
+        if planIDs.count == 1 { canonical.plannedWorkoutID = planIDs.first }
+        if runs.contains(where: { $0.healthPlanLookupFailed == true }) { canonical.healthPlanLookupFailed = true }
 
         if canonical.routePoints.isEmpty,
            let routeRun = runs.max(by: { $0.routePoints.count < $1.routePoints.count }),

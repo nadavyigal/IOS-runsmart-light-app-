@@ -365,6 +365,8 @@ private struct WorkoutDetailScaffold: View {
     var workout: WorkoutSummary
     @State private var runMode = "Outdoor"
     @State private var isRemoving = false
+    @State private var isSendingToWatch = false
+    @State private var watchMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -468,6 +470,36 @@ private struct WorkoutDetailScaffold: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.plain)
+
+            if !workout.isComplete {
+                Button {
+                    isSendingToWatch = true
+                    Task {
+                        defer { isSendingToWatch = false }
+                        do {
+                            let current = await services.planWorkouts(from: Calendar.current.startOfDay(for: workout.scheduledDate), to: Calendar.current.startOfDay(for: workout.scheduledDate).addingTimeInterval(86400))
+                            guard let saved = current.first(where: { $0.id == workout.id }) else { throw AppleWorkoutError.incompleteWorkout }
+                            try await AppleWorkoutService.shared.send(saved)
+                            watchMessage = "Scheduled in Apple Workout. Open Workout on your Watch to start. After the Watch syncs, use Sync in Apple Health connections to import your run."
+                        } catch { watchMessage = error.localizedDescription }
+                    }
+                } label: {
+                    Label(isSendingToWatch ? "Sending…" : "Send to Apple Watch", systemImage: "applewatch")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.bordered)
+                .disabled(isSendingToWatch)
+                Text("Follow this session in Apple's Workout app. Apple Health read access is needed to import the finished run.")
+                    .font(.caption)
+                    .foregroundStyle(Color.mutedText)
+            }
+            if let watchMessage = AppleWorkoutService.shared.lastIssue ?? watchMessage {
+                Text(watchMessage)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.mutedText)
+                    .accessibilityIdentifier("appleWorkoutStatus")
+            }
 
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
@@ -2148,14 +2180,16 @@ private struct ConnectedServiceDetailScaffold: View {
                             .font(.callout)
                             .foregroundStyle(Color.mutedText)
                     }
-                    PermissionRow(title: "Activities", enabled: permissions.contains("Activities") || permissions.contains("Workouts"))
-                    PermissionRow(title: "Sleep", enabled: permissions.contains("Sleep"))
-                    PermissionRow(title: "Heart rate", enabled: permissions.contains("Heart Rate") || permissions.contains("Resting HR"))
                     if serviceName == "HealthKit" {
-                        PermissionRow(title: "HRV", enabled: permissions.contains("HRV"))
-                        PermissionRow(title: "Steps", enabled: permissions.contains("Steps"))
+                        Text("Apple keeps read permission choices private. Manage each data type in Health. An empty sync can mean no data or no read access.")
+                            .font(.caption)
+                            .foregroundStyle(Color.mutedText)
+                    } else {
+                        PermissionRow(title: "Activities", enabled: permissions.contains("Activities") || permissions.contains("Workouts"))
+                        PermissionRow(title: "Sleep", enabled: permissions.contains("Sleep"))
+                        PermissionRow(title: "Heart rate", enabled: permissions.contains("Heart Rate") || permissions.contains("Resting HR"))
+                        PermissionRow(title: "Routes", enabled: permissions.contains("Routes"))
                     }
-                    PermissionRow(title: "Routes", enabled: permissions.contains("Routes"))
                 }
             }
 
@@ -2239,7 +2273,10 @@ private struct ConnectedServiceDetailScaffold: View {
     private var permissions: [String] { status?.permissions ?? [] }
 
     private var statusTitle: String {
-        switch status?.state ?? .disconnected {
+        if serviceName == "HealthKit", status?.state == .connected {
+            return status?.lastSuccessfulSync == nil ? "Health setup requested" : "Health data imported"
+        }
+        return switch status?.state ?? .disconnected {
         case .connected: "Connected"
         case .connecting: "Connecting"
         case .disconnected: "Disconnected"
