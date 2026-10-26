@@ -4,12 +4,15 @@ Owner explicitly approved the external TestFlight plan and invitation to the nam
 
 - [x] Check live ASC: latest build37 complete; no newer pending upload. Select 1.2.1 (38).
 - [x] Archive/export and verify actual 1.2.1 (38) distribution package/backend.
-- [ ] Upload and verify Apple processing.
+- [x] Upload succeeded after owner signing approval.
+- [x] Verify Apple processing and attach build38 to external group.
 - [x] Create Apple Watch Beta external group and enroll only the approved tester (No Builds Available).
-- [ ] Owner: approve local signing prompt; fill private beta contact/reviewer fields and Save.
-- [ ] Add processed build and submit beta review.
-- [ ] Invite the approved tester when eligible; verify delivery state.
-- [ ] Save exact tester instructions and distribution evidence; push PR165 updates.
+- [x] Owner approved signing and reports private reviewer fields saved.
+- [x] Verify persisted reviewer fields after browser session recovery.
+- [x] Add processed build and submit beta review: Waiting for Review.
+- [x] Enable Automatically notify testers on submission.
+- [ ] Apple beta approval and actual invitation delivery/acceptance (currently No Builds Available).
+- [x] Save exact tester instructions and distribution evidence; push PR165 updates.
 - [ ] Paired Watch round-trip QA; keep draft.
 
 ## 2026-10-26 — PR165 review fix and Watch device candidate
