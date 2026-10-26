@@ -1,3 +1,7 @@
+## 2026-10-26 — Release gates must stop dependent commands
+
+Run package verification and upload as separate tool calls, or use an explicit fail-fast shell. A failed assertion must prevent later upload commands from starting. Use `codesign -dvv` when checking Authority; `-dv` omits that field and can falsely reject valid distribution signing. Interrupted the premature upload preparation, corrected the check, verified the full IPA, then restarted the authorized upload.
+
 ## 2026-10-26 — Separate data changes from unfinished side effects
 
 An unchanged provider snapshot can still have pending completion or upload work. Compare after preserving local derived fields, skip refresh side effects for unchanged data, and track unconfirmed uploads separately. Re-arm pending state only through explicit import staging; generic stale saves must preserve a confirmed state. Clear pending only when the confirmed payload still matches current stored provider data. Exercise the real local-store merge in regression tests, not only an in-memory callback. Compare Health timestamps at the whole-second precision actually persisted by the ISO8601 store; raw fractional timestamps otherwise cause perpetual false refreshes and rejected upload confirmations.
