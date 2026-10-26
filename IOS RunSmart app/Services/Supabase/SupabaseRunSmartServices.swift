@@ -1079,21 +1079,23 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     func syncHealthData() async -> ConnectedDeviceStatus {
         let result = await healthSync.importHealthData(localStore: store)
         var status = result.status
-        let allImports = result.runs + result.refreshedRuns
-        if !allImports.isEmpty {
-            let syncedCount = await upsertHealthKitRuns(allImports)
+        let syncedCount = await HealthKitImportProcessor.process(result,
+            upload: { await self.upsertHealthKitRuns($0) },
+            complete: { run in
+                guard let completed = await self.completeMatchingWorkout(for: run) else { return false }
+                await MainActor.run { PushService.shared.cancelWorkoutReminder(workoutID: completed.id) }
+                return true
+            },
+            processNewest: { _ = await self.processCompletedActivity($0) },
+            refreshRuns: {
+                await self.store.rematchStoredRuns()
+                await self.postRunsChanged()
+            },
+            notifyPlan: {
+                await MainActor.run { NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil) }
+            })
+        if let syncedCount {
             status.message = "Imported \(result.runs.count) Health workouts. Refreshed \(result.refreshedRuns.count). Synced \(syncedCount) to RunSmart."
-            let newRuns = ActivityConsolidationService.consolidatedRuns(result.runs).sorted { $0.startedAt < $1.startedAt }
-            // Reconcile all imported sessions, while retaining the existing one-newest-run AI/report behavior.
-            for run in Array(newRuns.dropLast()) + result.completionRetries {
-                if let completed = await completeMatchingWorkout(for: run) {
-                    await MainActor.run { PushService.shared.cancelWorkoutReminder(workoutID: completed.id) }
-                }
-            }
-            if let newest = newRuns.last { _ = await processCompletedActivity(newest) }
-            await store.rematchStoredRuns()
-            await postRunsChanged()
-            await MainActor.run { NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil) }
         }
         // Today's activity card (steps/calories/sleep) only refreshes on this notification — the
         // run-import notifications above don't fire when only the daily wellness snapshot changed.
@@ -1915,6 +1917,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 .from("runs")
                 .upsert(inserts, onConflict: "source_provider,source_activity_id")
                 .execute()
+            for run in runs { store.markRunSynced(run) }
             return runs.count
         } catch {
             if error is CancellationError { return 0 }
@@ -1922,12 +1925,13 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
 
         var synced = 0
-        for insert in inserts {
+        for (run, insert) in zip(runs, inserts) {
             do {
                 try await supabase
                     .from("runs")
                     .upsert(insert, onConflict: "source_provider,source_activity_id")
                     .execute()
+                store.markRunSynced(run)
                 synced += 1
             } catch {
                 if !(error is CancellationError) {

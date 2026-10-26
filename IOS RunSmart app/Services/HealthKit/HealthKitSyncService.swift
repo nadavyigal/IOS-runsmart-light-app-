@@ -51,6 +51,72 @@ struct HealthKitImportResult {
     var skippedDuplicates: Int
     var refreshedRuns: [RecordedRun] = []
     var completionRetries: [RecordedRun] = []
+    var uploadRetries: [RecordedRun] = []
+}
+
+/// Separates changed data from completion retry eligibility. An unchanged Health read is not a refresh.
+struct HealthKitImportBatch {
+    var imported: [RecordedRun] = []
+    var refreshed: [RecordedRun] = []
+    var retries: [RecordedRun] = []
+    var uploadRetries: [RecordedRun] = []
+    var skipped = 0
+
+    static func apply(_ runs: [RecordedRun], existing: [RecordedRun], isHidden: (RecordedRun) -> Bool,
+                      save: (RecordedRun) -> Void) -> Self {
+        var batch = Self()
+        for run in runs {
+            guard !isHidden(run) else { batch.skipped += 1; continue }
+            if let stored = existing.first(where: { $0.source == .healthKit && $0.providerActivityID == run.providerActivityID }) {
+                var merged = HealthKitImportMerge.merge(run, stored: stored)
+                if merged != stored {
+                    merged.healthUploadPending = true
+                    save(merged)
+                    batch.refreshed.append(merged)
+                } else if merged.healthUploadPending == true {
+                    batch.uploadRetries.append(merged)
+                }
+                // Retry exact completion even when the run data has not changed.
+                if merged.plannedWorkoutID != nil, merged.healthPlanLookupFailed != true { batch.retries.append(merged) }
+                batch.skipped += 1
+            } else {
+                var pending = run
+                pending.healthUploadPending = true
+                save(pending)
+                batch.imported.append(pending)
+            }
+        }
+        return batch
+    }
+}
+
+/// Runs import side effects only for changed data; retry-only syncs can update the plan independently.
+enum HealthKitImportProcessor {
+    static func process(_ result: HealthKitImportResult,
+                        upload: ([RecordedRun]) async -> Int,
+                        complete: (RecordedRun) async -> Bool,
+                        processNewest: (RecordedRun) async -> Void,
+                        refreshRuns: () async -> Void,
+                        notifyPlan: () async -> Void) async -> Int? {
+        let changed = result.runs + result.refreshedRuns
+        let newRuns = ActivityConsolidationService.consolidatedRuns(result.runs).sorted { $0.startedAt < $1.startedAt }
+        var synced: Int?
+        var completed = false
+        let uploads = changed + result.uploadRetries
+        if !uploads.isEmpty { synced = await upload(uploads) }
+        if !changed.isEmpty {
+            for run in newRuns.dropLast() {
+                if await complete(run) { completed = true }
+            }
+            if let newest = newRuns.last { await processNewest(newest) }
+            await refreshRuns()
+        }
+        for run in result.completionRetries {
+            if await complete(run) { completed = true }
+        }
+        if !changed.isEmpty || completed { await notifyPlan() }
+        return synced
+    }
 }
 
 struct HealthKitWorkoutSnapshot {
@@ -133,12 +199,40 @@ enum HealthKitRecordedRunMapper {
 }
 
 enum HealthKitImportMerge {
+    /// A slow upload must not clear a newer pending payload. Local notes/route matches are not
+    /// part of the backend run insert; these provider-owned values are.
+    static func uploadConfirms(_ uploaded: RecordedRun, stored: RecordedRun) -> Bool {
+        persistedDate(uploaded.startedAt) == persistedDate(stored.startedAt) && uploaded.distanceMeters == stored.distanceMeters &&
+        uploaded.movingTimeSeconds == stored.movingTimeSeconds &&
+        uploaded.averagePaceSecondsPerKm == stored.averagePaceSecondsPerKm &&
+        uploaded.averageHeartRateBPM == stored.averageHeartRateBPM
+    }
+
     static func merge(_ incoming: RecordedRun, stored: RecordedRun) -> RecordedRun {
         var result = incoming.keepingLocalFields(from: stored)
+        // RunSmartLocalStore's ISO8601 encoding stores whole seconds. Raw Health timestamps
+        // can include fractions; compare at the persisted precision to avoid false refreshes.
+        result.startedAt = persistedDate(result.startedAt)
+        result.endedAt = persistedDate(result.endedAt)
+        result.routePoints = result.routePoints.map { point in
+            var normalized = point
+            normalized.timestamp = persistedDate(point.timestamp)
+            return normalized
+        }
         if result.routePoints.count < stored.routePoints.count { result.routePoints = stored.routePoints }
         result.averageHeartRateBPM = incoming.averageHeartRateBPM ?? stored.averageHeartRateBPM
         result.syncedAt = stored.syncedAt
+        result.consolidatedActivityID = stored.consolidatedActivityID
+        // These fields are derived locally, absent in a raw Health snapshot. Preserve the route
+        // match only while its geometry and distance inputs remain unchanged.
+        if result.routePoints == stored.routePoints, result.distanceMeters == stored.distanceMeters {
+            result.routeMatchResult = stored.routeMatchResult
+        }
         return result
+    }
+
+    private static func persistedDate(_ date: Date) -> Date {
+        Date(timeIntervalSince1970: floor(date.timeIntervalSince1970))
     }
 }
 
@@ -285,24 +379,10 @@ struct HealthKitSyncService {
                                                permissions: [], message: "Apple Health could not be read. Please try syncing again.")
             return HealthKitImportResult(status: failed, runs: [], wellness: nil, skippedDuplicates: 0)
         }
-        var imported: [RecordedRun] = []
-        var refreshed: [RecordedRun] = []
-        var retries: [RecordedRun] = []
-        var skipped = 0
-        for run in runs {
-            guard !localStore.isRunHidden(run) else { skipped += 1; continue }
-            if let stored = existing.first(where: { $0.source == .healthKit && $0.providerActivityID == run.providerActivityID }) {
-                let merged = HealthKitImportMerge.merge(run, stored: stored)
-                localStore.saveRun(merged)
-                refreshed.append(merged)
-                // Exact IDs are safe to retry: completed/missing IDs cannot fall back to another item.
-                if merged.plannedWorkoutID != nil, merged.healthPlanLookupFailed != true { retries.append(merged) }
-                skipped += 1
-                continue
-            }
-            localStore.saveRun(run)
-            imported.append(run)
-        }
+        let batch = HealthKitImportBatch.apply(runs, existing: existing,
+                                              isHidden: localStore.isRunHidden, save: { localStore.stageHealthImport($0) })
+        let imported = batch.imported
+        let refreshed = batch.refreshed
 
         let wellness = await readDailySnapshot(store: store)
         if let wellness {
@@ -319,7 +399,7 @@ struct HealthKitSyncService {
             permissions: [],
             message: message
         )
-        return HealthKitImportResult(status: importStatus, runs: imported, wellness: wellness, skippedDuplicates: skipped, refreshedRuns: refreshed, completionRetries: retries)
+        return HealthKitImportResult(status: importStatus, runs: imported, wellness: wellness, skippedDuplicates: batch.skipped, refreshedRuns: refreshed, completionRetries: batch.retries, uploadRetries: batch.uploadRetries)
 #else
         let status = unavailableStatus(message: "HealthKit is unavailable in this build.")
         return HealthKitImportResult(status: status, runs: [], wellness: nil, skippedDuplicates: 0)

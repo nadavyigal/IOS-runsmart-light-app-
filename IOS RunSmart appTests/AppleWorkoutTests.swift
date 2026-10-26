@@ -8,7 +8,8 @@ final class AppleWorkoutTests: XCTestCase {
     }
 
     private func makeActivity() -> RecordedRun {
-        RecordedRun(id: UUID(), source: .healthKit, startedAt: Date(), endedAt: Date().addingTimeInterval(1800), distanceMeters: 5000, movingTimeSeconds: 1800, averagePaceSecondsPerKm: 360, routePoints: [])
+        let start = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970))
+        return RecordedRun(id: UUID(), source: .healthKit, startedAt: start, endedAt: start.addingTimeInterval(1800), distanceMeters: 5000, movingTimeSeconds: 1800, averagePaceSecondsPerKm: 360, routePoints: [])
     }
 
     func testIntervalExportKeepsIdentityAndRecoveryOrder() throws {
@@ -239,5 +240,191 @@ extension AppleWorkoutTests {
         XCTAssertEqual(spy.entries.first?.date.year, gregorian.component(.year, from: item.scheduledDate))
         XCTAssertEqual(spy.entries.first?.date.month, gregorian.component(.month, from: item.scheduledDate))
         XCTAssertEqual(spy.entries.first?.date.day, gregorian.component(.day, from: item.scheduledDate))
+    }
+}
+
+extension AppleWorkoutTests {
+    func testUnchangedHealthImportDoesNotWriteButStillRetriesExactCompletion() {
+        var stored = makeActivity()
+        stored.plannedWorkoutID = UUID()
+        stored.syncedAt = Date(timeIntervalSince1970: 1000)
+        var incoming = stored
+        incoming.syncedAt = Date(timeIntervalSince1970: 2000)
+        var writes: [RecordedRun] = []
+        let batch = HealthKitImportBatch.apply([incoming], existing: [stored], isHidden: { _ in false }, save: { writes.append($0) })
+        XCTAssertTrue(writes.isEmpty)
+        XCTAssertTrue(batch.refreshed.isEmpty)
+        XCTAssertTrue(batch.imported.isEmpty)
+        XCTAssertEqual(batch.retries.map(\.id), [stored.id])
+    }
+
+    func testLateHealthDataWritesOnceThenStopsRefreshing() {
+        let stored = makeActivity()
+        var late = stored
+        late.averageHeartRateBPM = 151
+        var writes: [RecordedRun] = []
+        let first = HealthKitImportBatch.apply([late], existing: [stored], isHidden: { _ in false }, save: { writes.append($0) })
+        XCTAssertEqual(writes.count, 1)
+        XCTAssertEqual(first.refreshed.first?.averageHeartRateBPM, 151)
+        let second = HealthKitImportBatch.apply([late], existing: writes, isHidden: { _ in false }, save: { writes.append($0) })
+        XCTAssertTrue(second.refreshed.isEmpty)
+        XCTAssertEqual(writes.count, 1)
+    }
+
+    func testRetryOnlySyncDoesNotUploadRematchOrGenerateReport() async {
+        var retry = makeActivity()
+        retry.plannedWorkoutID = UUID()
+        let result = HealthKitImportResult(status: ConnectedDeviceStatus(provider: "HealthKit", state: .connected, permissions: []), runs: [], skippedDuplicates: 1, completionRetries: [retry])
+        var uploads = 0
+        var rematches = 0
+        var reports = 0
+        var completions = 0
+        var planNotifications = 0
+        let synced = await HealthKitImportProcessor.process(result,
+            upload: { _ in uploads += 1; return 0 },
+            complete: { _ in completions += 1; return true },
+            processNewest: { _ in reports += 1 },
+            refreshRuns: { rematches += 1 },
+            notifyPlan: { planNotifications += 1 })
+        XCTAssertNil(synced)
+        XCTAssertEqual(completions, 1)
+        XCTAssertEqual(planNotifications, 1)
+        XCTAssertEqual(uploads, 0)
+        XCTAssertEqual(rematches, 0)
+        XCTAssertEqual(reports, 0)
+    }
+}
+
+extension AppleWorkoutTests {
+    func testHiddenAndUnresolvedHealthRunsDoNotRetryCompletion() {
+        var stored = makeActivity()
+        stored.plannedWorkoutID = UUID()
+        var writes = 0
+        let hidden = HealthKitImportBatch.apply([stored], existing: [stored], isHidden: { _ in true }, save: { _ in writes += 1 })
+        XCTAssertTrue(hidden.retries.isEmpty)
+        var unresolved = stored
+        unresolved.healthPlanLookupFailed = true
+        let failed = HealthKitImportBatch.apply([unresolved], existing: [stored], isHidden: { _ in false }, save: { _ in writes += 1 })
+        XCTAssertTrue(failed.retries.isEmpty)
+        XCTAssertEqual(writes, 1, "Persist failed association state, but never complete from it")
+    }
+
+    func testFailedRetryOnlySyncHasNoImportOrPlanSideEffects() async {
+        var retry = makeActivity()
+        retry.plannedWorkoutID = UUID()
+        let result = HealthKitImportResult(status: ConnectedDeviceStatus(provider: "HealthKit", state: .connected, permissions: []), runs: [], skippedDuplicates: 1, completionRetries: [retry])
+        var sideEffects = 0
+        var attempts = 0
+        _ = await HealthKitImportProcessor.process(result,
+            upload: { _ in sideEffects += 1; return 0 },
+            complete: { _ in attempts += 1; return false },
+            processNewest: { _ in sideEffects += 1 },
+            refreshRuns: { sideEffects += 1 },
+            notifyPlan: { sideEffects += 1 })
+        XCTAssertEqual(attempts, 1)
+        XCTAssertEqual(sideEffects, 0)
+    }
+}
+
+extension AppleWorkoutTests {
+    func testUnchangedRawHealthSnapshotKeepsLocalRouteMatchAndConsolidation() {
+        var stored = makeActivity()
+        stored.consolidatedActivityID = "health-group"
+        stored.routeMatchResult = RouteMatchingService.exactMatch(routeID: UUID())
+        var raw = stored
+        raw.consolidatedActivityID = nil
+        raw.routeMatchResult = nil
+        var writes = 0
+        let batch = HealthKitImportBatch.apply([raw], existing: [stored], isHidden: { _ in false }, save: { _ in writes += 1 })
+        XCTAssertEqual(writes, 0)
+        XCTAssertTrue(batch.refreshed.isEmpty)
+        raw.distanceMeters += 100
+        let changed = HealthKitImportMerge.merge(raw, stored: stored)
+        XCTAssertNil(changed.routeMatchResult, "Provider geometry/distance changes must be rematched")
+        XCTAssertEqual(changed.consolidatedActivityID, stored.consolidatedActivityID)
+    }
+}
+
+extension AppleWorkoutTests {
+    func testFailedUploadRetriesUnchangedHealthRunWithoutRematch() async {
+        let raw = makeActivity()
+        var saved: [RecordedRun] = []
+        let first = HealthKitImportBatch.apply([raw], existing: [], isHidden: { _ in false }, save: { saved.append($0) })
+        XCTAssertEqual(first.imported.first?.healthUploadPending, true)
+        // A rejected upload leaves the persisted pending flag intact.
+        let next = HealthKitImportBatch.apply([raw], existing: saved, isHidden: { _ in false }, save: { _ in XCTFail("Unchanged run must not be saved again") })
+        XCTAssertTrue(next.refreshed.isEmpty)
+        XCTAssertEqual(next.uploadRetries.map(\.id), [raw.id])
+        let result = HealthKitImportResult(status: ConnectedDeviceStatus(provider: "HealthKit", state: .connected, permissions: []), runs: [], skippedDuplicates: 1, uploadRetries: next.uploadRetries)
+        var uploaded: [RecordedRun] = []
+        let count = await HealthKitImportProcessor.process(result,
+            upload: { uploaded = $0; return 1 },
+            complete: { _ in XCTFail("No plan identity"); return false },
+            processNewest: { _ in XCTFail("No new run") },
+            refreshRuns: { XCTFail("Upload-only retry must not rematch") },
+            notifyPlan: { XCTFail("No completion") })
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(uploaded.map(\.id), [raw.id])
+        var confirmed = saved[0]
+        confirmed.healthUploadPending = false
+        let afterSuccess = HealthKitImportBatch.apply([raw], existing: [confirmed], isHidden: { _ in false }, save: { _ in XCTFail("Confirmed unchanged run") })
+        XCTAssertTrue(afterSuccess.uploadRetries.isEmpty)
+    }
+}
+
+extension AppleWorkoutTests {
+    func testOldUploadCannotConfirmNewerProviderDataButAllowsLocalEdits() {
+        let uploaded = makeActivity()
+        var current = uploaded
+        current.notes = "Edited during upload"
+        current.routeMatchResult = RouteMatchingService.exactMatch(routeID: UUID())
+        XCTAssertTrue(HealthKitImportMerge.uploadConfirms(uploaded, stored: current))
+        current.averageHeartRateBPM = 151
+        XCTAssertFalse(HealthKitImportMerge.uploadConfirms(uploaded, stored: current))
+    }
+}
+
+extension AppleWorkoutTests {
+    func testPersistedEnrichmentRearmsUploadAndOnlyMatchingConfirmationClearsIt() throws {
+        let defaults = UserDefaults.standard
+        let previous = defaults.data(forKey: "runsmart.runs")
+        defer { defaults.set(previous, forKey: "runsmart.runs") }
+        let store = RunSmartLocalStore.shared
+        var old = makeActivity()
+        old.providerActivityID = UUID().uuidString
+        old.healthUploadPending = false
+        store.saveRun(old)
+        var enriched = old
+        enriched.averageHeartRateBPM = 151
+        enriched.healthUploadPending = true
+        store.stageHealthImport(enriched)
+        XCTAssertEqual(store.loadRuns().first { $0.id == old.id }?.healthUploadPending, true)
+        store.markRunSynced(old)
+        XCTAssertEqual(store.loadRuns().first { $0.id == old.id }?.healthUploadPending, true, "Stale upload must not clear a newer payload")
+        store.markRunSynced(enriched)
+        XCTAssertEqual(store.loadRuns().first { $0.id == old.id }?.healthUploadPending, false)
+        store.saveRunKeepingLocalEdits(enriched) // processNewest may still hold the pre-upload copy.
+        XCTAssertEqual(store.loadRuns().first { $0.id == old.id }?.healthUploadPending, false)
+    }
+}
+
+extension AppleWorkoutTests {
+    func testFractionalHealthTimestampsMatchStoredWholeSecondPrecision() throws {
+        var stored = makeActivity()
+        stored.routePoints = [RunRoutePoint(latitude: 32, longitude: 34, timestamp: stored.startedAt, horizontalAccuracy: 5)]
+        stored.routeMatchResult = RouteMatchingService.exactMatch(routeID: UUID())
+        var raw = stored
+        raw.startedAt = raw.startedAt.addingTimeInterval(0.456)
+        raw.endedAt = raw.endedAt.addingTimeInterval(0.789)
+        raw.routePoints[0].timestamp = raw.routePoints[0].timestamp.addingTimeInterval(0.123)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let persisted = try decoder.decode(RecordedRun.self, from: encoder.encode(raw))
+        raw.routeMatchResult = nil
+        let batch = HealthKitImportBatch.apply([raw], existing: [persisted], isHidden: { _ in false }, save: { _ in XCTFail("Timestamp representation is not new data") })
+        XCTAssertTrue(batch.refreshed.isEmpty)
+        XCTAssertTrue(HealthKitImportMerge.uploadConfirms(raw, stored: persisted))
     }
 }

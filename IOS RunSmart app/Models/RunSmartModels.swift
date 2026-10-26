@@ -895,6 +895,8 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var plannedWorkoutID: UUID? = nil
     /// Failed association read defers plan completion until a later Health sync.
     var healthPlanLookupFailed: Bool? = nil
+    /// Local retry state; cleared only after the backend confirms a Health run upsert.
+    var healthUploadPending: Bool? = nil
     var id: UUID
     var providerActivityID: String?
     var consolidatedActivityID: String? = nil
@@ -936,6 +938,7 @@ extension RecordedRun {
         merged.stravaActivityID = stored.stravaActivityID ?? stravaActivityID
         merged.plannedWorkoutID = plannedWorkoutID ?? stored.plannedWorkoutID
         merged.healthPlanLookupFailed = healthPlanLookupFailed ?? stored.healthPlanLookupFailed
+        merged.healthUploadPending = stored.healthUploadPending ?? healthUploadPending
         return merged
     }
 }

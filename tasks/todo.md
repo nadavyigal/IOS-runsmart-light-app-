@@ -1,3 +1,12 @@
+## 2026-10-26 — PR165 review fix and Watch device candidate
+
+- [x] Reconcile current-head hosted Codex/CodeRabbit reviews; verify unchanged-import finding.
+- [x] Red contracts, unchanged-import fix, independent completion/upload retries and persistence/precision regressions.
+- [x] Independent QA; final 749/749 tests; signed device Release archive and actual-artifact backend/config precheck.
+- [x] Public 1.2.0/build37 phone-run sequence compatible with founder report; no independent identity proof, activation or Watch claim.
+- [ ] Push draft PR165 updates and precise paired-device handoff.
+- [ ] Paired physical Watch QA; keep draft.
+
 ## 2026-10-25 — Apple Workout round trip
 
 - [x] Inspect latest main/release work; isolate `codex/apple-watch-workoutkit` at 61b7cfb.
