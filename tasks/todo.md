@@ -1,3 +1,7 @@
+## 2026-10-27 — Benchmark fix required in next ASC submission
+
+Owner explicitly requires PR #166 / implementation `5c96738` in the next ASC submission. Added the requirement to AGENTS, the TestFlight checklist, the existing build-37 handoff, and `docs/qa/releases/next-submission/README.md`. Release must verify the actual archive source includes the implementation, use a new unused build greater than 37, verify the route loop on the candidate, and record the exact processed build selected in ASC. Remote main `61b7cfb` does not yet contain the fix; PR #166 code review is running. Requirement is **pending candidate delivery**, not satisfied by documentation or the prior build. No archive/upload/submission/withdrawal or App Store changes performed. Documentation-only update; previous 745-test and visual evidence retained.
+
 ## 2026-10-26 — Repeat-route comparisons from saved reports
 
 Owner request: save a route once, then compare repeat runs (nearby endpoints, same route) to previous/PB/average, including three runs already recorded. Screenshots show the reopened report lacks route controls and all benchmark states.
