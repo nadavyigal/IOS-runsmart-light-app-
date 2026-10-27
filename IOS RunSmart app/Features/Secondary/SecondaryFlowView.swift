@@ -1305,8 +1305,12 @@ private struct RunReportDetailScaffold: View {
                 }
             }
             RunReportCoachNotesCard(report: report)
-            ProgressShareCard(payload: .runReport(report))
-            ProgressShareButton(payload: .runReport(report))
+            if let reportRun {
+                RunShareSection(payload: .runReport(report), routePoints: reportRun.routePoints, run: reportRun)
+            } else {
+                ProgressShareCard(payload: .runReport(report))
+                ProgressShareButton(payload: .runReport(report))
+            }
             PostRunLearningCard(run: reportRun, outcome: nil, report: report, isProcessing: isGenerating)
             BenchmarkComparisonLoaderView(run: reportRun)
             if !report.hasGeneratedReport {

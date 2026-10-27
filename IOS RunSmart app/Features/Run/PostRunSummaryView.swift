@@ -364,9 +364,9 @@ struct PostRunSummaryView: View {
     @ViewBuilder
     private var shareSection: some View {
         if let report = outcome?.report {
-            RunShareSection(payload: .runReport(report), routePoints: displayRun?.routePoints ?? [])
+            RunShareSection(payload: .runReport(report), routePoints: displayRun?.routePoints ?? [], run: displayRun)
         } else if let run {
-            RunShareSection(payload: fallbackSharePayload(for: run), routePoints: displayRun?.routePoints ?? run.routePoints)
+            RunShareSection(payload: fallbackSharePayload(for: run), routePoints: displayRun?.routePoints ?? run.routePoints, run: displayRun ?? run)
         }
     }
 
