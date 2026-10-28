@@ -7,11 +7,11 @@ struct ShareRunView: View {
     var run: RecordedRun?
     var insight: String
     @State private var format: RunShareAssetFormat
-    @State private var includeMap = false
     @State private var includeInsight = true
     @State private var preview: UIImage?
     @State private var readyAsset: RunSharePreparedAsset?
     @State private var previewKeyRendered: RunShareRenderKey?
+    /// The route map is on whenever the run has a shareable route (both ends trimmed).
     private let canIncludeMap: Bool
     @State private var player: AVPlayer?
     @State private var isPreparing = false
@@ -31,7 +31,7 @@ struct ShareRunView: View {
     }
 
     private var renderKey: RunShareRenderKey {
-        RunShareRenderKey(format: format, run: run, includeMap: includeMap, insight: includeInsight ? insight : nil)
+        RunShareRenderKey(format: format, run: run, includeMap: canIncludeMap, insight: includeInsight ? insight : nil)
     }
 
     private var exportURL: URL? { readyAsset?.url(matching: renderKey) }
@@ -39,7 +39,7 @@ struct ShareRunView: View {
 
     private var snapshot: RunShareSnapshot? {
         guard let run else { return nil }
-        return .make(run: run, includeMap: includeMap, insight: includeInsight ? insight : "")
+        return .make(run: run, includeMap: canIncludeMap, insight: includeInsight ? insight : "")
     }
 
     var body: some View {
@@ -57,19 +57,11 @@ struct ShareRunView: View {
                     Text(format.detail)
                         .font(.caption)
                         .foregroundStyle(Color.textSecondary)
-                    if canIncludeMap {
-                        Toggle("Include route map", isOn: $includeMap)
-                            .tint(Color.accentPrimary)
-                            .disabled(isCreatingVideo)
-                            .accessibilityHint("Off by default. The first and last 200 meters and nearby start and finish locations are hidden.")
-                        Text(includeMap ? RouteSharePrivacy.privacyNote : "No location data is included.")
-                            .font(.caption)
-                            .foregroundStyle(Color.textSecondary)
-                    } else {
-                        Text("No shareable GPS route is available. Your image and video can still show your run stats.")
-                            .font(.caption)
-                            .foregroundStyle(Color.textSecondary)
-                    }
+                    Text(canIncludeMap
+                        ? RouteSharePrivacy.privacyNote
+                        : "No shareable GPS route is available. Your image and video can still show your run stats.")
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
                     if !insight.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Toggle("Include coach insight", isOn: $includeInsight)
                             .tint(Color.accentPrimary)
