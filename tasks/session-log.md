@@ -1,3 +1,7 @@
+## 2026-10-28 — Archive passed; signing/login handoff
+
+Candidate1.2.1(39), archive source `98360ef`: signed archive, app/extension identity/signatures/entitlements/privacy/permissions/analytics/dSYMs, no WorkoutKit/debug harness and live packaged Auth all pass.785 combined tests pass. Distribution IPA export is waiting on macOS signing-key access (session95616); owner asked to approve keychain prompt and restore ASC Chrome login. No upload/submission/public release; actual allocation, exported Apple Distribution proof, physical sharing and owner actual run-history gates remain open. Draft PR168 is pushed. Resume from `docs/qa/releases/sharing-benchmarks/README.md`; do not rebuild/re-upload blindly. Worktree `/Users/nadavyigal/Developer/runsmart-production-release`, branch `codex/release-sharing-benchmarks`.
+
 ## 2026-10-28 — Production integration
 
 Combined PR166/167/158; excluded Watch PR165. Reproduced and fixed canonical imported-run route action; 785 combined tests pass. Prepared1.2.1(39), pending signed artifact checks, live ASC login/allocation and physical candidate tests. See release evidence and progress. Worktree `/Users/nadavyigal/Developer/runsmart-production-release`, branch `codex/release-sharing-benchmarks`.

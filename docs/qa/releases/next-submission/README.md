@@ -1,3 +1,5 @@
+> Updated owner scope — 28 October 2026: next production candidate must also include PR167 native image/video exports and exclude Apple Watch PR165/beta build38. Combined integration: PR168, branch `codex/release-sharing-benchmarks`, `/Users/nadavyigal/Developer/runsmart-production-release`. PR158 API-host protection is also included. Candidate1.2.1(39) is being verified; live ASC allocation, physical candidate checks and exact processed-build selection remain open. See `../sharing-benchmarks/README.md`. Historical status below is retained as the original inclusion requirement.
+
 # Next RunSmart ASC submission — required scope
 
 Owner mandate: 27 October 2026. Include the route-benchmark fix from [PR #166](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/166) in the next App Store Connect submission.
