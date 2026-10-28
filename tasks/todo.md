@@ -6,7 +6,7 @@ Owner requests production shipment of completed iPhone work; Apple Watch remains
 - [x] Integrate PR166 benchmarks, PR167 sharing, and PR158 redirect-safe API host; preserve all feature/task histories.
 - [x] Reproduce and fix outstanding Health-canonical saved-route action review finding; new regression and combined785 tests pass.
 - [x] Verify combined785-test suite, Release archive, source inclusion, Watch exclusion, backend/signatures/privacy/dSYMs.
-- [ ] Finish distribution export after macOS signing-key access; validate exported IPA and live backend.
+- [x] Finish distribution export; validate exported IPA Apple Distribution signatures and live backend.
 - [ ] Verify live ASC state, choose unused candidate version/build, upload and confirm processing.
 - [ ] Physical candidate checks: Photos/social share, actual same-route report/comparison.
 - [ ] Select exact verified build and submit for production review; record evidence.

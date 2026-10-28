@@ -1,6 +1,6 @@
 # Production sharing and benchmarks — 28 October 2026
 
-Status: **not ready for production submission**. Archive and785 tests pass; distribution IPA export is waiting for macOS signing-key access. No upload or submission.
+Status: **not ready for production submission**. Archive, distribution IPA, live packaged backend and785 tests pass. Live ASC login/allocation and physical candidate gates remain open. No upload or submission.
 
 Scope: PR166 saved-report/save-once benchmarks; PR167 PNG/MP4 sharing; PR158 redirect-safe API host. Source branch `codex/release-sharing-benchmarks`, checkout `/Users/nadavyigal/Developer/runsmart-production-release`.
 
@@ -14,8 +14,8 @@ Required delivery gates: clean recorded archive commit containing `5c96738` and 
 
 Source: `98360efa95090d3b977818c5312e30778e18de37`, clean at archive start. App and Live Activity extension1.2.1(39); deep/strict signatures, team/entitlements, permission strings, background location, analytics configuration, source privacy manifest and matching dSYM UUIDs pass. Archive uses expected Apple Development signing; exported IPA must prove Apple Distribution/debugging disabled. Live packaged Auth settings return200 with Apple/email enabled. API host is `www.runsmart-ai.com`, Strava stays hidden, no WorkoutKit linkage or DEBUG share harness.
 
-Archive: `/Users/nadavyigal/Developer/runsmart-production-artifacts/RunSmart-1.2.1-39.xcarchive`. Export command is waiting on codesign/keychain access (session95616; log `/private/tmp/runsmart-production-export.log`). Expected export folder: `/Users/nadavyigal/Developer/runsmart-production-artifacts/AppStoreExport39`. Do not start a duplicate export until checking the running command.
+Archive: `/Users/nadavyigal/Developer/runsmart-production-artifacts/RunSmart-1.2.1-39.xcarchive`. Export completed successfully (log `/private/tmp/runsmart-production-export.log`). Verified export folder: `/Users/nadavyigal/Developer/runsmart-production-artifacts/AppStoreExport39`. No duplicate archive/export is needed.
 
-After signing access, validate the exported IPA with `/Users/nadavyigal/Developer/runsmart-production-artifacts/verify-candidate.py` and the live packaged-backend gate. Verify live ASC allocation before upload. Distribution session is currently at expired login; owner sign-in requested. Physical Photos/social delivery and actual same-route history must pass before production selection/submission. Keep Watch beta38 separate.
+Exported IPA passed `/Users/nadavyigal/Developer/runsmart-production-artifacts/verify-candidate.py` (Apple Distribution, debugging disabled for both bundles) and the live packaged-backend gate. See `ipa-verification.json`/`ipa-backend.json`. Verify live ASC allocation before upload. Distribution session is currently at expired login; owner sign-in requested. Physical Photos/social delivery and actual same-route history must pass before production selection/submission. Keep Watch beta38 separate.
 
 Combined Debug simulator smoke displays the complete share composer with map off, correct metrics and App Store CTA (explicit synthetic example data); `combined-share-composer.png`. This is source UI evidence, not a physical-device or distribution-binary pass.

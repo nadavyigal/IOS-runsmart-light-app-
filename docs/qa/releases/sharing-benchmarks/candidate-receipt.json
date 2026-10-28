@@ -11,9 +11,16 @@
   "archive_signing": "Apple Development; distribution proof must come from exported IPA",
   "live_archive_backend_passed": true,
   "app_and_extension_versions_signatures_dsyms_passed": true,
-  "distribution_export": "waiting for macOS signing-key access",
+  "distribution_export": "succeeded",
   "upload_performed": false,
   "submission_performed": false,
   "physical_candidate_gate_passed": false,
-  "asc_live_allocation_verified": false
+  "asc_live_allocation_verified": false,
+  "distribution_ipa_verified": true,
+  "live_ipa_backend_passed": true,
+  "ipa_sha256": "9a2f1aeaea01ea7a0a9e0d9f860386235e73f33715c6bd183844b8888cd78243",
+  "remaining_blockers": [
+    "ASC browser login/live allocation verification",
+    "physical candidate Photos/social delivery and actual same-route history"
+  ]
 }
