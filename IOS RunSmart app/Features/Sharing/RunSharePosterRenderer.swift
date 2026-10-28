@@ -114,7 +114,8 @@ enum RunSharePosterRenderer {
     // MARK: Feed and Story map
 
     /// Snapshot points per output pixel. Satellite imagery carries no labels, so a smaller
-    /// snapshot loses nothing visible and keeps memory down.
+    /// snapshot loses nothing visible. MapKit still renders at the screen scale (the simulator
+    /// ignored `scale` and `displayScale`), so a Story plate is about 2430 × 4320 pixels.
     static let posterSnapshotScale: CGFloat = 0.75
     /// Height of MapKit's logo/legal strip at the bottom of every snapshot, in snapshot points.
     static let attributionPoints: CGFloat = 50
@@ -139,7 +140,9 @@ enum RunSharePosterRenderer {
     }
 
     /// Full-canvas satellite plate: no street or neighborhood labels compete with the run.
-    private static func preparePosterMap(points: [RunRoutePoint], format: RunShareAssetFormat) async throws -> RunShareMapPlate {
+    /// Nil when MapKit cannot frame the whole route (it clamps extreme rects); the poster then
+    /// shows the stats only rather than a cut-off route.
+    private static func preparePosterMap(points: [RunRoutePoint], format: RunShareAssetFormat) async throws -> RunShareMapPlate? {
         let canvas = format.pixelSize
         let snapshotSize = CGSize(width: (canvas.width * posterSnapshotScale).rounded(),
                                   height: (canvas.height * posterSnapshotScale).rounded())
@@ -153,22 +156,24 @@ enum RunSharePosterRenderer {
         let map = try await captureMap(options: options)
         try Task.checkCancellation()
 
-        // One uniform grade for the whole plate, legal strip included, so MapKit's logo keeps
-        // its contrast against the imagery. The strip is redrawn last, above every scrim.
-        let toned = toneSatelliteImage(map.image)
-        guard let cgImage = toned.cgImage,
-              let creditsCG = cgImage.cropping(to: CGRect(
-                x: 0, y: (snapshotSize.height - attributionPoints) * toned.scale,
-                width: CGFloat(cgImage.width), height: attributionPoints * toned.scale
-              )) else { throw RunShareMediaError.mapUnavailable }
         let toCanvas = canvas.width / snapshotSize.width
+        let projected = try project(points) {
+            let point = map.point(for: $0)
+            return CGPoint(x: point.x * toCanvas, y: point.y * toCanvas)
+        }
+        guard projected.allSatisfy({ CGRect(origin: .zero, size: canvas).contains($0.position) }) else { return nil }
+
+        // The legal strip comes from the ungraded snapshot so MapKit's logo keeps its original
+        // contrast; it is redrawn last, above every scrim. Only the map area is darkened.
+        guard let rawCG = map.image.cgImage,
+              let creditsCG = rawCG.cropping(to: CGRect(
+                x: 0, y: (snapshotSize.height - attributionPoints) * map.image.scale,
+                width: CGFloat(rawCG.width), height: attributionPoints * map.image.scale
+              )) else { throw RunShareMediaError.mapUnavailable }
         return RunShareMapPlate(
-            image: toned,
-            attribution: UIImage(cgImage: creditsCG, scale: toned.scale, orientation: .up),
-            points: try project(points) {
-                let point = map.point(for: $0)
-                return CGPoint(x: point.x * toCanvas, y: point.y * toCanvas)
-            },
+            image: toneSatelliteImage(map.image),
+            attribution: UIImage(cgImage: creditsCG, scale: map.image.scale, orientation: .up),
+            points: projected,
             contentSize: canvas
         )
     }

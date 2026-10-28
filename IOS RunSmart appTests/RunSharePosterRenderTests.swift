@@ -87,6 +87,29 @@ final class RunSharePosterRenderTests: XCTestCase {
         XCTAssertEqual(boxSpan, 5_000, accuracy: 0.01)
     }
 
+    /// Lowest row (as a fraction of height) holding anything brighter than the ink background.
+    private func lowestContentRow(_ image: UIImage) throws -> Double {
+        let cgImage = try XCTUnwrap(image.cgImage)
+        let width = cgImage.width, height = cgImage.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let context = try XCTUnwrap(CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8,
+                                              bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        for row in stride(from: height - 1, through: 0, by: -1) {
+            for column in stride(from: 0, to: width, by: 4) where pixels[(row * width + column) * 4 + 1] > 60 {
+                return Double(row + 1) / Double(height)
+            }
+        }
+        return 0
+    }
+
+    func testStatsOnlyStoryHasNoEmptyBottomQuarter() throws {
+        let image = RunSharePosterRenderer.image(snapshot: snapshot(points: [], insight: insight), format: .story,
+                                                 map: nil, logo: RunSharePosterRenderer.logoImage())
+        XCTAssertGreaterThan(try lowestContentRow(image), 0.72)
+    }
+
     func testStatsOnlyPostersRenderAtExportSize() throws {
         for format in [RunShareAssetFormat.feed, .story] {
             for (suffix, text, distance) in [("", insight, 6_600.0), ("-no-insight", "", 6_600), ("-long", longInsight, 42_195)] {
