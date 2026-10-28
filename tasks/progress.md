@@ -201,6 +201,21 @@ RunSmart app 6768297840: added Name and Other User Content for linked App Functi
 **Last Validation:** 2026-10-19: App Store lookup 1.1.9, released 2026-10-18T18:23:16Z (3 of 3 polls). Status-file change only; no build, test or code change.
 **Last Updated:** 2026-10-19
 
+## 2026-10-18: API base URL points at www (plan generation fix)
+
+**Status:** PR open, not merged, not in a build. Server-side fix already live.
+**Root cause:** `RunSmartAPIBaseURL` was `https://runsmart-ai.com`. Vercel answered 308 to `www`, and
+URLSession drops the Authorization header on a cross-host redirect, so every signed-in API call
+reached the server without a token. Since web PR #134 (2026-09-27) `/api/generate-plan` requires it:
+401, "no plan" for every iOS user. Found from a real first user (2026-10-16, no plan saved).
+**Fixed today, no release needed:** the Vercel apex redirect on project running-coach was removed
+2026-10-18; the bare domain now serves directly. Verified: URLSession POST to the bare domain, no
+redirect; Supabase logged the token check (`GET /auth/v1/user`) 1 s later.
+**This PR:** `RunSmartInfo.plist:59` and `RunSmartAPIModels.swift:1321` use `https://www.runsmart-ai.com`,
+so the app no longer depends on that domain setting. `APIBaseURLTests` guards it. Full suite 423 passed, 0 failed.
+**Not checked:** the other routes behind login since #134 (chat, run report, voice cue, workouts) are the
+same failure class and are fixed by the same change; a physical-device run is still open.
+
 ## 2026-10-17 — Distribution IPA export completed
 
 **Status:** App Store distribution IPA verified after release-owner Keychain approval. App and Live Activity extension are 1.1.9 (34), Apple Distribution signed, `get-task-allow=false`, deep/strict signature checks passed, final privacy manifest included. Durable IPA: `build/release-1.1.9-34/AppStoreExport/RunSmart.ipa` (12,207,508 bytes); fingerprint in `docs/qa/releases/1.1.9/ipa-verification.json`.
