@@ -40,6 +40,7 @@ enum RunSharePosterRenderer {
               points.allSatisfy({ CLLocationCoordinate2DIsValid($0.coordinate) }) else {
             throw RunShareMediaError.invalidRoute
         }
+        if format != .video { return try await preparePosterMap(points: points, format: format) }
 
         let size = CGSize(width: 1_080, height: mapHeight(for: format))
         let options = MKMapSnapshotter.Options()
@@ -81,6 +82,16 @@ enum RunSharePosterRenderer {
                 width: CGFloat(cgImage.width), height: attributionHeight * map.image.scale
               )) else { throw RunShareMediaError.mapUnavailable }
 
+        return RunShareMapPlate(
+            image: UIImage(cgImage: mapCG, scale: map.image.scale, orientation: .up),
+            attribution: UIImage(cgImage: creditsCG, scale: map.image.scale, orientation: .up),
+            points: try project(points) { map.point(for: $0) },
+            contentSize: CGSize(width: size.width, height: contentHeight)
+        )
+    }
+
+    private static func project(_ points: [RunRoutePoint],
+                                position: (CLLocationCoordinate2D) -> CGPoint) throws -> [RunShareProjectedPoint] {
         var projected: [RunShareProjectedPoint] = []
         var cumulative = 0.0
         for (index, point) in points.enumerated() {
@@ -89,20 +100,92 @@ enum RunSharePosterRenderer {
                 cumulative += CLLocation(latitude: previous.latitude, longitude: previous.longitude)
                     .distance(from: CLLocation(latitude: point.latitude, longitude: point.longitude))
             }
-            let position = map.point(for: point.coordinate)
-            guard position.x.isFinite, position.y.isFinite else { throw RunShareMediaError.invalidRoute }
+            let projectedPosition = position(point.coordinate)
+            guard projectedPosition.x.isFinite, projectedPosition.y.isFinite else { throw RunShareMediaError.invalidRoute }
             projected.append(RunShareProjectedPoint(
-                position: position,
+                position: projectedPosition,
                 startsNewSegment: index == 0 || point.startsNewSegment == true,
                 cumulativeMeters: cumulative
             ))
         }
-        return RunShareMapPlate(
-            image: UIImage(cgImage: mapCG, scale: map.image.scale, orientation: .up),
-            attribution: UIImage(cgImage: creditsCG, scale: map.image.scale, orientation: .up),
-            points: projected,
-            contentSize: CGSize(width: size.width, height: contentHeight)
+        return projected
+    }
+
+    // MARK: Feed and Story map
+
+    /// Snapshot points per output pixel. Satellite imagery carries no labels, so a smaller
+    /// snapshot loses nothing visible and keeps memory down.
+    static let posterSnapshotScale: CGFloat = 0.75
+    /// Height of MapKit's logo/legal strip at the bottom of every snapshot, in snapshot points.
+    static let attributionPoints: CGFloat = 50
+
+    /// Where the whole route must land on each poster: clear of the header and the stats.
+    static func routeBox(for format: RunShareAssetFormat) -> CGRect {
+        format == .feed
+            ? CGRect(x: 610, y: 150, width: 400, height: 580)
+            : CGRect(x: 140, y: 250, width: 800, height: 850)
+    }
+
+    /// A map rect with the canvas's aspect ratio in which the route bounds fill `target`.
+    /// `minimumSpan` (map points) keeps a very short route from zooming into a few buildings.
+    static func posterMapRect(routeBounds bounds: MKMapRect, canvas: CGSize, target: CGRect,
+                              minimumSpan: Double) -> MKMapRect {
+        let pointsPerPixel = max(bounds.width / Double(target.width), bounds.height / Double(target.height),
+                                 minimumSpan / Double(min(target.width, target.height)))
+        return MKMapRect(x: bounds.midX - Double(target.midX) * pointsPerPixel,
+                         y: bounds.midY - Double(target.midY) * pointsPerPixel,
+                         width: Double(canvas.width) * pointsPerPixel,
+                         height: Double(canvas.height) * pointsPerPixel)
+    }
+
+    /// Full-canvas satellite plate: no street or neighborhood labels compete with the run.
+    private static func preparePosterMap(points: [RunRoutePoint], format: RunShareAssetFormat) async throws -> RunShareMapPlate {
+        let canvas = format.pixelSize
+        let snapshotSize = CGSize(width: (canvas.width * posterSnapshotScale).rounded(),
+                                  height: (canvas.height * posterSnapshotScale).rounded())
+        let options = MKMapSnapshotter.Options()
+        options.size = snapshotSize
+        options.preferredConfiguration = MKImageryMapConfiguration(elevationStyle: .flat)
+        options.mapRect = posterMapRect(
+            routeBounds: routeBounds(points), canvas: canvas, target: routeBox(for: format),
+            minimumSpan: 900 * MKMapPointsPerMeterAtLatitude(points[0].latitude)
         )
+        let map = try await captureMap(options: options)
+        try Task.checkCancellation()
+
+        // One uniform grade for the whole plate, legal strip included, so MapKit's logo keeps
+        // its contrast against the imagery. The strip is redrawn last, above every scrim.
+        let toned = toneSatelliteImage(map.image)
+        guard let cgImage = toned.cgImage,
+              let creditsCG = cgImage.cropping(to: CGRect(
+                x: 0, y: (snapshotSize.height - attributionPoints) * toned.scale,
+                width: CGFloat(cgImage.width), height: attributionPoints * toned.scale
+              )) else { throw RunShareMediaError.mapUnavailable }
+        let toCanvas = canvas.width / snapshotSize.width
+        return RunShareMapPlate(
+            image: toned,
+            attribution: UIImage(cgImage: creditsCG, scale: toned.scale, orientation: .up),
+            points: try project(points) {
+                let point = map.point(for: $0)
+                return CGPoint(x: point.x * toCanvas, y: point.y * toCanvas)
+            },
+            contentSize: canvas
+        )
+    }
+
+    /// Darker, less saturated imagery so the lime route and white type carry the image.
+    static func toneSatelliteImage(_ image: UIImage) -> UIImage {
+        guard let source = image.cgImage else { return image }
+        let exposure = CIFilter.exposureAdjust()
+        exposure.inputImage = CIImage(cgImage: source)
+        exposure.ev = -0.9
+        let controls = CIFilter.colorControls()
+        controls.inputImage = exposure.outputImage
+        controls.saturation = 0.6
+        controls.contrast = 1.06
+        guard let output = controls.outputImage,
+              let cgImage = toneContext.createCGImage(output, from: output.extent) else { return image }
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
     }
 
     private static let toneContext = CIContext(options: [.cacheIntermediates: false])
@@ -161,7 +244,7 @@ enum RunSharePosterRenderer {
     }
 
     /// Uses a wrapped Mercator extent, rather than a longitude min/max, for date-line routes.
-    static func boundingMapRect(_ points: [RunRoutePoint]) -> MKMapRect {
+    static func routeBounds(_ points: [RunRoutePoint]) -> MKMapRect {
         guard let first = points.first else { return .world }
         let width = MKMapRect.world.size.width
         let referenceX = MKMapPoint(first.coordinate).x
@@ -174,11 +257,17 @@ enum RunSharePosterRenderer {
             minX = min(minX, p.x); maxX = max(maxX, p.x)
             minY = min(minY, p.y); maxY = max(maxY, p.y)
         }
+        return MKMapRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
+    static func boundingMapRect(_ points: [RunRoutePoint]) -> MKMapRect {
+        guard let first = points.first else { return .world }
+        let bounds = routeBounds(points)
         let minimumSpan = 750 * MKMapPointsPerMeterAtLatitude(first.latitude)
-        let w = max(minimumSpan, maxX - minX)
-        let h = max(minimumSpan, maxY - minY)
+        let w = max(minimumSpan, bounds.width)
+        let h = max(minimumSpan, bounds.height)
         // Room for the hero typography and a complete-route finish, including narrow out-and-backs.
-        return MKMapRect(x: (minX + maxX - w) / 2, y: (minY + maxY - h) / 2, width: w, height: h)
+        return MKMapRect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
             .insetBy(dx: -w * 0.32, dy: -h * 0.32)
     }
 
@@ -214,6 +303,10 @@ enum RunSharePosterRenderer {
         context: CGContext,
         size: CGSize
     ) {
+        guard format == .video || time != nil else {
+            drawPoster(snapshot: snapshot, format: format, map: map, logo: logo, context: context, size: size)
+            return
+        }
         let feed = format == .feed
         let video = time != nil
         let mapHeight = mapHeight(for: format)
@@ -293,6 +386,249 @@ enum RunSharePosterRenderer {
             drawText(map == nil ? "RUN RECAP" : phase,
                      at: CGPoint(x: 77, y: 1_178), size: 22, weight: .semibold, color: lime)
         }
+    }
+
+    // MARK: Feed and Story layout
+
+    private static let mist = UIColor(red: 0.663, green: 0.678, blue: 0.749, alpha: 1)
+    private static let posterMargin: CGFloat = 72
+
+    /// One full-bleed composition: map behind everything, type on dark fades, no separate
+    /// stats panel. Without a route the run's numbers become the whole poster.
+    private static func drawPoster(snapshot: RunShareSnapshot, format: RunShareAssetFormat, map: RunShareMapPlate?,
+                                   logo: UIImage?, context: CGContext, size: CGSize) {
+        let feed = format == .feed
+        let width = size.width - posterMargin * 2
+        ink.setFill()
+        context.fill(CGRect(origin: .zero, size: size))
+
+        var textBottom = size.height - (feed ? 100 : 120)
+        if let map {
+            map.image.draw(in: CGRect(origin: .zero, size: map.contentSize))
+            let creditsHeight = map.attribution.map { $0.size.height * size.width / max(1, $0.size.width) } ?? 0
+            let mapBottom = size.height - creditsHeight
+            drawScrim(context, CGRect(x: 0, y: 0, width: size.width, height: feed ? 320 : 400),
+                      alphas: [0.8, 0], locations: [0, 1])
+            if feed {
+                drawScrim(context, CGRect(x: 0, y: 0, width: 760, height: size.height),
+                          alphas: [0.78, 0.35, 0], locations: [0, 0.6, 1], horizontal: true)
+            }
+            textBottom = mapBottom - (feed ? 54 : 70)
+            // Dark behind the type, then easing off below it so the legal strip is not a hard band.
+            let fadeTop: CGFloat = feed ? 700 : 900
+            let fadeHeight = mapBottom - fadeTop
+            drawScrim(context, CGRect(x: 0, y: fadeTop, width: size.width, height: fadeHeight),
+                      alphas: [0, 0.88, 0.96, 0.94, 0.2],
+                      locations: [0, 0.3, 0.65, (textBottom - fadeTop) / fadeHeight, 1])
+            drawPosterRoute(map.points, width: feed ? 9 : 10, context: context)
+            // MapKit's logo and legal text: redrawn last, never covered by type or fades.
+            map.attribution?.draw(in: CGRect(x: 0, y: mapBottom, width: size.width, height: creditsHeight))
+        }
+
+        let headerTop: CGFloat = feed ? 80 : 96
+        let mark: CGFloat = feed ? 52 : 56
+        logo?.draw(in: CGRect(x: posterMargin, y: headerTop, width: mark, height: mark))
+        let wordmark = UIFont.systemFont(ofSize: feed ? 34 : 38, weight: .black)
+        let wordmarkY = headerTop + (mark - wordmark.lineHeight) / 2
+        drawText("RUN", font: wordmark, at: CGPoint(x: posterMargin + mark + 18, y: wordmarkY))
+        drawText("SMART", font: wordmark, color: lime,
+                 at: CGPoint(x: posterMargin + mark + 19 + textWidth("RUN", font: wordmark), y: wordmarkY))
+
+        // The coach line: at most two lines, under the stats.
+        let insightFont = UIFont.systemFont(ofSize: feed ? 34 : 36, weight: .semibold)
+        let insightHeight = snapshot.insight.isEmpty
+            ? 0 : wrappedHeight(snapshot.insight, font: insightFont, width: width, maxLines: 2)
+        let headerBottom = headerTop + mark + 40
+
+        if map != nil {
+            let insightTop = textBottom - insightHeight
+            if insightHeight > 0 {
+                drawWrapped(snapshot.insight, font: insightFont, color: lime,
+                            in: CGRect(x: posterMargin, y: insightTop, width: width, height: insightHeight))
+            }
+            let statsHeight = statsBlockHeight(valueSize: feed ? 68 : 72, labelSize: feed ? 28 : 29)
+            let statsTop = (insightHeight > 0 ? insightTop - (feed ? 34 : 40) : textBottom) - statsHeight
+            drawStats(snapshot, top: statsTop, valueSize: feed ? 68 : 72, labelSize: feed ? 28 : 29, width: width)
+            if feed {
+                // Left column beside the route, centered between the header and the stats.
+                let title = UIFont.systemFont(ofSize: 36, weight: .semibold)
+                let date = UIFont.systemFont(ofSize: 30, weight: .medium)
+                let fonts = distanceFonts(snapshot, maxSize: 270, maxWidth: 500)
+                let columnHeight = title.pointSize + 66 + fonts.number.capHeight
+                let titleBaseline = headerBottom + max(0, (statsTop - 60 - headerBottom - columnHeight) / 2) + title.pointSize
+                drawFittedLine(snapshot.title, font: title, color: white, baseline: titleBaseline, x: posterMargin, maxWidth: 500)
+                drawFittedLine(dateLine(snapshot), font: date, color: mist, baseline: titleBaseline + 44,
+                               x: posterMargin, maxWidth: 500)
+                drawDistance(snapshot, fonts: fonts, baseline: titleBaseline + 66 + fonts.number.capHeight)
+            } else {
+                let fonts = distanceFonts(snapshot, maxSize: 300, maxWidth: width)
+                let distanceBaseline = statsTop - 44
+                drawDistance(snapshot, fonts: fonts, baseline: distanceBaseline)
+                drawTitleRow(snapshot, baseline: distanceBaseline - fonts.number.capHeight - 42, titleSize: 38, width: width)
+            }
+            return
+        }
+
+        // Stats-only poster: one group, coach line included, a little below center.
+        let titleSize: CGFloat = feed ? 38 : 44
+        let valueSize: CGFloat = feed ? 72 : 84
+        let labelSize: CGFloat = feed ? 28 : 32
+        let fonts = distanceFonts(snapshot, maxSize: feed ? 360 : 540, maxWidth: width)
+        let titleToNumber: CGFloat = 34, ruleGap: CGFloat = feed ? 48 : 60, insightGap: CGFloat = feed ? 56 : 72
+        let statsHeight = statsBlockHeight(valueSize: valueSize, labelSize: labelSize)
+        let groupHeight = titleSize + titleToNumber + fonts.number.capHeight + ruleGap + 6 + ruleGap + statsHeight
+            + (insightHeight > 0 ? insightGap + insightHeight : 0)
+        let titleBaseline = headerBottom + max(0, (textBottom - headerBottom - groupHeight) * 0.6) + titleSize
+        drawTitleRow(snapshot, baseline: titleBaseline, titleSize: titleSize, width: width)
+        let distanceBaseline = titleBaseline + titleToNumber + fonts.number.capHeight
+        drawDistance(snapshot, fonts: fonts, baseline: distanceBaseline)
+        lime.setFill()
+        let rule = CGRect(x: posterMargin, y: distanceBaseline + ruleGap, width: 180, height: 6)
+        context.addPath(CGPath(roundedRect: rule, cornerWidth: 3, cornerHeight: 3, transform: nil))
+        context.fillPath()
+        drawStats(snapshot, top: rule.maxY + ruleGap, valueSize: valueSize, labelSize: labelSize, width: width)
+        if insightHeight > 0 {
+            drawWrapped(snapshot.insight, font: insightFont, color: lime,
+                        in: CGRect(x: posterMargin, y: rule.maxY + ruleGap + statsHeight + insightGap,
+                                   width: width, height: insightHeight))
+        }
+    }
+
+    /// Date, plus the device for imported runs (Garmin attribution); a native run needs no source.
+    private static func dateLine(_ snapshot: RunShareSnapshot) -> String {
+        snapshot.sourceLabel == RunSmartDataSource.runSmart.rawValue || snapshot.sourceLabel.isEmpty
+            ? snapshot.dateLabel
+            : "\(snapshot.dateLabel) · \(snapshot.sourceLabel)"
+    }
+
+    private static func drawTitleRow(_ snapshot: RunShareSnapshot, baseline: CGFloat, titleSize: CGFloat, width: CGFloat) {
+        let title = UIFont.systemFont(ofSize: titleSize, weight: .semibold)
+        let date = UIFont.systemFont(ofSize: (titleSize * 0.84).rounded(), weight: .medium)
+        let dateText = dateLine(snapshot)
+        let dateWidth = min(textWidth(dateText, font: date), width * 0.6)
+        let titleWidth = min(textWidth(snapshot.title, font: title), width - dateWidth - 20)
+        drawFittedLine(snapshot.title, font: title, color: white, baseline: baseline, x: posterMargin, maxWidth: titleWidth)
+        drawFittedLine(dateText, font: date, color: mist, baseline: baseline,
+                       x: posterMargin + titleWidth + 20, maxWidth: dateWidth)
+    }
+
+    private static func distanceFonts(_ snapshot: RunShareSnapshot, maxSize: CGFloat,
+                                      maxWidth: CGFloat) -> (number: UIFont, unit: UIFont) {
+        var size = maxSize
+        while true {
+            let number = UIFont.systemFont(ofSize: size, weight: .heavy, width: .compressed)
+            let unit = UIFont.systemFont(ofSize: (size * 0.31).rounded(), weight: .bold, width: .compressed)
+            let total = textWidth(snapshot.distanceLabel, font: number) + size * 0.06 + textWidth(snapshot.distanceUnit, font: unit)
+            if total <= maxWidth || size <= 80 { return (number, unit) }
+            size -= 4
+        }
+    }
+
+    private static func drawDistance(_ snapshot: RunShareSnapshot, fonts: (number: UIFont, unit: UIFont), baseline: CGFloat) {
+        drawText(snapshot.distanceLabel, font: fonts.number, at: CGPoint(x: posterMargin - fonts.number.pointSize * 0.02,
+                                                                        y: baseline - fonts.number.ascender))
+        let unitX = posterMargin + textWidth(snapshot.distanceLabel, font: fonts.number) + fonts.number.pointSize * 0.06
+        drawText(snapshot.distanceUnit, font: fonts.unit, color: lime, at: CGPoint(x: unitX, y: baseline - fonts.unit.ascender))
+    }
+
+    private static func statsBlockHeight(valueSize: CGFloat, labelSize: CGFloat) -> CGFloat {
+        UIFont.systemFont(ofSize: valueSize, weight: .bold).lineHeight
+            + UIFont.systemFont(ofSize: labelSize, weight: .medium).lineHeight
+    }
+
+    private static func drawStats(_ snapshot: RunShareSnapshot, top: CGFloat, valueSize: CGFloat,
+                                  labelSize: CGFloat, width: CGFloat) {
+        let value = UIFont.monospacedDigitSystemFont(ofSize: valueSize, weight: .bold)
+        let suffix = UIFont.systemFont(ofSize: (valueSize * 0.53).rounded(), weight: .semibold)
+        let label = UIFont.systemFont(ofSize: labelSize, weight: .medium)
+        let column = (width - 24) / 2
+        let pace = snapshot.paceLabel.hasSuffix(" /km") ? String(snapshot.paceLabel.dropLast(4)) : snapshot.paceLabel
+        let paceSuffix = pace == snapshot.paceLabel ? "" : " /km"
+        let items: [(String, String, String)] = [
+            (snapshot.durationLabel, "", "Moving time"),
+            (pace, paceSuffix, "Average pace")
+        ]
+        for (index, item) in items.enumerated() {
+            let x = posterMargin + CGFloat(index) * (column + 24)
+            let baseline = top + value.ascender
+            drawFittedLine(item.0, font: value, color: white, baseline: baseline, x: x, maxWidth: column)
+            if !item.1.isEmpty {
+                drawText(item.1, font: suffix, color: mist,
+                         at: CGPoint(x: x + textWidth(item.0, font: value), y: baseline - suffix.ascender))
+            }
+            drawText(item.2, font: label, color: mist, at: CGPoint(x: x, y: top + value.lineHeight))
+        }
+    }
+
+    private static func drawPosterRoute(_ points: [RunShareProjectedPoint], width: CGFloat, context: CGContext) {
+        guard let first = points.first, let last = points.last else { return }
+        let path = visibleRoutePath(points, distanceMeters: last.cumulativeMeters)
+        context.setLineCap(.round); context.setLineJoin(.round)
+        for (color, lineWidth) in [(lime.withAlphaComponent(0.22), width * 3.4), (ink.withAlphaComponent(0.8), width + 8),
+                                   (lime, width)] {
+            context.addPath(path); context.setStrokeColor(color.cgColor)
+            context.setLineWidth(lineWidth); context.strokePath()
+        }
+        let start = CGRect(x: first.position.x - 13, y: first.position.y - 13, width: 26, height: 26)
+        context.setFillColor(ink.cgColor); context.setStrokeColor(lime.cgColor); context.setLineWidth(6)
+        context.fillEllipse(in: start); context.strokeEllipse(in: start)
+        let finish = CGRect(x: last.position.x - 14, y: last.position.y - 14, width: 28, height: 28)
+        context.setFillColor(lime.cgColor); context.setStrokeColor(ink.cgColor); context.setLineWidth(5)
+        context.fillEllipse(in: finish); context.strokeEllipse(in: finish)
+    }
+
+    private static func drawScrim(_ context: CGContext, _ rect: CGRect, alphas: [CGFloat], locations: [CGFloat],
+                                  horizontal: Bool = false) {
+        guard rect.width > 0, rect.height > 0,
+              let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                        colors: alphas.map { ink.withAlphaComponent($0).cgColor } as CFArray,
+                                        locations: locations) else { return }
+        context.saveGState(); context.clip(to: rect)
+        let end = horizontal ? CGPoint(x: rect.maxX, y: rect.minY) : CGPoint(x: rect.minX, y: rect.maxY)
+        context.drawLinearGradient(gradient, start: rect.origin, end: end, options: [])
+        context.restoreGState()
+    }
+
+    private static func textWidth(_ text: String, font: UIFont) -> CGFloat {
+        (text as NSString).size(withAttributes: [.font: font]).width
+    }
+
+    private static func drawText(_ text: String, font: UIFont, color: UIColor? = nil, at point: CGPoint) {
+        (text as NSString).draw(at: point, withAttributes: [.font: font, .foregroundColor: color ?? white])
+    }
+
+    /// One line on a baseline, shrunk to fit and then truncated, never wrapped.
+    private static func drawFittedLine(_ text: String, font: UIFont, color: UIColor, baseline: CGFloat,
+                                       x: CGFloat, maxWidth: CGFloat) {
+        guard maxWidth > 0 else { return }
+        var fitted = font
+        while fitted.pointSize > font.pointSize * 0.75, textWidth(text, font: fitted) > maxWidth {
+            fitted = fitted.withSize(fitted.pointSize - 1)
+        }
+        let paragraph = NSMutableParagraphStyle(); paragraph.lineBreakMode = .byTruncatingTail
+        (text as NSString).draw(in: CGRect(x: x, y: baseline - fitted.ascender, width: maxWidth, height: fitted.lineHeight),
+                                withAttributes: [.font: fitted, .foregroundColor: color, .paragraphStyle: paragraph])
+    }
+
+    private static func wrappedAttributes(font: UIFont, color: UIColor) -> [NSAttributedString.Key: Any] {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.minimumLineHeight = (font.pointSize * 1.3).rounded()
+        paragraph.maximumLineHeight = paragraph.minimumLineHeight
+        paragraph.lineBreakMode = .byWordWrapping
+        return [.font: font, .foregroundColor: color, .paragraphStyle: paragraph]
+    }
+
+    private static func wrappedHeight(_ text: String, font: UIFont, width: CGFloat, maxLines: Int) -> CGFloat {
+        let attributes = wrappedAttributes(font: font, color: white)
+        let lineHeight = (attributes[.paragraphStyle] as? NSParagraphStyle)?.minimumLineHeight ?? font.lineHeight
+        let bounds = (text as NSString).boundingRect(with: CGSize(width: width, height: .greatestFiniteMagnitude),
+                                                     options: [.usesLineFragmentOrigin], attributes: attributes, context: nil)
+        return min(ceil(bounds.height), lineHeight * CGFloat(maxLines))
+    }
+
+    private static func drawWrapped(_ text: String, font: UIFont, color: UIColor, in rect: CGRect) {
+        (text as NSString).draw(with: rect, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+                                attributes: wrappedAttributes(font: font, color: color), context: nil)
     }
 
     /// Camera follows the chronological head and pulls back. Bounds prevent blank map edges.

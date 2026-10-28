@@ -44,8 +44,7 @@ struct RunShareSnapshot {
         date.locale = locale
         date.calendar = calendar
         date.timeZone = calendar.timeZone
-        date.dateStyle = .medium
-        date.timeStyle = .none
+        date.setLocalizedDateFormatFromTemplate("EEEdMMMyyyy")
         let pace = distance > 0 && time > 0 ? time / (distance / 1000) : 0
         return RunShareSnapshot(
             title: RunTitle.displayTitle(for: run, calendar: calendar),
