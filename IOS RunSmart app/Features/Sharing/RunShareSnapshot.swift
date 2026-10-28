@@ -27,8 +27,6 @@ struct RunShareSnapshot {
     let movingTimeSeconds: Double
     let routePoints: [RunRoutePoint]
 
-    static let appStoreCallToAction = "Get RunSmart on the App Store"
-
     static func make(
         run: RecordedRun,
         includeMap: Bool,

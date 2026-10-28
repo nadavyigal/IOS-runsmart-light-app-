@@ -123,39 +123,9 @@ final class RunShareRendererTests: XCTestCase {
         let points = [179.99, -179.99].map {
             RunRoutePoint(latitude: 32, longitude: $0, timestamp: time, horizontalAccuracy: 5, altitude: nil)
         }
-        let rect = RunSharePosterRenderer.boundingMapRect(points)
+        let rect = RunSharePosterRenderer.routeBounds(points)
         XCTAssertLessThan(rect.size.width, MKMapRect.world.size.width / 10)
         XCTAssertTrue(rect.size.width.isFinite)
-    }
-
-    func testMapToneBrightensDarkPixelsWithoutTurningThemIntoDaylightWhite() throws {
-        let format = UIGraphicsImageRendererFormat(); format.scale = 1
-        let image = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8), format: format).image { context in
-            UIColor(white: 0.1, alpha: 1).setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
-        }
-        let toned = RunSharePosterRenderer.toneMapImage(image)
-        let cgImage = try XCTUnwrap(toned.cgImage)
-        XCTAssertEqual(cgImage.width, 8)
-        XCTAssertEqual(cgImage.height, 8)
-        var pixel = [UInt8](repeating: 0, count: 4)
-        pixel.withUnsafeMutableBytes { bytes in
-            CIContext().render(CIImage(cgImage: cgImage), toBitmap: bytes.baseAddress!, rowBytes: 4,
-                               bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8,
-                               colorSpace: CGColorSpaceCreateDeviceRGB())
-        }
-        XCTAssertGreaterThan(pixel[2], pixel[0], "The lifted geography should retain a cool blue-gray cast")
-        XCTAssertGreaterThan(Int(pixel[0]) + Int(pixel[1]) + Int(pixel[2]), 3 * 26)
-        XCTAssertLessThan(pixel[0], 160, "The dark treatment should not become a pale daylight map")
-    }
-
-    func testVideoCameraUsesNativeTiltAndFiniteDistance() {
-        let bounds = MKMapRect(x: 160_000_000, y: 106_000_000, width: 5_000, height: 20_000)
-        let camera = RunSharePosterRenderer.videoCamera(for: bounds)
-        XCTAssertEqual(camera.pitch, 36, accuracy: 0.001)
-        XCTAssertTrue(camera.centerCoordinateDistance.isFinite)
-        XCTAssertGreaterThanOrEqual(camera.centerCoordinateDistance, 1_500)
-        XCTAssertTrue(CLLocationCoordinate2DIsValid(camera.centerCoordinate))
     }
 
     func testPrivateImageExportsHaveExactPixelsWithoutRequiringMapTiles() async throws {

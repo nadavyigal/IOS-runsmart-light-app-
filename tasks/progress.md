@@ -1,12 +1,12 @@
-## 2026-10-28 — Run share: Feed and Story redesign (direction A, satellite map)
+## 2026-10-28 — Run share: Feed, Story and video redesign (direction A, satellite map)
 
-**Status:** 1.2.1 (39) still in App Review. New change on branch `claude/2026-10-28-share-card-design`, stacked on PR #171 (map on by default). Not in build 39.
+**Status:** 1.2.1 (39) still in App Review. Changes on branch `claude/2026-10-28-share-card-design` (PR #172), stacked on PR #171 (map on by default). Not in build 39.
 **Current Phase:** Run share polish, after 1.2.1.
-**Active Story:** Feed and Story share images redrawn: full-bleed satellite map (no street labels), route fitted clear of the type, stats and coach line on dark fades, no separate stats panel, no "Get RunSmart on the App Store" text (the link is still a separate share item). Runs without GPS get a centered stats-only poster. Video keeps its old layout.
-**Last Completed Story:** founder picked direction A with satellite from the design canvas (https://claude.ai/artifact/6i74dp2Nc4eNWVqrrXpbFB).
-**Next Recommended Story:** share card coach line shows AI text only. Today it can print the web server's fallback text ("Run logged. Short run still counts for habit building.", `RunSmart/v0/app/api/run-report/route.ts:820-836`), because iOS drops the response's `source` field. Needs RunSmartAPIModels, RunSmartModels, SupabaseRunSmartServices, ProgressShareCard.
+**Active Story:** Share images and the 10-second video share one design: full-bleed satellite map (no street labels), route fitted clear of the type, stats and coach line on dark fades, no App Store text in the image (the link is still a separate share item). The video draws the route with the camera following it, counts the distance up, pulls back, fades the stats in, and ends on the exact Story image. Runs without GPS get a stats-only layout. If MapKit cannot frame the route, the card falls back to stats only. The MapKit logo strip is drawn ungraded.
+**Last Completed Story:** founder picked direction A with satellite (design canvas https://claude.ai/artifact/6i74dp2Nc4eNWVqrrXpbFB) and asked for the video to match.
+**Next Recommended Story:** coach line shows AI text only. Today it can print the web server's fallback text ("Run logged. Short run still counts for habit building.", `RunSmart/v0/app/api/run-report/route.ts:820-836`) because iOS drops the response's `source` field. Needs RunSmartAPIModels, RunSmartModels, SupabaseRunSmartServices, ProgressShareCard. Also: `RunMediaShareEntry` still says "You choose whether to include a map" (wrong since #171).
 **Blockers:** none.
-**Last Validation:** 2026-10-28: `xcodebuild test` on iPhone 17 Pro simulator (iOS 26.5), RunSharePosterRenderTests + RunShareSnapshotTests + RunSharePreparedAssetTests + RouteSharePrivacyTests + RunShareRendererTests: TEST SUCCEEDED (52 passed). Feed/Story PNGs rendered with and without map. Not checked on a device.
+**Last Validation:** 2026-10-28: `xcodebuild test` on iPhone 17 Pro simulator (iOS 26.5): RunSharePosterRenderTests + RunShareSnapshotTests + RunSharePreparedAssetTests + RouteSharePrivacyTests + RunShareRendererTests. Feed/Story PNGs and video frames rendered and reviewed. Not checked on a device; video export time on a phone not measured.
 **Last Updated:** 2026-10-28
 
 ## 2026-10-28 — Run share: route map on by default

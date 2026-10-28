@@ -110,6 +110,29 @@ final class RunSharePosterRenderTests: XCTestCase {
         XCTAssertGreaterThan(try lowestContentRow(image), 0.72)
     }
 
+    func testVideoLastFrameIsTheStoryImage() throws {
+        let share = snapshot(points: [], insight: insight)
+        let logo = RunSharePosterRenderer.logoImage()
+        let story = RunSharePosterRenderer.image(snapshot: share, format: .story, map: nil, logo: logo)
+        let lastFrame = RunSharePosterRenderer.image(snapshot: share, format: .video, map: nil, logo: logo,
+                                                     time: RunShareMediaRenderer.videoDuration)
+        XCTAssertEqual(try XCTUnwrap(lastFrame.pngData()), try XCTUnwrap(story.pngData()))
+    }
+
+    func testVideoDistanceCountsUpToTheExactLabel() {
+        let share = snapshot(points: [], insight: "")
+        XCTAssertEqual(RunSharePosterRenderer.countedDistance(share, progress: 0), "0.0")
+        XCTAssertEqual(RunSharePosterRenderer.countedDistance(share, progress: 0.5), "3.3")
+        XCTAssertEqual(RunSharePosterRenderer.countedDistance(share, progress: 1), share.distanceLabel)
+        let run = RecordedRun(id: UUID(), providerActivityID: nil, source: .runSmart, startedAt: startedAt,
+                              endedAt: startedAt, distanceMeters: 6_600, movingTimeSeconds: 2_178,
+                              averagePaceSecondsPerKm: 330, averageHeartRateBPM: nil, routePoints: [], syncedAt: nil,
+                              title: nil)
+        let german = RunShareSnapshot.make(run: run, includeMap: false, locale: Locale(identifier: "de_DE"), calendar: calendar)
+        XCTAssertEqual(german.distanceLabel, "6,6")
+        XCTAssertEqual(RunSharePosterRenderer.countedDistance(german, progress: 0.5), "3,3")
+    }
+
     func testStatsOnlyPostersRenderAtExportSize() throws {
         for format in [RunShareAssetFormat.feed, .story] {
             for (suffix, text, distance) in [("", insight, 6_600.0), ("-no-insight", "", 6_600), ("-long", longInsight, 42_195)] {
@@ -131,6 +154,21 @@ final class RunSharePosterRenderTests: XCTestCase {
                 XCTAssertEqual(image.size, format.pixelSize)
                 try write(image, "\(format.rawValue)-map\(suffix)")
             }
+        }
+        // Video frames for review: early replay, mid replay, pull-back, final.
+        let share = snapshot(points: telAvivLoop(), insight: insight)
+        let plate = try await RunSharePosterRenderer.prepareMap(snapshot: share, format: .video)
+        XCTAssertNotNil(plate)
+        for time in [1.5, 4.0, 7.3, 10.0] {
+            let frame = RunSharePosterRenderer.image(snapshot: share, format: .video, map: plate,
+                                                     logo: RunSharePosterRenderer.logoImage(), time: time)
+            try write(frame, String(format: "Video-%04.1fs", time))
+        }
+        if let folder = renderFolder {
+            let url = try await RunShareMediaRenderer.video(snapshot: share) { _ in }
+            let copy = folder.appendingPathComponent("Video.mp4")
+            try? FileManager.default.removeItem(at: copy)
+            try FileManager.default.moveItem(at: url, to: copy)
         }
     }
 }
