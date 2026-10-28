@@ -1,3 +1,15 @@
+## 2026-10-28 — Production sharing and benchmarks
+
+Owner requests production shipment of completed iPhone work; Apple Watch remains excluded.
+
+- [x] Inventory open work and isolate production integration branch.
+- [x] Integrate PR166 benchmarks, PR167 sharing, and PR158 redirect-safe API host; preserve all feature/task histories.
+- [x] Reproduce and fix outstanding Health-canonical saved-route action review finding; new regression and combined785 tests pass.
+- [ ] Verify combined full simulator suite and Release archive/export, source inclusion, Watch exclusion, backend/signatures/privacy/dSYMs.
+- [ ] Verify live ASC state, choose unused candidate version/build, upload and confirm processing.
+- [ ] Physical candidate checks: Photos/social share, actual same-route report/comparison.
+- [ ] Select exact verified build and submit for production review; record evidence.
+
 ## 2026-10-27 — Benchmark fix required in next ASC submission
 
 Owner explicitly requires PR #166 / implementation `5c96738` in the next ASC submission. Added the requirement to AGENTS, the TestFlight checklist, the existing build-37 handoff, and `docs/qa/releases/next-submission/README.md`. Release must verify the actual archive source includes the implementation, use a new unused build greater than 37, verify the route loop on the candidate, and record the exact processed build selected in ASC. Remote main `61b7cfb` does not yet contain the fix; PR #166 code review is running. Requirement is **pending candidate delivery**, not satisfied by documentation or the prior build. No archive/upload/submission/withdrawal or App Store changes performed. Documentation-only update; previous 745-test and visual evidence retained.

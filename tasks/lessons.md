@@ -1,3 +1,7 @@
+## 2026-10-28 — Match the final consolidated geometry
+
+Stored-run rematching precedes activity consolidation. A richer GPS-less Health copy can acquire the native run's GPS after that pass, so its canonical route match remains nil. Refresh the resolved canonical geometry before selecting saved-route actions; test the service with the richer imported copy, not only the original GPS record.
+
 ## 2026-10-26 — An EmptyView cannot start its own loader reliably
 
 Visual QA reproduced no benchmark section even with a resolved GPS run: the loader's initial Group contained only EmptyView, so its task did not start. Use a stable container and visible loading state before attaching asynchronous loading. Service tests alone cannot prove SwiftUI lifecycle behavior; verify the reopened screen after save and relaunch. For persisted GPS fixtures, compare coordinates rather than fractional timestamps that the store intentionally serializes to whole seconds.

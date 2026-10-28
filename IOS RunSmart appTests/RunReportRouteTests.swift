@@ -137,6 +137,30 @@ final class RunReportRouteTests: XCTestCase {
         XCTAssertEqual(result?.previousPerformance?.runID, second.id)
     }
 
+    func testHealthCanonicalDuplicateKeepsSavedRouteActionAfterGPSMerge() async throws {
+        var native = makeRun(daysAgo: 1)
+        let route = SavedRoute.from(run: native, name: "Saved loop")
+        native.routeMatchResult = RouteMatchingService.exactMatch(routeID: route.id)
+        var health = native
+        health.id = UUID()
+        health.source = .healthKit
+        health.providerActivityID = "health-import"
+        health.averageHeartRateBPM = 150
+        health.syncedAt = Date()
+        health.routePoints = []
+        health.routeMatchResult = nil
+        let store = RunSmartLocalStore.shared
+        store.saveSavedRoute(route)
+        store.saveRun(native)
+        store.saveRun(health)
+        let resolved = await ProductionRunSmartServices().recordedRun(forReportRunID: native.id.uuidString)
+        let canonical = try XCTUnwrap(resolved)
+        XCTAssertEqual(canonical.id, health.id)
+        XCTAssertFalse(canonical.routePoints.isEmpty)
+        XCTAssertEqual(canonical.routeMatchResult?.routeID, route.id,
+                       "Reopened report must open the existing route rather than offer Save Route again")
+    }
+
     private func makeRun(daysAgo: Int, seconds: Double = 2_000) -> RecordedRun {
         let start = Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date())!
         let points = (0..<40).map { index in

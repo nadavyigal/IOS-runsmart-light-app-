@@ -1638,7 +1638,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func recordedRun(forReportRunID runID: String) async -> RecordedRun? {
         await store.rematchStoredRuns()
-        return RunReportRunResolver.resolve(runID: runID, runs: store.visibleRuns(store.loadRuns()))
+        return RunReportRunResolver.resolve(runID: runID, runs: store.visibleRuns(store.loadRuns()), savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
     }
 
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {

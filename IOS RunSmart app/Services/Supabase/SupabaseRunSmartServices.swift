@@ -570,10 +570,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func recordedRun(forReportRunID runID: String) async -> RecordedRun? {
         await store.rematchStoredRuns()
-        if let stored = RunReportRunResolver.resolve(runID: runID, runs: store.visibleRuns(store.loadRuns())) {
+        if let stored = RunReportRunResolver.resolve(runID: runID, runs: store.visibleRuns(store.loadRuns()), savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs()) {
             return stored
         }
-        return RunReportRunResolver.resolve(runID: runID, runs: await recentRuns(limit: 100))
+        return RunReportRunResolver.resolve(runID: runID, runs: await recentRuns(limit: 100), savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
     }
 
     private func recentRuns(limit: Int) async -> [RecordedRun] {

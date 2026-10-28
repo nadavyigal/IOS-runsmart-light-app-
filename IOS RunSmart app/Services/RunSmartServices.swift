@@ -485,7 +485,7 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
 
     func recordedRun(forReportRunID runID: String) async -> RecordedRun? {
         await store.rematchStoredRuns()
-        return RunReportRunResolver.resolve(runID: runID, runs: store.visibleRuns(store.loadRuns()) + RunSmartPreviewData.recordedRuns)
+        return RunReportRunResolver.resolve(runID: runID, runs: store.visibleRuns(store.loadRuns()) + RunSmartPreviewData.recordedRuns, savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
     }
 
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
