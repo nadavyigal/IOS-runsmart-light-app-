@@ -11,7 +11,15 @@ import SwiftUI
 struct IOS_RunSmart_appApp: App {
     var body: some Scene {
         WindowGroup {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--run-share-preview") {
+                RunShareDebugPreview()
+            } else {
+                ContentView()
+            }
+            #else
             ContentView()
+            #endif
         }
     }
 }

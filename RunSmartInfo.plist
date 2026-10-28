@@ -94,5 +94,7 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save run images and videos you choose to your photo library.</string>
 </dict>
 </plist>

@@ -12,6 +12,16 @@ Owner request: save a route once, then compare repeat runs (nearby endpoints, sa
 - [x] Implement direct report-run resolution, reopened map/save flow, benchmark-on default, stable loading view and live comparison refresh.
 - [x] Full simulator suite 745/0; visual fresh-save and relaunch smoke; independent review. Synthetic preferences restored.
 - [x] Pushed `codex/repeat-route-benchmarks`; PR #166 open with tests/screenshots; progress/session memory updated. Public App Store fix requires a later release.
+## 2026-10-27 — Native run share image/video
+
+- [x] Confirm selected poster/brighter route-video direction and verified iOS App Store listing.
+- [x] Isolate on codex/run-share-exports from origin/main.
+- [x] Implement immutable, privacy-trimmed real-run export payload and tests.
+- [x] Implement native Story/Feed PNG and short route MP4 renderers.
+- [x] Integrate post-run/saved-report share composer and native share sheet.
+- [x] Verify native simulator exports and full regression suite; document results.
+- [x] Complete simulator image/video share sheets, full preview sizing, cancellation and retry after unlock.
+- [ ] Physical device Photos/social-app delivery checks remain release QA.
 
 ## 2026-10-25 — RunSmart 1.2.0 (37) submitted: Waiting for Review
 
