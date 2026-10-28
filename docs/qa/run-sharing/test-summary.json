@@ -23,11 +23,11 @@
   "environmentDescription" : "IOS RunSmart app · Built with macOS 26.7.1",
   "expectedFailures" : 0,
   "failedTests" : 0,
-  "finishTime" : 1793137922.556,
+  "finishTime" : 1793161079.626,
   "passedTests" : 762,
   "result" : "Passed",
   "skippedTests" : 0,
-  "startTime" : 1793137847.648,
+  "startTime" : 1793161004.367,
   "statistics" : [
 
   ],
@@ -38,8 +38,8 @@
   "topInsights" : [
     {
       "category" : "Longest Test Runs",
-      "impact" : "42% of duration",
-      "text" : "2 longest test runs with outlier durations exceeding 0.49s (three standard deviations)"
+      "impact" : "45% of duration",
+      "text" : "2 longest test runs with outlier durations exceeding 0.54s (three standard deviations)"
     }
   ],
   "totalTestCount" : 762

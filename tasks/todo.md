@@ -6,7 +6,8 @@
 - [x] Implement native Story/Feed PNG and short route MP4 renderers.
 - [x] Integrate post-run/saved-report share composer and native share sheet.
 - [x] Verify native simulator exports and full regression suite; document results.
-- [ ] Final interactive share-sheet/device social-app checks (Mac auto-lock blocks final UI pass).
+- [x] Complete simulator image/video share sheets, full preview sizing, cancellation and retry after unlock.
+- [ ] Physical device Photos/social-app delivery checks remain release QA.
 
 ## 2026-10-25 — RunSmart 1.2.0 (37) submitted: Waiting for Review
 

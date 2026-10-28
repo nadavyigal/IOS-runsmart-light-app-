@@ -82,7 +82,7 @@ struct ShareRunView: View {
                                 Text(progress == 0 ? "Preparing map…" : "Creating video · \(Int(progress * 100))%")
                                     .font(.caption)
                                 Spacer()
-                                Button("Cancel") { videoTask?.cancel() }
+                                Button("Cancel", action: cancelVideo)
                             }
                         }
                     }
@@ -131,19 +131,22 @@ struct ShareRunView: View {
             await preparePreview()
         }
         .sheet(item: $activity) { RunShareActivitySheet(item: $0) }
-        .onDisappear { videoTask?.cancel(); player?.pause() }
+        .onDisappear { cancelVideo(); player?.pause() }
     }
 
     @ViewBuilder private var previewView: some View {
-        ZStack {
-            if let player, format == .video, exportURL != nil {
-                VideoPlayer(player: player)
-            } else if let preview, hasCurrentPreview {
-                Image(uiImage: preview).resizable().scaledToFit()
-            } else {
-                RoundedRectangle(cornerRadius: 16).fill(Color.surfaceCard)
+        GeometryReader { geometry in
+            ZStack {
+                if let player, format == .video, exportURL != nil {
+                    VideoPlayer(player: player)
+                } else if let preview, hasCurrentPreview {
+                    Image(uiImage: preview).resizable().scaledToFit()
+                } else {
+                    RoundedRectangle(cornerRadius: 16).fill(Color.surfaceCard)
+                }
+                if isPreparing { ProgressView("Preparing preview…").tint(Color.accentPrimary) }
             }
-            if isPreparing { ProgressView("Preparing preview…").tint(Color.accentPrimary) }
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .aspectRatio(format.pixelSize.width / format.pixelSize.height, contentMode: .fit)
         .frame(maxWidth: 340)
@@ -157,11 +160,7 @@ struct ShareRunView: View {
         let id = UUID()
         let key = renderKey
         requestID = id
-        videoTask?.cancel()
-        videoTask = nil
-        videoRequestID = nil
-        isCreatingVideo = false
-        progress = 0
+        cancelVideo()
         isPreparing = true
         failure = nil
         readyAsset = nil
@@ -185,6 +184,16 @@ struct ShareRunView: View {
             guard requestID == id else { return }
             failure = error.localizedDescription
         }
+    }
+
+    /// MapKit cancellation can finish asynchronously. Restore controls immediately and
+    /// invalidate this job so a late callback cannot affect a retry.
+    @MainActor private func cancelVideo() {
+        videoTask?.cancel()
+        videoTask = nil
+        videoRequestID = nil
+        isCreatingVideo = false
+        progress = 0
     }
 
     @MainActor private func createVideo() {
