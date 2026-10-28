@@ -1203,7 +1203,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 as: RunSmartDTO.RunReportResponse.self
             )
             let report = Self
-                .report(from: payload.report, run: run)
+                .report(from: payload.report, run: run, source: payload.source)
                 .withGarminDeviceFallback(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)
             await cacheRunReport(report)
             await MainActor.run {
@@ -2709,7 +2709,9 @@ extension SupabaseRunSmartServices {
         )
     }
 
-    static func report(from payload: RunSmartDTO.RunReportPayload, run: RecordedRun) -> RunReportDetail {
+    /// `source` is the web response's "ai" or "fallback". Only AI text may reach a share image;
+    /// the server's fallback copy is generic and can misjudge the run.
+    static func report(from payload: RunSmartDTO.RunReportPayload, run: RecordedRun, source: String? = nil) -> RunReportDetail {
         let runID = reportRunID(for: run)
         let sourceLabel = RunSmartAttribution.sourceLabel(for: run)
         return RunReportDetail(
@@ -2734,7 +2736,8 @@ extension SupabaseRunSmartServices {
                 recoveryTimeline: payload.recoveryTimeline
             ),
             structuredNextWorkout: payload.structuredNextWorkout,
-            isGenerated: true
+            isGenerated: true,
+            shareHighlight: source == "ai" ? payload.shareHighlight : nil
         )
     }
 

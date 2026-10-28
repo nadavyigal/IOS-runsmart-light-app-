@@ -1,3 +1,14 @@
+## 2026-10-28 — Run share: coach line is AI text only
+
+**Status:** 1.2.1 (39) still in App Review. Changes on branch `claude/2026-10-28-share-card-design` (PR #172), stacked on PR #171. Not in build 39.
+**Current Phase:** Run share polish, after 1.2.1.
+**Active Story:** done. Share images and video print only the AI's "what went well" line (`summary[1]` of the web run report) and only when the response `source` is "ai". The server's fallback text ("Run logged. Short run still counts for habit building.") and reports cached before this change show no coach line. The full summary still appears in the in-app report and the text share.
+**Last Completed Story:** Feed, Story and video redesign (direction A, satellite map), same PR.
+**Next Recommended Story:** physical-device check of image and video share (look, export time). Then fix `RunMediaShareEntry` copy "You choose whether to include a map" (wrong since #171). Web: why the 26 Oct report reached the server with zero distance and time (fallback said "Run logged." only).
+**Blockers:** none.
+**Last Validation:** 2026-10-28: `xcodebuild test` on iPhone 17 Pro simulator (iOS 26.5): RunShareInsightTests (new, 4) + RunSharePosterRenderTests + RunShareSnapshotTests + RunSharePreparedAssetTests + RouteSharePrivacyTests + RunShareRendererTests + RunSmartReadinessTests: TEST SUCCEEDED (289 passed). Not checked on a device.
+**Last Updated:** 2026-10-28
+
 ## 2026-10-28 — Run share: Feed, Story and video redesign (direction A, satellite map)
 
 **Status:** 1.2.1 (39) still in App Review. Changes on branch `claude/2026-10-28-share-card-design` (PR #172), stacked on PR #171 (map on by default). Not in build 39.
