@@ -201,6 +201,7 @@ struct ProgressShareButton: View {
 struct RunShareSection: View {
     var payload: ProgressSharePayload
     var routePoints: [RunRoutePoint]
+    var run: RecordedRun? = nil
 
     @State private var includeMap = false
     @State private var routeImage: UIImage?
@@ -216,7 +217,15 @@ struct RunShareSection: View {
         includeMap && routeImage != nil ? payload.includingRouteMap() : payload
     }
 
-    var body: some View {
+    @ViewBuilder var body: some View {
+        if let run {
+            RunMediaShareEntry(run: run, insight: payload.insight)
+        } else {
+            legacySummary
+        }
+    }
+
+    private var legacySummary: some View {
         VStack(alignment: .leading, spacing: 10) {
             ProgressShareCard(payload: activePayload, routeImage: includeMap ? routeImage : nil)
 

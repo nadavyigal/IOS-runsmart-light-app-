@@ -1,3 +1,15 @@
+## 2026-10-28 — Match the final consolidated geometry
+
+Stored-run rematching precedes activity consolidation. A richer GPS-less Health copy can acquire the native run's GPS after that pass, so its canonical route match remains nil. Refresh the resolved canonical geometry before selecting saved-route actions; test the service with the richer imported copy, not only the original GPS record.
+
+## 2026-10-26 — An EmptyView cannot start its own loader reliably
+
+Visual QA reproduced no benchmark section even with a resolved GPS run: the loader's initial Group contained only EmptyView, so its task did not start. Use a stable container and visible loading state before attaching asynchronous loading. Service tests alone cannot prove SwiftUI lifecycle behavior; verify the reopened screen after save and relaunch. For persisted GPS fixtures, compare coordinates rather than fractional timestamps that the store intentionally serializes to whole seconds.
+
+## 2026-10-26 — Verify the report flow against current main
+
+Do not give navigation instructions from an older release checkout or treat a missing section in a screenshot as proof that GPS is missing. Read current main and the exact destination: a saved report can exist without its original run resolving, and an EmptyView can hide the whole feature. Preserve unavailable/loading states and test reopening, not only the immediate post-run screen.
+
 ## 2026-10-23: Anything read before an `await` is stale after it, and "save the whole run" is the bug
 
 `upsertCompletedRunIfPossible` and `saveRouteMatch` saved a copy read before a network call, erasing effort, title, notes and the Strava id set meanwhile. After an await, re-read the stored run and change only the fields you own (`markRunSynced`, `saveRunKeepingLocalEdits`). The same review found the pattern in three other places: an auto-upload fired before the runner finished editing, a rate-limited refresh treated as a revoked token, and a failed Health query treated as "no workout yet". When a failure and a normal empty result look the same, make the failure its own value (nil, a distinct error code) and never act on it as if it were the empty case.
@@ -684,3 +696,6 @@ Use separate sequential tool calls (or explicit shell failure handling) so a fai
 ## A present backend key is not a working backend key
 
 Build 35 passed key-presence checks but live Auth rejected its packaged publishable key. Before upload, extract configuration from the actual archive/export and query live Auth settings; require success and expected providers. Keep ignored overrides aligned with committed defaults. Unit tests with injected gateways cannot prove production credentials work.
+## 2026-10-18 — Never point an API client at a host that redirects
+**Bug:** `RunSmartAPIBaseURL` was the bare `runsmart-ai.com`, which Vercel 308-redirects to `www`. URLSession follows a cross-host redirect but drops the `Authorization` header, so every signed-in call reached the server without its token. Plan generation returned 401 for every iOS user from 2026-09-27 (web #134 added the auth check) until 2026-10-18. Simulator tests stayed green because they never hit the real host.
+**Rule:** the API base must be the host that serves the API with no redirect. Check it with `curl -s -o /dev/null -D - https://<base>/api/<route>`, and expect no `location:` header. `APIBaseURLTests` guards the value. A 401 "Sign in" from a signed-in client means "check for a redirect" before "check the token".

@@ -1,5 +1,10 @@
 # TestFlight Checklist
 
+## Next ASC Submission — Owner Requirement (2026-10-27)
+- [ ] Include PR #166 / implementation `5c96738` in the actual archive source; use a new unused build above 37. Follow [next-submission evidence](releases/next-submission/README.md).
+- [ ] Verify reopened report → save route once → compare three existing runs → relaunch on the candidate selected for submission.
+
+
 ## Project Identity
 - [x] App name is correct.
 - [x] Bundle identifier is final or intentionally temporary.

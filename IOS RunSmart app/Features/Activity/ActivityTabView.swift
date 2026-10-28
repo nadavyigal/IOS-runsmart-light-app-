@@ -301,8 +301,8 @@ struct ReportTabView: View {
         router.open(.trainingLoad)
     }
 
-    private func openReportDetail(_ report: RunReportDetail) {
-        router.open(.runReportDetail(report))
+    private func openReportDetail(_ report: RunReportDetail, run: RecordedRun) {
+        router.open(.runReportDetail(report, run: run))
     }
 
     private func openReport(for run: RecordedRun) {
@@ -311,7 +311,7 @@ struct ReportTabView: View {
             let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run, fallbackGarminDeviceName: fallbackDeviceName)
             let displayReport = report.withGarminDeviceFallback(for: run, fallbackGarminDeviceName: fallbackDeviceName)
             await MainActor.run {
-                openReportDetail(displayReport)
+                openReportDetail(displayReport, run: run)
             }
         }
     }

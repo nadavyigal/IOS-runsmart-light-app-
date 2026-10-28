@@ -1,0 +1,10 @@
+iPhone sharing and saved-route benchmarks candidate — Apple Watch features excluded.
+
+Install over your current RunSmart app to retain saved run history.
+1. Reopen one of your recent same-route run reports. Confirm the map appears and Save Route enables benchmark tracking by default. Save once; compare all matching runs with Previous, Route PB, Month Avg and Trend. Relaunch and reopen. A previously saved route should open instead of offering another Save Route, including duplicate workouts imported through Apple Health.
+2. Export Story and Feed images with map off/on. Open the share sheet, save to Photos and share through your preferred destination. Confirm readable metrics, correct orientation and the App Store link. Do not post precise route data publicly during QA.
+3. Generate the 10-second route video. Check playback, cancel/retry, and actual delivery through Photos/Messages/your preferred social app. Try map preparation while offline and retry after reconnecting.
+4. Signed in, open/generate a run report and a coaching response. Confirm no authorization failure.
+5. Check large text and VoiceOver in the share composer.
+
+Destination apps may omit accompanying caption/link; artwork itself shows the App Store CTA. Apple Watch scheduling/testing stays in separate beta build38. Existing Apple Health behavior remains.

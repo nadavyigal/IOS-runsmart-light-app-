@@ -1636,6 +1636,11 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         ActivityConsolidationService.userVisibleRecentRuns(store.visibleRuns(store.loadRuns()))
     }
 
+    func recordedRun(forReportRunID runID: String) async -> RecordedRun? {
+        await store.rematchStoredRuns()
+        return RunReportRunResolver.resolve(runID: runID, runs: store.visibleRuns(store.loadRuns()), savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
+    }
+
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
         let movingTime = TimeInterval(max(1, durationMinutes) * 60)
         let distanceMeters = max(0.1, distanceKm) * 1_000

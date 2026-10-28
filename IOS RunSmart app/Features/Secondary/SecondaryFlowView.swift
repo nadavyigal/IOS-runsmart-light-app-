@@ -9,7 +9,7 @@ enum SecondaryDestination: Hashable, Identifiable {
     case addActivity
     case routeSelector
     case runReport(DBGarminActivity)
-    case runReportDetail(RunReportDetail)
+    case runReportDetail(RunReportDetail, run: RecordedRun? = nil)
     case postRunSummary(RecordedRun?)
     case audioCues
     case lapMarker
@@ -42,7 +42,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .addActivity: "addActivity"
         case .routeSelector: "routeSelector"
         case .runReport(let activity): "runReport-\(activity.id)"
-        case .runReportDetail(let report): "runReportDetail-\(report.id)"
+        case .runReportDetail(let report, _): "runReportDetail-\(report.id)"
         case .postRunSummary(let run): "postRunSummary-\(run?.id.uuidString ?? "nil")"
         case .audioCues: "audioCues"
         case .lapMarker: "lapMarker"
@@ -250,8 +250,8 @@ private struct SecondaryContentView: View {
             RouteSelectorScaffold()
         case .runReport(let activity):
             RunReportScaffold(activity: activity)
-        case .runReportDetail(let report):
-            RunReportDetailScaffold(report: report)
+        case .runReportDetail(let report, let run):
+            RunReportDetailScaffold(report: report, run: run)
         case .postRunSummary(let run):
             PostRunSummaryScaffold(run: run)
         case .audioCues:
@@ -1270,13 +1270,21 @@ private struct RunReportScaffold: View {
 
 private struct RunReportDetailScaffold: View {
     @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var router: AppRouter
+    private let originalRunID: UUID?
     @State private var report: RunReportDetail
     @State private var isGenerating = false
     @State private var generationFailed = false
     @State private var reportRun: RecordedRun?
+    @State private var isLoadingRun = true
+    @State private var showSaveRouteSheet = false
+    @State private var runRevision = 0
+    @State private var matchedSavedRoute: SavedRoute?
 
-    init(report: RunReportDetail) {
+    init(report: RunReportDetail, run: RecordedRun? = nil) {
         _report = State(initialValue: report)
+        _reportRun = State(initialValue: run)
+        originalRunID = run?.id
     }
 
     var body: some View {
@@ -1304,19 +1312,63 @@ private struct RunReportDetailScaffold: View {
                         .clipShape(Capsule(style: .continuous))
                 }
             }
+            if let reportRun, !reportRun.routePoints.isEmpty {
+                GlassCard(padding: 8, glow: Color.lime) {
+                    RouteMapView(points: reportRun.routePoints, title: "Run Route")
+                        .frame(height: 210)
+                }
+                if let matchedSavedRoute {
+                    Button {
+                        router.open(.routeDetail(matchedSavedRoute))
+                    } label: {
+                        Label("Saved Route · \(matchedSavedRoute.name)", systemImage: "checkmark.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(NeonButtonStyle())
+                } else if reportRun.routePoints.count >= RouteMatchingService.minimumRoutePoints {
+                    Button {
+                        showSaveRouteSheet = true
+                    } label: {
+                        Label("Save Route", systemImage: "map.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(NeonButtonStyle())
+                    .accessibilityHint("Save this route once to compare repeat runs with your previous run, best and average.")
+                }
+            }
+            if isLoadingRun && reportRun == nil {
+                ProgressView("Loading recorded route…")
+                    .frame(maxWidth: .infinity)
+            } else {
+                BenchmarkComparisonLoaderView(run: reportRun)
+            }
             RunReportCoachNotesCard(report: report)
-            ProgressShareCard(payload: .runReport(report))
-            ProgressShareButton(payload: .runReport(report))
+            if let reportRun {
+                RunShareSection(payload: .runReport(report), routePoints: reportRun.routePoints, run: reportRun)
+            } else {
+                ProgressShareCard(payload: .runReport(report))
+                ProgressShareButton(payload: .runReport(report))
+            }
             PostRunLearningCard(run: reportRun, outcome: nil, report: report, isProcessing: isGenerating)
-            BenchmarkComparisonLoaderView(run: reportRun)
             if !report.hasGeneratedReport {
                 generateReportCard
             }
             RunReportRichSignalsCard(report: report)
             RunReportNextWorkoutCard(report: report)
         }
-        .task(id: report.runID) {
+        .task(id: "\(report.runID)-\(runRevision)") {
             await loadReportRun()
+        }
+        .sheet(isPresented: $showSaveRouteSheet, onDismiss: { runRevision += 1 }) {
+            if let reportRun {
+                SaveRouteSheet(run: reportRun)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartRoutesDidChange)) { _ in
+            runRevision += 1
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
+            runRevision += 1
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartReportsDidChange)) { _ in
             Task { await reloadReportIfNeeded() }
@@ -1365,12 +1417,12 @@ private struct RunReportDetailScaffold: View {
     }
 
     private func loadReportRun() async {
-        let runs = await services.recentRuns()
-        reportRun = runs.first { run in
-            run.consolidatedActivityID == report.runID ||
-            run.providerActivityID == report.runID ||
-            run.id.uuidString == report.runID
-        }
+        let recorded = await services.recordedRun(forReportRunID: originalRunID?.uuidString ?? report.runID)
+        let routes = await services.savedRoutes()
+        guard !Task.isCancelled else { return }
+        reportRun = recorded
+        matchedSavedRoute = routes.first { $0.id == recorded?.routeMatchResult?.routeID }
+        isLoadingRun = false
     }
 
     private func reloadReportIfNeeded() async {
