@@ -7,9 +7,10 @@ Owner requests production shipment of completed iPhone work; Apple Watch remains
 - [x] Reproduce and fix outstanding Health-canonical saved-route action review finding; new regression and combined785 tests pass.
 - [x] Verify combined785-test suite, Release archive, source inclusion, Watch exclusion, backend/signatures/privacy/dSYMs.
 - [x] Finish distribution export; validate exported IPA Apple Distribution signatures and live backend.
-- [ ] Verify live ASC state, choose unused candidate version/build, upload and confirm processing.
+- [x] Verify live ASC state, unused1.2.1(39), upload and processing; internal Testing with saved notes.
 - [ ] Physical candidate checks: Photos/social share, actual same-route report/comparison.
-- [ ] Select exact verified build and submit for production review; record evidence.
+- [x] Select exact verified build39 in production1.2.1 draft; save release/reviewer notes.
+- [ ] After owner physical pass, merge/review and submit for production review; record exact submission evidence.
 
 ## 2026-10-27 — Benchmark fix required in next ASC submission
 

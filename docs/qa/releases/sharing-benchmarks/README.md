@@ -1,3 +1,15 @@
+# Current delivery state — 28 October 2026
+
+**1.2.1(39) is uploaded, processed and Testing in RunSmart Internal.** Build UUID `73d723ad-3a78-4b93-bbb2-ed6e5a53f19a`; one existing tester. What to Test saved and verified. Production1.2.1 draft selects this exact build39; release/reviewer notes are saved. Watch38 remains separate and excluded. ASC access and signing blockers are resolved.
+
+Owner physical check requested: update via TestFlight; verify image/video delivery and actual saved same-route Previous/PB/average comparisons including persistence after relaunch. Await this result before merge/App Review submission. Do not interpret TestFlight assignment or draft build selection as production shipment. Public1.2.0 is unchanged. Original next-submission requirement remains open until actual submission evidence is recorded.
+
+Archive source98360ef and all compiled files are unchanged by subsequent evidence-only commits.785 simulator tests, signed archive/export, dSYMs/privacy/analytics/entitlements, source inclusion/Watch exclusion and actual-artifact backend checks pass. No new build is needed solely for documentation. Proof: `upload-receipt.json`, `candidate-receipt.json`, `build39-testing.png`.
+
+## Historical preparation log
+
+> 28 October continuation: owner restored ASC access. Verified public1.2.0 Ready for Distribution and no build39 allocation. Upload of the existing verified archive succeeded at07:03:54 host-local; Apple shows1.2.1(39) Processing. Created1.2.1 production draft and saved release/reviewer notes. Watch38 remains in its separate group. Internal assignment and physical candidate checks remain pending; no App Review submission.
+
 # Production sharing and benchmarks — 28 October 2026
 
 Status: **not ready for production submission**. Archive, distribution IPA, live packaged backend and785 tests pass. Live ASC login/allocation and physical candidate gates remain open. No upload or submission.
