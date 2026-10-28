@@ -1,3 +1,14 @@
+## 2026-10-28 — 1.2.0 (37) live; 1.2.1 (39) submitted
+
+**Status:** 1.2.0 (37) live on the App Store since 2026-10-25T22:16:02Z. 1.2.1 (39) submitted to App Review on 2026-10-28 (founder report; not checked in App Store Connect this session).
+**Current Phase:** 1.2.1 (39) in App Review.
+**Active Story:** App Review outcome for 1.2.1 (39): iPhone photo/video run sharing and saved-route benchmarks. Watch beta 38 stays excluded.
+**Last Completed Story:** 1.2.1 (39) owner device checks passed and build submitted (PR #168).
+**Next Recommended Story:** after approval, check the live version with the App Store lookup, then run the physical-device route smoke on the live build (record, save, benchmark, re-run, compare).
+**Blockers:** none for review. The 2026-10-25 entry below says "Waiting for Review"; that release went live the same day and was not recorded until now.
+**Last Validation:** 2026-10-28: App Store lookup returned 1.2.0, released 2026-10-25T22:16:02Z (3 of 3 polls with varying URLs). Status-file change only; no build, test or code change.
+**Last Updated:** 2026-10-28
+
 ## 2026-10-28 — 1.2.1 (39) submitted: Waiting for Review
 
 Owner reported both build39 iPhone share/history checks passed. PR168 merged as a1ca742; PR166/167/158 are landed through its ancestry. Watch PR165 stays open/draft and excluded. Completed Apple's new social-feature age-rating fields (both No; existing wellness Yes and9+ rating retained). App Review accepted submission edea8327-0c3b-46d2-93e0-91a38ed5969f for exact build39 UUID73d723ad-3a78-4b93-bbb2-ed6e5a53f19a, archive source98360ef. Verified Waiting for Review and automatic release after approval, all users immediately.785 tests and archive/IPA/backend/privacy/dSYM evidence remain valid; no app code changed this continuation. Public1.2.0 remains current until approval. Inclusion requirement fulfilled in this submission. Final evidence: docs/qa/releases/sharing-benchmarks/.
