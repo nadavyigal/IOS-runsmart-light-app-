@@ -1,3 +1,17 @@
+# RunSmart 1.2.1 (39) — submitted for App Review
+
+Verified 28 October 2026: **Waiting for Review**, submission `edea8327-0c3b-46d2-93e0-91a38ed5969f`. The exact processed build is `73d723ad-3a78-4b93-bbb2-ed6e5a53f19a`, archived from `98360efa95090d3b977818c5312e30778e18de37`. Automatic release after approval is enabled for all users immediately. Public 1.2.0 remains current until Apple approves/releases this update.
+
+Includes native Story/Feed images, 10-second route video exports, save-once route benchmarks and saved-report comparisons, the richer Health-duplicate route-action fix, and redirect-safe authenticated API requests. **Apple Watch PR165/build38 is excluded** and stays an open draft/testing beta.
+
+Validation: 785 simulator tests pass; signed archive/Apple Distribution IPA, app/extension identity and entitlements, matching dSYMs, privacy/analytics and actual-artifact live backend gates pass. Owner reported both build39 iPhone checks passed: sharing and actual saved same-route comparisons with relaunch persistence. PR168 merged as `a1ca742`; compiled source is unchanged by subsequent evidence commits.
+
+Apple initially blocked Add for Review on new required age-rating questions. Completed Social Media=No and Social Media Disabled Under13=No: RunSmart has no in-app social feed/distribution, only an outbound system share sheet. Retained existing content answers, including Health/Wellness Topics=Yes; calculated rating remains9+. Existing reviewer credentials/listing screenshots were retained. Review validation then passed.
+
+Evidence: `candidate-receipt.json`, `upload-receipt.json`, `build39-submitted.png`, signed artifact reports and `full-tests.json`. The original next-submission benchmark inclusion requirement is satisfied by this exact submitted build/source evidence. No duplicate archive/upload is needed.
+
+## Historical preparation records
+
 > Owner reported **both iPhone checks passed on1.2.1(39)**: image/video delivery and actual saved same-route comparisons with relaunch persistence. Physical candidate gate satisfied by owner report on28 October2026. Proceed with merge/review and App Review submission under the existing production-shipment authorization; Apple Watch remains excluded.
 
 # Current delivery state — 28 October 2026
