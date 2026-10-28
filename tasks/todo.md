@@ -10,7 +10,7 @@ Owner requests production shipment of completed iPhone work; Apple Watch remains
 - [x] Verify live ASC state, unused1.2.1(39), upload and processing; internal Testing with saved notes.
 - [x] Physical candidate checks: owner reports image/video sharing and actual same-route comparisons/relaunch both passed on1.2.1(39).
 - [x] Select exact verified build39 in production1.2.1 draft; save release/reviewer notes.
-- [ ] After owner physical pass, merge/review and submit for production review; record exact submission evidence.
+- [x] Owner physical pass recorded; PR168 merged; exact1.2.1(39) submitted and verified Waiting for Review, automatic release after approval.
 
 ## 2026-10-27 — Benchmark fix required in next ASC submission
 

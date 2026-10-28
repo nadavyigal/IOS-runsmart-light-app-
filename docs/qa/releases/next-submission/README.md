@@ -1,3 +1,9 @@
+# Inclusion requirement satisfied — 28 October 2026
+
+App Review submission `edea8327-0c3b-46d2-93e0-91a38ed5969f` is Waiting for Review for1.2.1(39), exact processed build `73d723ad-3a78-4b93-bbb2-ed6e5a53f19a`, archive source98360ef containing benchmark5c96738 and sharing2806227. Owner physical checks pass; signed artifacts/live backend and785 tests pass. PR168 merged. Watch38 excluded. See `../sharing-benchmarks/README.md` and receipts for exact evidence. Automatic release after approval; public1.2.0 remains current until then.
+
+## Historical requirement and preparation log
+
 > Delivery update — 28 October: required benchmark/sharing source is now in uploaded, processed1.2.1(39), archive source98360ef. Exact build UUID73d723ad-3a78-4b93-bbb2-ed6e5a53f19a is Testing internally and selected in production draft. Await owner actual iPhone share/history check, then merge/submission evidence before closing this requirement. Watch38 excluded. Canonical current state: `../sharing-benchmarks/README.md`.
 
 > Updated owner scope — 28 October 2026: next production candidate must also include PR167 native image/video exports and exclude Apple Watch PR165/beta build38. Combined integration: PR168, branch `codex/release-sharing-benchmarks`, `/Users/nadavyigal/Developer/runsmart-production-release`. PR158 API-host protection is also included. Candidate1.2.1(39) is being verified; live ASC allocation, physical candidate checks and exact processed-build selection remain open. See `../sharing-benchmarks/README.md`. Historical status below is retained as the original inclusion requirement.

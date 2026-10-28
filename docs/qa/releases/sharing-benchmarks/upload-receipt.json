@@ -7,7 +7,7 @@
   "verified_utc": "2026-10-28T05:04:29.871936+00:00",
   "processing_status": "Complete",
   "public_release": false,
-  "app_review_submitted": false,
+  "app_review_submitted": true,
   "internal_group_build_assigned": true,
   "watch_excluded": true,
   "release_draft_created": true,
@@ -18,17 +18,23 @@
   "internal_group": "RunSmart Internal",
   "test_notes_saved": true,
   "internal_status": "Testing",
-  "remaining_blockers": [
-    "merge/review and submit exact build39 for App Review"
-  ],
+  "remaining_blockers": [],
   "asc_production_draft_selected_build": "1.2.1 (39)",
   "asc_selected_build_id": "73d723ad-3a78-4b93-bbb2-ed6e5a53f19a",
-  "submission_performed": false,
+  "submission_performed": true,
   "physical_candidate_gate_passed": true,
   "owner_device_test_reported_passed": true,
   "owner_device_test_build": "1.2.1 (39)",
   "owner_passed_checks": [
     "image/video export saves or shares correctly",
     "actual same-route Previous/PB/average comparisons persist after relaunch"
-  ]
+  ],
+  "app_store_status": "Waiting for Review",
+  "submission_id": "edea8327-0c3b-46d2-93e0-91a38ed5969f",
+  "submission_verified_utc": "2026-10-28T10:18:46.658225+00:00",
+  "automatic_release_after_approval": true,
+  "phased_release": false,
+  "release_source_pr": 168,
+  "release_merge_commit": "a1ca742eb6ce1204d8cd8d4e36bf03806cf18c0d",
+  "age_questionnaire_completed": true
 }

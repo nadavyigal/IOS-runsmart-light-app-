@@ -1,3 +1,7 @@
+## 2026-10-28 — 1.2.1 (39) submitted: Waiting for Review
+
+Owner reported both build39 iPhone share/history checks passed. PR168 merged as a1ca742; PR166/167/158 are landed through its ancestry. Watch PR165 stays open/draft and excluded. Completed Apple's new social-feature age-rating fields (both No; existing wellness Yes and9+ rating retained). App Review accepted submission edea8327-0c3b-46d2-93e0-91a38ed5969f for exact build39 UUID73d723ad-3a78-4b93-bbb2-ed6e5a53f19a, archive source98360ef. Verified Waiting for Review and automatic release after approval, all users immediately.785 tests and archive/IPA/backend/privacy/dSYM evidence remain valid; no app code changed this continuation. Public1.2.0 remains current until approval. Inclusion requirement fulfilled in this submission. Final evidence: docs/qa/releases/sharing-benchmarks/.
+
 ## 2026-10-28 — Owner build39 device checks passed
 
 Owner explicitly reports both requested checks passed on1.2.1(39): image/video saves/sharing, and actual saved same-route Previous/PB/average comparisons persisting after relaunch. Physical candidate gate satisfied by owner report. Proceeding to merge/review and submit exact processed build39, UUID73d723ad-3a78-4b93-bbb2-ed6e5a53f19a, under original production request.785 tests and artifact/backend checks remain valid; no code changes. Watch beta38 remains excluded. Submission not yet performed at this entry.

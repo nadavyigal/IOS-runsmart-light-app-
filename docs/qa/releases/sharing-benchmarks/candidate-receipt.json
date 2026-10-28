@@ -13,15 +13,13 @@
   "app_and_extension_versions_signatures_dsyms_passed": true,
   "distribution_export": "succeeded",
   "upload_performed": true,
-  "submission_performed": false,
+  "submission_performed": true,
   "physical_candidate_gate_passed": true,
   "asc_live_allocation_verified": true,
   "distribution_ipa_verified": true,
   "live_ipa_backend_passed": true,
   "ipa_sha256": "9a2f1aeaea01ea7a0a9e0d9f860386235e73f33715c6bd183844b8888cd78243",
-  "remaining_blockers": [
-    "merge/review and submit exact build39 for App Review"
-  ],
+  "remaining_blockers": [],
   "asc_latest_upload_before_candidate": "1.2.1 (38), complete, Watch beta",
   "asc_current_distribution": "1.2.0 Ready for Distribution",
   "asc_release_draft_created": true,
@@ -41,12 +39,20 @@
   "internal_status": "Testing",
   "asc_production_draft_selected_build": "1.2.1 (39)",
   "asc_selected_build_id": "73d723ad-3a78-4b93-bbb2-ed6e5a53f19a",
-  "app_review_submitted": false,
+  "app_review_submitted": true,
   "public_release": false,
   "owner_device_test_reported_passed": true,
   "owner_device_test_build": "1.2.1 (39)",
   "owner_passed_checks": [
     "image/video export saves or shares correctly",
     "actual same-route Previous/PB/average comparisons persist after relaunch"
-  ]
+  ],
+  "app_store_status": "Waiting for Review",
+  "submission_id": "edea8327-0c3b-46d2-93e0-91a38ed5969f",
+  "submission_verified_utc": "2026-10-28T10:18:46.656535+00:00",
+  "automatic_release_after_approval": true,
+  "phased_release": false,
+  "release_source_pr": 168,
+  "release_merge_commit": "a1ca742eb6ce1204d8cd8d4e36bf03806cf18c0d",
+  "age_questionnaire_completed": true
 }
