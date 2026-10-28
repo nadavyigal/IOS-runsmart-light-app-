@@ -10,7 +10,7 @@ struct SaveRouteSheet: View {
     @State private var routeNotes: String = ""
     @State private var selectedTags: Set<String> = []
     @State private var isFavorite = false
-    @State private var makeBenchmark = false
+    @State private var makeBenchmark = true
     @State private var isSaving = false
     @State private var saveResult: SaveResult?
 
@@ -213,7 +213,7 @@ struct SaveRouteSheet: View {
                             Text("Benchmark Route")
                                 .font(.bodyMD.weight(.medium))
                                 .foregroundStyle(Color.textPrimary)
-                            Text("Track your progress each time you run this route.")
+                            Text("Automatically compare repeat runs with your previous run, best and average.")
                                 .font(.caption)
                                 .foregroundStyle(Color.textTertiary)
                         }

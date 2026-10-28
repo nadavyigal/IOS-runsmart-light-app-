@@ -568,6 +568,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         await recentRuns(limit: 100)
     }
 
+    func recordedRun(forReportRunID runID: String) async -> RecordedRun? {
+        await store.rematchStoredRuns()
+        if let stored = RunReportRunResolver.resolve(runID: runID, runs: store.visibleRuns(store.loadRuns())) {
+            return stored
+        }
+        return RunReportRunResolver.resolve(runID: runID, runs: await recentRuns(limit: 100))
+    }
+
     private func recentRuns(limit: Int) async -> [RecordedRun] {
         var runs = store.visibleRuns(store.loadRuns())
         if let userID = currentUserID {
@@ -2531,9 +2539,7 @@ private struct DBWellnessCheckin: Decodable {
 
 extension SupabaseRunSmartServices {
     private func run(matchingReportRunID runID: String) async -> RecordedRun? {
-        await recentRuns(limit: 100).first { run in
-            Self.reportRunIDCandidates(for: run).contains(runID)
-        }
+        await recordedRun(forReportRunID: runID)
     }
 
     static func reportRunID(for run: RecordedRun) -> String {
