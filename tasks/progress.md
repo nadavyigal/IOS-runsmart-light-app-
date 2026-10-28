@@ -3,10 +3,10 @@
 **Status:** 1.2.1 (39) still in App Review. New change on branch `claude/2026-10-28-share-map-default` (not in build 39).
 **Current Phase:** Run share polish, after 1.2.1.
 **Active Story:** Share Run screen includes the route map by default. The "Include route map" toggle is removed. The first and last 200 m are still cut.
-**Last Completed Story:** route map on by default (`IOS RunSmart app/Features/Activity/ShareRunView.swift`).
+**Last Completed Story:** route map on by default (`IOS RunSmart app/Features/Activity/ShareRunView.swift`), and the share entry copy in `RunMediaShareEntry.swift` now says the map is included.
 **Next Recommended Story:** professional design round for the Feed and Story share images (separate session).
 **Blockers:** none.
-**Last Validation:** 2026-10-28: `xcodebuild test` on iPhone 17 simulator, RunShareSnapshotTests + RunSharePreparedAssetTests + RouteSharePrivacyTests: TEST SUCCEEDED. Not checked on a device.
+**Last Validation:** 2026-10-28: `xcodebuild test` on iPhone 17 simulator, RunShareSnapshotTests + RunSharePreparedAssetTests + RouteSharePrivacyTests: TEST SUCCEEDED (rerun after the copy fix, still passing). Not checked on a device.
 **Last Updated:** 2026-10-28
 
 ## 2026-10-28 — 1.2.0 (37) live; 1.2.1 (39) submitted
