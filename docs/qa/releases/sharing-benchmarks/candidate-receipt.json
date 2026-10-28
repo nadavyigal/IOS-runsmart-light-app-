@@ -14,14 +14,13 @@
   "distribution_export": "succeeded",
   "upload_performed": true,
   "submission_performed": false,
-  "physical_candidate_gate_passed": false,
+  "physical_candidate_gate_passed": true,
   "asc_live_allocation_verified": true,
   "distribution_ipa_verified": true,
   "live_ipa_backend_passed": true,
   "ipa_sha256": "9a2f1aeaea01ea7a0a9e0d9f860386235e73f33715c6bd183844b8888cd78243",
   "remaining_blockers": [
-    "owner physical candidate Photos/social delivery and actual same-route history pass",
-    "merge/review and production submission after device gate"
+    "merge/review and submit exact build39 for App Review"
   ],
   "asc_latest_upload_before_candidate": "1.2.1 (38), complete, Watch beta",
   "asc_current_distribution": "1.2.0 Ready for Distribution",
@@ -43,5 +42,11 @@
   "asc_production_draft_selected_build": "1.2.1 (39)",
   "asc_selected_build_id": "73d723ad-3a78-4b93-bbb2-ed6e5a53f19a",
   "app_review_submitted": false,
-  "public_release": false
+  "public_release": false,
+  "owner_device_test_reported_passed": true,
+  "owner_device_test_build": "1.2.1 (39)",
+  "owner_passed_checks": [
+    "image/video export saves or shares correctly",
+    "actual same-route Previous/PB/average comparisons persist after relaunch"
+  ]
 }

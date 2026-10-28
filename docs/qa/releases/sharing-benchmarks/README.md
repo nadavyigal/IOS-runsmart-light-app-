@@ -1,3 +1,5 @@
+> Owner reported **both iPhone checks passed on1.2.1(39)**: image/video delivery and actual saved same-route comparisons with relaunch persistence. Physical candidate gate satisfied by owner report on28 October2026. Proceed with merge/review and App Review submission under the existing production-shipment authorization; Apple Watch remains excluded.
+
 # Current delivery state — 28 October 2026
 
 **1.2.1(39) is uploaded, processed and Testing in RunSmart Internal.** Build UUID `73d723ad-3a78-4b93-bbb2-ed6e5a53f19a`; one existing tester. What to Test saved and verified. Production1.2.1 draft selects this exact build39; release/reviewer notes are saved. Watch38 remains separate and excluded. ASC access and signing blockers are resolved.

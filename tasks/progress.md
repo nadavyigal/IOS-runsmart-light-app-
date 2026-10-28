@@ -1,3 +1,7 @@
+## 2026-10-28 — Owner build39 device checks passed
+
+Owner explicitly reports both requested checks passed on1.2.1(39): image/video saves/sharing, and actual saved same-route Previous/PB/average comparisons persisting after relaunch. Physical candidate gate satisfied by owner report. Proceeding to merge/review and submit exact processed build39, UUID73d723ad-3a78-4b93-bbb2-ed6e5a53f19a, under original production request.785 tests and artifact/backend checks remain valid; no code changes. Watch beta38 remains excluded. Submission not yet performed at this entry.
+
 ## 2026-10-28 — Build39 Testing; exact production draft selected
 
 Owner restored ASC login; verified1.2.0 Ready for Distribution and unused39. Uploaded existing verified archive (source98360ef), upload succeeded07:03:54 host-local. Apple processing complete;1.2.1(39), UUID73d723ad-3a78-4b93-bbb2-ed6e5a53f19a, added to RunSmart Internal and verified Testing. What to Test saved. New1.2.1 production draft selects exact39; release/reviewer notes saved and verified; existing review credentials/listing retained. Watch38 remains separate/excluded. Owner asked to test actual iPhone image/video delivery and saved same-route comparisons/relaunch. Await result before merge/submission.785 tests and all signed artifact/backend checks remain valid; no code changes this continuation. No App Review submission/public release. PR168; `/Users/nadavyigal/Developer/runsmart-production-release`, `codex/release-sharing-benchmarks`.

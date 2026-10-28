@@ -19,10 +19,16 @@
   "test_notes_saved": true,
   "internal_status": "Testing",
   "remaining_blockers": [
-    "owner physical candidate Photos/social delivery and actual same-route history pass",
-    "merge/review and production submission after device gate"
+    "merge/review and submit exact build39 for App Review"
   ],
   "asc_production_draft_selected_build": "1.2.1 (39)",
   "asc_selected_build_id": "73d723ad-3a78-4b93-bbb2-ed6e5a53f19a",
-  "submission_performed": false
+  "submission_performed": false,
+  "physical_candidate_gate_passed": true,
+  "owner_device_test_reported_passed": true,
+  "owner_device_test_build": "1.2.1 (39)",
+  "owner_passed_checks": [
+    "image/video export saves or shares correctly",
+    "actual same-route Previous/PB/average comparisons persist after relaunch"
+  ]
 }

@@ -8,7 +8,7 @@ Owner requests production shipment of completed iPhone work; Apple Watch remains
 - [x] Verify combined785-test suite, Release archive, source inclusion, Watch exclusion, backend/signatures/privacy/dSYMs.
 - [x] Finish distribution export; validate exported IPA Apple Distribution signatures and live backend.
 - [x] Verify live ASC state, unused1.2.1(39), upload and processing; internal Testing with saved notes.
-- [ ] Physical candidate checks: Photos/social share, actual same-route report/comparison.
+- [x] Physical candidate checks: owner reports image/video sharing and actual same-route comparisons/relaunch both passed on1.2.1(39).
 - [x] Select exact verified build39 in production1.2.1 draft; save release/reviewer notes.
 - [ ] After owner physical pass, merge/review and submit for production review; record exact submission evidence.
 
