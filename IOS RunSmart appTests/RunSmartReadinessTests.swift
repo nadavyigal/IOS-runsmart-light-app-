@@ -5516,6 +5516,76 @@ final class RunSmartReadinessTests: XCTestCase {
         )
     }
 
+    // MARK: - Gate A S3: plan_generation_failed carries a reason
+
+    // The one real-runner failure (16 Oct, 1.1.8) carried only `duration_ms`, so
+    // its cause had to be inferred from timing. The reason makes the next one
+    // readable from PostHog alone.
+    func testPlanFailureEventCarriesTheReasonFromTheStatusPost() {
+        let center = NotificationCenter()
+        let events = captureAnalytics { _ in
+            let store = PlanGenerationStore(notificationCenter: center)
+            postPlanGeneration(.generating, on: center)
+            center.post(
+                name: .runSmartPlanGenerationStatusDidChange,
+                object: RunSmartPlanGenerationStatus.failed,
+                userInfo: [PlanGenerationFailureReason.userInfoKey: PlanGenerationFailureReason.authRequired]
+            )
+            XCTAssertEqual(store.state, .failed)
+        }
+
+        let failed = events.first { $0.name == "plan_generation_failed" }
+        XCTAssertEqual(failed?.properties["reason"] as? String, "auth_required")
+        XCTAssertNotNil(failed?.properties["duration_ms"])
+    }
+
+    func testPlanFailureWithoutAReasonSaysUnknown() {
+        let center = NotificationCenter()
+        let events = captureAnalytics { _ in
+            let store = PlanGenerationStore(notificationCenter: center)
+            postPlanGeneration(.generating, on: center)
+            postPlanGeneration(.failed, on: center)
+            XCTAssertEqual(store.state, .failed)
+        }
+        XCTAssertEqual(
+            events.first { $0.name == "plan_generation_failed" }?.properties["reason"] as? String,
+            "unknown",
+            "a missing reason must read as unknown, never as absent"
+        )
+    }
+
+    func testPlanFailureReasonClassifiesThrownErrors() {
+        typealias Reason = PlanGenerationFailureReason
+        XCTAssertEqual(Reason.classify(RunSmartAPIError.badStatus(401)), .authRequired)
+        XCTAssertEqual(Reason.classify(RunSmartAPIError.badStatus(503)), .serverError)
+        XCTAssertEqual(Reason.classify(RunSmartAPIError.badStatus(422)), .requestRejected)
+        XCTAssertEqual(Reason.classify(URLError(.notConnectedToInternet)), .network)
+        XCTAssertEqual(Reason.classify(URLError(.timedOut)), .network)
+        XCTAssertEqual(
+            Reason.classify(DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "x"))),
+            .badResponse
+        )
+        XCTAssertEqual(Reason.classify(CancellationError()), .cancelled)
+        XCTAssertEqual(Reason.classify(NSError(domain: "x", code: 1)), .unknown)
+    }
+
+    /// The client returns a decoded body even for a non-2xx status, so a 401
+    /// arrives as a response with no plan, not as a thrown `badStatus(401)`.
+    func testPlanFailureReasonReadsTheServerCodeOnAPlanlessResponse() throws {
+        typealias Reason = PlanGenerationFailureReason
+        let unauthorized = try JSONDecoder().decode(
+            RunSmartDTO.GeneratePlanResponse.self,
+            from: Data(#"{"error":"Sign in to use AI features.","code":"AUTH_REQUIRED"}"#.utf8)
+        )
+        XCTAssertEqual(Reason.classify(unauthorized), .authRequired)
+
+        let planless = try JSONDecoder().decode(
+            RunSmartDTO.GeneratePlanResponse.self,
+            from: Data(#"{"error":"Model returned nothing"}"#.utf8)
+        )
+        XCTAssertEqual(Reason.classify(planless), .noPlan)
+    }
+
     func testPlanGenerationIgnoresTerminalStatusItNeverSawStart() {
         let center = NotificationCenter()
         let events = captureAnalytics { _ in

@@ -23,6 +23,51 @@ enum PlanGenerationState: Equatable {
     var showsInlineRetry: Bool { self == .failed }
 }
 
+/// Why a plan generation failed, sent as `reason` on `plan_generation_failed`.
+///
+/// Before this the event carried only `duration_ms`, so the one real-runner
+/// failure (16 Oct, 1.1.8) could only be blamed on a 401 by its 2.8 s timing.
+enum PlanGenerationFailureReason: String, Equatable {
+    case noSession = "no_session"
+    case authRequired = "auth_required"
+    case requestRejected = "request_rejected"
+    case serverError = "server_error"
+    case network
+    case badResponse = "bad_response"
+    case noPlan = "no_plan"
+    case persistFailed = "persist_failed"
+    case cancelled
+    case unknown
+
+    /// The `userInfo` key the `.failed` status post carries this under.
+    static let userInfoKey = "reason"
+
+    static func classify(_ error: Error) -> PlanGenerationFailureReason {
+        switch error {
+        case is CancellationError:
+            return .cancelled
+        case RunSmartAPIError.badStatus(let status):
+            switch status {
+            case 401, 403: return .authRequired
+            case 500...: return .serverError
+            default: return .requestRejected
+            }
+        case let urlError as URLError:
+            return urlError.code == .cancelled ? .cancelled : .network
+        case is DecodingError:
+            return .badResponse
+        default:
+            return .unknown
+        }
+    }
+
+    /// For a decoded response with no plan. The API client returns the decoded
+    /// body even on a non-2xx status, so a 401 lands here, not in `classify(_ error:)`.
+    static func classify(_ response: RunSmartDTO.GeneratePlanResponse) -> PlanGenerationFailureReason {
+        response.code == "AUTH_REQUIRED" ? .authRequired : .noPlan
+    }
+}
+
 /// Which plan card Today and Plan show, if any.
 ///
 /// `PlanGenerationState` lives in memory, so a relaunch turns `.failed` back into
@@ -73,13 +118,14 @@ final class PlanGenerationStore: ObservableObject {
             queue: nil
         ) { [weak self] note in
             guard let status = note.object as? RunSmartPlanGenerationStatus else { return }
+            let reason = note.userInfo?[PlanGenerationFailureReason.userInfoKey] as? PlanGenerationFailureReason
             // Posts currently always happen inside `MainActor.run`, so this runs
             // synchronously on main. Hop defensively anyway: a future background
             // post would otherwise mutate `@Published` off-main and crash SwiftUI.
             if Thread.isMainThread {
-                self?.apply(status)
+                self?.apply(status, reason: reason)
             } else {
-                DispatchQueue.main.async { self?.apply(status) }
+                DispatchQueue.main.async { self?.apply(status, reason: reason) }
             }
         }
     }
@@ -105,7 +151,7 @@ final class PlanGenerationStore: ObservableObject {
         apply(.generating)
     }
 
-    private func apply(_ status: RunSmartPlanGenerationStatus) {
+    private func apply(_ status: RunSmartPlanGenerationStatus, reason: PlanGenerationFailureReason? = nil) {
         let resolved = Self.state(for: status)
         guard resolved != state else { return }
         state = resolved
@@ -117,7 +163,7 @@ final class PlanGenerationStore: ObservableObject {
         case .ready:
             trackOutcome(Analytics.trackPlanGenerationSucceeded)
         case .failed:
-            trackOutcome(Analytics.trackPlanGenerationFailed)
+            trackOutcome { Analytics.trackPlanGenerationFailed(durationMs: $0, reason: reason ?? .unknown) }
         case .idle:
             startedAt = nil
         }

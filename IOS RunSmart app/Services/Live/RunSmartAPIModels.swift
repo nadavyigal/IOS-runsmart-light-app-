@@ -1124,6 +1124,8 @@ enum RunSmartDTO {
         let plan: GeneratedPlan?
         let source: String?
         let error: String?
+        /// Machine-readable error, e.g. `AUTH_REQUIRED` from `lib/api-auth.ts`.
+        let code: String?
     }
 
     struct GeneratedPlan: Decodable {
