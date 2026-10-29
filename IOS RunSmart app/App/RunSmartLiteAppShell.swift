@@ -600,7 +600,7 @@ struct RunSmartLiteAppShell: View {
 
     private func setupAnalyticsIfNeeded() -> Bool {
         guard !RunSmartDemoMode.isEnabled else { return false }
-        guard let credentials = Analytics.postHogCredentials() else { return false }
+        guard let credentials = Analytics.startupCredentials() else { return false }
         Analytics.setup(projectToken: credentials.projectToken, host: credentials.host)
         // Between setup and the first event, deliberately. Registering earlier is
         // a no-op because `Analytics.shared` is still the null service until

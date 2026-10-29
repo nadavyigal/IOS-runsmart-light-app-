@@ -3530,6 +3530,35 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(credentials?.host, "https://us.i.posthog.com")
     }
 
+    /// Gate A, 2026-10-29: 22 of 27 `sign_in_failed` and 22 of 23
+    /// `plan_generation_failed` events in live project 171597 came from this
+    /// test suite, because the test host app launches with the committed key.
+    func testStartupCredentialsAreWithheldInsideATestHost() {
+        let bundle = StubInfoBundle(values: [
+            "POSTHOG_API_KEY": "phc_test_token",
+            "POSTHOG_HOST": "https://us.i.posthog.com"
+        ])
+
+        XCTAssertNil(Analytics.startupCredentials(
+            bundle: bundle,
+            environment: ["XCTestConfigurationFilePath": "/tmp/run.xctestconfiguration"]
+        ))
+        XCTAssertNil(Analytics.startupCredentials(
+            bundle: bundle,
+            environment: ["XCTestSessionIdentifier": "ABC"]
+        ))
+        XCTAssertEqual(
+            Analytics.startupCredentials(bundle: bundle, environment: [:])?.projectToken,
+            "phc_test_token"
+        )
+    }
+
+    /// The real process environment of this run, not a stub: proves the signal
+    /// the guard reads is actually present when Xcode hosts these tests.
+    func testThisTestHostIsDetectedAsATestHost() {
+        XCTAssertTrue(Analytics.isRunningInTestHost())
+    }
+
     // MARK: - WP-51 build identity + onboarding_started dedupe
 
     /// Measured 2026-07-20: app_version was set on 2 of 3,813 events over 60 days,
