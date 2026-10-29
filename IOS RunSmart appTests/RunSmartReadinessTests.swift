@@ -5156,6 +5156,69 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(missing, "the default must be 'unknown', which shows no build card")
     }
 
+    // PR #173 review: a legacy plan stored only under `profile_id` must never
+    // read as missing, or "Build my plan" deactivates it when tapped.
+    private struct LookupFailed: Error {}
+
+    func testPlanPresenceIsUnknownWhenIdentityLookupFails() async {
+        let presence = await TrainingPlanRepository.activePlanPresence(
+            authUserID: UUID(),
+            resolveIdentity: { throw LookupFailed() },
+            countActivePlans: { _ in 0 }
+        )
+        XCTAssertNil(presence, "a failed identity lookup cannot prove there is no legacy plan")
+    }
+
+    func testPlanPresenceIsUnknownWithoutAProfileRow() async {
+        let presence = await TrainingPlanRepository.activePlanPresence(
+            authUserID: UUID(),
+            resolveIdentity: { nil },
+            countActivePlans: { _ in 0 }
+        )
+        XCTAssertNil(presence)
+    }
+
+    func testPlanPresenceFindsALegacyProfileIDPlan() async {
+        let auth = UUID()
+        let legacyProfile = UUID()
+        let presence = await TrainingPlanRepository.activePlanPresence(
+            authUserID: auth,
+            resolveIdentity: { RunSmartIdentity(authUserID: auth, profileUUID: legacyProfile, numericUserID: 42) },
+            countActivePlans: { key in key == .profileUUID(legacyProfile) ? 1 : 0 }
+        )
+        XCTAssertEqual(presence, true)
+    }
+
+    func testPlanPresenceChecksEveryOwnerKeyAPlanCanBeStoredUnder() async {
+        let auth = UUID()
+        let profile = UUID()
+        var checked: [TrainingPlanRepository.PlanOwnerKey] = []
+        let presence = await TrainingPlanRepository.activePlanPresence(
+            authUserID: auth,
+            resolveIdentity: { RunSmartIdentity(authUserID: auth, profileUUID: profile, numericUserID: 7) },
+            countActivePlans: { key in checked.append(key); return 0 }
+        )
+        XCTAssertEqual(presence, false, "every lookup succeeded and found nothing")
+        XCTAssertEqual(
+            Set(checked),
+            [.authUser(auth), .profileUUID(profile), .profileUUID(auth)],
+            "`plans.profile_id` is uuid; a bigint profile id must never be sent as a filter"
+        )
+    }
+
+    func testPlanPresenceIsUnknownWhenAnyOwnerLookupFails() async {
+        let auth = UUID()
+        let presence = await TrainingPlanRepository.activePlanPresence(
+            authUserID: auth,
+            resolveIdentity: { RunSmartIdentity(authUserID: auth, profileUUID: nil, numericUserID: 7) },
+            countActivePlans: { key in
+                if key == .profileUUID(auth) { throw LookupFailed() }
+                return 0
+            }
+        )
+        XCTAssertNil(presence)
+    }
+
     func testPlanGenerationFailedNoticeDoesNotPointAtBuriedScreen() {
         let message = RunSmartPlanNotice(status: .failed).message
         XCTAssertFalse(

@@ -71,6 +71,10 @@ struct RunSmartIdentity: Sendable {
     }
 }
 
+private struct DBPlanIDRow: Decodable, Sendable {
+    let id: UUID
+}
+
 private struct DBProfileIdentity: Decodable, Sendable {
     let profileUUID: UUID?
     let numericUserID: Int?
@@ -231,26 +235,78 @@ final class TrainingPlanRepository {
         return nil
     }
 
-    /// Whether the runner has an active plan keyed by `auth_user_id`, or nil when
-    /// the lookup failed. Unlike ``activePlan(authUserID:)``, an error is not
-    /// reported as "no plan", so a caller can safely offer to build one.
-    func hasActivePlanByAuthUserID(_ authUserID: UUID) async -> Bool? {
+    /// A key an active plan row can be stored under. `persistGeneratedPlan`
+    /// deactivates plans under these before it inserts a new plan.
+    ///
+    /// No numeric key: `plans.profile_id` is a uuid column (checked live
+    /// 2026-10-29), so filtering it by the bigint `profiles.id` is rejected by
+    /// Postgres, which would make every check unknown and hide the card for good.
+    enum PlanOwnerKey: Hashable {
+        case authUser(UUID)
+        case profileUUID(UUID)
+    }
+
+    /// Whether the runner has any active plan, or nil when that is not known.
+    ///
+    /// Unlike ``activePlan(authUserID:)`` this reads no cache and reports every
+    /// failure as nil, never as "no plan". A runner whose only plan is a legacy
+    /// `profile_id` row would otherwise read as missing after one failed
+    /// identity lookup, and "Build my plan" would deactivate that plan.
+    func activePlanPresence(authUserID: UUID) async -> Bool? {
+        await Self.activePlanPresence(
+            authUserID: authUserID,
+            resolveIdentity: { try await self.identityRow(authUserID: authUserID) },
+            countActivePlans: { try await self.countActivePlans(under: $0) }
+        )
+    }
+
+    static func activePlanPresence(
+        authUserID: UUID,
+        resolveIdentity: () async throws -> RunSmartIdentity?,
+        countActivePlans: (PlanOwnerKey) async throws -> Int
+    ) async -> Bool? {
         do {
-            let plans: [DBPlan] = try await supabase
-                .from("plans")
-                .select()
-                .eq("auth_user_id", value: authUserID.uuidString)
-                .eq("is_active", value: true)
-                .limit(1)
-                .execute()
-                .value
-            return !plans.isEmpty
+            // No profile row means onboarding never finished saving: unknown.
+            guard let identity = try await resolveIdentity() else { return nil }
+            var keys: [PlanOwnerKey] = [.authUser(authUserID)]
+            keys += identity.planOwnerCandidates.map { .profileUUID($0) }
+            for key in keys {
+                if try await countActivePlans(key) > 0 { return true }
+            }
+            return false
         } catch {
             if !(error is CancellationError) {
-                print("[TrainingPlanRepo] hasActivePlan auth error:", error)
+                print("[TrainingPlanRepo] activePlanPresence error:", error)
             }
             return nil
         }
+    }
+
+    /// The identity row, throwing instead of falling back like ``identity(authUserID:)``.
+    private func identityRow(authUserID: UUID) async throws -> RunSmartIdentity? {
+        let rows: [DBProfileIdentity] = try await supabase
+            .from("profiles")
+            .select("id,auth_user_id")
+            .eq("auth_user_id", value: authUserID.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        guard let row = rows.first else { return nil }
+        return RunSmartIdentity(
+            authUserID: authUserID,
+            profileUUID: row.profileUUID ?? row.authUserID,
+            numericUserID: row.numericUserID
+        )
+    }
+
+    private func countActivePlans(under key: PlanOwnerKey) async throws -> Int {
+        let base = supabase.from("plans").select("id").eq("is_active", value: true)
+        let filtered = switch key {
+        case .authUser(let id): base.eq("auth_user_id", value: id.uuidString)
+        case .profileUUID(let id): base.eq("profile_id", value: id.uuidString)
+        }
+        let rows: [DBPlanIDRow] = try await filtered.limit(1).execute().value
+        return rows.count
     }
 
     func activePlanByAuthUserID(_ authUserID: UUID) async -> ActivePlan? {
