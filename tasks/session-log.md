@@ -1,3 +1,7 @@
+## 2026-10-29 — Next iPhone release candidate1.2.2 (40)
+
+Owner requests all current merged fixes in a new ASC build. Base 3c2d679 includes PRs 171/172/173; saved benchmarks retained and Watch 165 excluded. Added cancellation-preserving mapUnavailable fallback for PNG/MP4 and accurate privacy caption. Three red regressions, 14 renderer green tests, then 813 full simulator tests pass with network MapKit images/video. Independent QA no blockers. ASC 1.2.2 draft created with release/reviewer notes. Candidate archive/export/upload and owner physical check remain pending; no review submission.
+
 ## 2026-10-28 — 1.2.1 (39) submitted: Waiting for Review
 
 Owner reported both build39 iPhone share/history checks passed. PR168 merged as a1ca742; PR166/167/158 are landed through its ancestry. Watch PR165 stays open/draft and excluded. Completed Apple's new social-feature age-rating fields (both No; existing wellness Yes and9+ rating retained). App Review accepted submission edea8327-0c3b-46d2-93e0-91a38ed5969f for exact build39 UUID73d723ad-3a78-4b93-bbb2-ed6e5a53f19a, archive source98360ef. Verified Waiting for Review and automatic release after approval, all users immediately.785 tests and archive/IPA/backend/privacy/dSYM evidence remain valid; no app code changed this continuation. Public1.2.0 remains current until approval. Inclusion requirement fulfilled in this submission. Final evidence: docs/qa/releases/sharing-benchmarks/.

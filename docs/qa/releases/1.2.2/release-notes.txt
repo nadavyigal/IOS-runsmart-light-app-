@@ -1,0 +1,3 @@
+Run sharing has a refreshed satellite-map design for photos and videos. Route endpoints stay private, and exports can still show your stats when the map cannot load.
+
+Saved routes keep their benchmark comparisons. If you do not have a training plan, RunSmart now offers a clear way to build one. This update also improves plan reliability.

@@ -1,0 +1,38 @@
+{
+  "prepared_at_utc": "2026-10-29T19:38:59.339211+00:00",
+  "base_commit": "3c2d679da3380900e2862de5270ca1c1582726ae",
+  "included_ancestors": {
+    "benchmarks": "5c96738d1fbcf2d30f169ea983700486da195dfb",
+    "map_default": "bc98011876f5ae0d0e45f54ae76acd5d6df3a39f",
+    "satellite_sharing": "8a2cc240b8d75cf89769c3d6fb50a9196d631412",
+    "gate_a": "3c2d679da3380900e2862de5270ca1c1582726ae"
+  },
+  "watch_pr_165_excluded": true,
+  "store_verification": {
+    "trackId": 6768297840,
+    "bundleId": "com.runsmart.lite",
+    "version": "1.2.1",
+    "currentVersionReleaseDate": "2026-10-28T16:48:00Z"
+  },
+  "planned_version": "1.2.2",
+  "planned_build": "40",
+  "archive_source_commit": null,
+  "uploaded": false,
+  "physical_device_check": "pending",
+  "app_review_submitted": false,
+  "asc_draft_created": true,
+  "asc_release_notes_saved": true,
+  "simulator_tests": {
+    "xctest_passed": 810,
+    "swift_testing_passed": 3,
+    "total_passed": 813,
+    "failed": 0,
+    "skipped": 0,
+    "network_backed_map_render": true,
+    "video_created": true,
+    "device": "iPhone17Pro simulator",
+    "os": "iOS26.5",
+    "log": "/private/tmp/runsmart-release-artifacts-2026-10-29/full-tests.log",
+    "physical_device_pass": false
+  }
+}
