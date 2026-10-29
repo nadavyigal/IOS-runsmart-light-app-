@@ -1,3 +1,14 @@
+## 2026-10-29 — Run share: entry copy says the map hides the first and last 200 m
+
+**Status:** 1.2.1 (39) still in App Review. Changes on branch `claude/2026-10-28-share-card-design` (PR #172), stacked on PR #171. Not in build 39.
+**Current Phase:** Run share polish, after 1.2.1.
+**Active Story:** done. `RunMediaShareEntry` no longer says "You choose whether to include a map" (wrong since #171 put the map on by default). It now says "Create a photo or short video of your run. The map hides the first and last 200 m."
+**Last Completed Story:** coach line is AI text only, same PR.
+**Next Recommended Story:** physical-device check of image and video share (look, export time). Web: why the 26 Oct report reached the server with zero distance and time (fallback said "Run logged." only).
+**Blockers:** none.
+**Last Validation:** 2026-10-29: `xcodebuild test` on iPhone 17 Pro simulator: RunShareSnapshotTests + RunSharePosterRenderTests + RunShareInsightTests: TEST SUCCEEDED (24 passed, 1 skipped: the map render test needs `TEST_RUNNER_RUN_SHARE_RENDER_DIR`). Not checked on a device.
+**Last Updated:** 2026-10-29
+
 ## 2026-10-28 — Run share: coach line is AI text only
 
 **Status:** 1.2.1 (39) still in App Review. Changes on branch `claude/2026-10-28-share-card-design` (PR #172), stacked on PR #171. Not in build 39.
