@@ -19,7 +19,7 @@ struct RunMediaShareEntry: View {
                     Spacer()
                     RunSmartLogoMark(size: 36, filled: true, glow: false)
                 }
-                Text("Create a photo or short route video. Your route map is included, without the first and last 200 m.")
+                Text("Create a photo or short video of your run. The map hides the first and last 200 m.")
                     .font(.bodyMD)
                     .foregroundStyle(Color.textSecondary)
                 HStack(spacing: 8) {

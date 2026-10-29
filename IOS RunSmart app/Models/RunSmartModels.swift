@@ -1739,6 +1739,8 @@ struct RunReportDetail: Identifiable, Codable, Hashable {
     var notes: CoachRunNotes
     var structuredNextWorkout: StructuredNextWorkout?
     var isGenerated: Bool? = true
+    /// AI-written "what went well" line for share images. Nil for fallback text and older reports.
+    var shareHighlight: String? = nil
 
     var hasGeneratedReport: Bool {
         isGenerated ?? true

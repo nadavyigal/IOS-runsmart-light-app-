@@ -14,6 +14,8 @@ struct ProgressSharePayload: Hashable {
     var metrics: [ProgressShareMetric]
     var insight: String
     var privacyNote: String
+    /// The coach line for run share images and video: AI-written only, else empty.
+    var mediaInsight: String = ""
 
     var shareText: String {
         let metricText = metrics.map { "\($0.title): \($0.value)" }.joined(separator: " • ")
@@ -40,7 +42,8 @@ struct ProgressSharePayload: Hashable {
                 ProgressShareMetric(title: "Avg Pace", value: report.averagePace)
             ],
             insight: report.notes.summary,
-            privacyNote: "Private share: no map, GPS points, or exact route are included."
+            privacyNote: "Private share: no map, GPS points, or exact route are included.",
+            mediaInsight: report.shareHighlight ?? ""
         )
     }
 
@@ -219,7 +222,7 @@ struct RunShareSection: View {
 
     @ViewBuilder var body: some View {
         if let run {
-            RunMediaShareEntry(run: run, insight: payload.insight)
+            RunMediaShareEntry(run: run, insight: payload.mediaInsight)
         } else {
             legacySummary
         }

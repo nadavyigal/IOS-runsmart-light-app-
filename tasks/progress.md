@@ -1,3 +1,36 @@
+## 2026-10-29 — Run share: entry copy says the map hides the first and last 200 m
+
+**Status:** 1.2.1 (39) still in App Review. Changes on branch `claude/2026-10-28-share-card-design` (PR #172), stacked on PR #171. Not in build 39.
+**Current Phase:** Run share polish, after 1.2.1.
+**Active Story:** done. `RunMediaShareEntry` no longer says "You choose whether to include a map" (wrong since #171 put the map on by default). It now says "Create a photo or short video of your run. The map hides the first and last 200 m."
+**Last Completed Story:** coach line is AI text only, same PR.
+**Next Recommended Story:** physical-device check of image and video share (look, export time). Web: why the 26 Oct report reached the server with zero distance and time (fallback said "Run logged." only).
+**Blockers:** none.
+**Last Validation:** 2026-10-29: `xcodebuild test` on iPhone 17 Pro simulator: RunShareSnapshotTests + RunSharePosterRenderTests + RunShareInsightTests: TEST SUCCEEDED (24 passed, 1 skipped: the map render test needs `TEST_RUNNER_RUN_SHARE_RENDER_DIR`). Not checked on a device.
+**Last Updated:** 2026-10-29
+
+## 2026-10-28 — Run share: coach line is AI text only
+
+**Status:** 1.2.1 (39) still in App Review. Changes on branch `claude/2026-10-28-share-card-design` (PR #172), stacked on PR #171. Not in build 39.
+**Current Phase:** Run share polish, after 1.2.1.
+**Active Story:** done. Share images and video print only the AI's "what went well" line (`summary[1]` of the web run report) and only when the response `source` is "ai". The server's fallback text ("Run logged. Short run still counts for habit building.") and reports cached before this change show no coach line. The full summary still appears in the in-app report and the text share.
+**Last Completed Story:** Feed, Story and video redesign (direction A, satellite map), same PR.
+**Next Recommended Story:** physical-device check of image and video share (look, export time). Then fix `RunMediaShareEntry` copy "You choose whether to include a map" (wrong since #171). Web: why the 26 Oct report reached the server with zero distance and time (fallback said "Run logged." only).
+**Blockers:** none.
+**Last Validation:** 2026-10-28: `xcodebuild test` on iPhone 17 Pro simulator (iOS 26.5): RunShareInsightTests (new, 4) + RunSharePosterRenderTests + RunShareSnapshotTests + RunSharePreparedAssetTests + RouteSharePrivacyTests + RunShareRendererTests + RunSmartReadinessTests: TEST SUCCEEDED (289 passed). Not checked on a device.
+**Last Updated:** 2026-10-28
+
+## 2026-10-28 — Run share: Feed, Story and video redesign (direction A, satellite map)
+
+**Status:** 1.2.1 (39) still in App Review. Changes on branch `claude/2026-10-28-share-card-design` (PR #172), stacked on PR #171 (map on by default). Not in build 39.
+**Current Phase:** Run share polish, after 1.2.1.
+**Active Story:** Share images and the 10-second video share one design: full-bleed satellite map (no street labels), route fitted clear of the type, stats and coach line on dark fades, no App Store text in the image (the link is still a separate share item). The video draws the route with the camera following it, counts the distance up, pulls back, fades the stats in, and ends on the exact Story image. Runs without GPS get a stats-only layout. If MapKit cannot frame the route, the card falls back to stats only. The MapKit logo strip is drawn ungraded.
+**Last Completed Story:** founder picked direction A with satellite (design canvas https://claude.ai/artifact/6i74dp2Nc4eNWVqrrXpbFB) and asked for the video to match.
+**Next Recommended Story:** coach line shows AI text only. Today it can print the web server's fallback text ("Run logged. Short run still counts for habit building.", `RunSmart/v0/app/api/run-report/route.ts:820-836`) because iOS drops the response's `source` field. Needs RunSmartAPIModels, RunSmartModels, SupabaseRunSmartServices, ProgressShareCard. Also: `RunMediaShareEntry` still says "You choose whether to include a map" (wrong since #171).
+**Blockers:** none.
+**Last Validation:** 2026-10-28: `xcodebuild test` on iPhone 17 Pro simulator (iOS 26.5): RunSharePosterRenderTests + RunShareSnapshotTests + RunSharePreparedAssetTests + RouteSharePrivacyTests + RunShareRendererTests. Feed/Story PNGs and video frames rendered and reviewed. Not checked on a device; video export time on a phone not measured.
+**Last Updated:** 2026-10-28
+
 ## 2026-10-28 — Run share: route map on by default
 
 **Status:** 1.2.1 (39) still in App Review. New change on branch `claude/2026-10-28-share-map-default` (not in build 39).
