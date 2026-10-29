@@ -3530,6 +3530,35 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(credentials?.host, "https://us.i.posthog.com")
     }
 
+    /// Gate A, 2026-10-29: 22 of 27 `sign_in_failed` and 22 of 23
+    /// `plan_generation_failed` events in live project 171597 came from this
+    /// test suite, because the test host app launches with the committed key.
+    func testStartupCredentialsAreWithheldInsideATestHost() {
+        let bundle = StubInfoBundle(values: [
+            "POSTHOG_API_KEY": "phc_test_token",
+            "POSTHOG_HOST": "https://us.i.posthog.com"
+        ])
+
+        XCTAssertNil(Analytics.startupCredentials(
+            bundle: bundle,
+            environment: ["XCTestConfigurationFilePath": "/tmp/run.xctestconfiguration"]
+        ))
+        XCTAssertNil(Analytics.startupCredentials(
+            bundle: bundle,
+            environment: ["XCTestSessionIdentifier": "ABC"]
+        ))
+        XCTAssertEqual(
+            Analytics.startupCredentials(bundle: bundle, environment: [:])?.projectToken,
+            "phc_test_token"
+        )
+    }
+
+    /// The real process environment of this run, not a stub: proves the signal
+    /// the guard reads is actually present when Xcode hosts these tests.
+    func testThisTestHostIsDetectedAsATestHost() {
+        XCTAssertTrue(Analytics.isRunningInTestHost())
+    }
+
     // MARK: - WP-51 build identity + onboarding_started dedupe
 
     /// Measured 2026-07-20: app_version was set on 2 of 3,813 events over 60 days,
@@ -5086,6 +5115,110 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(store.state.showsInlineRetry)
     }
 
+    // Gate A, 2026-10-29: a real runner's first plan failed on 16 Oct. `.failed`
+    // lives in memory only, so after relaunch Today showed "Ask Coach" and no way
+    // to build the plan. 13 days later they still had 0 plans.
+    func testOnboardedRunnerWithConfirmedMissingPlanIsOfferedToBuildIt() {
+        XCTAssertEqual(
+            PlanGenerationCard.resolve(generation: .idle, planConfirmedMissing: true, hasCompletedOnboarding: true),
+            .buildMissingPlan
+        )
+    }
+
+    func testBuildPlanCardNeedsAConfirmedMissingPlanAndFinishedOnboarding() {
+        XCTAssertNil(
+            PlanGenerationCard.resolve(generation: .idle, planConfirmedMissing: false, hasCompletedOnboarding: true),
+            "an unconfirmed lookup (still loading, or failed) must never offer to replace a plan the runner may have"
+        )
+        XCTAssertNil(
+            PlanGenerationCard.resolve(generation: .idle, planConfirmedMissing: true, hasCompletedOnboarding: false),
+            "onboarding builds the first plan itself"
+        )
+        XCTAssertNil(
+            PlanGenerationCard.resolve(generation: .ready, planConfirmedMissing: true, hasCompletedOnboarding: true),
+            "a plan that just finished is not missing, even before Today reloads"
+        )
+    }
+
+    func testInFlightAndFailedGenerationsKeepTheirCards() {
+        XCTAssertEqual(
+            PlanGenerationCard.resolve(generation: .generating, planConfirmedMissing: true, hasCompletedOnboarding: true),
+            .generating
+        )
+        XCTAssertEqual(
+            PlanGenerationCard.resolve(generation: .failed, planConfirmedMissing: false, hasCompletedOnboarding: true),
+            .retry
+        )
+    }
+
+    func testServicesThatCannotConfirmAMissingPlanNeverReportOne() async {
+        let missing = await DemoRunSmartServices().isActivePlanConfirmedMissing()
+        XCTAssertFalse(missing, "the default must be 'unknown', which shows no build card")
+    }
+
+    // PR #173 review: a legacy plan stored only under `profile_id` must never
+    // read as missing, or "Build my plan" deactivates it when tapped.
+    private struct LookupFailed: Error {}
+
+    func testPlanPresenceIsUnknownWhenIdentityLookupFails() async {
+        let presence = await TrainingPlanRepository.activePlanPresence(
+            authUserID: UUID(),
+            resolveIdentity: { throw LookupFailed() },
+            countActivePlans: { _ in 0 }
+        )
+        XCTAssertNil(presence, "a failed identity lookup cannot prove there is no legacy plan")
+    }
+
+    func testPlanPresenceIsUnknownWithoutAProfileRow() async {
+        let presence = await TrainingPlanRepository.activePlanPresence(
+            authUserID: UUID(),
+            resolveIdentity: { nil },
+            countActivePlans: { _ in 0 }
+        )
+        XCTAssertNil(presence)
+    }
+
+    func testPlanPresenceFindsALegacyProfileIDPlan() async {
+        let auth = UUID()
+        let legacyProfile = UUID()
+        let presence = await TrainingPlanRepository.activePlanPresence(
+            authUserID: auth,
+            resolveIdentity: { RunSmartIdentity(authUserID: auth, profileUUID: legacyProfile, numericUserID: 42) },
+            countActivePlans: { key in key == .profileUUID(legacyProfile) ? 1 : 0 }
+        )
+        XCTAssertEqual(presence, true)
+    }
+
+    func testPlanPresenceChecksEveryOwnerKeyAPlanCanBeStoredUnder() async {
+        let auth = UUID()
+        let profile = UUID()
+        var checked: [TrainingPlanRepository.PlanOwnerKey] = []
+        let presence = await TrainingPlanRepository.activePlanPresence(
+            authUserID: auth,
+            resolveIdentity: { RunSmartIdentity(authUserID: auth, profileUUID: profile, numericUserID: 7) },
+            countActivePlans: { key in checked.append(key); return 0 }
+        )
+        XCTAssertEqual(presence, false, "every lookup succeeded and found nothing")
+        XCTAssertEqual(
+            Set(checked),
+            [.authUser(auth), .profileUUID(profile), .profileUUID(auth)],
+            "`plans.profile_id` is uuid; a bigint profile id must never be sent as a filter"
+        )
+    }
+
+    func testPlanPresenceIsUnknownWhenAnyOwnerLookupFails() async {
+        let auth = UUID()
+        let presence = await TrainingPlanRepository.activePlanPresence(
+            authUserID: auth,
+            resolveIdentity: { RunSmartIdentity(authUserID: auth, profileUUID: nil, numericUserID: 7) },
+            countActivePlans: { key in
+                if key == .profileUUID(auth) { throw LookupFailed() }
+                return 0
+            }
+        )
+        XCTAssertNil(presence)
+    }
+
     func testPlanGenerationFailedNoticeDoesNotPointAtBuriedScreen() {
         let message = RunSmartPlanNotice(status: .failed).message
         XCTAssertFalse(
@@ -5444,6 +5577,76 @@ final class RunSmartReadinessTests: XCTestCase {
             outcomes.first?.properties["duration_ms"],
             "an outcome matched to its start always has a duration"
         )
+    }
+
+    // MARK: - Gate A S3: plan_generation_failed carries a reason
+
+    // The one real-runner failure (16 Oct, 1.1.8) carried only `duration_ms`, so
+    // its cause had to be inferred from timing. The reason makes the next one
+    // readable from PostHog alone.
+    func testPlanFailureEventCarriesTheReasonFromTheStatusPost() {
+        let center = NotificationCenter()
+        let events = captureAnalytics { _ in
+            let store = PlanGenerationStore(notificationCenter: center)
+            postPlanGeneration(.generating, on: center)
+            center.post(
+                name: .runSmartPlanGenerationStatusDidChange,
+                object: RunSmartPlanGenerationStatus.failed,
+                userInfo: [PlanGenerationFailureReason.userInfoKey: PlanGenerationFailureReason.authRequired]
+            )
+            XCTAssertEqual(store.state, .failed)
+        }
+
+        let failed = events.first { $0.name == "plan_generation_failed" }
+        XCTAssertEqual(failed?.properties["reason"] as? String, "auth_required")
+        XCTAssertNotNil(failed?.properties["duration_ms"])
+    }
+
+    func testPlanFailureWithoutAReasonSaysUnknown() {
+        let center = NotificationCenter()
+        let events = captureAnalytics { _ in
+            let store = PlanGenerationStore(notificationCenter: center)
+            postPlanGeneration(.generating, on: center)
+            postPlanGeneration(.failed, on: center)
+            XCTAssertEqual(store.state, .failed)
+        }
+        XCTAssertEqual(
+            events.first { $0.name == "plan_generation_failed" }?.properties["reason"] as? String,
+            "unknown",
+            "a missing reason must read as unknown, never as absent"
+        )
+    }
+
+    func testPlanFailureReasonClassifiesThrownErrors() {
+        typealias Reason = PlanGenerationFailureReason
+        XCTAssertEqual(Reason.classify(RunSmartAPIError.badStatus(401)), .authRequired)
+        XCTAssertEqual(Reason.classify(RunSmartAPIError.badStatus(503)), .serverError)
+        XCTAssertEqual(Reason.classify(RunSmartAPIError.badStatus(422)), .requestRejected)
+        XCTAssertEqual(Reason.classify(URLError(.notConnectedToInternet)), .network)
+        XCTAssertEqual(Reason.classify(URLError(.timedOut)), .network)
+        XCTAssertEqual(
+            Reason.classify(DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "x"))),
+            .badResponse
+        )
+        XCTAssertEqual(Reason.classify(CancellationError()), .cancelled)
+        XCTAssertEqual(Reason.classify(NSError(domain: "x", code: 1)), .unknown)
+    }
+
+    /// The client returns a decoded body even for a non-2xx status, so a 401
+    /// arrives as a response with no plan, not as a thrown `badStatus(401)`.
+    func testPlanFailureReasonReadsTheServerCodeOnAPlanlessResponse() throws {
+        typealias Reason = PlanGenerationFailureReason
+        let unauthorized = try JSONDecoder().decode(
+            RunSmartDTO.GeneratePlanResponse.self,
+            from: Data(#"{"error":"Sign in to use AI features.","code":"AUTH_REQUIRED"}"#.utf8)
+        )
+        XCTAssertEqual(Reason.classify(unauthorized), .authRequired)
+
+        let planless = try JSONDecoder().decode(
+            RunSmartDTO.GeneratePlanResponse.self,
+            from: Data(#"{"error":"Model returned nothing"}"#.utf8)
+        )
+        XCTAssertEqual(Reason.classify(planless), .noPlan)
     }
 
     func testPlanGenerationIgnoresTerminalStatusItNeverSawStart() {

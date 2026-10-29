@@ -147,6 +147,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return workouts.primaryWorkoutPerDay().map { $0.toWorkoutSummary() }
     }
 
+    /// `activeTrainingPlan()` swallows errors and caches for 30 s, so its nil
+    /// cannot tell "no plan" from "lookup failed". This asks every owner key
+    /// without the cache and treats any failure as unknown.
+    func isActivePlanConfirmedMissing() async -> Bool {
+        guard let userID = currentUserID else { return false }
+        return await planRepo.activePlanPresence(authUserID: userID) == false
+    }
+
     func nextWorkouts(limit: Int) async -> [WorkoutSummary] {
         guard let userID = currentUserID else { return [] }
         guard let activePlan = await planRepo.activePlan(authUserID: userID) else { return [] }
@@ -173,11 +181,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
         Task(priority: .userInitiated) { [weak self] in
             guard let self else { return }
-            let regenerated = await self.regenerateTrainingPlan(request)
+            let failure = await self.generateTrainingPlan(request)
             await MainActor.run {
                 NotificationCenter.default.post(
                     name: .runSmartPlanGenerationStatusDidChange,
-                    object: regenerated ? RunSmartPlanGenerationStatus.amended : RunSmartPlanGenerationStatus.failed
+                    object: failure == nil ? RunSmartPlanGenerationStatus.amended : RunSmartPlanGenerationStatus.failed,
+                    userInfo: failure.map { [PlanGenerationFailureReason.userInfoKey: $0] }
                 )
             }
         }
@@ -186,9 +195,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func regenerateTrainingPlan(_ request: TrainingGoalRequest) async -> Bool {
+        await generateTrainingPlan(request) == nil
+    }
+
+    /// Builds and saves a plan. Returns nil on success, otherwise why it failed.
+    private func generateTrainingPlan(_ request: TrainingGoalRequest) async -> PlanGenerationFailureReason? {
         guard let userID = currentUserID,
               let token = try? await supabase.auth.session.accessToken else {
-            return false
+            return .noSession
         }
 
         do {
@@ -267,7 +281,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
             guard let generated = response.plan else {
                 print("[SupabaseServices] generate-plan returned no plan:", response.error ?? "unknown")
-                return false
+                return PlanGenerationFailureReason.classify(response)
             }
 
             let persisted = await planRepo.persistGeneratedPlan(authUserID: userID, request: request, generated: generated)
@@ -280,12 +294,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
                 }
             }
-            return persisted
+            return persisted ? nil : .persistFailed
         } catch {
             if !(error is CancellationError) {
                 print("[SupabaseServices] regenerateTrainingPlan error:", error)
             }
-            return false
+            return PlanGenerationFailureReason.classify(error)
         }
     }
 

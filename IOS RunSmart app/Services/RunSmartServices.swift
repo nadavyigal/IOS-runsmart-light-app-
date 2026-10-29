@@ -9,6 +9,9 @@ protocol TodayProviding {
 protocol PlanProviding {
     func weeklyPlan() async -> [WorkoutSummary]
     func activeTrainingPlan() async -> TrainingPlanSnapshot?
+    /// True only when a lookup succeeded and the runner has no active plan.
+    /// `activeTrainingPlan()` returns nil for both that and a failed lookup.
+    func isActivePlanConfirmedMissing() async -> Bool
     func planWorkouts(from startDate: Date, to endDate: Date) async -> [WorkoutSummary]
     func nextWorkouts(limit: Int) async -> [WorkoutSummary]
     func saveTrainingGoal(_ request: TrainingGoalRequest) async -> Bool
@@ -28,6 +31,7 @@ enum RunSmartPlanGenerationStatus {
 }
 
 extension PlanProviding {
+    func isActivePlanConfirmedMissing() async -> Bool { false }
     func saveTrainingGoal(_ request: TrainingGoalRequest) async -> Bool { false }
     func regenerateTrainingPlan(_ request: TrainingGoalRequest) async -> Bool { false }
     func moveWorkout(workoutID: UUID, to date: Date) async -> Bool { false }

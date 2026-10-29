@@ -117,6 +117,32 @@ enum Analytics {
         !value.isEmpty && !value.hasPrefix("$(")
     }
 
+    /// The credentials the app starts PostHog with, or nil when it must not start.
+    ///
+    /// The unit tests run inside the app as their host, and the committed default
+    /// key resolves in every build, so each test run used to launch real analytics
+    /// and send its fixtures to live project 171597. Measured 2026-10-29 over 30
+    /// days: 22 of 27 `sign_in_failed` and 22 of 23 `plan_generation_failed` were
+    /// test fixtures (`EmailSignInTests` "Boom" errors), which made Gate A read as
+    /// runners failing when none had. Tests that need events inject a spy into
+    /// ``shared``; none need the real SDK.
+    static func startupCredentials(
+        bundle: Bundle = .main,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> (projectToken: String, host: String)? {
+        guard !isRunningInTestHost(environment: environment) else { return nil }
+        return postHogCredentials(bundle: bundle)
+    }
+
+    /// Whether Xcode launched this process to host XCTest bundles.
+    static func isRunningInTestHost(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        environment["XCTestConfigurationFilePath"] != nil
+            || environment["XCTestSessionIdentifier"] != nil
+            || environment["XCTestBundlePath"] != nil
+    }
+
     static func setup(projectToken: String, host: String) {
 #if DEBUG
         guard !RunSmartDemoMode.isEnabled else {

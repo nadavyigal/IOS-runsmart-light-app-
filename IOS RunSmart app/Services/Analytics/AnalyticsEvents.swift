@@ -365,8 +365,10 @@ extension Analytics {
         shared.track("plan_generation_succeeded", properties: durationProperties(durationMs))
     }
 
-    static func trackPlanGenerationFailed(durationMs: Int?) {
-        shared.track("plan_generation_failed", properties: durationProperties(durationMs))
+    static func trackPlanGenerationFailed(durationMs: Int?, reason: PlanGenerationFailureReason) {
+        var properties = durationProperties(durationMs)
+        properties["reason"] = reason.rawValue
+        shared.track("plan_generation_failed", properties: properties)
     }
 
     static func trackPlanGenerationTimedOut(durationMs: Int?) {
