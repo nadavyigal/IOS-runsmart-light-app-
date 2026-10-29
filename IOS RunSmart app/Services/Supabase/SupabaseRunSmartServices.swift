@@ -147,6 +147,16 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return workouts.primaryWorkoutPerDay().map { $0.toWorkoutSummary() }
     }
 
+    /// Both lookups must agree: the full resolution (which also tries legacy
+    /// profile ids) found nothing, and the direct `auth_user_id` query succeeded
+    /// with no rows. The full resolution swallows errors, so on its own a nil
+    /// cannot tell "no plan" from "network failed".
+    func isActivePlanConfirmedMissing() async -> Bool {
+        guard let userID = currentUserID else { return false }
+        guard await planRepo.activePlan(authUserID: userID) == nil else { return false }
+        return await planRepo.hasActivePlanByAuthUserID(userID) == false
+    }
+
     func nextWorkouts(limit: Int) async -> [WorkoutSummary] {
         guard let userID = currentUserID else { return [] }
         guard let activePlan = await planRepo.activePlan(authUserID: userID) else { return [] }

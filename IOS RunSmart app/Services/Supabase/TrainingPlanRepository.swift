@@ -231,6 +231,28 @@ final class TrainingPlanRepository {
         return nil
     }
 
+    /// Whether the runner has an active plan keyed by `auth_user_id`, or nil when
+    /// the lookup failed. Unlike ``activePlan(authUserID:)``, an error is not
+    /// reported as "no plan", so a caller can safely offer to build one.
+    func hasActivePlanByAuthUserID(_ authUserID: UUID) async -> Bool? {
+        do {
+            let plans: [DBPlan] = try await supabase
+                .from("plans")
+                .select()
+                .eq("auth_user_id", value: authUserID.uuidString)
+                .eq("is_active", value: true)
+                .limit(1)
+                .execute()
+                .value
+            return !plans.isEmpty
+        } catch {
+            if !(error is CancellationError) {
+                print("[TrainingPlanRepo] hasActivePlan auth error:", error)
+            }
+            return nil
+        }
+    }
+
     func activePlanByAuthUserID(_ authUserID: UUID) async -> ActivePlan? {
         do {
             let plans: [DBPlan] = try await supabase

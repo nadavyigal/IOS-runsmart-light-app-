@@ -2,11 +2,11 @@
 
 **Status:** 1.2.1 (39) in App Review (not checked this session). Branch `claude/gate-a-signin-plan-failures-7f17a9`, not pushed yet.
 **Current Phase:** Gate A of the monetization plan: fix what blocks beta runners.
-**Active Story:** S2: a signed-in, onboarded runner with no plan sees "Build my plan" after relaunch.
-**Last Completed Story:** S1: the unit-test host no longer starts PostHog (`Analytics.startupCredentials`, `IOS RunSmart app/Services/Analytics/AnalyticsService.swift`). Cause found 2026-10-29: 22 of 27 `sign_in_failed` and 22 of 23 `plan_generation_failed` in project 171597 (30 days) were test fixtures. Real runners: 0 sign-in failures, 1 plan failure (1.1.8 (33), 16 Oct, bare-domain redirect dropped the token, fixed 18 Oct).
-**Next Recommended Story:** S3: `plan_generation_failed` carries a reason.
+**Active Story:** S3 (not started): `plan_generation_failed` carries a reason.
+**Last Completed Story:** S2: Today and Plan show "Build my plan" when a signed-in, onboarded runner has a confirmed missing plan (`PlanGenerationCard`, `isActivePlanConfirmedMissing`; a failed lookup never shows it). S1: the unit-test host no longer starts PostHog (`Analytics.startupCredentials`, `IOS RunSmart app/Services/Analytics/AnalyticsService.swift`). Cause found 2026-10-29: 22 of 27 `sign_in_failed` and 22 of 23 `plan_generation_failed` in project 171597 (30 days) were test fixtures. Real runners: 0 sign-in failures, 1 plan failure (1.1.8 (33), 16 Oct, bare-domain redirect dropped the token, fixed 18 Oct).
+**Next Recommended Story:** S3, then the full simulator suite, then the PR pre-check.
 **Blockers:** none.
-**Last Validation:** 2026-10-29: 3 focused analytics tests pass on iPhone 17 simulator; new test failed first (missing API).
+**Last Validation:** 2026-10-29: RunSmartReadinessTests pass on iPhone 17 simulator (S1 and S2 tests failed first). Card render checked as an image. Full suite NOT run yet. Not checked on a device.
 **Last Updated:** 2026-10-29
 
 ## 2026-10-29 — Run share: entry copy says the map hides the first and last 200 m

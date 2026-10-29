@@ -13,6 +13,7 @@ struct PlanTabView: View {
     @State private var isLoadingMonthWorkouts: Bool = true
     @State private var recentRuns: [RecordedRun] = []
     @State private var activePlan: TrainingPlanSnapshot?
+    @State private var planConfirmedMissing = false
     @State private var todayRecommendation: TodayRecommendation = .placeholder
     @State private var goal: GoalSummary = .loading
     @State private var challenge: ChallengeSummary = .loading
@@ -62,11 +63,12 @@ struct PlanTabView: View {
 
                     // Never leave Plan as an empty calendar while the coach
                     // builds the plan, and keep the retry here (WP-43 S1).
-                    if planGeneration.state.showsGeneratingCard || planGeneration.state.showsInlineRetry {
-                        PlanGenerationStatusCard(
-                            state: planGeneration.state,
-                            onRetry: retryPlanGeneration
-                        )
+                    if let card = PlanGenerationCard.resolve(
+                        generation: planGeneration.state,
+                        planConfirmedMissing: planConfirmedMissing,
+                        hasCompletedOnboarding: session.hasCompletedOnboarding
+                    ) {
+                        PlanGenerationStatusCard(card: card, onRetry: retryPlanGeneration)
                     }
 
                     if let current {
@@ -211,10 +213,12 @@ struct PlanTabView: View {
             recoveryTask,
             loadTask
         )
+        let missing = plan == nil ? await services.isActivePlanConfirmedMissing() : false
         weekWorkouts = ww
         nextWorkouts = nw
         recentRuns = runs
         activePlan = plan
+        planConfirmedMissing = missing
         todayRecommendation = today
         goal = g
         challenge = ch

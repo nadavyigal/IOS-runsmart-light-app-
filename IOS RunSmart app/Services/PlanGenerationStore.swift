@@ -23,6 +23,36 @@ enum PlanGenerationState: Equatable {
     var showsInlineRetry: Bool { self == .failed }
 }
 
+/// Which plan card Today and Plan show, if any.
+///
+/// `PlanGenerationState` lives in memory, so a relaunch turns `.failed` back into
+/// `.idle`. On 16 Oct a real runner's first plan failed (1.1.8, bare-domain
+/// redirect dropped the token); after relaunch Today offered only "Ask Coach",
+/// and 13 days later they still had no plan. `buildMissingPlan` gives that
+/// runner a way back that survives a relaunch.
+enum PlanGenerationCard: Equatable {
+    case generating
+    case retry
+    case buildMissingPlan
+
+    /// `planConfirmedMissing` must be true only when a lookup *succeeded* and
+    /// found no active plan. A failed lookup also yields no plan, and offering
+    /// to build one then could replace a plan the runner has.
+    static func resolve(
+        generation: PlanGenerationState,
+        planConfirmedMissing: Bool,
+        hasCompletedOnboarding: Bool
+    ) -> PlanGenerationCard? {
+        switch generation {
+        case .generating: return .generating
+        case .failed: return .retry
+        case .ready: return nil
+        case .idle:
+            return planConfirmedMissing && hasCompletedOnboarding ? .buildMissingPlan : nil
+        }
+    }
+}
+
 /// Observes the existing `runSmartPlanGenerationStatusDidChange` notification and
 /// maps it to `PlanGenerationState` for the UI.
 final class PlanGenerationStore: ObservableObject {

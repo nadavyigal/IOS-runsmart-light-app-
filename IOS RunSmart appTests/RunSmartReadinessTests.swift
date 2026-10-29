@@ -5115,6 +5115,47 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertFalse(store.state.showsInlineRetry)
     }
 
+    // Gate A, 2026-10-29: a real runner's first plan failed on 16 Oct. `.failed`
+    // lives in memory only, so after relaunch Today showed "Ask Coach" and no way
+    // to build the plan. 13 days later they still had 0 plans.
+    func testOnboardedRunnerWithConfirmedMissingPlanIsOfferedToBuildIt() {
+        XCTAssertEqual(
+            PlanGenerationCard.resolve(generation: .idle, planConfirmedMissing: true, hasCompletedOnboarding: true),
+            .buildMissingPlan
+        )
+    }
+
+    func testBuildPlanCardNeedsAConfirmedMissingPlanAndFinishedOnboarding() {
+        XCTAssertNil(
+            PlanGenerationCard.resolve(generation: .idle, planConfirmedMissing: false, hasCompletedOnboarding: true),
+            "an unconfirmed lookup (still loading, or failed) must never offer to replace a plan the runner may have"
+        )
+        XCTAssertNil(
+            PlanGenerationCard.resolve(generation: .idle, planConfirmedMissing: true, hasCompletedOnboarding: false),
+            "onboarding builds the first plan itself"
+        )
+        XCTAssertNil(
+            PlanGenerationCard.resolve(generation: .ready, planConfirmedMissing: true, hasCompletedOnboarding: true),
+            "a plan that just finished is not missing, even before Today reloads"
+        )
+    }
+
+    func testInFlightAndFailedGenerationsKeepTheirCards() {
+        XCTAssertEqual(
+            PlanGenerationCard.resolve(generation: .generating, planConfirmedMissing: true, hasCompletedOnboarding: true),
+            .generating
+        )
+        XCTAssertEqual(
+            PlanGenerationCard.resolve(generation: .failed, planConfirmedMissing: false, hasCompletedOnboarding: true),
+            .retry
+        )
+    }
+
+    func testServicesThatCannotConfirmAMissingPlanNeverReportOne() async {
+        let missing = await DemoRunSmartServices().isActivePlanConfirmedMissing()
+        XCTAssertFalse(missing, "the default must be 'unknown', which shows no build card")
+    }
+
     func testPlanGenerationFailedNoticeDoesNotPointAtBuriedScreen() {
         let message = RunSmartPlanNotice(status: .failed).message
         XCTAssertFalse(
