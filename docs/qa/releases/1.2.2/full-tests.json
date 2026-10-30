@@ -1,0 +1,13 @@
+{
+  "xctest_passed": 810,
+  "swift_testing_passed": 3,
+  "total_passed": 813,
+  "failed": 0,
+  "skipped": 0,
+  "network_backed_map_render": true,
+  "video_created": true,
+  "device": "iPhone17Pro simulator",
+  "os": "iOS26.5",
+  "log": "/private/tmp/runsmart-release-artifacts-2026-10-29/full-tests.log",
+  "physical_device_pass": false
+}

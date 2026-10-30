@@ -1,3 +1,13 @@
+## 2026-10-29 — 1.2.2 (40) uploaded and processed
+
+**Status:** Uploaded and processed. Exact 1.2.2 (40) selected in ASC draft, Prepare for Submission; RunSmart Internal assigned and test notes saved. App Review not submitted; physical owner check pending. Public 1.2.1 remains live.
+**Current Phase:** Consolidate PRs 171/172 satellite sharing and PR 173 plan-recovery/analytics fixes; benchmark 5c96738 retained, Watch 165 excluded.
+**Active Story:** Delivery complete to ASC/TestFlight; owner physical share/map/comparison check remains before public review submission. Fixed mapUnavailable blocking PNG/MP4 sharing after map-toggle removal; cancellation/invalid routes preserved, privacy caption accurate with or without map.
+**Last Validation:** New regression red 3/3; renderer green 14/14, 0 failures. Full simulator suite 813/813 passed, 0 failures/skips, including live map renders and MP4; Story/Feed layouts inspected. Release archive signatures/entitlements/dSYMs/privacy and actual packaged backend pass. Distribution IPA signatures/config and live backend pass. Physical owner test pending.
+**Blockers:** Physical owner candidate check not performed. Keychain export prompt was approved by owner and resolved. No App Review submission claimed.
+**Next Recommended Story:** Owner checks TestFlight 1.2.2 (40) sharing/map/comparison; then close PR #174 review/merge and submit exact build 40 for public App Review under release approval.
+**Last Updated:** 2026-10-29
+
 ## 2026-10-29 — Gate A: honest sign-in and plan numbers, plan recovery
 
 **Status:** 1.2.1 (39) in App Review (not checked this session). Branch `claude/gate-a-signin-plan-failures-7f17a9`, PR #173.

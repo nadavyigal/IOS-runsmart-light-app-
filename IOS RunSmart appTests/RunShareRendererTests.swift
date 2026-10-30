@@ -169,4 +169,64 @@ final class RunShareRendererTests: XCTestCase {
             XCTFail("Expected CancellationError, got \(error)")
         }
     }
+
+    func testMapFailureStillExportsStatsOnlyStoryAndFeed() async throws {
+        let snapshot = RunShareSnapshot.make(run: RunShareDebugPreview.exampleRun, includeMap: true)
+        XCTAssertFalse(snapshot.routePoints.isEmpty)
+        for format in [RunShareAssetFormat.story, .feed] {
+            let image = try await RunShareMediaRenderer.poster(snapshot: snapshot, format: format) { _, _ in
+                throw RunShareMediaError.mapUnavailable
+            }
+            let expected = RunSharePosterRenderer.image(snapshot: snapshot, format: format, map: nil,
+                                                        logo: RunSharePosterRenderer.logoImage())
+            XCTAssertEqual(try XCTUnwrap(image.pngData()), try XCTUnwrap(expected.pngData()))
+        }
+    }
+
+    func testMapFailureStillExportsPlayableStatsOnlyVideo() async throws {
+        let snapshot = RunShareSnapshot.make(run: RunShareDebugPreview.exampleRun, includeMap: true)
+        var lastProgress = 0.0
+        let url = try await RunShareMediaRenderer.video(snapshot: snapshot, mapLoader: { _, _ in
+            throw RunShareMediaError.mapUnavailable
+        }) { lastProgress = $0 }
+        defer { try? FileManager.default.removeItem(at: url) }
+        XCTAssertEqual(lastProgress, 1)
+        let asset = AVURLAsset(url: url)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        XCTAssertEqual(tracks.count, 1)
+        let duration = try await asset.load(.duration)
+        XCTAssertEqual(CMTimeGetSeconds(duration), 10, accuracy: 0.1)
+    }
+
+    func testInvalidRouteIsNotSilentlyExportedAsStatsOnly() async {
+        do {
+            _ = try await RunShareMediaRenderer.poster(snapshot: privateSnapshot, format: .story) { _, _ in
+                throw RunShareMediaError.invalidRoute
+            }
+            XCTFail("Invalid route must remain an error")
+        } catch RunShareMediaError.invalidRoute {
+        } catch {
+            XCTFail("Expected invalidRoute, got \(error)")
+        }
+    }
+
+    func testCancellationDuringMapLoadingNeverExportsFallback() async {
+        for reportsMapFailure in [false, true] {
+            let snapshot = privateSnapshot
+            let task = Task {
+                try await RunShareMediaRenderer.poster(snapshot: snapshot, format: .story) { _, _ in
+                    withUnsafeCurrentTask { $0?.cancel() }
+                    if reportsMapFailure { throw RunShareMediaError.mapUnavailable }
+                    throw CancellationError()
+                }
+            }
+            do {
+                _ = try await task.value
+                XCTFail("Cancelled map request unexpectedly produced a fallback")
+            } catch is CancellationError {
+            } catch {
+                XCTFail("Expected CancellationError, got \(error)")
+            }
+        }
+    }
 }
