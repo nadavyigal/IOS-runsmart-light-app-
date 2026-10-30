@@ -1,17 +1,31 @@
-# RunSmart next release preparation, 29 October 2026
+# RunSmart 1.2.2 (40), release candidate
 
-Requested: consolidate current merged iPhone fixes and upload to App Store Connect. ASC 1.2.2 draft created and release/reviewer notes saved. Planned new build 40; previous highest observed TestFlight build 39. No upload or review submission has occurred in this preparation record.
+Requested 29 October 2026: consolidate current merged iPhone fixes and upload to ASC. Current status: uploaded, processed and assigned to RunSmart Internal. Exact build 40 is selected and saved in the ASC 1.2.2 draft (Prepare for Submission). App Review has not been submitted; the owner physical check remains pending.
 
-Base source: 3c2d679da3380900e2862de5270ca1c1582726ae, including merged PRs 171/172 satellite sharing and PR 173 Gate A; PR166 saved-route benchmarks remains an ancestor. PR165 Apple Watch beta is excluded. No new monetization, Garmin commercial enablement or backend migration.
+## Included
 
-Release blocker being verified: preserve image/video export when MapKit reports mapUnavailable; cancellation and invalid-route errors must not be swallowed.
+Archive source `48ee7b3b5caae0a4517f4d6ad647f3a9fe2b5f5a`, based on main `3c2d679`: PRs 171/172 satellite sharing and PR 173 plan recovery/analytics, retaining benchmark implementation `5c96738`. Added a shared PNG/MP4 fallback for mapUnavailable; cancellation and invalid routes remain errors. Route privacy captions are accurate with or without a map. All six app/test/extension configurations use 1.2.2 (40). Apple Watch PR 165 is excluded; Strava stays hidden. No new monetization or backend migration.
 
-Validation to record: focused red/green regression, complete simulator suite, network-backed map/media renders, physical owner iPhone check, archive and Apple Distribution export signatures/config/permissions/privacy/dSYMs, packaged live backend gate, processed ASC build identity.
+## Validation
 
-Physical device: owner iPhones unavailable at first check; requested connection/unlock. ASC: owner restored access;1.2.2 draft created. Account shows updated Developer Program License Agreement notice; owner asked to accept personally. These checks are pending, not passed.
+- Three map-failure/cancellation regressions fail before the fix; 14 renderer tests pass after it.
+- Official Xcode result: 813 tests passed, 0 failed/skipped on iPhone 17 Pro / iOS 26.5 simulator, including live MapKit imagery and a playable 10-second MP4.
+- Synthetic Story/Feed PNGs visually inspected: route endpoints trimmed, readable layout and Apple Maps attribution retained. These do not establish physical device behavior.
+- Independent read-only QA: no blocking findings.
+- Release archive: app/extension identities, signatures, entitlements, privacy manifest and matching dSYMs pass; no WorkoutKit or debug share harness.
+- Exported IPA: both bundles Apple Distribution, get-task-allow=false; API host and analytics config present.
+- Actual archive and IPA backend: Auth settings 200, Apple/email providers enabled.
 
-## Simulator verification
+## ASC and remaining checks
 
-810 XCTest plus 3 Swift Testing cases passed, 0 failures/skips, including live MapKit satellite renders and a playable 10-second MP4. Story/Feed PNGs from synthetic test data were visually checked: route endpoints trimmed, layout readable, Apple Maps attribution retained. These are not physical-device evidence. Focused renderer suite 14/14 passed after three red map-failure regressions. Independent read-only QA found no blocking source issues.
+ASC 1.2.2 draft created and release/reviewer notes saved, with existing listing/reviewer credentials retained. Prior public 1.2.1 and highest build 39 verified against Apple/ASC. Build 40 upload succeeded at 22:14 host time. Processing completed; exact build UUID `3358ad8b-7f55-4209-8178-bca022544955` was assigned to RunSmart Internal (one existing tester), test notes saved, and the same build selected/saved in the production 1.2.2 draft. Leave Watch beta 38 separate. Owner physical sharing/map/comparison check remains pending before public review submission.
 
-Prepared1.2.2 (40) in all six app/test/extension configurations. Signed archive/export, actual-artifact backend proof, ASC processing and owner physical candidate pass remain pending. Existing invalid-route error wording still suggests no-map sharing; normal snapshot sanitization avoids that path, and this pre-existing minor copy remainder is not part of the map-service failure fix.
+The export initially waited in codesign; owner approved the keychain request and export succeeded. A Developer License Agreement notice was observed; no acceptance was performed by the agent.
+
+## Artifacts
+
+Signed archive, IPA, logs, video and result bundle: `/private/tmp/runsmart-release-artifacts-2026-10-29`. Source worktree: `/private/tmp/runsmart-asc-release-2026-10-29`, branch `codex/release-1-2-2`. Official summaries and packaged-artifact verification JSON are saved here.
+
+## Remaining owner check
+
+Update from TestFlight to 1.2.2 (40), open an actual saved run, export/share Story, Feed and video, and verify map/privacy and saved-route comparisons after relaunch. No physical pass is claimed. PR #174 remains a draft for release-source review; no main merge or App Review submission was performed in this task. All compiled source/configuration matches archive source 48ee7b3; subsequent commits contain evidence only.

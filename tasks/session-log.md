@@ -1,3 +1,7 @@
+## 2026-10-29 — 1.2.2 (40) uploaded and processed
+
+Source 48ee7b3: 813 tests pass, archive and Apple Distribution IPA checks pass, live actual-artifact backend passes. Owner resolved macOS keychain signing prompt. Xcode upload accepted at 22:14 host time. ASC processed build 3358ad8b-7f55-4209-8178-bca022544955; assigned RunSmart Internal (one existing tester), saved test notes and selected/saved exact build 40 in the 1.2.2 draft, Prepare for Submission. Watch 38 excluded. No physical owner pass or public App Review submission; PR #174 remains draft. Evidence: docs/qa/releases/1.2.2/.
+
 ## 2026-10-29 — Next iPhone release candidate1.2.2 (40)
 
 Owner requests all current merged fixes in a new ASC build. Base 3c2d679 includes PRs 171/172/173; saved benchmarks retained and Watch 165 excluded. Added cancellation-preserving mapUnavailable fallback for PNG/MP4 and accurate privacy caption. Three red regressions, 14 renderer green tests, then 813 full simulator tests pass with network MapKit images/video. Independent QA no blockers. ASC 1.2.2 draft created with release/reviewer notes. Candidate archive/export/upload and owner physical check remain pending; no review submission.

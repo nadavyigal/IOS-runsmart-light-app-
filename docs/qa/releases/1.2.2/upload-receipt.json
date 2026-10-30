@@ -1,0 +1,18 @@
+{
+  "version": "1.2.2",
+  "build": "40",
+  "archive_source_commit": "48ee7b3b5caae0a4517f4d6ad647f3a9fe2b5f5a",
+  "upload_succeeded": true,
+  "upload_completed_host_time": "2026-10-29 22:14:12",
+  "processed_build_id": "3358ad8b-7f55-4209-8178-bca022544955",
+  "app_review_submitted": false,
+  "physical_device_pass": false,
+  "log": "/private/tmp/runsmart-release-artifacts-2026-10-29/upload.log",
+  "asc_processing_status": "processed; Ready to Submit",
+  "testflight_group": "RunSmart Internal",
+  "testflight_group_testers": 1,
+  "testflight_notes_saved": true,
+  "asc_build_selected": true,
+  "asc_version_status": "Prepare for Submission",
+  "verified_at_utc": "2026-10-29T20:23:24.440076+00:00"
+}
