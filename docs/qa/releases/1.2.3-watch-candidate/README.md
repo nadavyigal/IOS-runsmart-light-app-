@@ -10,7 +10,7 @@ Health recovery now queues the failed-to-successful unassociated lookup transiti
 
 Regression red: the recovered unassociated import produced zero completion attempts. Focused suite before final race hardening: 31/31 passed. Final full suite: 841 passed, zero failures, one existing opt-in map-render test skipped (requires TEST_RUNNER_RUN_SHARE_RENDER_DIR and network). All 33 AppleWorkoutTests pass in the final suite. Xcode 26.5, iPhone 17 Pro simulator / iOS 26.5. Independent read-only QA found account/identity races; both corrected and re-reviewed with no remaining concrete finding. No iOS 26.3 runtime is installed.
 
-Archive/export, actual-artifact live backend verification and final distribution state are pending. Source/artifact receipts will be added after verification. This is not yet a public release or a new paired-device pass.
+Archive from source `4f20bc0` succeeded. App/extension 1.2.3 (41), strict/deep signatures, team8VC4R5M425, HealthKit/usage strings, privacy/analytics resources and dSYM UUIDs pass. The actual archived backend returns HTTP200 with Apple/email enabled. Export uses Apple Distribution: Nadav Yigal and is currently waiting at codesign on the Live Activity extension; owner was asked to handle any macOS Keychain prompt. No distribution IPA, upload or new paired-device pass is claimed yet. See candidate-receipt.json and archive checks.
 
 ## Short candidate validation
 

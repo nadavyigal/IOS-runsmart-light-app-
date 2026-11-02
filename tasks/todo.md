@@ -5,7 +5,8 @@
 - [x] Red regression; recover Health lookup completion with persistent owner/target and safe retries.
 - [x] Independent QA/race corrections; full841pass/0fail/1existing opt-in render skip.
 - [x] Live ASC allocation:1.2.3(41), after complete1.2.2(40).
-- [ ] Verify signed archive/export and actual-artifact backend; publish source/evidence on PR165.
+- [x] Push source4f20bc0 and verify signed archive, versions/signatures/HealthKit/privacy/dSYMs and actual-artifact backend HTTP200.
+- [ ] Finish Apple Distribution export after signing approval; verify actual IPA before upload.
 - [ ] Candidate41 paired Watch roundtrip and repeat-sync smoke.
 - [ ] Separate public release decision after final candidate validation.
 
@@ -13,10 +14,10 @@
 
 Owner explicitly approved the external TestFlight plan and invitation to the named tester in chat. Public 1.2.0 stays unchanged; PR165 stays draft through physical Watch QA.
 
-- [x] Check live ASC: latest build37 complete; no newer pending upload. Select 1.2.1 (38).
+- [x] Check live ASC: latest build 37 complete; no newer pending upload. Select 1.2.1 (38).
 - [x] Archive/export and verify actual 1.2.1 (38) distribution package/backend.
 - [x] Upload succeeded after owner signing approval.
-- [x] Verify Apple processing and attach build38 to external group.
+- [x] Verify Apple processing and attach build 38 to external group.
 - [x] Create Apple Watch Beta external group and enroll only the approved tester (No Builds Available).
 - [x] Owner approved signing and reports private reviewer fields saved.
 - [x] Verify persisted reviewer fields after browser session recovery.
@@ -28,7 +29,7 @@ Owner explicitly approved the external TestFlight plan and invitation to the nam
 
 ## 2026-10-26 — PR165 review fix and Watch device candidate
 
-- [x] Reconcile current-head hosted Codex/CodeRabbit reviews; verify unchanged-import finding.
+- [x] Reconcile hosted Codex/CodeRabbit reviews for the current head; verify unchanged-import finding.
 - [x] Red contracts, unchanged-import fix, independent completion/upload retries and persistence/precision regressions.
 - [x] Independent QA; final 749/749 tests; signed device Release archive and actual-artifact backend/config precheck.
 - [x] Public 1.2.0/build37 phone-run sequence compatible with founder report; no independent identity proof, activation or Watch claim.

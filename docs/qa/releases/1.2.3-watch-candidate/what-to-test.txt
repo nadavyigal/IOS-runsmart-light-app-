@@ -1,0 +1,15 @@
+RunSmart Apple Watch candidate — 1.2.3 (41)
+
+This candidate combines the Watch feature tested in build 38 with current iPhone sharing, saved-route benchmarks and plan/analytics fixes. It also fixes deferred plan completion after a temporary Health association lookup failure.
+
+Install on the iPhone already paired with your Watch. No separate RunSmart Watch app is needed. Use your existing RunSmart account.
+
+1. Send one supported incomplete planned interval session to Apple Watch. In Apple's Workout app, check one scheduled item with the correct warmup, repetitions, recoveries/cooldown and any configured pace alerts.
+2. Start, finish and save the workout on Watch with the phone left behind.
+3. Reconnect and let Apple Health sync. In RunSmart, choose Connections > Apple Health > Sync Now; allow workout reads (route and heart-rate reads are optional).
+4. Confirm exactly one accurate run and one intended planned-workout completion. Compare distance and moving time with Apple Workout.
+5. Sync again and reopen RunSmart: no duplicate run or completion.
+
+If possible, retry after a temporary network interruption and check an edited/canceled session cannot complete a replacement session. Report the failed step, expected/actual behavior, build number, and iPhone/Watch models and OS versions. Use TestFlight feedback for screenshots; precise routes and personal health details are not needed.
+
+Known limits: manual/foreground Health sync, possible Watch delivery delay, latest 100 workouts/180 days, no Health-deletion propagation, no live custom RunSmart coaching inside Apple's Workout app. Sessions with incomplete running targets cannot be exported. Garmin and Strava remain disabled.

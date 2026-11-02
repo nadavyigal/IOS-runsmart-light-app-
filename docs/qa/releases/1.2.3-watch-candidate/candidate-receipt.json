@@ -1,0 +1,19 @@
+{
+  "source_commit": "4f20bc0ce6878aa3db80f7162fe3079fd150c007",
+  "main_ancestor": "3c2d679da3380900e2862de5270ca1c1582726ae",
+  "benchmark_ancestor": "5c96738",
+  "source_fingerprint_sha256": "f2f8edaf93246fd00bec9052ca824300ac4aa5d3ec73f620e619631d239d9048",
+  "version": "1.2.3",
+  "build": "41",
+  "github_account": "nadavyigal",
+  "commit_author_email": "nadav.yigal@gmail.com",
+  "apple_team": "8VC4R5M425",
+  "app_id": "6768297840",
+  "bundle_id": "com.runsmart.lite",
+  "archive_verified": true,
+  "archive_backend_verified": true,
+  "distribution_export": "waiting_at_codesign",
+  "uploaded": false,
+  "public_submission": false,
+  "archive_path": "/private/tmp/runsmart-watch-release-evidence/RunSmart-1.2.3-41.xcarchive"
+}
