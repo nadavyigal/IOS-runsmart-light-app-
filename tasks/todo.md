@@ -1,3 +1,14 @@
+## 2026-11-02 — Integrated Watch candidate
+
+- [x] Owner reports Yaniv completed beta38 testing successfully; retain as tester-reported evidence.
+- [x] Reconcile PR165 with current main3c2d679, retaining iPhone improvements and project histories.
+- [x] Red regression; recover Health lookup completion with persistent owner/target and safe retries.
+- [x] Independent QA/race corrections; full841pass/0fail/1existing opt-in render skip.
+- [x] Live ASC allocation:1.2.3(41), after complete1.2.2(40).
+- [ ] Verify signed archive/export and actual-artifact backend; publish source/evidence on PR165.
+- [ ] Candidate41 paired Watch roundtrip and repeat-sync smoke.
+- [ ] Separate public release decision after final candidate validation.
+
 ## 2026-10-26 — Approved external Apple Watch TestFlight beta
 
 Owner explicitly approved the external TestFlight plan and invitation to the named tester in chat. Public 1.2.0 stays unchanged; PR165 stays draft through physical Watch QA.
@@ -34,6 +45,45 @@ Owner explicitly approved the external TestFlight plan and invitation to the nam
 - [x] Final simulator suite: 739/739, zero failures; real scheduling-denial UI smoke.
 - [x] Pushed and opened draft PR #165: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/165
 - [ ] Physical paired iPhone/Watch round-trip QA (owner gate).
+
+## 2026-10-28 — Production sharing and benchmarks
+
+Owner requests production shipment of completed iPhone work; Apple Watch remains excluded.
+
+- [x] Inventory open work and isolate production integration branch.
+- [x] Integrate PR166 benchmarks, PR167 sharing, and PR158 redirect-safe API host; preserve all feature/task histories.
+- [x] Reproduce and fix outstanding Health-canonical saved-route action review finding; new regression and combined785 tests pass.
+- [x] Verify combined785-test suite, Release archive, source inclusion, Watch exclusion, backend/signatures/privacy/dSYMs.
+- [x] Finish distribution export; validate exported IPA Apple Distribution signatures and live backend.
+- [x] Verify live ASC state, unused1.2.1(39), upload and processing; internal Testing with saved notes.
+- [x] Physical candidate checks: owner reports image/video sharing and actual same-route comparisons/relaunch both passed on1.2.1(39).
+- [x] Select exact verified build39 in production1.2.1 draft; save release/reviewer notes.
+- [x] Owner physical pass recorded; PR168 merged; exact1.2.1(39) submitted and verified Waiting for Review, automatic release after approval.
+
+## 2026-10-27 — Benchmark fix required in next ASC submission
+
+Owner explicitly requires PR #166 / implementation `5c96738` in the next ASC submission. Added the requirement to AGENTS, the TestFlight checklist, the existing build-37 handoff, and `docs/qa/releases/next-submission/README.md`. Release must verify the actual archive source includes the implementation, use a new unused build greater than 37, verify the route loop on the candidate, and record the exact processed build selected in ASC. Remote main `61b7cfb` does not yet contain the fix; PR #166 code review is running. Requirement is **pending candidate delivery**, not satisfied by documentation or the prior build. No archive/upload/submission/withdrawal or App Store changes performed. Documentation-only update; previous 745-test and visual evidence retained.
+
+## 2026-10-26 — Repeat-route comparisons from saved reports
+
+Owner request: save a route once, then compare repeat runs (nearby endpoints, same route) to previous/PB/average, including three runs already recorded. Screenshots show the reopened report lacks route controls and all benchmark states.
+
+- [x] Trace current origin/main and existing rematch/variant implementation; keep its geometry safeguards.
+- [x] Define acceptance/stories: docs/plans/2026-10-26-repeat-route-benchmarks.md.
+- [x] Regression tests: original-run identity/history, hidden runs, three-run benchmark, current-copy precedence, missing/stale comparison states (20 added).
+- [x] Implement direct report-run resolution, reopened map/save flow, benchmark-on default, stable loading view and live comparison refresh.
+- [x] Full simulator suite 745/0; visual fresh-save and relaunch smoke; independent review. Synthetic preferences restored.
+- [x] Pushed `codex/repeat-route-benchmarks`; PR #166 open with tests/screenshots; progress/session memory updated. Public App Store fix requires a later release.
+## 2026-10-27 — Native run share image/video
+
+- [x] Confirm selected poster/brighter route-video direction and verified iOS App Store listing.
+- [x] Isolate on codex/run-share-exports from origin/main.
+- [x] Implement immutable, privacy-trimmed real-run export payload and tests.
+- [x] Implement native Story/Feed PNG and short route MP4 renderers.
+- [x] Integrate post-run/saved-report share composer and native share sheet.
+- [x] Verify native simulator exports and full regression suite; document results.
+- [x] Complete simulator image/video share sheets, full preview sizing, cancellation and retry after unlock.
+- [ ] Physical device Photos/social-app delivery checks remain release QA.
 
 ## 2026-10-25 — RunSmart 1.2.0 (37) submitted: Waiting for Review
 

@@ -28,7 +28,7 @@ enum RunSmartAnalytics {
 #if DEBUG
         guard !RunSmartDemoMode.isEnabled else { return }
 #endif
-        guard let credentials = Analytics.postHogCredentials() else { return }
+        guard let credentials = Analytics.startupCredentials() else { return }
         let config = PostHogConfig(projectToken: credentials.projectToken, host: credentials.host)
         PostHogSDK.shared.setup(config)
     }

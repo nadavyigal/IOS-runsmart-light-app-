@@ -1,4 +1,5 @@
-RunSmart 1.1.9 is a maintenance release.
+Share your run with new Story and Feed images or a short route video, with a direct link to RunSmart on the App Store. Maps stay off until you choose to include them, and route endpoints are trimmed for privacy.
 
-What's new:
-- Build and stability improvements behind the scenes
+Save a route once and compare repeat runs with your previous run, personal best, average pace and trend. Saved run reports now show maps and comparisons, including earlier matching runs.
+
+This update also improves reliability for signed-in coaching requests.

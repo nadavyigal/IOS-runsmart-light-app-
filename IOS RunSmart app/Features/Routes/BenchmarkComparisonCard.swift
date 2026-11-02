@@ -4,81 +4,103 @@ struct BenchmarkComparisonLoaderView: View {
     @Environment(\.runSmartServices) private var services
     var run: RecordedRun?
 
-    @State private var state: BenchmarkComparisonLoadState = .empty
+    @State private var state: BenchmarkComparisonLoadState = .loading
+    @State private var refreshRevision = 0
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 0) {
             switch state {
-            case .empty:
-                EmptyView()
+            case .loading:
+                ProgressView("Loading route comparison…")
+                    .frame(maxWidth: .infinity)
             case .comparison(let comparison):
                 BenchmarkComparisonCard(comparison: comparison)
             case .status(let status):
                 BenchmarkComparisonStatusCard(status: status)
             }
         }
-        .task(id: run?.id) {
-            await loadComparison()
+        .task(id: LoadID(run: run, revision: refreshRevision)) {
+            let loaded = await BenchmarkComparisonLoading.load(
+                run: run,
+                matchRoute: { await services.matchRoute(for: $0) },
+                comparison: { await services.benchmarkComparison(for: $0) }
+            )
+            guard !Task.isCancelled else { return }
+            state = loaded
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartRoutesDidChange)) { _ in
+            refreshRevision += 1
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
+            refreshRevision += 1
         }
     }
 
-    private func loadComparison() async {
+    private struct LoadID: Hashable {
+        var run: RecordedRun?
+        var revision: Int
+    }
+}
+
+/// Read-only loading keeps route/run notifications from producing a notification loop.
+/// Matching is refreshed every time: a previous no-match can become a benchmark after saving
+/// a route, and a previous match can disappear when that route is deleted.
+enum BenchmarkComparisonLoading {
+    static func load(
+        run: RecordedRun?,
+        matchRoute: (RecordedRun) async -> RouteMatchResult?,
+        comparison: (RecordedRun) async -> BenchmarkRouteComparison?
+    ) async -> BenchmarkComparisonLoadState {
         guard var run else {
-            state = .empty
-            return
+            return .status(.runUnavailable)
         }
 
         if run.routePoints.isEmpty {
-            state = .status(.noRouteData)
-            return
+            return .status(.noRouteData)
         }
 
         if run.routePoints.count < RouteMatchingService.minimumRoutePoints {
-            state = .status(.weakGPS)
-            return
+            return .status(.weakGPS)
         }
 
-        if run.routeMatchResult == nil {
-            run.routeMatchResult = await services.matchRoute(for: run)
-        }
+        run.routeMatchResult = await matchRoute(run)
 
         guard let match = run.routeMatchResult else {
-            state = .status(.noBenchmark)
-            return
+            return .status(.noBenchmark)
         }
 
         switch match.confidence {
         case .possibleMatch:
-            state = .status(.weakGPS)
-            return
+            return .status(.weakGPS)
         case .noMatch:
-            state = .status(.noBenchmark)
-            return
+            return .status(.noBenchmark)
         case .matched, .routeVariant:
             break
         }
 
-        if let comparison = await services.benchmarkComparison(for: run) {
-            state = .comparison(comparison)
-        } else {
-            state = .status(.noBenchmark)
+        if let loaded = await comparison(run) {
+            return .comparison(loaded)
         }
+        return .status(.noBenchmark)
     }
 }
 
 enum BenchmarkComparisonLoadState: Hashable {
-    case empty
+    case loading
     case comparison(BenchmarkRouteComparison)
     case status(BenchmarkComparisonStatus)
 }
 
 enum BenchmarkComparisonStatus: Hashable {
+    case runUnavailable
     case noRouteData
     case weakGPS
     case noBenchmark
 
     var title: String {
         switch self {
+        case .runUnavailable:
+            return "Route comparison unavailable"
         case .noRouteData:
             return "No benchmark comparison"
         case .weakGPS:
@@ -90,6 +112,8 @@ enum BenchmarkComparisonStatus: Hashable {
 
     var message: String {
         switch self {
+        case .runUnavailable:
+            return "The report is saved, but its original run could not be loaded. Route comparisons need the recorded GPS route."
         case .noRouteData:
             return "This activity does not include enough map data for route matching. The run is saved, but RunSmart will not compare it to a benchmark."
         case .weakGPS:
@@ -101,6 +125,8 @@ enum BenchmarkComparisonStatus: Hashable {
 
     var symbol: String {
         switch self {
+        case .runUnavailable:
+            return "map"
         case .noRouteData:
             return "map"
         case .weakGPS:
@@ -114,7 +140,7 @@ enum BenchmarkComparisonStatus: Hashable {
         switch self {
         case .weakGPS:
             return .accentEnergy
-        case .noRouteData, .noBenchmark:
+        case .runUnavailable, .noRouteData, .noBenchmark:
             return .textSecondary
         }
     }

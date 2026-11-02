@@ -890,6 +890,13 @@ struct RunPauseInterval: Codable, Hashable, Equatable {
     var end: Date
 }
 
+/// Local-only deferred completion. The selected target is pinned before any backend write.
+struct HealthKitCompletionRecovery: Codable, Hashable {
+    var ownerID: UUID? = nil
+    var targetWorkoutID: UUID? = nil
+    var isPending = true
+}
+
 struct RecordedRun: Identifiable, Codable, Hashable {
     /// WorkoutKit identity returned by Apple Health. Never inferred from date or distance.
     var plannedWorkoutID: UUID? = nil
@@ -897,6 +904,7 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var healthPlanLookupFailed: Bool? = nil
     /// Local retry state; cleared only after the backend confirms a Health run upsert.
     var healthUploadPending: Bool? = nil
+    var healthCompletionRecovery: HealthKitCompletionRecovery? = nil
     var id: UUID
     var providerActivityID: String?
     var consolidatedActivityID: String? = nil
@@ -939,6 +947,7 @@ extension RecordedRun {
         merged.plannedWorkoutID = plannedWorkoutID ?? stored.plannedWorkoutID
         merged.healthPlanLookupFailed = healthPlanLookupFailed ?? stored.healthPlanLookupFailed
         merged.healthUploadPending = stored.healthUploadPending ?? healthUploadPending
+        merged.healthCompletionRecovery = stored.healthCompletionRecovery ?? healthCompletionRecovery
         return merged
     }
 }
@@ -1748,6 +1757,8 @@ struct RunReportDetail: Identifiable, Codable, Hashable {
     var notes: CoachRunNotes
     var structuredNextWorkout: StructuredNextWorkout?
     var isGenerated: Bool? = true
+    /// AI-written "what went well" line for share images. Nil for fallback text and older reports.
+    var shareHighlight: String? = nil
 
     var hasGeneratedReport: Bool {
         isGenerated ?? true

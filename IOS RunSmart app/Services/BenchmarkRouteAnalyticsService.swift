@@ -16,8 +16,9 @@ enum BenchmarkRouteAnalyticsService {
             return nil
         }
 
-        let performances = matchedRuns(for: routeID, in: runs + [run])
+        let performances = matchedRuns(for: routeID, in: [run] + runs)
             .uniqueByRunID()
+            .uniqueActivities(preserving: run)
             .map { performance(from: $0) }
             .sorted { $0.startedAt < $1.startedAt }
         // Route PB is a time, so it only comes from full-route runs. A route with only
@@ -126,6 +127,25 @@ enum BenchmarkRouteAnalyticsService {
 }
 
 private extension Array where Element == RecordedRun {
+    /// Native and imported copies of the same workout have different UUIDs. Use the same
+    /// activity grouping as run history so one physical run contributes one performance.
+    /// Keep the explicitly supplied current copy: its refreshed match and identity are what
+    /// the open report is comparing, even when a provider copy has richer health metrics.
+    func uniqueActivities(preserving current: RecordedRun) -> [RecordedRun] {
+        let groups = ActivityConsolidationService.groups(for: self)
+        let currentGroupIndex = groups.firstIndex { group in group.runs.contains { $0.id == current.id } }
+            ?? groups.firstIndex { group in group.runs.contains { ActivityConsolidationService.matches($0, current) } }
+        var result = groups.enumerated().map { index, group in
+            index == currentGroupIndex ? current : group.canonicalRun
+        }
+        // Consolidation can omit a likely Garmin fragment, but an explicitly opened report
+        // must still be able to compare its own recorded activity.
+        if !result.contains(where: { $0.id == current.id }) {
+            result.append(current)
+        }
+        return result
+    }
+
     func uniqueByRunID() -> [RecordedRun] {
         var seen = Set<UUID>()
         return filter { run in

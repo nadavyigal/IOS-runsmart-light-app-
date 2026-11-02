@@ -928,6 +928,9 @@ enum RunSmartDTO {
 
     struct RunReportPayload: Decodable, Sendable {
         let summary: String?
+        /// The web prompt's summary[1], "what went well": the one line written to be shared.
+        /// Nil when the summary is a single string, since its parts are then unknown.
+        let shareHighlight: String?
         let effort: String?
         let recovery: String?
         let nextSessionNudge: String?
@@ -962,10 +965,14 @@ enum RunSmartDTO {
 
             if let text = try? c.decodeIfPresent(String.self, forKey: .summary) {
                 summary = text
+                shareHighlight = nil
             } else if let lines = try? c.decodeIfPresent([String].self, forKey: .summary) {
                 summary = lines.joined(separator: " ")
+                let highlight = lines.count > 1 ? lines[1].trimmingCharacters(in: .whitespacesAndNewlines) : ""
+                shareHighlight = highlight.isEmpty ? nil : highlight
             } else {
                 summary = nil
+                shareHighlight = nil
             }
 
             effort = try? c.decodeIfPresent(String.self, forKey: .effort)
@@ -1117,6 +1124,8 @@ enum RunSmartDTO {
         let plan: GeneratedPlan?
         let source: String?
         let error: String?
+        /// Machine-readable error, e.g. `AUTH_REQUIRED` from `lib/api-auth.ts`.
+        let code: String?
     }
 
     struct GeneratedPlan: Decodable {
@@ -1318,6 +1327,6 @@ struct URLSessionRunSmartAPIClient: RunSmartAPIClient {
            !raw.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
             return url
         }
-        return URL(string: "https://runsmart-ai.com")!
+        return URL(string: "https://www.runsmart-ai.com")!
     }
 }

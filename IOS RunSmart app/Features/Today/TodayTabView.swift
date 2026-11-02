@@ -13,6 +13,7 @@ struct TodayTabView: View {
     @State private var nextWorkouts: [WorkoutSummary] = []
     @State private var runReports: [RunReportSummary] = []
     @State private var activePlan: TrainingPlanSnapshot?
+    @State private var planConfirmedMissing = false
     @State private var recentRuns: [RecordedRun] = []
     @State private var recovery: RecoverySnapshot = .loading
     @State private var activeChallenge: ChallengeSummary = .loading
@@ -64,11 +65,12 @@ struct TodayTabView: View {
 
                 // Never leave Today blank while the coach builds the plan, and
                 // keep the retry here rather than behind a vanished banner.
-                if planGeneration.state.showsGeneratingCard || planGeneration.state.showsInlineRetry {
-                    PlanGenerationStatusCard(
-                        state: planGeneration.state,
-                        onRetry: retryPlanGeneration
-                    )
+                if let card = PlanGenerationCard.resolve(
+                    generation: planGeneration.state,
+                    planConfirmedMissing: planConfirmedMissing,
+                    hasCompletedOnboarding: session.hasCompletedOnboarding
+                ) {
+                    PlanGenerationStatusCard(card: card, onRetry: retryPlanGeneration)
                 }
 
                 if !weekWorkouts.isEmpty {
@@ -251,6 +253,7 @@ struct TodayTabView: View {
         let workout = resolvedState.primaryWorkout
         let rts = await services.rankedRouteSuggestions(targetDistanceKm: nil)
         let health = await services.todayHealthSummary()
+        let missing = plan == nil ? await services.isActivePlanConfirmedMissing() : false
         recommendation = rec
         routes = rts
         healthSummary = health
@@ -259,6 +262,7 @@ struct TodayTabView: View {
         nextWorkouts = nw
         runReports = reports
         activePlan = plan
+        planConfirmedMissing = missing
         recentRuns = runs
         recovery = recov
         wellnessTrends = trends

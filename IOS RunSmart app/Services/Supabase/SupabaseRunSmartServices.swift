@@ -148,6 +148,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return workouts.primaryWorkoutPerDay().map { $0.toWorkoutSummary() }
     }
 
+    /// `activeTrainingPlan()` swallows errors and caches for 30 s, so its nil
+    /// cannot tell "no plan" from "lookup failed". This asks every owner key
+    /// without the cache and treats any failure as unknown.
+    func isActivePlanConfirmedMissing() async -> Bool {
+        guard let userID = currentUserID else { return false }
+        return await planRepo.activePlanPresence(authUserID: userID) == false
+    }
+
     func nextWorkouts(limit: Int) async -> [WorkoutSummary] {
         guard let userID = currentUserID else { return [] }
         guard let activePlan = await planRepo.activePlan(authUserID: userID) else { return [] }
@@ -174,11 +182,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
         Task(priority: .userInitiated) { [weak self] in
             guard let self else { return }
-            let regenerated = await self.regenerateTrainingPlan(request)
+            let failure = await self.generateTrainingPlan(request)
             await MainActor.run {
                 NotificationCenter.default.post(
                     name: .runSmartPlanGenerationStatusDidChange,
-                    object: regenerated ? RunSmartPlanGenerationStatus.amended : RunSmartPlanGenerationStatus.failed
+                    object: failure == nil ? RunSmartPlanGenerationStatus.amended : RunSmartPlanGenerationStatus.failed,
+                    userInfo: failure.map { [PlanGenerationFailureReason.userInfoKey: $0] }
                 )
             }
         }
@@ -187,9 +196,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func regenerateTrainingPlan(_ request: TrainingGoalRequest) async -> Bool {
+        await generateTrainingPlan(request) == nil
+    }
+
+    /// Builds and saves a plan. Returns nil on success, otherwise why it failed.
+    private func generateTrainingPlan(_ request: TrainingGoalRequest) async -> PlanGenerationFailureReason? {
         guard let userID = currentUserID,
               let token = try? await supabase.auth.session.accessToken else {
-            return false
+            return .noSession
         }
 
         do {
@@ -268,7 +282,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
             guard let generated = response.plan else {
                 print("[SupabaseServices] generate-plan returned no plan:", response.error ?? "unknown")
-                return false
+                return PlanGenerationFailureReason.classify(response)
             }
 
             let persisted = await planRepo.persistGeneratedPlan(authUserID: userID, request: request, generated: generated)
@@ -282,12 +296,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
                 }
             }
-            return persisted
+            return persisted ? nil : .persistFailed
         } catch {
             if !(error is CancellationError) {
                 print("[SupabaseServices] regenerateTrainingPlan error:", error)
             }
-            return false
+            return PlanGenerationFailureReason.classify(error)
         }
     }
 
@@ -580,6 +594,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func recentRuns() async -> [RecordedRun] {
         await recentRuns(limit: 100)
+    }
+
+    func recordedRun(forReportRunID runID: String) async -> RecordedRun? {
+        await store.rematchStoredRuns()
+        if let stored = RunReportRunResolver.resolve(runID: runID, runs: store.visibleRuns(store.loadRuns()), savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs()) {
+            return stored
+        }
+        return RunReportRunResolver.resolve(runID: runID, runs: await recentRuns(limit: 100), savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
     }
 
     private func recentRuns(limit: Int) async -> [RecordedRun] {
@@ -1077,23 +1099,58 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func syncHealthData() async -> ConnectedDeviceStatus {
-        let result = await healthSync.importHealthData(localStore: store)
+        let syncingUserID = currentUserID
+        let result = await healthSync.importHealthData(localStore: store, completionOwnerID: syncingUserID)
         var status = result.status
+        guard currentUserID == syncingUserID else { return status }
         let syncedCount = await HealthKitImportProcessor.process(result,
-            upload: { await self.upsertHealthKitRuns($0) },
+            upload: {
+                guard self.currentUserID == syncingUserID else { return 0 }
+                return await self.upsertHealthKitRuns($0)
+            },
             complete: { run in
+                guard self.currentUserID == syncingUserID else { return false }
+                if run.plannedWorkoutID == nil, run.healthCompletionRecovery?.isPending == true {
+                    guard let userID = self.currentUserID,
+                          let current = self.store.loadRuns().first(where: { $0.id == run.id }),
+                          !self.store.isRunHidden(current) else { return false }
+                    return await HealthKitDeferredCompletion.process(current, ownerID: userID,
+                        loadWorkouts: {
+                            guard self.currentUserID == userID else { return nil }
+                            self.planRepo.invalidateActivePlanCache(authUserID: userID)
+                            guard let plan = await self.planRepo.activePlan(authUserID: userID),
+                                  self.currentUserID == userID else { return nil }
+                            return plan.workouts.map { $0.toWorkoutSummary() }
+                        },
+                        saveState: { expected, next in
+                            guard self.currentUserID == userID else { return false }
+                            return self.store.updateHealthCompletionRecovery(current, expected: expected, next: next)
+                        },
+                        complete: { exact in
+                            guard self.currentUserID == userID,
+                                  let completed = await self.completeMatchingWorkout(for: exact) else { return false }
+                            await MainActor.run { PushService.shared.cancelWorkoutReminder(workoutID: completed.id) }
+                            return true
+                        })
+                }
                 guard let completed = await self.completeMatchingWorkout(for: run) else { return false }
                 await MainActor.run { PushService.shared.cancelWorkoutReminder(workoutID: completed.id) }
                 return true
             },
-            processNewest: { _ = await self.processCompletedActivity($0) },
+            processNewest: {
+                guard self.currentUserID == syncingUserID else { return }
+                _ = await self.processCompletedActivity($0)
+            },
             refreshRuns: {
+                guard self.currentUserID == syncingUserID else { return }
                 await self.store.rematchStoredRuns()
                 await self.postRunsChanged()
             },
             notifyPlan: {
+                guard self.currentUserID == syncingUserID else { return }
                 await MainActor.run { NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil) }
             })
+        guard currentUserID == syncingUserID else { return status }
         if let syncedCount {
             status.message = "Imported \(result.runs.count) Health workouts. Refreshed \(result.refreshedRuns.count). Synced \(syncedCount) to RunSmart."
         }
@@ -1212,7 +1269,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 as: RunSmartDTO.RunReportResponse.self
             )
             let report = Self
-                .report(from: payload.report, run: run)
+                .report(from: payload.report, run: run, source: payload.source)
                 .withGarminDeviceFallback(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)
             await cacheRunReport(report)
             await MainActor.run {
@@ -2550,9 +2607,7 @@ private struct DBWellnessCheckin: Decodable {
 
 extension SupabaseRunSmartServices {
     private func run(matchingReportRunID runID: String) async -> RecordedRun? {
-        await recentRuns(limit: 100).first { run in
-            Self.reportRunIDCandidates(for: run).contains(runID)
-        }
+        await recordedRun(forReportRunID: runID)
     }
 
     static func reportRunID(for run: RecordedRun) -> String {
@@ -2722,7 +2777,9 @@ extension SupabaseRunSmartServices {
         )
     }
 
-    static func report(from payload: RunSmartDTO.RunReportPayload, run: RecordedRun) -> RunReportDetail {
+    /// `source` is the web response's "ai" or "fallback". Only AI text may reach a share image;
+    /// the server's fallback copy is generic and can misjudge the run.
+    static func report(from payload: RunSmartDTO.RunReportPayload, run: RecordedRun, source: String? = nil) -> RunReportDetail {
         let runID = reportRunID(for: run)
         let sourceLabel = RunSmartAttribution.sourceLabel(for: run)
         return RunReportDetail(
@@ -2747,7 +2804,8 @@ extension SupabaseRunSmartServices {
                 recoveryTimeline: payload.recoveryTimeline
             ),
             structuredNextWorkout: payload.structuredNextWorkout,
-            isGenerated: true
+            isGenerated: true,
+            shareHighlight: source == "ai" ? payload.shareHighlight : nil
         )
     }
 

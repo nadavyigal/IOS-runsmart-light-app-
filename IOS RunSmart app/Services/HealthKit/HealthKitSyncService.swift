@@ -62,13 +62,17 @@ struct HealthKitImportBatch {
     var uploadRetries: [RecordedRun] = []
     var skipped = 0
 
-    static func apply(_ runs: [RecordedRun], existing: [RecordedRun], isHidden: (RecordedRun) -> Bool,
+    static func apply(_ runs: [RecordedRun], existing: [RecordedRun], completionOwnerID: UUID? = nil, isHidden: (RecordedRun) -> Bool,
                       save: (RecordedRun) -> Void) -> Self {
         var batch = Self()
         for run in runs {
             guard !isHidden(run) else { batch.skipped += 1; continue }
             if let stored = existing.first(where: { $0.source == .healthKit && $0.providerActivityID == run.providerActivityID }) {
                 var merged = HealthKitImportMerge.merge(run, stored: stored)
+                if stored.healthPlanLookupFailed == true, merged.healthPlanLookupFailed == false,
+                   merged.plannedWorkoutID == nil, merged.healthCompletionRecovery == nil {
+                    merged.healthCompletionRecovery = HealthKitCompletionRecovery(ownerID: completionOwnerID)
+                }
                 if merged != stored {
                     merged.healthUploadPending = true
                     save(merged)
@@ -76,8 +80,11 @@ struct HealthKitImportBatch {
                 } else if merged.healthUploadPending == true {
                     batch.uploadRetries.append(merged)
                 }
-                // Retry exact completion even when the run data has not changed.
-                if merged.plannedWorkoutID != nil, merged.healthPlanLookupFailed != true { batch.retries.append(merged) }
+                // Retry exact identity or persisted deferred work, never every unassociated run.
+                if merged.healthPlanLookupFailed != true,
+                   merged.plannedWorkoutID != nil || merged.healthCompletionRecovery?.isPending == true {
+                    batch.retries.append(merged)
+                }
                 batch.skipped += 1
             } else {
                 var pending = run
@@ -87,6 +94,45 @@ struct HealthKitImportBatch {
             }
         }
         return batch
+    }
+}
+
+/// Recover only the failed-lookup transition. Persist account and target before writing; a
+/// transient failure keeps the same target, including across relaunch and concurrent syncs.
+enum HealthKitDeferredCompletion {
+    static func process(_ run: RecordedRun, ownerID: UUID,
+                        loadWorkouts: () async -> [WorkoutSummary]?,
+                        saveState: (HealthKitCompletionRecovery, HealthKitCompletionRecovery) -> Bool,
+                        complete: (RecordedRun) async -> Bool) async -> Bool {
+        guard run.plannedWorkoutID == nil, run.healthPlanLookupFailed != true,
+              var state = run.healthCompletionRecovery, state.isPending,
+              state.ownerID == nil || state.ownerID == ownerID else { return false }
+        if state.ownerID == nil {
+            var bound = state
+            bound.ownerID = ownerID
+            guard saveState(state, bound) else { return false }
+            state = bound
+        }
+        // nil means unavailable, not a successful empty plan. Retain pending work.
+        guard let workouts = await loadWorkouts() else { return false }
+        var matchRun = run
+        matchRun.plannedWorkoutID = state.targetWorkoutID
+        guard let match = TrainingPlanRepository.bestWorkoutMatch(for: matchRun, in: workouts) else {
+            var finished = state
+            finished.isPending = false
+            _ = saveState(state, finished)
+            return false
+        }
+        var pinned = state
+        pinned.targetWorkoutID = match.id
+        // This compare-and-set also rechecks ownership, visibility and deletion after await.
+        guard saveState(state, pinned) else { return false }
+        matchRun.plannedWorkoutID = match.id
+        guard await complete(matchRun) else { return false }
+        var finished = pinned
+        finished.isPending = false
+        _ = saveState(pinned, finished)
+        return true
     }
 }
 
@@ -359,7 +405,7 @@ struct HealthKitSyncService {
     }
 #endif
 
-    func importHealthData(localStore: RunSmartLocalStore, lookbackDays: Int = 180, limit: Int = 100) async -> HealthKitImportResult {
+    func importHealthData(localStore: RunSmartLocalStore, lookbackDays: Int = 180, limit: Int = 100, completionOwnerID: UUID? = nil) async -> HealthKitImportResult {
 #if canImport(HealthKit)
         guard HKHealthStore.isHealthDataAvailable() else {
             let status = unavailableStatus(message: "Health data is not available on this device.")
@@ -379,7 +425,7 @@ struct HealthKitSyncService {
                                                permissions: [], message: "Apple Health could not be read. Please try syncing again.")
             return HealthKitImportResult(status: failed, runs: [], wellness: nil, skippedDuplicates: 0)
         }
-        let batch = HealthKitImportBatch.apply(runs, existing: existing,
+        let batch = HealthKitImportBatch.apply(runs, existing: existing, completionOwnerID: completionOwnerID,
                                               isHidden: localStore.isRunHidden, save: { localStore.stageHealthImport($0) })
         let imported = batch.imported
         let refreshed = batch.refreshed

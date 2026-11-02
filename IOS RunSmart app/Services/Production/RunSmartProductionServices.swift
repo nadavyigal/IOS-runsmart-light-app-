@@ -102,6 +102,17 @@ final class RunSmartLocalStore {
         load([RecordedRun].self, key: "runsmart.runs") ?? []
     }
 
+    @discardableResult
+    func updateHealthCompletionRecovery(_ run: RecordedRun, expected: HealthKitCompletionRecovery,
+                                        next: HealthKitCompletionRecovery) -> Bool {
+        guard var stored = loadRuns().first(where: { Self.isSameStoredRun($0, run) }),
+              !isRunHidden(stored), stored.plannedWorkoutID == nil, stored.healthPlanLookupFailed != true,
+              stored.healthCompletionRecovery == expected else { return false }
+        stored.healthCompletionRecovery = next
+        saveRun(stored, replacingLocalFields: true)
+        return true
+    }
+
     func updateRunRPE(_ run: RecordedRun, rpe: Int?) -> RecordedRun {
         // Apply to the stored copy so a field written since the caller loaded the run (such as the Strava activity id) is kept.
         var updated = loadRuns().first(where: { $0.id == run.id }) ?? run
@@ -1647,6 +1658,11 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
 
     func recentRuns() async -> [RecordedRun] {
         ActivityConsolidationService.userVisibleRecentRuns(store.visibleRuns(store.loadRuns()))
+    }
+
+    func recordedRun(forReportRunID runID: String) async -> RecordedRun? {
+        await store.rematchStoredRuns()
+        return RunReportRunResolver.resolve(runID: runID, runs: store.visibleRuns(store.loadRuns()), savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
     }
 
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {

@@ -1,3 +1,5 @@
+> Next-submission requirement (2026-10-27): the saved-report benchmark fix in PR #166 was implemented after build 37. Build 37 does not contain it. The next ASC submission must use a new candidate satisfying [the required inclusion checks](../next-submission/README.md). Existing submission evidence below is historical and is not changed by this instruction.
+
 # Current candidate: 1.2.0 (37)
 
 Owner reported build-36 TestFlight testing passed on 25 October 2026 and authorized the recommended release steps. Build 37 fixes the initial GPS checkpoint losing a planned workout guide after immediate termination. The new disk/relaunch recovery regression failed before the fix and passes afterward; the full simulator suite passed **725 tests, zero failures/skips**. No additional physical build-37 test is claimed.

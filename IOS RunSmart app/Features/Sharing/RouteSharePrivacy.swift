@@ -1,9 +1,9 @@
 import Foundation
 import CoreLocation
 
-/// Pure helpers for the opt-in route map on a shared run. The share is private by default; when a
-/// runner turns the map on, the first and last 200 m of the route are cut so the image does not
-/// show where they start or finish.
+/// Pure helpers for the route map on a shared run. The run share includes the map by default, and
+/// the first and last 200 m of the route are always cut so the image does not show where the
+/// runner starts or finishes.
 enum RouteSharePrivacy {
     /// Route length hidden at each end of a shared map.
     static let trimMeters: Double = 200

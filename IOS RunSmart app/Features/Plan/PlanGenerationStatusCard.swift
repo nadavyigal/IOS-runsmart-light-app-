@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// Shown on Today and Plan while the coach builds a plan, and when that build
-/// fails. Replaces the old behaviour where both screens sat blank for ~30-45s
-/// and the only failure signal was a transient banner pointing at a
-/// Profile-buried screen (audit §4 Risk 1 / WP-43 S1).
+/// Shown on Today and Plan while the coach builds a plan, when that build
+/// fails, and when a signed-in runner has no plan at all. Replaces the old
+/// behaviour where both screens sat blank for ~30-45s and the only failure
+/// signal was a transient banner pointing at a Profile-buried screen
+/// (audit §4 Risk 1 / WP-43 S1).
 struct PlanGenerationStatusCard: View {
-    var state: PlanGenerationState
+    var card: PlanGenerationCard
     var onRetry: () -> Void
 
     var body: some View {
@@ -30,7 +31,7 @@ struct PlanGenerationStatusCard: View {
 
                     Spacer(minLength: 0)
 
-                    if state.showsGeneratingCard {
+                    if card == .generating {
                         ProgressView()
                             .tint(Color.accentPrimary)
                     }
@@ -41,36 +42,57 @@ struct PlanGenerationStatusCard: View {
                     .foregroundStyle(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if state.showsInlineRetry {
+                switch card {
+                case .generating:
+                    EmptyView()
+                case .retry:
                     Button(action: onRetry) {
                         Label("Try again", systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(NeonButtonStyle())
                     .accessibilityIdentifier("planGenerationRetryButton")
+                case .buildMissingPlan:
+                    Button(action: onRetry) {
+                        Label("Build my plan", systemImage: "sparkles")
+                    }
+                    .buttonStyle(NeonButtonStyle())
+                    .accessibilityIdentifier("planGenerationBuildButton")
                 }
             }
         }
     }
 
     private var accent: Color {
-        state.showsInlineRetry ? .accentHeart : .accentRecovery
+        card == .retry ? .accentHeart : .accentRecovery
     }
 
     private var symbol: String {
-        state.showsInlineRetry ? "exclamationmark.triangle.fill" : "sparkles"
+        card == .retry ? "exclamationmark.triangle.fill" : "sparkles"
     }
 
     private var title: String {
-        state.showsInlineRetry ? "We couldn't build your plan" : "Coach is building your plan"
+        switch card {
+        case .generating: "Coach is building your plan"
+        case .retry: "We couldn't build your plan"
+        case .buildMissingPlan: "You don't have a plan yet"
+        }
     }
 
     private var subtitle: String {
-        state.showsInlineRetry ? "Nothing was lost" : "This usually takes 30 to 45 seconds"
+        switch card {
+        case .generating, .buildMissingPlan: "This usually takes 30 to 45 seconds"
+        case .retry: "Nothing was lost"
+        }
     }
 
     private var body_: String {
-        state.showsInlineRetry
-            ? "Your details are saved. Tap Try again to rebuild your plan without leaving this screen."
-            : "We're turning your goal and schedule into a week-by-week plan. You can stay here while it finishes."
+        switch card {
+        case .generating:
+            "We're turning your goal and schedule into a week-by-week plan. You can stay here while it finishes."
+        case .retry:
+            "Your details are saved. Tap Try again to rebuild your plan without leaving this screen."
+        case .buildMissingPlan:
+            "Your goal and schedule are saved. Tap Build my plan and the coach will turn them into a week-by-week plan."
+        }
     }
 }

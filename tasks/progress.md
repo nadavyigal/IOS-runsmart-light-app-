@@ -1,3 +1,7 @@
+## 2026-11-02 — Watch beta accepted by tester; integrated candidate 1.2.3 (41)
+
+Owner reports Yaniv completed beta38 tests and all looked good; accepted as tester-reported paired-device evidence. Correct tester yanivshm@gmail.com installed on iPhone15ProMax/iOS27.0.1. Reconciled PR165 with main3c2d679 without rewriting history; retained both records and current iPhone features. Reproduced failed→successful unassociated Health lookup losing completion. Deferred recovery persists owner/target, survives transient failure/relaunch, yields to exact Health identity and cannot rematch replacements or replay reports. Independent QA's account-switch/new-exact-ID races fixed with regressions. Final simulator suite: **841 passed /0failed /1existing opt-in map-render skip**,33Watch tests pass. Version1.2.3(41) allocated after live ASC latest40 complete. Signed archive/export/backend verification in progress; not uploaded/submitted/public, final candidate Watch round trip remains pending. See docs/qa/releases/1.2.3-watch-candidate/ and docs/plans/2026-11-02-watch-release-candidate.md. Clean temporary clone protects original worktrees: /private/tmp/runsmart-watch-release-20261102.
+
 ## 2026-10-26 — External Watch beta submitted: Waiting for Review
 
 Owner completed signing and private TestFlight review fields, then restored the expired browser session. Existing upload succeeded (no duplicate upload); Apple processing completed for 1.2.1 (38), source `feee81c`. Verified saved review fields without retaining credentials. Added build UUID `1792958d-9264-4ad2-b09e-5f741d314128` to Apple Watch Beta, saved exact testing instructions and submitted for beta review with Automatically notify testers checked. ASC verifies one tester/one build, **Waiting for Review**. Tester remains **No Builds Available** pending Apple approval; delivery/acceptance/install are not claimed. Public1.2.0 unchanged; PR165 draft until physical Watch QA. Existing 749/749 application tests, archive/export/signature/privacy/dSYM and actual-artifact backend checks remain the validation baseline; this continuation changed distribution metadata/docs only. Evidence: `docs/qa/releases/1.2.1-watch-beta/`.
@@ -13,6 +17,107 @@ Verified CodeRabbit's unchanged-import finding against head b27bf40 (hosted Code
 ## 2026-10-25 — Apple Workout draft candidate
 
 Apple Watch track implemented in isolated `/Users/nadavyigal/Developer/runsmart-apple-watch`, branch `codex/apple-watch-workoutkit`, base `61b7cfb`. Existing release checkout untouched. WorkoutKit session-detail send uses current APIs, the phone guide, stable IDs, separate permission flow, capacity/readback checks and queued edit/cancel reconciliation. Health imports refresh late data without duplicate runs, preserve exact identity and failed-lookup state through consolidation, retry exact completion and avoid stale cached completion candidates. Health read choices are shown honestly. Final simulator suite **739 passed / 0 failed** (736 XCTest + 3 Swift Testing, including 14 new tests); actual scheduling denial UI verified. Spec and QA: `docs/specs/2026-10-25-apple-workout.md`, `docs/qa/reports/2026-10-25-apple-workout.md`. Draft PR #165: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/165 ; **paired physical iPhone/Watch round trip remains required; not release-ready**. No version/archive/upload/submission or production configuration changes.
+
+## 2026-10-29 — Gate A: honest sign-in and plan numbers, plan recovery
+
+**Status:** 1.2.1 (39) in App Review (not checked this session). Branch `claude/gate-a-signin-plan-failures-7f17a9`, PR #173.
+**Current Phase:** Gate A of the monetization plan: fix what blocks beta runners.
+**Active Story:** PR #173 pre-check (Codex at final head), then founder merge.
+**Last Completed Story:** review fix: "Build my plan" now needs an uncached, error-aware check of every plan key (`TrainingPlanRepository.activePlanPresence`); found by code-reviewer and Codex (legacy `profile_id` plan could be replaced). `plans.profile_id` is uuid (checked live), so the bigint profile id is never queried. S3: `plan_generation_failed` carries `reason` (`PlanGenerationFailureReason`; a 401 is read from the server `code` because the client decodes non-2xx bodies). S2: Today and Plan show "Build my plan" when a signed-in, onboarded runner has a confirmed missing plan (`PlanGenerationCard`, `isActivePlanConfirmedMissing`; a failed lookup never shows it). S1: the unit-test host no longer starts PostHog (`Analytics.startupCredentials`, `IOS RunSmart app/Services/Analytics/AnalyticsService.swift`). Cause found 2026-10-29: 22 of 27 `sign_in_failed` and 22 of 23 `plan_generation_failed` in project 171597 (30 days) were test fixtures. Real runners: 0 sign-in failures, 1 plan failure (1.1.8 (33), 16 Oct, bare-domain redirect dropped the token, fixed 18 Oct).
+**Next Recommended Story:** after merge, confirm in PostHog that no `$is_emulator=true` events arrive after a test run, and that new `plan_generation_failed` events carry `reason`. Then: Start Run gives no feedback after location is denied (real runner 37f4bab4, 23 Oct).
+**Blockers:** none.
+**Last Validation:** 2026-10-29: full `xcodebuild test` on iPhone 17 simulator at 9f07059: TEST SUCCEEDED, 808 passed, 1 skipped, 0 failed. Story tests failed first. PostHog 171597: 0 `$is_emulator=true` events since the S1 fix (13:13Z) across all test runs, including the full suite. Live Supabase: stuck runner 9ef81d92 has a profile and 0 active plans (card would show); b7f7afee has 1 (no card). Not checked on a device.
+**Last Updated:** 2026-10-29
+
+## 2026-10-29 — Run share: entry copy says the map hides the first and last 200 m
+
+**Status:** 1.2.1 (39) still in App Review. Changes on branch `claude/2026-10-28-share-card-design` (PR #172), stacked on PR #171. Not in build 39.
+**Current Phase:** Run share polish, after 1.2.1.
+**Active Story:** done. `RunMediaShareEntry` no longer says "You choose whether to include a map" (wrong since #171 put the map on by default). It now says "Create a photo or short video of your run. The map hides the first and last 200 m."
+**Last Completed Story:** coach line is AI text only, same PR.
+**Next Recommended Story:** physical-device check of image and video share (look, export time). Web: why the 26 Oct report reached the server with zero distance and time (fallback said "Run logged." only).
+**Blockers:** none.
+**Last Validation:** 2026-10-29: `xcodebuild test` on iPhone 17 Pro simulator: RunShareSnapshotTests + RunSharePosterRenderTests + RunShareInsightTests: TEST SUCCEEDED (24 passed, 1 skipped: the map render test needs `TEST_RUNNER_RUN_SHARE_RENDER_DIR`). Not checked on a device.
+**Last Updated:** 2026-10-29
+
+## 2026-10-28 — Run share: coach line is AI text only
+
+**Status:** 1.2.1 (39) still in App Review. Changes on branch `claude/2026-10-28-share-card-design` (PR #172), stacked on PR #171. Not in build 39.
+**Current Phase:** Run share polish, after 1.2.1.
+**Active Story:** done. Share images and video print only the AI's "what went well" line (`summary[1]` of the web run report) and only when the response `source` is "ai". The server's fallback text ("Run logged. Short run still counts for habit building.") and reports cached before this change show no coach line. The full summary still appears in the in-app report and the text share.
+**Last Completed Story:** Feed, Story and video redesign (direction A, satellite map), same PR.
+**Next Recommended Story:** physical-device check of image and video share (look, export time). Then fix `RunMediaShareEntry` copy "You choose whether to include a map" (wrong since #171). Web: why the 26 Oct report reached the server with zero distance and time (fallback said "Run logged." only).
+**Blockers:** none.
+**Last Validation:** 2026-10-28: `xcodebuild test` on iPhone 17 Pro simulator (iOS 26.5): RunShareInsightTests (new, 4) + RunSharePosterRenderTests + RunShareSnapshotTests + RunSharePreparedAssetTests + RouteSharePrivacyTests + RunShareRendererTests + RunSmartReadinessTests: TEST SUCCEEDED (289 passed). Not checked on a device.
+**Last Updated:** 2026-10-28
+
+## 2026-10-28 — Run share: Feed, Story and video redesign (direction A, satellite map)
+
+**Status:** 1.2.1 (39) still in App Review. Changes on branch `claude/2026-10-28-share-card-design` (PR #172), stacked on PR #171 (map on by default). Not in build 39.
+**Current Phase:** Run share polish, after 1.2.1.
+**Active Story:** Share images and the 10-second video share one design: full-bleed satellite map (no street labels), route fitted clear of the type, stats and coach line on dark fades, no App Store text in the image (the link is still a separate share item). The video draws the route with the camera following it, counts the distance up, pulls back, fades the stats in, and ends on the exact Story image. Runs without GPS get a stats-only layout. If MapKit cannot frame the route, the card falls back to stats only. The MapKit logo strip is drawn ungraded.
+**Last Completed Story:** founder picked direction A with satellite (design canvas https://claude.ai/artifact/6i74dp2Nc4eNWVqrrXpbFB) and asked for the video to match.
+**Next Recommended Story:** coach line shows AI text only. Today it can print the web server's fallback text ("Run logged. Short run still counts for habit building.", `RunSmart/v0/app/api/run-report/route.ts:820-836`) because iOS drops the response's `source` field. Needs RunSmartAPIModels, RunSmartModels, SupabaseRunSmartServices, ProgressShareCard. Also: `RunMediaShareEntry` still says "You choose whether to include a map" (wrong since #171).
+**Blockers:** none.
+**Last Validation:** 2026-10-28: `xcodebuild test` on iPhone 17 Pro simulator (iOS 26.5): RunSharePosterRenderTests + RunShareSnapshotTests + RunSharePreparedAssetTests + RouteSharePrivacyTests + RunShareRendererTests. Feed/Story PNGs and video frames rendered and reviewed. Not checked on a device; video export time on a phone not measured.
+**Last Updated:** 2026-10-28
+
+## 2026-10-28 — Run share: route map on by default
+
+**Status:** 1.2.1 (39) still in App Review. New change on branch `claude/2026-10-28-share-map-default` (not in build 39).
+**Current Phase:** Run share polish, after 1.2.1.
+**Active Story:** Share Run screen includes the route map by default. The "Include route map" toggle is removed. The first and last 200 m are still cut.
+**Last Completed Story:** route map on by default (`IOS RunSmart app/Features/Activity/ShareRunView.swift`), and the share entry copy in `RunMediaShareEntry.swift` now says the map is included.
+**Next Recommended Story:** professional design round for the Feed and Story share images (separate session).
+**Blockers:** none.
+**Last Validation:** 2026-10-28: `xcodebuild test` on iPhone 17 simulator, RunShareSnapshotTests + RunSharePreparedAssetTests + RouteSharePrivacyTests: TEST SUCCEEDED (rerun after the copy fix, still passing). Not checked on a device.
+**Last Updated:** 2026-10-28
+
+## 2026-10-28 — 1.2.0 (37) live; 1.2.1 (39) submitted
+
+**Status:** 1.2.0 (37) live on the App Store since 2026-10-25T22:16:02Z. 1.2.1 (39) submitted to App Review on 2026-10-28 (founder report; not checked in App Store Connect this session).
+**Current Phase:** 1.2.1 (39) in App Review.
+**Active Story:** App Review outcome for 1.2.1 (39): iPhone photo/video run sharing and saved-route benchmarks. Watch beta 38 stays excluded.
+**Last Completed Story:** 1.2.1 (39) owner device checks passed and build submitted (PR #168).
+**Next Recommended Story:** after approval, check the live version with the App Store lookup, then run the physical-device route smoke on the live build (record, save, benchmark, re-run, compare).
+**Blockers:** none for review. The 2026-10-25 entry below says "Waiting for Review"; that release went live the same day and was not recorded until now.
+**Last Validation:** 2026-10-28: App Store lookup returned 1.2.0, released 2026-10-25T22:16:02Z (3 of 3 polls with varying URLs). Status-file change only; no build, test or code change.
+**Last Updated:** 2026-10-28
+
+## 2026-10-28 — 1.2.1 (39) submitted: Waiting for Review
+
+Owner reported both build39 iPhone share/history checks passed. PR168 merged as a1ca742; PR166/167/158 are landed through its ancestry. Watch PR165 stays open/draft and excluded. Completed Apple's new social-feature age-rating fields (both No; existing wellness Yes and9+ rating retained). App Review accepted submission edea8327-0c3b-46d2-93e0-91a38ed5969f for exact build39 UUID73d723ad-3a78-4b93-bbb2-ed6e5a53f19a, archive source98360ef. Verified Waiting for Review and automatic release after approval, all users immediately.785 tests and archive/IPA/backend/privacy/dSYM evidence remain valid; no app code changed this continuation. Public1.2.0 remains current until approval. Inclusion requirement fulfilled in this submission. Final evidence: docs/qa/releases/sharing-benchmarks/.
+
+## 2026-10-28 — Owner build39 device checks passed
+
+Owner explicitly reports both requested checks passed on1.2.1(39): image/video saves/sharing, and actual saved same-route Previous/PB/average comparisons persisting after relaunch. Physical candidate gate satisfied by owner report. Proceeding to merge/review and submit exact processed build39, UUID73d723ad-3a78-4b93-bbb2-ed6e5a53f19a, under original production request.785 tests and artifact/backend checks remain valid; no code changes. Watch beta38 remains excluded. Submission not yet performed at this entry.
+
+## 2026-10-28 — Build39 Testing; exact production draft selected
+
+Owner restored ASC login; verified1.2.0 Ready for Distribution and unused39. Uploaded existing verified archive (source98360ef), upload succeeded07:03:54 host-local. Apple processing complete;1.2.1(39), UUID73d723ad-3a78-4b93-bbb2-ed6e5a53f19a, added to RunSmart Internal and verified Testing. What to Test saved. New1.2.1 production draft selects exact39; release/reviewer notes saved and verified; existing review credentials/listing retained. Watch38 remains separate/excluded. Owner asked to test actual iPhone image/video delivery and saved same-route comparisons/relaunch. Await result before merge/submission.785 tests and all signed artifact/backend checks remain valid; no code changes this continuation. No App Review submission/public release. PR168; `/Users/nadavyigal/Developer/runsmart-production-release`, `codex/release-sharing-benchmarks`.
+
+## 2026-10-28 — Distribution IPA verified; ASC access remains blocked
+
+Export completed; Apple Distribution signatures/debugging disabled, app/extension1.2.1(39), entitlements/privacy/analytics and no WorkoutKit/debug share harness verified from the actual IPA. Its packaged backend passes live Auth200 with Apple/email enabled. SHA/paths in `docs/qa/releases/sharing-benchmarks/ipa-verification.json`; archive source98360ef.785 tests pass. No further signing action needed. ASC Chrome remains expired/stuck on login; owner sign-in requested. No upload, submission or public release. Resume with live allocation check, upload/processing, physical share/actual history checks, then exact-build selection/submission. PR168; clean/pushed handoff on `codex/release-sharing-benchmarks` in `/Users/nadavyigal/Developer/runsmart-production-release`.
+
+## 2026-10-28 — Archive passed; signing/login handoff
+
+Candidate1.2.1(39), archive source `98360ef`: signed archive, app/extension identity/signatures/entitlements/privacy/permissions/analytics/dSYMs, no WorkoutKit/debug harness and live packaged Auth all pass.785 combined tests pass. Distribution IPA export is waiting on macOS signing-key access (session95616); owner asked to approve keychain prompt and restore ASC Chrome login. No upload/submission/public release; actual allocation, exported Apple Distribution proof, physical sharing and owner actual run-history gates remain open. Draft PR168 is pushed. Resume from `docs/qa/releases/sharing-benchmarks/README.md`; do not rebuild/re-upload blindly. Worktree `/Users/nadavyigal/Developer/runsmart-production-release`, branch `codex/release-sharing-benchmarks`.
+
+## 2026-10-28 — Combined iPhone production candidate
+
+Owner requests shipping completed RunSmart iPhone changes; Watch remains excluded. Integrated PR166 save-once/report benchmarks, PR167 PNG/MP4 sharing and PR158 redirect-safe API host on `codex/release-sharing-benchmarks` in `/Users/nadavyigal/Developer/runsmart-production-release`. Fixed outstanding PR166 canonical Health duplicate finding with a red/green service regression and final-geometry rematching across production/Supabase/demo adapters. Combined iPhone17/iOS26.5 suite: 785 tests (782 XCTest + 3 Swift Testing), zero failures. Xcode's initial clone startup stalled; booted target with parallel testing disabled executed tests. Candidate1.2.1(39) prepared; archive/export and live ASC allocation/selection pending. Public listing verified1.2.0. ASC distribution session expired, owner sign-in requested. Physical Photos/social-app and actual same-route history gates remain open. No Watch source, upload, submission or public release claimed. Evidence: `docs/qa/releases/sharing-benchmarks/`.
+
+## 2026-10-27 — Benchmark fix required in next ASC submission
+
+Owner explicitly requires PR #166 / implementation `5c96738` in the next ASC submission. Added the requirement to AGENTS, the TestFlight checklist, the existing build-37 handoff, and `docs/qa/releases/next-submission/README.md`. Release must verify the actual archive source includes the implementation, use a new unused build greater than 37, verify the route loop on the candidate, and record the exact processed build selected in ASC. Remote main `61b7cfb` does not yet contain the fix; PR #166 code review is running. Requirement is **pending candidate delivery**, not satisfied by documentation or the prior build. No archive/upload/submission/withdrawal or App Store changes performed. Documentation-only update; previous 745-test and visual evidence retained.
+
+## 2026-10-26 — Saved-report benchmark fix verified
+
+Implemented on `codex/repeat-route-benchmarks`. Confirmed root cause visually: EmptyView initial content prevented the comparison task from starting. Stable loading container, original-run resolution across stored history/UUID aliases, map/save controls, benchmark-on default, upgrade backfill, route-change refresh and native/Health comparison dedup are implemented. Full suite 745 passed / 0 failed / 0 skipped (742 XCTest + 3 Swift Testing), iPhone 17 / iOS 26.5. Final visual fresh-save and relaunch both show Previous −1:40, PB 31:40, monthly average 6:40/km across 3 synthetic runs. Five affected simulator keys restored exactly. QA/screenshots: docs/qa/reports/2026-10-26-repeat-route-benchmarks.md. Delivered in PR #166: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/166 (implementation commit `5c96738`). No backend migration, production run edits, App Store upload or release performed.
+## 2026-10-28 — Native run sharing
+
+Implemented Story/Feed PNG and 10-second route MP4 exports from the selected actual RecordedRun, with the approved brighter map direction and App Store discovery CTA/link. Map starts off and reuses route privacy trimming/segment gaps. Immutable render keys prevent stale media/caption/options mismatches; video cancellation and scoped 24-hour temporary-file pruning are covered. Post-run and saved-report flows now open the native composer; benchmark/milestone sharing stays available. Full iPhone 17 / iOS 26.5 simulator suite: **762 passed / 0 failed / 0 skipped**. Release simulator build passed. Native map-backed PNG/MP4 exports generated and sampled frames inspected. After the Mac was unlocked, completed live image/video share-sheet checks (App Store URL visible), map/format selection, cancellation and retry. Fixed cropped composer previews and delayed cancel control recovery; fresh full suite remains 762/0. Physical social-app/Photos checks remain release QA. No TestFlight/upload/merge/public release performed. Worktree `/Users/nadavyigal/Developer/runsmart-run-sharing`, branch `codex/run-share-exports`. Details: `docs/qa/run-sharing/README.md`.
 
 ## 2026-10-25 — RunSmart 1.2.0 (37) submitted: Waiting for Review
 
@@ -205,6 +310,21 @@ RunSmart app 6768297840: added Name and Other User Content for linked App Functi
 **Blockers:** Device smoke needs the founder's iPhone.
 **Last Validation:** 2026-10-19: App Store lookup 1.1.9, released 2026-10-18T18:23:16Z (3 of 3 polls). Status-file change only; no build, test or code change.
 **Last Updated:** 2026-10-19
+
+## 2026-10-18: API base URL points at www (plan generation fix)
+
+**Status:** PR open, not merged, not in a build. Server-side fix already live.
+**Root cause:** `RunSmartAPIBaseURL` was `https://runsmart-ai.com`. Vercel answered 308 to `www`, and
+URLSession drops the Authorization header on a cross-host redirect, so every signed-in API call
+reached the server without a token. Since web PR #134 (2026-09-27) `/api/generate-plan` requires it:
+401, "no plan" for every iOS user. Found from a real first user (2026-10-16, no plan saved).
+**Fixed today, no release needed:** the Vercel apex redirect on project running-coach was removed
+2026-10-18; the bare domain now serves directly. Verified: URLSession POST to the bare domain, no
+redirect; Supabase logged the token check (`GET /auth/v1/user`) 1 s later.
+**This PR:** `RunSmartInfo.plist:59` and `RunSmartAPIModels.swift:1321` use `https://www.runsmart-ai.com`,
+so the app no longer depends on that domain setting. `APIBaseURLTests` guards it. Full suite 423 passed, 0 failed.
+**Not checked:** the other routes behind login since #134 (chat, run report, voice cue, workouts) are the
+same failure class and are fixed by the same change; a physical-device run is still open.
 
 ## 2026-10-17 — Distribution IPA export completed
 

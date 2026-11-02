@@ -9,6 +9,9 @@ protocol TodayProviding {
 protocol PlanProviding {
     func weeklyPlan() async -> [WorkoutSummary]
     func activeTrainingPlan() async -> TrainingPlanSnapshot?
+    /// True only when a lookup succeeded and the runner has no active plan.
+    /// `activeTrainingPlan()` returns nil for both that and a failed lookup.
+    func isActivePlanConfirmedMissing() async -> Bool
     func planWorkouts(from startDate: Date, to endDate: Date) async -> [WorkoutSummary]
     func nextWorkouts(limit: Int) async -> [WorkoutSummary]
     func saveTrainingGoal(_ request: TrainingGoalRequest) async -> Bool
@@ -28,6 +31,7 @@ enum RunSmartPlanGenerationStatus {
 }
 
 extension PlanProviding {
+    func isActivePlanConfirmedMissing() async -> Bool { false }
     func saveTrainingGoal(_ request: TrainingGoalRequest) async -> Bool { false }
     func regenerateTrainingPlan(_ request: TrainingGoalRequest) async -> Bool { false }
     func moveWorkout(workoutID: UUID, to date: Date) async -> Bool { false }
@@ -58,6 +62,7 @@ protocol ProfileProviding {
 protocol RunLogging {
     func currentRunMetrics() async -> [MetricTile]
     func recentRuns() async -> [RecordedRun]
+    func recordedRun(forReportRunID runID: String) async -> RecordedRun?
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun
     func updateRunRPE(_ run: RecordedRun, rpe: Int?) async -> RecordedRun
     func updateRunDetails(_ run: RecordedRun, title: String?, notes: String?) async -> RecordedRun
@@ -66,6 +71,10 @@ protocol RunLogging {
 }
 
 extension RunLogging {
+    func recordedRun(forReportRunID runID: String) async -> RecordedRun? {
+        RunReportRunResolver.resolve(runID: runID, runs: await recentRuns())
+    }
+
     func updateRunRPE(_ run: RecordedRun, rpe: Int?) async -> RecordedRun {
         var updated = run
         updated.rpe = rpe
@@ -476,6 +485,11 @@ struct DemoRunSmartServices: TodayProviding, PlanProviding, CoachChatting, Profi
         let localRuns = store.visibleRuns(store.loadRuns()).sorted { $0.startedAt > $1.startedAt }
         guard !localRuns.isEmpty else { return RunSmartPreviewData.recordedRuns }
         return localRuns + RunSmartPreviewData.recordedRuns
+    }
+
+    func recordedRun(forReportRunID runID: String) async -> RecordedRun? {
+        await store.rematchStoredRuns()
+        return RunReportRunResolver.resolve(runID: runID, runs: store.visibleRuns(store.loadRuns()) + RunSmartPreviewData.recordedRuns, savedRoutes: store.loadSavedRoutes(), benchmarkRouteIDs: store.benchmarkRouteIDs())
     }
 
     func saveManualRun(kind: WorkoutKind, date: Date, distanceKm: Double, durationMinutes: Int, averageHeartRateBPM: Int?, notes: String) async -> RecordedRun {
