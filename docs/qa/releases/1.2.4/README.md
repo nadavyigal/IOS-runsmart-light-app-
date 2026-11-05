@@ -9,7 +9,10 @@ Founder approved "yes, merge + release" on 2026-11-05. Contents: T7 coaching ton
 - Upload to App Store Connect succeeded 2026-11-05 18:35 host time.
 - Not checked on a device. The founder chose to listen to the tones in production.
 
+## Status 2026-11-05 evening
+ASC processed build 42 (Ready to Submit). Added to RunSmart Internal (1 tester), What to Test saved. Version 1.2.4 created (Prepare for Submission), build 42 selected, What's New saved and confirmed after reload. Release option carried over: automatic after approval, all users immediately. App Review notes still describe 1.2.2: Chrome froze while typing them; new text in `review-notes.txt`.
+
 ## Not done at this entry
-ASC processing check, TestFlight group, 1.2.4 version draft with build 42 selected, App Review submission (needs the founder's final OK).
+App Review notes update, App Review submission (needs the founder's final OK).
 
 Artifacts: `/private/tmp/runsmart-release-artifacts-2026-11-05` (archive, IPA, logs). Notes: `release-notes.txt`, `testflight-notes.txt`.

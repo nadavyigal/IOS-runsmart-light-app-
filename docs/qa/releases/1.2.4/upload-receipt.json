@@ -7,9 +7,16 @@
   "upload_completed_host_time": "2026-11-05 18:35:14",
   "log": "/private/tmp/runsmart-release-artifacts-2026-11-05/upload.log",
   "ipa_signing": "Apple Distribution: Nadav Yigal (8VC4R5M425), get-task-allow false, app and RunSmartRunLiveActivityExtension both 1.2.4 (42)",
-  "asc_processing_status": "not checked yet, ASC sign-in expired",
-  "testflight_group": null,
-  "asc_build_selected": false,
+  "asc_processing_status": "processed; Ready to Submit",
+  "testflight_group": "RunSmart Internal",
+  "asc_build_selected": true,
   "app_review_submitted": false,
-  "physical_device_pass": false
+  "physical_device_pass": false,
+  "testflight_group_testers": 1,
+  "testflight_notes_saved": true,
+  "asc_version_created": "1.2.4, Prepare for Submission",
+  "asc_whats_new_saved": true,
+  "asc_review_notes_updated": false,
+  "asc_release_option": "Automatically release after approval, all users immediately (carried over)",
+  "verified_at_host_time": "2026-11-05 evening"
 }
