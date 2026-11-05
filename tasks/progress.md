@@ -1,12 +1,12 @@
-## 2026-11-05: Coach voice clips, design approved, build plan written
+## 2026-11-05: Coach voice clips, Task 1 waiting for the sample spend
 
-**Status:** Founder approved the design on 2026-11-05. Build plan written. Still docs only on `claude/2026-11-05-coach-voice-clips` (stacked on T7 branch `claude/2026-11-05-voice-tones`; PR #176 still open, not merged). No app code yet.
+**Status:** Design approved, plan written, founder chose Native execution. Task 1 in progress on `claude/2026-11-05-coach-voice-clips` (stacked on T7, PR #176 still open, not merged). No app code yet. No credits spent.
 **Current Phase:** Make cues sound human: ElevenLabs coach clips bundled in the app, short numbers in the Apple voice ("1 K. 5:10."), per tone, including planned workout steps.
-**Active Story:** Plan `docs/superpowers/plans/2026-11-05-coach-voice-clips.md`, Task 1: lines, voice choice, and a sample round the founder listens to before any app code.
-**Last Completed Story:** Design approved (`docs/superpowers/specs/2026-11-05-coach-voice-clips-design.md`). Plan has 8 tasks: lines and samples, short numbers, workout guide verdict, cue composer, clip library and player, run wiring, clip bundle, listening QA and PR.
-**Next Recommended Story:** Founder picks how to run the plan, then Task 1: pick the voice, estimate credits for the sample round, generate only after the founder's yes.
-**Blockers:** Founder confirms the ElevenLabs plan allows commercial use of bundled audio (needed before Task 7). Each credit spend needs the founder's yes.
-**Last Validation:** 2026-11-05: docs only, no tests run.
+**Active Story:** Plan Task 1: lines, voice, sample round. `scripts/coach-voice/lines.json` (104 lines) and `docs/coach-voice/2026-11-05-voice-choice.md` (voice Alex, `hLygPNd2gK6Azddorc5W`, eleven_v4) committed.
+**Last Completed Story:** Lines written and copy-checked; voice candidate picked; sample round priced: 1,726 credits, about $0.35, 3 takes (one per tone).
+**Next Recommended Story:** On the founder's yes, generate the 3 sample takes, split them, render stitched cues, send for listening. App code starts only after the founder approves the voice and lines.
+**Blockers:** Founder yes for the sample spend. Founder confirms the ElevenLabs plan allows commercial use (before Task 7).
+**Last Validation:** 2026-11-05: docs and data only, no tests run.
 **Last Updated:** 2026-11-05
 
 ## 2026-11-05 — T7 coach tones merged (PR #176); PR #174 merged
