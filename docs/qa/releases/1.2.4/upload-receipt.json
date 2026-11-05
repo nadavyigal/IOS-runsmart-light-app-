@@ -1,0 +1,15 @@
+{
+  "version": "1.2.4",
+  "build": "42",
+  "archive_source_commit": "a49420e",
+  "main_commit": "a62488532a43cb645734f6c66e1a2b92f1c657fa",
+  "upload_succeeded": true,
+  "upload_completed_host_time": "2026-11-05 18:35:14",
+  "log": "/private/tmp/runsmart-release-artifacts-2026-11-05/upload.log",
+  "ipa_signing": "Apple Distribution: Nadav Yigal (8VC4R5M425), get-task-allow false, app and RunSmartRunLiveActivityExtension both 1.2.4 (42)",
+  "asc_processing_status": "not checked yet, ASC sign-in expired",
+  "testflight_group": null,
+  "asc_build_selected": false,
+  "app_review_submitted": false,
+  "physical_device_pass": false
+}

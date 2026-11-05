@@ -1,6 +1,6 @@
 ## 2026-11-05: Release 1.2.4 (42), T7 coach tones
 
-**Status:** Founder said "yes, merge + release". PR #176 merged into `main` (a624885). Release branch `claude/2026-11-05-release-1-2-4` sets 1.2.4 (42) in all 6 configurations. 1.2.3 is skipped because build 41 is the 1.2.3 Watch beta (PR #165, uploaded 2026-11-02). Not yet archived or uploaded at this entry.
+**Status:** Founder said "yes, merge + release". PR #176 merged into `main` (a624885). Release branch `claude/2026-11-05-release-1-2-4` sets 1.2.4 (42) in all 6 configurations. 1.2.3 is skipped because build 41 is the 1.2.3 Watch beta (PR #165, uploaded 2026-11-02). Archived, IPA verified and uploaded to ASC 18:35 host time. ASC processing not checked yet (sign-in expired).
 **Current Phase:** Release candidate 1.2.4 (42): archive, IPA check, upload, TestFlight, then App Review only after the founder's final OK.
 **Active Story:** Deliver 1.2.4 (42) to App Store Connect. Notes in `docs/qa/releases/1.2.4/`.
 **Last Completed Story:** T7 coaching tones merged (PR #176).
