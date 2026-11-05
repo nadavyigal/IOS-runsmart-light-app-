@@ -136,7 +136,8 @@ struct RunTabView: View {
                     : 0.0,
                 targetPaceMinPerKm: nil,
                 workoutGoal: router.plannedWorkout?.title,
-                heartRateBPM: nil
+                heartRateBPM: nil,
+                coachingStyle: CoachingToneStore.load().storedStyle
             )
             VoiceCoachService.shared.deliverCue(context: context)
         }

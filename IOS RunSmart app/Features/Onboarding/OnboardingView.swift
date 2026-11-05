@@ -41,6 +41,7 @@ struct OnboardingView: View {
     /// content). Static so the copy is testable.
     static let coachingStepTitle = "Coaching"
     static let coachingStepCTA = "Continue"
+    static let toneOptions = CoachingTone.options.map(\.label)
 
     /// A goal step may only advance once the user has picked a visible option,
     /// so a plan is never built from an empty or unseen goal (audit §4 Risk 9).
@@ -54,7 +55,7 @@ struct OnboardingView: View {
 
     private let goals = OnboardingView.goalOptions
     private let experiences = OnboardingView.experienceOptions
-    private let tones = ["Motivating", "Calm", "Direct"]
+    private let tones = OnboardingView.toneOptions
     private let weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     // Derived from the analytics names so the progress bar, the step switch,
     // and the funnel names can't drift apart.

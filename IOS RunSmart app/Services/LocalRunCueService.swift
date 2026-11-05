@@ -146,6 +146,8 @@ final class LocalRunCueService: NSObject, ObservableObject {
     private var debouncer = RunCueDebouncer()
     /// Injection avoids starting an audio device in recorder unit tests.
     var speechHandler: ((String) -> Void)?
+    /// The last cue handed to the speaker, including rate and pitch for the tone.
+    private(set) var lastPreparedSpeech: PreparedCueSpeech?
 
     private override init() {
         settings = .load()
@@ -156,17 +158,19 @@ final class LocalRunCueService: NSObject, ObservableObject {
     }
 
     func setEnabled(_ enabled: Bool) { settings.enabled = enabled }
-    func begin(distance: Double = 0, movingTime: TimeInterval = 0, recovered: Bool = false) {
+    func begin(distance: Double = 0, movingTime: TimeInterval = 0, recovered: Bool = false, tone: CoachingTone = CoachingToneStore.load()) {
         schedule.reset(distance: distance, movingTime: movingTime)
         debouncer.reset()
-        announce(recovered ? "Run restored. Paused." : "Run started.")
+        let event: CoachCueEvent = recovered ? .restored : .started
+        announce(CoachCueSpeech.line(for: event, tone: tone), tone: tone)
     }
-    func update(distance: Double, movingTime: TimeInterval, guide: [WorkoutGuide.Announcement] = []) {
+    func update(distance: Double, movingTime: TimeInterval, guide: [WorkoutGuide.Announcement] = [], tone: CoachingTone = CoachingToneStore.load()) {
         let split = schedule.update(distance: distance, movingTime: movingTime, settings: settings)
-        if let text = Self.combinedText(split: split, guide: guide) {
+        let spokenSplit = split.map { CoachCueSpeech.splitLine(facts: $0, tone: tone) }
+        if let text = Self.combinedText(split: spokenSplit, guide: guide) {
             // A guide-only cue waits for speech in progress; a split cue keeps its usual priority and
             // carries any step cue with it, so the two never cut each other off in the same second.
-            announce(text, queued: split == nil)
+            announce(text, queued: split == nil, tone: tone)
         }
     }
 
@@ -182,15 +186,19 @@ final class LocalRunCueService: NSObject, ObservableObject {
 
     /// `queued` waits for speech in progress instead of cutting it off. `debounce` drops the
     /// announcement when one of the same kind was made in the last 20 seconds.
-    func announce(_ text: String, queued: Bool = false, debounce kind: RunCueRepeatKind? = nil, now: Date = Date()) {
+    func announce(_ text: String, queued: Bool = false, debounce kind: RunCueRepeatKind? = nil, now: Date = Date(), tone: CoachingTone = CoachingToneStore.load()) {
         guard settings.enabled else { return }
         if let kind, !debouncer.allows(kind, at: now) { return }
         VoiceCoachService.shared.cancelPlaybackForLocalCue()
+        let prepared = CoachCueSpeech.prepared(text: text, tone: tone)
+        lastPreparedSpeech = prepared
         if let speechHandler { speechHandler(text); return }
         if !queued { synthesizer.stopSpeaking(at: .immediate) }
-        let utterance = AVSpeechUtterance(string: text)
+        let utterance = AVSpeechUtterance(string: prepared.text)
         // A built-in voice works without an account, downloaded enhanced voice, or network.
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        utterance.rate = prepared.rate
+        utterance.pitchMultiplier = prepared.pitchMultiplier
         synthesizer.speak(utterance)
     }
     func stop() { synthesizer.stopSpeaking(at: .immediate) }

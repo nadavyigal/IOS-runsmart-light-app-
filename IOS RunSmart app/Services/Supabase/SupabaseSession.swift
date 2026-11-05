@@ -139,10 +139,11 @@ final class SupabaseSession: ObservableObject {
                     weeklyRunDays: p.daysPerWeek,
                     preferredDays: p.preferredTimes,
                     units: "Metric",
-                    coachingTone: p.coachingStyle ?? "Motivating",
+                    coachingTone: CoachingTone.displayLabel(for: p.coachingStyle ?? "Motivating"),
                     notificationsEnabled: UserDefaults.standard.object(forKey: notificationPreferenceKey) as? Bool ?? true,
                     planAdjustmentConfirmationsEnabled: UserDefaults.standard.object(forKey: planAdjustmentConfirmationsKey) as? Bool ?? true
                 )
+                CoachingToneStore.save(CoachingTone.voiceTone(for: onboardingProfile.coachingTone))
             } else {
                 profile = nil
                 hasCompletedOnboarding = false
@@ -157,11 +158,26 @@ final class SupabaseSession: ObservableObject {
         }
     }
 
+    func saveCoachingTone(_ raw: String) async {
+        let save = CoachingToneSave.make(from: raw, profile: onboardingProfile)
+        onboardingProfile = save.profile
+        CoachingToneStore.save(save.voiceTone)
+        await completeOnboarding(save.profile)
+    }
+
+    private func normalizedCoachingTone(_ onboarding: OnboardingProfile) -> OnboardingProfile {
+        var copy = onboarding
+        copy.coachingTone = CoachingTone.displayLabel(for: onboarding.coachingTone)
+        return copy
+    }
+
     func completeOnboarding(_ onboarding: OnboardingProfile) async {
 #if DEBUG
         if RunSmartDemoMode.isEnabled {
-            onboardingProfile = onboarding
-            displayName = onboarding.displayName.isEmpty ? RunSmartDemoData.runner.name : onboarding.displayName
+            let demoProfile = normalizedCoachingTone(onboarding)
+            onboardingProfile = demoProfile
+            CoachingToneStore.save(CoachingTone.voiceTone(for: demoProfile.coachingTone))
+            displayName = demoProfile.displayName.isEmpty ? RunSmartDemoData.runner.name : demoProfile.displayName
             hasCompletedOnboarding = true
             return
         }
@@ -170,11 +186,12 @@ final class SupabaseSession: ObservableObject {
             print("[SupabaseSession] completeOnboarding: no currentUserID")
             return
         }
-        var completedOnboarding = onboarding
+        var completedOnboarding = normalizedCoachingTone(onboarding)
         if completedOnboarding.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             completedOnboarding.displayName = appleDisplayNameSeed ?? "RunSmart Runner"
         }
         onboardingProfile = completedOnboarding
+        CoachingToneStore.save(CoachingTone.voiceTone(for: completedOnboarding.coachingTone))
         UserDefaults.standard.set(onboarding.notificationsEnabled, forKey: notificationPreferenceKey)
         UserDefaults.standard.set(onboarding.planAdjustmentConfirmationsEnabled, forKey: planAdjustmentConfirmationsKey)
         // email comes from the Apple JWT the auth server decoded — always present after sign-in

@@ -181,7 +181,7 @@ struct ProfileTabView: View {
                     ProfileActionTile(title: "Run Reminders", value: session.onboardingProfile.notificationsEnabled ? "On" : "Off", symbol: "bell.badge.fill") {
                         open(.reminders)
                     }
-                    ProfileActionTile(title: "Coaching Tone", value: session.onboardingProfile.coachingTone, symbol: "waveform") {
+                    ProfileActionTile(title: "Coaching Tone", value: CoachingTone.displayLabel(for: session.onboardingProfile.coachingTone), symbol: "waveform") {
                         open(.coachingTone)
                     }
                     ProfileActionTile(title: "Goal & Plan", value: session.onboardingProfile.goal.isEmpty ? "Not set" : session.onboardingProfile.goal, symbol: "target") {

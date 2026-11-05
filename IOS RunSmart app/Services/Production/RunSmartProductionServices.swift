@@ -714,10 +714,11 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         phase = .paused
         // Queued so a pause never cuts off a step or split cue; an auto-pause is also debounced so
         // stop-and-go running does not repeat it.
+        let tone = CoachingToneStore.load()
         if automatic {
-            LocalRunCueService.shared.announce("Auto-paused.", queued: true, debounce: .autoPause)
+            LocalRunCueService.shared.announce(CoachCueSpeech.line(for: .autoPaused, tone: tone), queued: true, debounce: .autoPause, tone: tone)
         } else {
-            LocalRunCueService.shared.announce("Run paused.", queued: true)
+            LocalRunCueService.shared.announce(CoachCueSpeech.line(for: .paused, tone: tone), queued: true, tone: tone)
         }
         if automatic { RunSmartHaptics.light() }
         // Manual pauses use low-power GPS. Automatic pauses retain frequent fixes
@@ -749,7 +750,8 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
         // instead of counting that gap.
         lastAcceptedLocation = nil
         phase = .recording
-        LocalRunCueService.shared.announce("Run resumed.", queued: true, debounce: wasAutoPaused ? .autoResume : nil)
+        let tone = CoachingToneStore.load()
+        LocalRunCueService.shared.announce(CoachCueSpeech.line(for: .resumed, tone: tone), queued: true, debounce: wasAutoPaused ? .autoResume : nil, tone: tone)
         setTrackingPower(low: false)
         manager.startUpdatingLocation()
         tick()
@@ -794,7 +796,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
             pauseIntervals: finishedPauseIntervals,
             plannedTitle: activeWorkoutTitle
         )
-        LocalRunCueService.shared.announce("Run finished. " + String(format: "%.2f kilometers. ", run.distanceMeters / 1_000) + "Moving time " + RunCueSchedule.duration(run.movingTimeSeconds))
+        let finishDetail = String(format: "%.2f kilometers. ", run.distanceMeters / 1_000) + "Moving time " + RunCueSchedule.duration(run.movingTimeSeconds)
+        let tone = CoachingToneStore.load()
+        LocalRunCueService.shared.announce(CoachCueSpeech.line(for: .finished(detail: finishDetail), tone: tone), tone: tone)
         store.saveRun(run)
         checkpointStore.delete()
         activeWorkoutTitle = nil
