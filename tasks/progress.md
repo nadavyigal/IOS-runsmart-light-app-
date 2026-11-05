@@ -1,12 +1,12 @@
-## 2026-11-05 — T7 coach tones committed, PR open
+## 2026-11-05 — T7 coach tones committed, PR #176 open; PR #174 merged
 
-**Status:** T7 committed on `claude/2026-11-05-voice-tones`, rebased onto `main` (does not include the 1.2.2 release commits from PR #174). PR open against `main`, not merged. No version bump, no archive, no upload.
+**Status:** PR #174 (1.2.2 release source) merged into `main` on founder's yes, so `main` now matches the live 1.2.2 build. T7 is on `claude/2026-11-05-voice-tones`, with `main` merged in, PR #176 open against `main`, not merged. No version bump, no archive, no upload.
 **Current Phase:** One tone list (Motivating, Calm, Technical), a saved choice, and that choice on offline cue wording, speech rate and pitch. The AI cue request sends `coachingStyle`.
-**Active Story:** T7 PR review and founder merge decision.
+**Active Story:** PR #176 founder merge decision.
 **Last Completed Story:** T7 code plus a review fix: sign-out and demo mode now reset the spoken tone, so a previous account's tone is not kept on the phone. `.gitignore` line for `.track-status.md` left uncommitted (tooling, not T7).
-**Next Recommended Story:** Merge PR #174 so `main` matches the live 1.2.2 build, then merge T7. Founder listening test on a physical iPhone after the next archive (build number above 40). Separately approve or reject `docs/qa/2026-10-31-voice-web-change.md` before the web route is edited.
-**Blockers:** No device listening evidence. `VOICE_COACH_ENABLED` in production unverified. Web route change not applied, so the server ignores `coachingStyle`.
-**Last Validation:** 2026-11-05, full `xcodebuild test` at the fix commit on iPhone 17 Pro simulator, iOS 26.5: TEST SUCCEEDED, 821 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`, needs `TEST_RUNNER_RUN_SHARE_RENDER_DIR`). 825 on 2026-11-01 included 4 tests from PR #174, which this branch does not carry. Not checked on a device.
+**Next Recommended Story:** Merge PR #176. Founder listening test on a physical iPhone after the next archive (build number above 40). Separately approve or reject `docs/qa/2026-10-31-voice-web-change.md` before the web route is edited.
+**Blockers:** No device listening evidence. `VOICE_COACH_ENABLED` in production unverified. Web route change not applied, so the server ignores `coachingStyle`. Codex review out of credits.
+**Last Validation:** 2026-11-05, full `xcodebuild test` on T7 merged with `main` (incl. #174), iPhone 17 Pro simulator, iOS 26.5: TEST SUCCEEDED, 825 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`, needs `TEST_RUNNER_RUN_SHARE_RENDER_DIR`). Not checked on a device.
 **Last Updated:** 2026-11-05
 
 ## 2026-11-04 — 1.2.2 is live on the App Store
