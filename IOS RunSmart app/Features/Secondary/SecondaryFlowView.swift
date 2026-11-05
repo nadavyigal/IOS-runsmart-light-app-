@@ -1607,6 +1607,8 @@ private struct AudioCuesScaffold: View {
                     Toggle("Moving time", isOn: $cues.settings.time)
                     Text("Start, pause, resume and finish are announced too. Works offline, including guest runs.")
                         .font(.caption).foregroundStyle(Color.mutedText)
+                    Text(CoachCueSpeech.spokenLanguageNote)
+                        .font(.caption).foregroundStyle(Color.mutedText)
                 }
             }
             GlassCard {
@@ -1713,36 +1715,83 @@ private struct PostRunSummaryScaffold: View {
 }
 
 private struct VoiceCoachingScaffold: View {
+    @EnvironmentObject private var session: SupabaseSession
+
+    private var tone: CoachingTone {
+        CoachingTone.voiceTone(for: session.onboardingProfile.coachingTone)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Voice Coaching")
-                    PreferenceRow(title: "During workouts", value: "On", symbol: "speaker.wave.2")
-                    PreferenceRow(title: "During easy runs", value: "Light", symbol: "figure.walk")
-                    PreferenceRow(title: "During races", value: "Focused", symbol: "flag.checkered")
+                    Text("Wording and the system voice follow \(CoachingTone.displayLabel(for: session.onboardingProfile.coachingTone)).")
+                        .font(.callout)
+                    Text(CoachCueSpeech.spokenLanguageNote)
+                        .font(.caption)
+                        .foregroundStyle(Color.mutedText)
                 }
             }
 
-            VoicePreviewCard(text: "Relax your shoulders and keep this pace smooth. You are right on target.")
+            VoicePreviewCard(text: CoachCueSpeech.splitLine(
+                facts: "1 kilometer. Split pace 5 minutes 0 seconds per kilometer. Moving time 5 minutes 0 seconds.",
+                tone: tone
+            ))
         }
     }
 }
 
 private struct CoachingToneScaffold: View {
+    @EnvironmentObject private var session: SupabaseSession
+    @State private var isSaving = false
+
+    private var currentLabel: String {
+        CoachingTone.displayLabel(for: session.onboardingProfile.coachingTone)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Coach Personality")
-                    FlowSelectionTile(title: "Motivating", value: "Selected", symbol: "bolt.fill", selected: true)
-                    FlowSelectionTile(title: "Calm", value: "Lower intensity", symbol: "leaf.fill", selected: false)
-                    FlowSelectionTile(title: "Technical", value: "Data-first", symbol: "chart.xyaxis.line", selected: false)
+                    if !CoachingTone.options.map(\.label).contains(currentLabel) {
+                        Text("Saved tone is \(currentLabel). Pick one of the three to replace it.")
+                            .font(.caption)
+                            .foregroundStyle(Color.mutedText)
+                    }
+                    ForEach(CoachingTone.options) { tone in
+                        Button {
+                            Task { await save(tone) }
+                        } label: {
+                            FlowSelectionTile(
+                                title: tone.label,
+                                value: tone.detail,
+                                symbol: tone.symbol,
+                                selected: currentLabel == tone.label
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isSaving)
+                    }
                 }
             }
 
-            VoicePreviewCard(text: "Strong and steady. This is the kind of controlled work that moves your goal forward.")
+            Text(CoachCueSpeech.spokenLanguageNote)
+                .font(.caption)
+                .foregroundStyle(Color.mutedText)
+
+            VoicePreviewCard(text: CoachCueSpeech.splitLine(
+                facts: "1 kilometer. Split pace 5 minutes 0 seconds per kilometer. Moving time 5 minutes 0 seconds.",
+                tone: CoachingTone.voiceTone(for: currentLabel)
+            ))
         }
+    }
+
+    private func save(_ tone: CoachingTone) async {
+        isSaving = true
+        await session.saveCoachingTone(tone.label)
+        isSaving = false
     }
 }
 
@@ -1987,7 +2036,7 @@ private struct GoalFocusEditor: View {
 
     private let goals = ["5K / Speed", "10K Improvement", "Half Marathon", "Marathon", "Build Habit"]
     private let experiences = ["Building Base", "Intermediate", "Advanced", "Competitive"]
-    private let styles = ["Motivating", "Technical", "Supportive", "Strict"]
+    private let styles = CoachingTone.options.map(\.label)
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -2018,6 +2067,11 @@ private struct GoalFocusEditor: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 14) {
                     SectionLabel(title: "Coaching Style")
+                    if !styles.contains(selectedStyle), !selectedStyle.isEmpty {
+                        Text("Saved tone is \(selectedStyle). Pick one of the three to replace it.")
+                            .font(.caption)
+                            .foregroundStyle(Color.mutedText)
+                    }
                     ForEach(styles, id: \.self) { style in
                         Button { selectedStyle = style } label: {
                             FlowSelectionTile(title: style, value: "", symbol: "sparkles", selected: selectedStyle == style)
@@ -2059,7 +2113,7 @@ private struct GoalFocusEditor: View {
         .onAppear {
             selectedGoal = session.onboardingProfile.goal
             selectedExperience = session.onboardingProfile.experience
-            selectedStyle = session.onboardingProfile.coachingTone
+            selectedStyle = CoachingTone.displayLabel(for: session.onboardingProfile.coachingTone)
             daysPerWeek = session.onboardingProfile.weeklyRunDays
         }
     }
