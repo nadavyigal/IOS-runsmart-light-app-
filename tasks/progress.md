@@ -1,3 +1,14 @@
+## 2026-11-05 — Coach voice clips: design written, waiting for approval
+
+**Status:** Design only, on `claude/2026-11-05-coach-voice-clips` (stacked on T7 branch `claude/2026-11-05-voice-tones`, PR #176 still open). No app code yet.
+**Current Phase:** Make cues sound human: ElevenLabs coach clips bundled in the app, short numbers in the Apple voice ("1 K. 5:10."), per tone, including planned workout steps.
+**Active Story:** Founder approves `docs/superpowers/specs/2026-11-05-coach-voice-clips-design.md`.
+**Last Completed Story:** Design written and checked by a fresh builder-reviewer. Founder decided: bundled clips, short data, no moving time in splits, approved split lines per tone, 2 to 3 rotating versions, builder picks one voice.
+**Next Recommended Story:** After approval, write the implementation plan, then record sample clips for founder listening before any app code.
+**Blockers:** Founder confirms the ElevenLabs plan allows commercial use of bundled audio.
+**Last Validation:** 2026-11-05: docs only, no tests run.
+**Last Updated:** 2026-11-05
+
 ## 2026-11-05 — T7 coach tones merged (PR #176); PR #174 merged
 
 **Status:** PR #174 (1.2.2 release source) merged into `main` on founder's yes, so `main` now matches the live 1.2.2 build. T7 merged into `main` through PR #176 on founder's yes. Founder chose to skip the pre-merge device listening test and check the tones in production. No version bump, no archive, no upload.
