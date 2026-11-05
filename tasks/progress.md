@@ -1,3 +1,14 @@
+## 2026-11-05: Coach voice clips moved to the next version, open-source TTS picked for review
+
+**Status:** ElevenLabs credits ran out, nothing generated. Coach voice clips move to the next app version. Researched free open-source replacements live on GitHub and Hugging Face. Options doc committed: `docs/coach-voice/2026-11-05-open-source-tts-options.md`. Recommended VoxCPM2 (Apache-2.0 code and weights, 41k stars, Hebrew built in, runs on Apple Silicon). Nothing installed or downloaded.
+**Current Phase:** Make cues sound human: pre-rendered coach clips bundled in the app, short numbers in the Apple voice, per tone. Generator changes from ElevenLabs to an open-source model rendered on the founder's Mac.
+**Active Story:** Plan Task 1: pick the open-source model, then render a few sample clips for listening.
+**Last Completed Story:** Open-source TTS options doc: 5 usable models ranked, 11 rejected with the license trap named, 7 Hebrew-specific projects checked (all non-commercial or unlicensed except the Phonikud text tool).
+**Next Recommended Story:** Founder picks a model and says yes to install it (about 5 GB of weights, Python package). Then render sample clips in the scratchpad for listening against the Apple voice. Then continue the plan from Task 1 Step 3 with the chosen model, logging each ElevenLabs swap as a ruling.
+**Blockers:** Founder choice of model and yes to install it. Hebrew cues stay out of this version unless the founder says otherwise.
+**Last Validation:** 2026-11-05: docs only, no tests run. Stars, licenses and last push read live with `gh api`; weight licenses with the Hugging Face model API.
+**Last Updated:** 2026-11-05
+
 ## 2026-11-05: Coach voice clips, Task 1 waiting for the sample spend
 
 **Status:** Design approved, plan written, founder chose Native execution. Task 1 in progress on `claude/2026-11-05-coach-voice-clips` (stacked on T7, PR #176 still open, not merged). No app code yet. No credits spent.
