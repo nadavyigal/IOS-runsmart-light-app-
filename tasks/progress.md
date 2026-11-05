@@ -1,3 +1,14 @@
+## 2026-11-04 — 1.2.2 is live on the App Store
+
+**Status:** 1.2.2 is public on the App Store since 2026-10-30 15:13 UTC (Apple lookup API, id 6768297840, polled 3 times with varying URLs on 2026-11-04, all agree). The public lookup does not show the build number. PR #174 records 1.2.2 (40) as the build selected in the ASC 1.2.2 draft, so the live build is most likely 40. Not checked in App Store Connect.
+**Current Phase:** 1.2.2 live. Main does not hold the release source yet: it sits on `codex/release-1-2-2`, PR #174 (draft, 2 commits ahead of main).
+**Active Story:** none. This entry only records the release.
+**Last Completed Story:** 1.2.2 shipped (build most likely 40, see Status): satellite run sharing (PRs #171, #172), plan recovery and plan-failure analytics (PR #173), stats-only fallback when MapKit cannot load. Apple Watch PR #165 is not in this release.
+**Next Recommended Story:** merge PR #174 so main matches the live build. Its progress entry also goes at the top of this file, so keep both entries when resolving. Then confirm in App Store Connect that the live build is 40.
+**Blockers:** none.
+**Last Validation:** 2026-11-04: Apple lookup API, 3 of 3 polls returned version 1.2.2, release date 2026-10-30T15:13:05Z. Docs only, no tests run.
+**Last Updated:** 2026-11-04
+
 ## 2026-10-29 — 1.2.2 (40) uploaded and processed
 
 **Status:** Uploaded and processed. Exact 1.2.2 (40) selected in ASC draft, Prepare for Submission; RunSmart Internal assigned and test notes saved. App Review not submitted; physical owner check pending. Public 1.2.1 remains live.
