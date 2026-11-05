@@ -1,0 +1,730 @@
+[
+ {
+  "tone": "motivating",
+  "moment": "splitOpen",
+  "variant": 1,
+  "text": "Nice work.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "splitOpen",
+  "variant": 2,
+  "text": "Strong running.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "splitOpen",
+  "variant": 3,
+  "text": "That's it.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "splitClose",
+  "variant": 1,
+  "text": "Keep it rolling.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "splitClose",
+  "variant": 2,
+  "text": "Stay on it.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "splitClose",
+  "variant": 3,
+  "text": "Keep that going.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "started",
+  "variant": 1,
+  "text": "Run started. Let's go.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "started",
+  "variant": 2,
+  "text": "And we're off.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "restored",
+  "variant": 1,
+  "text": "Run restored. You're paused.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "restored",
+  "variant": 2,
+  "text": "Back in. Still paused.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "paused",
+  "variant": 1,
+  "text": "Run paused.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "paused",
+  "variant": 2,
+  "text": "Paused. Catch your breath.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "autoPaused",
+  "variant": 1,
+  "text": "Auto-paused.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "autoPaused",
+  "variant": 2,
+  "text": "Auto-paused. Ready when you are.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "resumed",
+  "variant": 1,
+  "text": "Run resumed. Back to it.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "resumed",
+  "variant": 2,
+  "text": "And we're moving.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "finished",
+  "variant": 1,
+  "text": "Run finished. Great work.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "finished",
+  "variant": 2,
+  "text": "That's a wrap. Great run.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "stepWarmup",
+  "variant": 1,
+  "text": "Warm up. Ease into it.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "stepWarmup",
+  "variant": 2,
+  "text": "Warm-up time.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "stepWork",
+  "variant": 1,
+  "text": "Here we go.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "stepWork",
+  "variant": 2,
+  "text": "Time to work.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "stepRecovery",
+  "variant": 1,
+  "text": "Recover. Shake it out.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "stepRecovery",
+  "variant": 2,
+  "text": "Easy now. Recover.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "stepCooldown",
+  "variant": 1,
+  "text": "Cool down. You earned it.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "stepCooldown",
+  "variant": 2,
+  "text": "Bring it home easy.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "stepSteady",
+  "variant": 1,
+  "text": "Steady running.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "stepSteady",
+  "variant": 2,
+  "text": "Lock in steady.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "easeOff",
+  "variant": 1,
+  "text": "Ease off a touch.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "easeOff",
+  "variant": 2,
+  "text": "Too quick. Ease back.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "pickItUp",
+  "variant": 1,
+  "text": "Pick it up.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "pickItUp",
+  "variant": 2,
+  "text": "Little more. Push.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "workoutComplete",
+  "variant": 1,
+  "text": "Workout complete.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "workoutPraise",
+  "variant": 1,
+  "text": "Good job.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "motivating",
+  "moment": "workoutPraise",
+  "variant": 2,
+  "text": "Well done.",
+  "delivery": "[energetic]"
+ },
+ {
+  "tone": "calm",
+  "moment": "splitOpen",
+  "variant": 1,
+  "text": "Smooth and easy.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "splitOpen",
+  "variant": 2,
+  "text": "Nice and relaxed.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "splitOpen",
+  "variant": 3,
+  "text": "Steady breathing.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "started",
+  "variant": 1,
+  "text": "Run started. Ease in.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "started",
+  "variant": 2,
+  "text": "Here we go. Start gentle.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "restored",
+  "variant": 1,
+  "text": "Run restored. Still paused.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "restored",
+  "variant": 2,
+  "text": "Welcome back. Still paused.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "paused",
+  "variant": 1,
+  "text": "Run paused. Take the rest.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "paused",
+  "variant": 2,
+  "text": "Paused. Breathe easy.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "autoPaused",
+  "variant": 1,
+  "text": "Auto-paused. Standing still.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "autoPaused",
+  "variant": 2,
+  "text": "Auto-paused. Take a moment.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "resumed",
+  "variant": 1,
+  "text": "Run resumed. Settle back in.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "resumed",
+  "variant": 2,
+  "text": "Moving again. Find your rhythm.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "finished",
+  "variant": 1,
+  "text": "Run finished. Easy work.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "finished",
+  "variant": 2,
+  "text": "Run finished. Nicely done.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "stepWarmup",
+  "variant": 1,
+  "text": "Warm up. Keep it light.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "stepWarmup",
+  "variant": 2,
+  "text": "Easy warm-up.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "stepWork",
+  "variant": 1,
+  "text": "Work. Stay relaxed.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "stepWork",
+  "variant": 2,
+  "text": "Rep time. Smooth effort.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "stepRecovery",
+  "variant": 1,
+  "text": "Recover. Let it settle.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "stepRecovery",
+  "variant": 2,
+  "text": "Easy jog. Breathe.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "stepCooldown",
+  "variant": 1,
+  "text": "Cool down. Let it go.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "stepCooldown",
+  "variant": 2,
+  "text": "Easy to finish.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "stepSteady",
+  "variant": 1,
+  "text": "Steady. Even effort.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "stepSteady",
+  "variant": 2,
+  "text": "Settle into steady.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "easeOff",
+  "variant": 1,
+  "text": "Ease off. No rush.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "easeOff",
+  "variant": 2,
+  "text": "A little softer.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "pickItUp",
+  "variant": 1,
+  "text": "Pick it up, gently.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "pickItUp",
+  "variant": 2,
+  "text": "A touch more.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "workoutComplete",
+  "variant": 1,
+  "text": "Workout complete.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "workoutPraise",
+  "variant": 1,
+  "text": "Good job.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "calm",
+  "moment": "workoutPraise",
+  "variant": 2,
+  "text": "Well done.",
+  "delivery": "[softly]"
+ },
+ {
+  "tone": "technical",
+  "moment": "onTarget",
+  "variant": 1,
+  "text": "On target.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "onTarget",
+  "variant": 2,
+  "text": "Right on pace.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "aBitFast",
+  "variant": 1,
+  "text": "A bit fast.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "aBitFast",
+  "variant": 2,
+  "text": "Slightly fast.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "aBitSlow",
+  "variant": 1,
+  "text": "A bit slow.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "aBitSlow",
+  "variant": 2,
+  "text": "Slightly slow.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "logged",
+  "variant": 1,
+  "text": "Logged.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "logged",
+  "variant": 2,
+  "text": "Split logged.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "started",
+  "variant": 1,
+  "text": "Run started. Clock is running.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "started",
+  "variant": 2,
+  "text": "Recording. Clock is running.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "restored",
+  "variant": 1,
+  "text": "Run restored. Paused. Totals kept.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "restored",
+  "variant": 2,
+  "text": "Restored. Totals kept.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "paused",
+  "variant": 1,
+  "text": "Run paused. Moving time stopped.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "paused",
+  "variant": 2,
+  "text": "Paused. Clock stopped.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "autoPaused",
+  "variant": 1,
+  "text": "Auto-paused. Speed is under the stop line.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "autoPaused",
+  "variant": 2,
+  "text": "Auto-paused. Below stop speed.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "resumed",
+  "variant": 1,
+  "text": "Run resumed. Moving time is counting.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "resumed",
+  "variant": 2,
+  "text": "Resumed. Clock running.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "finished",
+  "variant": 1,
+  "text": "Run finished. Recorded totals.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "finished",
+  "variant": 2,
+  "text": "Run finished. Final totals.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "stepWarmup",
+  "variant": 1,
+  "text": "Warm-up.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "stepWarmup",
+  "variant": 2,
+  "text": "Warm-up step.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "stepWork",
+  "variant": 1,
+  "text": "Work interval.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "stepWork",
+  "variant": 2,
+  "text": "Work rep.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "stepRecovery",
+  "variant": 1,
+  "text": "Recovery.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "stepRecovery",
+  "variant": 2,
+  "text": "Recovery interval.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "stepCooldown",
+  "variant": 1,
+  "text": "Cool-down.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "stepCooldown",
+  "variant": 2,
+  "text": "Cool-down step.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "stepSteady",
+  "variant": 1,
+  "text": "Steady segment.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "stepSteady",
+  "variant": 2,
+  "text": "Steady block.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "easeOff",
+  "variant": 1,
+  "text": "Too fast. Ease off.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "easeOff",
+  "variant": 2,
+  "text": "Over pace. Ease off.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "pickItUp",
+  "variant": 1,
+  "text": "Too slow. Pick it up.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "pickItUp",
+  "variant": 2,
+  "text": "Under pace. Pick it up.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "workoutComplete",
+  "variant": 1,
+  "text": "Workout complete.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "workoutPraise",
+  "variant": 1,
+  "text": "Good job.",
+  "delivery": "[matter of fact]"
+ },
+ {
+  "tone": "technical",
+  "moment": "workoutPraise",
+  "variant": 2,
+  "text": "Well done.",
+  "delivery": "[matter of fact]"
+ }
+]
