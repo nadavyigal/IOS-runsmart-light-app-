@@ -373,6 +373,8 @@ final class SupabaseSession: ObservableObject {
         profile = nil
         displayName = ""
         onboardingProfile = .empty
+        // The spoken tone must not outlive the account that chose it.
+        CoachingToneStore.save(CoachingTone.voiceTone(for: onboardingProfile.coachingTone))
         appleDisplayNameSeed = nil
         appleEmailSeed = nil
         lastAuthError = nil
@@ -412,6 +414,7 @@ final class SupabaseSession: ObservableObject {
         isLoading = false
         lastAuthError = nil
         onboardingProfile = RunSmartDemoData.onboardingProfile
+        CoachingToneStore.save(CoachingTone.voiceTone(for: onboardingProfile.coachingTone))
         appleDisplayNameSeed = RunSmartDemoData.runner.name
         appleEmailSeed = RunSmartDemoMode.email
     }
