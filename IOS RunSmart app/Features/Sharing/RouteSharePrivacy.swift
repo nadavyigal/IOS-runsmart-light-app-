@@ -11,7 +11,7 @@ enum RouteSharePrivacy {
     /// a stub that points at the start. So a route needs `2 * trimMeters + minimumVisibleMeters`.
     static let minimumVisibleMeters: Double = 50
 
-    static let privacyNote = "Route shown without the first and last 200 m."
+    static let privacyNote = "The first and last 200 m are kept private."
 
     /// Distance along the route. Never counts the jump across a segment start (a pause or resume).
     static func pathLengthMeters(_ points: [RunRoutePoint]) -> Double {

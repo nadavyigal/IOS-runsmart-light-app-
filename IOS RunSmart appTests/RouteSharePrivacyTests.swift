@@ -114,9 +114,9 @@ final class RouteSharePrivacyTests: XCTestCase {
         )
         XCTAssertEqual(payload.privacyNote, "Private share: no map, GPS points, or exact route are included.")
         let withMap = payload.includingRouteMap()
-        XCTAssertEqual(withMap.privacyNote, "Route shown without the first and last 200 m.")
+        XCTAssertEqual(withMap.privacyNote, "The first and last 200 m are kept private.")
         XCTAssertEqual(withMap.title, payload.title)
-        XCTAssertTrue(withMap.shareText.contains("Route shown without the first and last 200 m."))
+        XCTAssertTrue(withMap.shareText.contains("The first and last 200 m are kept private."))
     }
 
     func testSnapshotRegionCoversEveryPoint() throws {
