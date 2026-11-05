@@ -1,3 +1,14 @@
+## 2026-11-01 — Coach tones reach offline cues
+
+**Status:** Uncommitted on `codex/2026-10-31-voice-tones` (HEAD still `c8de2db`, based on `origin/codex/release-1-2-2`). Not committed, not pushed, not archived. Ready for approval.
+**Current Phase:** One tone list, a saved choice, and that choice on cue wording and the system voice.
+**Active Story:** Founder approves the working tree, then it can be committed. The web route diff is a separate approval.
+**Last Completed Story:** Coaching Tone saves Motivating, Calm, or Technical. Offline cues speak that choice. The AI request body carries `coachingStyle`. The server still ignores it until the web diff is applied.
+**Next Recommended Story:** Founder listening test on a physical iPhone after the next archive. Do not reuse build 40.
+**Blockers:** No device listening evidence. `VOICE_COACH_ENABLED` in production is still unverified. Web diff not applied.
+**Last Validation:** 2026-11-01, iPhone 17 simulator, iOS 26.5, x86_64: 825 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`). Not checked on a device.
+**Last Updated:** 2026-11-01
+
 ## 2026-11-04 — 1.2.2 is live on the App Store
 
 **Status:** 1.2.2 is public on the App Store since 2026-10-30 15:13 UTC (Apple lookup API, id 6768297840, polled 3 times with varying URLs on 2026-11-04, all agree). The public lookup does not show the build number. PR #174 records 1.2.2 (40) as the build selected in the ASC 1.2.2 draft, so the live build is most likely 40. Not checked in App Store Connect.
