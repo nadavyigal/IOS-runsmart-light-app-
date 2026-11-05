@@ -1,0 +1,1 @@
+In Profile > Coaching Tone pick Calm, then start an outdoor run with Audio cues on. Listen for "Run started. Ease in." in a slower, lower voice, then pause, resume and pass 1 km. Repeat with Technical ("Split check.", a little faster) and Motivating ("Push on."). Reopen the app and confirm the tone is kept. Spoken cues are English only. Apple Watch is not in this build.

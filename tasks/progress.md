@@ -1,3 +1,14 @@
+## 2026-11-05: Release 1.2.4 (42), T7 coach tones
+
+**Status:** Founder said "yes, merge + release". PR #176 merged into `main` (a624885). Release branch `claude/2026-11-05-release-1-2-4` sets 1.2.4 (42) in all 6 configurations. 1.2.3 is skipped because build 41 is the 1.2.3 Watch beta (PR #165, uploaded 2026-11-02). Not yet archived or uploaded at this entry.
+**Current Phase:** Release candidate 1.2.4 (42): archive, IPA check, upload, TestFlight, then App Review only after the founder's final OK.
+**Active Story:** Deliver 1.2.4 (42) to App Store Connect. Notes in `docs/qa/releases/1.2.4/`.
+**Last Completed Story:** T7 coaching tones merged (PR #176).
+**Next Recommended Story:** Archive and upload 1.2.4 (42), select it in a new 1.2.4 ASC draft, founder final OK, submit for review. Coach voice clips continue in a separate session for a later version.
+**Blockers:** No device listening evidence (founder chose to check in production). Founder must approve the keychain prompt during export and may need to sign in to ASC.
+**Last Validation:** 2026-11-05, full `xcodebuild test` at 1.2.4 (42) on `main` a624885, iPhone 17 Pro simulator, iOS 26.5: TEST SUCCEEDED, 825 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`).
+**Last Updated:** 2026-11-05
+
 ## 2026-11-05 — T7 coach tones merged (PR #176); PR #174 merged
 
 **Status:** PR #174 (1.2.2 release source) merged into `main` on founder's yes, so `main` now matches the live 1.2.2 build. T7 merged into `main` through PR #176 on founder's yes. Founder chose to skip the pre-merge device listening test and check the tones in production. No version bump, no archive, no upload.
