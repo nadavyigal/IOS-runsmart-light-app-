@@ -1,0 +1,13 @@
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test -project "IOS RunSmart app.xcodeproj" -scheme "IOS RunSmart app" -destination "platform=iOS Simulator,id=BEC1533B-1E20-4AD8-B86F-E321B9F9DC53" -derivedDataPath /private/tmp/runsmart-map-fallback-dd -resultBundlePath /private/tmp/runsmart-map-fallback-red.xcresult -parallel-testing-enabled NO "-only-testing:IOS RunSmart appTests/RunShareRendererTests/testMapFailureStillExportsStatsOnlyStoryAndFeed" "-only-testing:IOS RunSmart appTests/RunShareRendererTests/testMapFailureStillExportsPlayableStatsOnlyVideo" "-only-testing:IOS RunSmart appTests/RunShareRendererTests/testCancellationDuringMapLoadingNeverExportsFallback"
+Test Case '-[IOS_RunSmart_appTests.RunShareRendererTests testCancellationDuringMapLoadingNeverExportsFallback]' started.
+/tmp/runsmart-asc-release-2026-10-29/IOS RunSmart appTests/RunShareRendererTests.swift:228: error: -[IOS_RunSmart_appTests.RunShareRendererTests testCancellationDuringMapLoadingNeverExportsFallback] : failed - Expected CancellationError, got mapUnavailable
+Test Case '-[IOS_RunSmart_appTests.RunShareRendererTests testCancellationDuringMapLoadingNeverExportsFallback]' failed (0.739 seconds).
+Test Case '-[IOS_RunSmart_appTests.RunShareRendererTests testMapFailureStillExportsPlayableStatsOnlyVideo]' started.
+/tmp/runsmart-asc-release-2026-10-29/IOS RunSmart appTests/RunShareRendererTests.swift:190: error: -[IOS_RunSmart_appTests.RunShareRendererTests testMapFailureStillExportsPlayableStatsOnlyVideo] : failed: caught error: "mapUnavailable"
+Test Case '-[IOS_RunSmart_appTests.RunShareRendererTests testMapFailureStillExportsPlayableStatsOnlyVideo]' failed (0.077 seconds).
+Test Case '-[IOS_RunSmart_appTests.RunShareRendererTests testMapFailureStillExportsStatsOnlyStoryAndFeed]' started.
+/tmp/runsmart-asc-release-2026-10-29/IOS RunSmart appTests/RunShareRendererTests.swift:178: error: -[IOS_RunSmart_appTests.RunShareRendererTests testMapFailureStillExportsStatsOnlyStoryAndFeed] : failed: caught error: "mapUnavailable"
+Test Case '-[IOS_RunSmart_appTests.RunShareRendererTests testMapFailureStillExportsStatsOnlyStoryAndFeed]' failed (0.017 seconds).
+	 Executed 3 tests, with 3 failures (2 unexpected) in 0.833 (0.844) seconds
+	 Executed 3 tests, with 3 failures (2 unexpected) in 0.833 (0.848) seconds
+	 Executed 3 tests, with 3 failures (2 unexpected) in 0.833 (0.854) seconds
