@@ -1,7 +1,7 @@
 # Coach voice clips: human coach words, short numbers
 
 Date: 2026-11-05
-Status: draft for founder approval
+Status: approved by the founder 2026-11-05
 Builds on: T7 coaching tones (PR #176, branch `claude/2026-11-05-voice-tones`)
 Branch for this work: `claude/2026-11-05-coach-voice-clips`
 

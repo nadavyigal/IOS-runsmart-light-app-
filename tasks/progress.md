@@ -1,11 +1,11 @@
-## 2026-11-05 — Coach voice clips: design written, waiting for approval
+## 2026-11-05: Coach voice clips, design approved, build plan written
 
-**Status:** Design only, on `claude/2026-11-05-coach-voice-clips` (stacked on T7 branch `claude/2026-11-05-voice-tones`, PR #176 still open). No app code yet.
+**Status:** Founder approved the design on 2026-11-05. Build plan written. Still docs only on `claude/2026-11-05-coach-voice-clips` (stacked on T7 branch `claude/2026-11-05-voice-tones`; PR #176 still open, not merged). No app code yet.
 **Current Phase:** Make cues sound human: ElevenLabs coach clips bundled in the app, short numbers in the Apple voice ("1 K. 5:10."), per tone, including planned workout steps.
-**Active Story:** Founder approves `docs/superpowers/specs/2026-11-05-coach-voice-clips-design.md`.
-**Last Completed Story:** Design written and checked by a fresh builder-reviewer. Founder decided: bundled clips, short data, no moving time in splits, approved split lines per tone, 2 to 3 rotating versions, builder picks one voice.
-**Next Recommended Story:** After approval, write the implementation plan, then record sample clips for founder listening before any app code.
-**Blockers:** Founder confirms the ElevenLabs plan allows commercial use of bundled audio.
+**Active Story:** Plan `docs/superpowers/plans/2026-11-05-coach-voice-clips.md`, Task 1: lines, voice choice, and a sample round the founder listens to before any app code.
+**Last Completed Story:** Design approved (`docs/superpowers/specs/2026-11-05-coach-voice-clips-design.md`). Plan has 8 tasks: lines and samples, short numbers, workout guide verdict, cue composer, clip library and player, run wiring, clip bundle, listening QA and PR.
+**Next Recommended Story:** Founder picks how to run the plan, then Task 1: pick the voice, estimate credits for the sample round, generate only after the founder's yes.
+**Blockers:** Founder confirms the ElevenLabs plan allows commercial use of bundled audio (needed before Task 7). Each credit spend needs the founder's yes.
 **Last Validation:** 2026-11-05: docs only, no tests run.
 **Last Updated:** 2026-11-05
 
