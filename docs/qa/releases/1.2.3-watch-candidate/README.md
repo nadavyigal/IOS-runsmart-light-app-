@@ -1,5 +1,7 @@
 # RunSmart 1.2.3 (41) — Apple Watch candidate
 
+> **Superseded as a release candidate (2026-11-07).** Build 41 was archived from `4f20bc0`. It does **not** contain the PR165 review fixes in `a4bab42` (recovery ownership bound at first failed import, empty-plan pending, route point IDs, wellness order, exact-ID visibility, Watch export refresh) or `acc8e59` (account recheck before export reconcile). The external tester's 2026-11-07 Watch round-trip pass (workout appears on the Watch, run saves back to the iPhone; reported by the founder) applies to build 41's source only. The next candidate must be archived from post-merge `main`, numbered 1.2.5 (43) or higher (1.2.4 (42) is already live), and must repeat the paired-Watch round trip before public submission. This file stays as the build 41 record.
+
 Owner approved candidate preparation on 2 November 2026 after reporting the external tester finished the beta tests and all looked good. This is tester-reported acceptance of 1.2.1 (38); individual device subcases were not independently observed. Correct TestFlight recipient: the external tester. ASC confirms iPhone 15 Pro Max / iOS 27.0.1 installation. Earlier iPad installation belongs to the old email and is not the Watch acceptance evidence.
 
 ## Source and validation
