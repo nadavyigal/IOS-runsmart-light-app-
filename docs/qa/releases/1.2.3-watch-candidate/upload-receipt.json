@@ -1,0 +1,17 @@
+{
+  "version": "1.2.3",
+  "build": "41",
+  "archive_source": "4f20bc0ce6878aa3db80f7162fe3079fd150c007",
+  "apple_team": "8VC4R5M425",
+  "upload_succeeded": true,
+  "processing_started": true,
+  "public_submission": false,
+  "evidence": "xcodebuild upload log: Upload succeeded; Uploaded package is processing.",
+  "build_uuid": "c554c551-d5d0-4b50-8ffd-6da19b4ea9da",
+  "processing_complete": true,
+  "external_group": "Apple Watch Beta",
+  "external_group_uuid": "f49ada75-e4c3-497c-95dc-90f853aa71c2",
+  "beta_review_status": "Waiting for Review",
+  "automatically_notify_testers": true,
+  "what_to_test_saved": true
+}

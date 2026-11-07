@@ -1,0 +1,9 @@
+{
+  "version": "1.2.1",
+  "build": "38",
+  "backend_host": "dxqglotcyirxzyqaxqln.supabase.co",
+  "passed": true,
+  "auth_settings_status": 200,
+  "apple_enabled": true,
+  "email_enabled": true
+}

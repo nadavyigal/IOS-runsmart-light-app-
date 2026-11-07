@@ -1,0 +1,3 @@
+Send supported planned running sessions to Apple's Workout app on your paired Apple Watch. Follow the workout on your Watch, then use Apple Health sync in RunSmart to import the run and update your training plan. This update also improves retry behavior after a temporary Health lookup failure.
+
+Apple Health import is manual while RunSmart is open. Live RunSmart coaching inside Apple's Workout app is not included.

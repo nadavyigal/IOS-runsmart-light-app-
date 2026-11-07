@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "source_commit": "4f20bc0ce6878aa3db80f7162fe3079fd150c007",
+  "artifacts": [
+    {
+      "bundle_id": "com.runsmart.lite",
+      "version": "1.2.3",
+      "build": "41",
+      "signature_valid": true,
+      "distribution": false,
+      "debugging_enabled": true,
+      "dsym_matches": true
+    },
+    {
+      "bundle_id": "com.runsmart.lite.runliveactivity",
+      "version": "1.2.3",
+      "build": "41",
+      "signature_valid": true,
+      "distribution": false,
+      "debugging_enabled": true,
+      "dsym_matches": true
+    }
+  ],
+  "healthkit_and_privacy_verified": true
+}

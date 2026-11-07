@@ -1,3 +1,54 @@
+## 2026-11-02 — Integrated Watch candidate
+
+- [x] Owner reports the external tester completed beta38 testing successfully; retain as tester-reported evidence.
+- [x] Reconcile PR165 with current main3c2d679, retaining iPhone improvements and project histories.
+- [x] Red regression; recover Health lookup completion with persistent owner/target and safe retries.
+- [x] Independent QA/race corrections; full841pass/0fail/1existing opt-in render skip.
+- [x] Live ASC allocation:1.2.3(41), after complete1.2.2(40).
+- [x] Push source4f20bc0 and verify signed archive, versions/signatures/HealthKit/privacy/dSYMs and actual-artifact backend HTTP200.
+- [x] Owner signing approval; distribution IPA/signatures/debugging disabled/dSYMs/live backend pass.
+- [x] Upload1.2.3(41); live ASC verifies Processing.
+- [x] Assign exact processed build41 to Apple Watch Beta; save notes and submit external beta review: Waiting for Review, auto-notify enabled.
+- [ ] Candidate41 paired Watch roundtrip and repeat-sync smoke.
+- [ ] Separate public release decision after final candidate validation.
+
+## 2026-10-26 — Approved external Apple Watch TestFlight beta
+
+Owner explicitly approved the external TestFlight plan and invitation to the named tester in chat. Public 1.2.0 stays unchanged; PR165 stays draft through physical Watch QA.
+
+- [x] Check live ASC: latest build 37 complete; no newer pending upload. Select 1.2.1 (38).
+- [x] Archive/export and verify actual 1.2.1 (38) distribution package/backend.
+- [x] Upload succeeded after owner signing approval.
+- [x] Verify Apple processing and attach build 38 to external group.
+- [x] Create Apple Watch Beta external group and enroll only the approved tester (No Builds Available).
+- [x] Owner approved signing and reports private reviewer fields saved.
+- [x] Verify persisted reviewer fields after browser session recovery.
+- [x] Add processed build and submit beta review: Waiting for Review.
+- [x] Enable Automatically notify testers on submission.
+- [ ] Apple beta approval and actual invitation delivery/acceptance (currently No Builds Available).
+- [x] Save exact tester instructions and distribution evidence; push PR165 updates.
+- [ ] Paired Watch round-trip QA; keep draft.
+
+## 2026-10-26 — PR165 review fix and Watch device candidate
+
+- [x] Reconcile hosted Codex/CodeRabbit reviews for the current head; verify unchanged-import finding.
+- [x] Red contracts, unchanged-import fix, independent completion/upload retries and persistence/precision regressions.
+- [x] Independent QA; final 749/749 tests; signed device Release archive and actual-artifact backend/config precheck.
+- [x] Public 1.2.0/build37 phone-run sequence compatible with founder report; no independent identity proof, activation or Watch claim.
+- [x] Pushed PR165 fix and saved signed local diagnostic archive plus exact paired-device checklist; still draft.
+- [ ] Paired physical Watch QA; keep draft.
+
+## 2026-10-25 — Apple Workout round trip
+
+- [x] Inspect latest main/release work; isolate `codex/apple-watch-workoutkit` at 61b7cfb.
+- [x] Define brief, scoped spec, stories and device gate in `docs/specs/2026-10-25-apple-workout.md`.
+- [x] S1 reliable Health import.
+- [x] S2 WorkoutKit send/edit/cancel.
+- [x] S3 exact completion identity.
+- [x] Final simulator suite: 739/739, zero failures; real scheduling-denial UI smoke.
+- [x] Pushed and opened draft PR #165: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/165
+- [ ] Physical paired iPhone/Watch round-trip QA (owner gate).
+
 ## 2026-10-28 — Production sharing and benchmarks
 
 Owner requests production shipment of completed iPhone work; Apple Watch remains excluded.
