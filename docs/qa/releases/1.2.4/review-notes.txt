@@ -1,0 +1,19 @@
+Version 1.2.4 iPhone update: the runner can pick a coaching tone (Motivating, Calm or Technical) in Profile > Coaching Tone, in onboarding or in the goal editor. The tone changes the offline spoken run cues (start, pause, resume, splits and finish) and the speech rate and pitch. Spoken cues are in English. Apple Watch workout scheduling is not included.
+
+Reviewer access
+Use the existing demo credentials provided in App Store Connect. Apple sign-in is also supported.
+
+Suggested review flow
+1. Sign in and open Today and Plan.
+2. Open Profile > Coaching Tone and pick Calm, Technical or Motivating.
+3. Start a run from Run with Audio cues on. GPS search offers Cancel and, after 20 seconds, Start anyway for indoor review. The start, pause and resume cues use the chosen tone. Hold to finish.
+4. Optional: open a saved run report and Share Run to share a Story, Feed or Video.
+5. Optional: allow Apple Health access to save a workout, route, pause events and estimated energy when weight is available.
+
+Integration and privacy notes
+- Location and background location support active GPS run recording.
+- Apple Health access is optional. Health data is labeled Apple Health.
+- Garmin connection is optional; Garmin data is labeled Garmin.
+- Strava integration is disabled and hidden.
+- Run titles and notes are stored locally. Calories are estimates.
+- Coach guidance is informational fitness guidance, not medical advice.

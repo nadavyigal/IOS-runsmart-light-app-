@@ -720,3 +720,9 @@ Build 35 passed key-presence checks but live Auth rejected its packaged publisha
 ## 2026-10-29 — Default maps need an offline export path
 
 Removing the share-map toggle made the old mapUnavailable advice impossible to follow. Image and video exports now share one map-failure fallback to stats-only artwork; cancellation still throws and invalid routes remain errors. Keep captions accurate even when no map renders. Regression tests inject map failure into the actual PNG/MP4 exporters.
+
+## 2026-11-07 — A worktree whose git data lives in iCloud hangs git
+
+`~/Developer/runsmart-apple-watch` was a worktree of an old clone under `~/Documents/Projects /`. Its `.git` file pointed into iCloud, so `git fetch` and `git worktree list` hung or timed out, and its remote-tracking ref sat days behind the real PR head (`323ed3e` vs `7d2f9fd`). Work there would have landed on a stale base.
+
+**Rule:** before working in a worktree, `cat <worktree>/.git`. If the gitdir is under `~/Documents`, do not use it: add a fresh worktree from the `~/Developer` clone (`git worktree add -b <branch> <path> origin/<branch>`) and carry uncommitted notes over by hand.
