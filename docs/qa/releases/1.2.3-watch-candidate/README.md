@@ -1,0 +1,28 @@
+# RunSmart 1.2.3 (41) — Apple Watch candidate
+
+> **Superseded as a release candidate (2026-11-07).** Build 41 was archived from `4f20bc0`. It does **not** contain the PR165 review fixes in `a4bab42` (recovery ownership bound at first failed import, empty-plan pending, route point IDs, wellness order, exact-ID visibility, Watch export refresh) or `acc8e59` (account recheck before export reconcile). The external tester's 2026-11-07 Watch round-trip pass (workout appears on the Watch, run saves back to the iPhone; reported by the founder) applies to build 41's source only. The next candidate must be archived from post-merge `main`, numbered 1.2.5 (43) or higher (1.2.4 (42) is already live), and must repeat the paired-Watch round trip before public submission. This file stays as the build 41 record.
+
+Owner approved candidate preparation on 2 November 2026 after reporting the external tester finished the beta tests and all looked good. This is tester-reported acceptance of 1.2.1 (38); individual device subcases were not independently observed. Correct TestFlight recipient: the external tester. ASC confirms iPhone 15 Pro Max / iOS 27.0.1 installation. Earlier iPad installation belongs to the old email and is not the Watch acceptance evidence.
+
+## Source and validation
+
+PR165 is reconciled with origin/main 3c2d679 by merging, without rewriting published history. Sharing, saved-route benchmarks, plan recovery and analytics corrections are retained. Conflict resolution preserved both project histories; project version settings intentionally move to 1.2.3 (41). ASC inventory checked 2 November: latest upload 1.2.2 (40), complete; no newer upload shown.
+
+Health recovery now queues the failed-to-successful unassociated lookup transition, persists the originating account and selected workout before completion, and retries the same target after backend failure/relaunch. It stops on a confirmed no-match, removed/completed target or successful completion. Missing plan data stays pending. Exact WorkoutKit identity overrides deferred heuristics. Hidden/deleted runs, account changes and concurrent state changes cannot advance stale recovery. No new database field, backend service, provider setting or dependency.
+
+Regression red: the recovered unassociated import produced zero completion attempts. Focused suite before final race hardening: 31/31 passed. Final full suite: 841 passed, zero failures, one existing opt-in map-render test skipped (requires TEST_RUNNER_RUN_SHARE_RENDER_DIR and network). All 33 AppleWorkoutTests pass in the final suite. Xcode 26.5, iPhone 17 Pro simulator / iOS 26.5. Independent read-only QA found account/identity races; both corrected and re-reviewed with no remaining concrete finding. No iOS 26.3 runtime is installed.
+
+Archive from source `4f20bc0` succeeded. App/extension 1.2.3 (41), strict/deep signatures, team8VC4R5M425, HealthKit/usage strings, privacy/analytics resources and dSYM UUIDs pass. The actual archived backend returns HTTP200 with Apple/email enabled. Owner completed the macOS signing prompt. The exported IPA has valid Apple Distribution signatures for app/extension, debugging disabled, matching dSYMs and live packaged backend HTTP200 with Apple/email enabled. Upload and Apple processing completed. Exact build UUID `c554c551-d5d0-4b50-8ffd-6da19b4ea9da` is attached to Apple Watch Beta (two existing testers/two builds). What to Test is saved, Automatically notify testers was checked, and external beta review submission completed. Live group build table verifies **Waiting for Review**. the external tester cannot install build41 until Apple approves it. No new paired-device pass or public submission is claimed. See candidate-receipt.json and archive checks.
+
+## Short candidate validation
+
+Install 1.2.3 (41) on the iPhone paired with the Watch. Use the existing RunSmart account; no separate RunSmart watchOS app is needed.
+
+1. Send a future incomplete supported interval session. Verify one Watch workout with the expected warmup, repetitions, recovery/cooldown and configured alerts.
+2. Start, finish and save on Watch without the phone. Reconnect, allow Apple Health sync, then use RunSmart Connections → Apple Health → Sync Now.
+3. Confirm exactly one accurate run and exactly one intended planned-workout completion. Compare distance and moving time.
+4. Repeat Sync Now and reopen RunSmart: no duplicate run or completion.
+
+Report any failed step with phone/Watch models and OS, expected/actual behavior and build41. This short check must use the integrated candidate; prior build38 success does not validate the changed binary. Full permission/edit matrix is not claimed by automation.
+
+Limits remain: manual/foreground Health sync, latest100 workouts/180days, no Health-deletion propagation, no custom live Watch coaching, Garmin/Strava disabled. Public App Store submission remains a separate release decision.

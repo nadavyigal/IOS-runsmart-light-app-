@@ -1,0 +1,13 @@
+{
+  "version": "1.2.1",
+  "build": "38",
+  "source_commit": "feee81cdaa4a6304a76ab2342c7fb653290e639d",
+  "signature_valid": true,
+  "healthkit_entitlement": true,
+  "analytics_key_present": true,
+  "extensions_matching": [
+    "com.runsmart.lite.runliveactivity"
+  ],
+  "usage_strings_present": true,
+  "dsyms_present": true
+}

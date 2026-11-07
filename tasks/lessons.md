@@ -1,3 +1,19 @@
+## 2026-10-26 — Release gates must stop dependent commands
+
+Run package verification and upload as separate tool calls, or use an explicit fail-fast shell. A failed assertion must prevent later upload commands from starting. Use `codesign -dvv` when checking Authority; `-dv` omits that field and can falsely reject valid distribution signing. Interrupted the premature upload preparation, corrected the check, verified the full IPA, then restarted the authorized upload.
+
+## 2026-10-26 — Separate data changes from unfinished side effects
+
+An unchanged provider snapshot can still have pending completion or upload work. Compare after preserving local derived fields, skip refresh side effects for unchanged data, and track unconfirmed uploads separately. Re-arm pending state only through explicit import staging; generic stale saves must preserve a confirmed state. Clear pending only when the confirmed payload still matches current stored provider data. Exercise the real local-store merge in regression tests, not only an in-memory callback. Compare Health timestamps at the whole-second precision actually persisted by the ISO8601 store; raw fractional timestamps otherwise cause perpetual false refreshes and rejected upload confirmations.
+
+## 2026-10-25 — Verify normalized scheduler dates and sign simulator test hosts
+
+`ScheduledWorkoutPlan` expands a year/month/day into complete Gregorian components. Whole-value DateComponents equality falsely rejected a successful schedule and would repeat updates. Compare the scheduled day fields and exercise the real wrapper in tests. Unsigned simulator builds launched without loading the XCTest bundle on this host; normal ad hoc simulator signing loaded and ran it. Do not treat a launched test-host app as evidence that assertions ran.
+
+## 2026-10-25 — WorkoutKit module and isolation boundaries
+
+WorkoutKit uses HealthKit types but does not re-export their enum cases; import both modules explicitly. Actor-isolated scheduler implementations cannot be constructed in a default argument; construct them inside the isolated initializer. Treat a failed workout-plan lookup differently from a successful nil association, and invalidate cached plan state around completion before processing batch imports.
+
 ## 2026-10-28 — Match the final consolidated geometry
 
 Stored-run rematching precedes activity consolidation. A richer GPS-less Health copy can acquire the native run's GPS after that pass, so its canonical route match remains nil. Refresh the resolved canonical geometry before selecting saved-route actions; test the service with the richer imported copy, not only the original GPS record.

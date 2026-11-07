@@ -1,0 +1,23 @@
+{
+  "version": "1.2.1",
+  "build": "38",
+  "distribution_signed": true,
+  "debugging_disabled": true,
+  "signature_valid": true,
+  "healthkit_entitlement": true,
+  "analytics_key_present": true,
+  "strava_disabled": true,
+  "privacy_manifest_matches_source": true,
+  "bundles": [
+    {
+      "bundle_id": "com.runsmart.lite",
+      "dsym_matches": true
+    },
+    {
+      "bundle_id": "com.runsmart.lite.runliveactivity",
+      "dsym_matches": true
+    }
+  ],
+  "ipa_sha256": "3239a38a4de9b448794eb390e0118fa56a4fd68a047acd84718b3a298d60c9d1",
+  "ipa_bytes": 12993887
+}

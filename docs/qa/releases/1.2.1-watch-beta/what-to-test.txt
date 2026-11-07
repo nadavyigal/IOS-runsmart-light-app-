@@ -1,0 +1,13 @@
+Apple Watch beta — 1.2.1 (38)
+
+Install this beta on the iPhone already paired with your Apple Watch. No separate RunSmart Watch app is needed. Use your existing RunSmart account. Update iPhone/Watch software if the scheduling feature is unavailable.
+
+1. Open an incomplete planned interval session with complete work/recovery targets. Tap Send to Apple Watch and allow workout scheduling. In Apple's Workout app on Watch, confirm one scheduled session with the correct warmup, reps, recovery and cooldown. Check any explicit pace alerts.
+2. Start that planned session on Watch. Record with the phone left behind, then finish/save on Watch.
+3. Reconnect Watch and iPhone and allow Apple Health to sync. In RunSmart open Connections > Apple Health > Sync Now and allow workout read access; route/heart-rate reads are optional.
+4. Confirm exactly one accurate run and one intended plan completion. Compare distance and moving time with Apple Workout. Sync again and relaunch: no duplicate run/completion.
+5. If possible, test a delayed route, denied scheduling, read-only Health permissions, and an edited/rescheduled/canceled planned session. A canceled/old item must not complete a replacement session.
+
+Please report the step, expected result, actual result, iPhone/Watch models and OS versions. Send screenshots through TestFlight feedback; avoid sharing precise route/location or other personal health data publicly.
+
+Known limits: Health import is manual/foreground; Apple Watch delivery can take time. Live RunSmart voice coaching is not available inside Apple's Workout app. Some sessions with incomplete running targets cannot be exported. Garmin and Strava remain unavailable/disabled.

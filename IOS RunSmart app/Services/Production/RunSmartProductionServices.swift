@@ -69,6 +69,15 @@ final class RunSmartLocalStore {
         save(runs, key: "runsmart.runs")
     }
 
+    /// Import owns this transition: preserve current local edits, then mark this provider payload
+    /// pending. Generic stale saves must not re-arm a payload that was already confirmed uploaded.
+    func stageHealthImport(_ run: RecordedRun) {
+        let stored = loadRuns().first { Self.isSameStoredRun($0, run) }
+        var staged = run.keepingLocalFields(from: stored)
+        staged.healthUploadPending = true
+        saveRun(staged, replacingLocalFields: true)
+    }
+
     /// For a copy that was read before an `await`: keeps whatever the runner set on the stored run since then.
     @discardableResult
     func saveRunKeepingLocalEdits(_ run: RecordedRun) -> RecordedRun {
@@ -81,12 +90,27 @@ final class RunSmartLocalStore {
     /// Marks the stored copy as synced. Touches nothing else, and does not bring back a run that was deleted meanwhile.
     func markRunSynced(_ run: RecordedRun, at date: Date = Date()) {
         guard var stored = loadRuns().first(where: { Self.isSameStoredRun($0, run) }) else { return }
+        if stored.source == .healthKit {
+            guard HealthKitImportMerge.uploadConfirms(run, stored: stored) else { return }
+            stored.healthUploadPending = false
+        }
         stored.syncedAt = date
         saveRun(stored, replacingLocalFields: true)
     }
 
     func loadRuns() -> [RecordedRun] {
         load([RecordedRun].self, key: "runsmart.runs") ?? []
+    }
+
+    @discardableResult
+    func updateHealthCompletionRecovery(_ run: RecordedRun, expected: HealthKitCompletionRecovery,
+                                        next: HealthKitCompletionRecovery) -> Bool {
+        guard var stored = loadRuns().first(where: { Self.isSameStoredRun($0, run) }),
+              !isRunHidden(stored), stored.plannedWorkoutID == nil, stored.healthPlanLookupFailed != true,
+              stored.healthCompletionRecovery == expected else { return false }
+        stored.healthCompletionRecovery = next
+        saveRun(stored, replacingLocalFields: true)
+        return true
     }
 
     func updateRunRPE(_ run: RecordedRun, rpe: Int?) -> RecordedRun {
@@ -1933,7 +1957,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
     func syncHealthData() async -> ConnectedDeviceStatus {
         let result = await health.importHealthData(localStore: store)
         store.saveDeviceStatus(result.status)
-        if !result.runs.isEmpty {
+        if !result.runs.isEmpty || !result.refreshedRuns.isEmpty {
             // Imported history (often months of the same loops) only counts toward a saved
             // route once it is matched against it.
             await store.rematchStoredRuns()
