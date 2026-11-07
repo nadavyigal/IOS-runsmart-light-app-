@@ -1,0 +1,13 @@
+RunSmart 1.2.5 (43): Apple Watch release candidate
+
+This is the build we plan to submit to the App Store. It has the same Watch feature you tested in build 41, plus fixes to how a Watch run completes your plan after a Health sync. Please repeat the Watch check on this build.
+
+Install on the iPhone that is paired with your Watch. No separate RunSmart Watch app is needed. Use your existing RunSmart account.
+
+1. In Plan, open an incomplete interval session and tap Send to Apple Watch. In Apple's Workout app on the Watch, check that the session shows the right warmup, repeats, recoveries and cooldown.
+2. Start, finish and save the workout on the Watch.
+3. Back on the iPhone, open RunSmart, go to Profile, tap the HealthKit tile under Connected, and tap Sync Now.
+4. Check that you see one run with the right distance and time, and that the session is marked done in Plan.
+5. Sync again and reopen RunSmart. There should be no second run and no second completion.
+
+If a step fails, send TestFlight feedback with the step number, what you expected, what you saw, and your iPhone and Watch models.

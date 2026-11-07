@@ -1,0 +1,19 @@
+Version 1.2.5 adds Apple Watch workout scheduling. A runner can send a planned running session to Apple's Workout app on their paired Apple Watch, run it there, and then sync Apple Health in RunSmart to import the run and mark the session done. RunSmart uses WorkoutKit for scheduling and HealthKit to read the finished workout. There is no separate watchOS app.
+
+Reviewer access
+Use the existing demo credentials provided in App Store Connect. Apple sign-in is also supported.
+
+Suggested review flow
+1. Sign in and open Today and Plan.
+2. In Plan, open an upcoming session and tap Send to Apple Watch. With a paired Apple Watch, the session appears in the Workout app's scheduled workouts. Without one, the app shows "Workout scheduling requires a supported iPhone and paired Apple Watch." and the rest of the app is unaffected.
+3. Open Profile, tap the HealthKit tile under Connected, and tap Sync Now. Apple Health access is optional.
+4. Start a run from Run with Audio cues on. GPS search offers Cancel and, after 20 seconds, Start anyway for indoor review. Hold to finish.
+5. Optional: open Profile > Coaching Tone and pick Calm, Technical or Motivating.
+
+Integration and privacy notes
+- Location and background location support active GPS run recording.
+- Apple Health access is optional. Health data is labeled Apple Health. Workout scheduling uses WorkoutKit on the paired Apple Watch.
+- Garmin connection is optional; Garmin data is labeled Garmin.
+- Strava integration is disabled and hidden.
+- Run titles and notes are stored locally. Calories are estimates.
+- Coach guidance is informational fitness guidance, not medical advice.
