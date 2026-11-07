@@ -1,7 +1,7 @@
 ## 2026-11-07 — 1.2.5 (43) Apple Watch release candidate started
 
 **Status:** PR #165 (Apple Watch workout round trip and deferred Health completion) merged into `main` on the founder's yes (merge `8f35e73`). 1.2.4 (42) is live on the App Store (Apple lookup, released 2026-11-06). Release branch `claude/2026-11-07-release-1-2-5` merges the 1.2.4 release records from PR #177 (`origin/claude/2026-11-05-release-1-2-4`), so `main` will carry them once this branch merges, and sets 1.2.5 (43) in all six build configurations.
-**Current Phase:** 1.2.5 (43) archived, exported and verified; waiting for founder yes to upload to TestFlight.
+**Current Phase:** 1.2.5 (43) uploaded on the founder's yes (2026-11-07 20:08:50); in TestFlight beta review (Waiting for Review) with Apple Watch Beta and RunSmart Internal groups. Next: external tester repeats the Watch round trip on build 43.
 **Active Story:** 1.2.5 (43), first public release with the Apple Watch workout round trip.
 **Last Completed Story:** PR #165 merged (review fixes `a4bab42`, `acc8e59`).
 **Next Recommended Story:** After the archive gates pass: TestFlight upload (needs founder yes), the external tester repeats the paired-Watch round trip on build 43, then App Store submission (needs founder yes).
