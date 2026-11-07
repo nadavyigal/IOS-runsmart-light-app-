@@ -7,7 +7,8 @@ final class VoiceCoachServiceTests: XCTestCase {
     private let context = VoiceCueContext(
         elapsedMinutes: 10,
         distanceKm: 2,
-        currentPaceMinPerKm: 5.5
+        currentPaceMinPerKm: 5.5,
+        coachingStyle: "encouraging"
     )
 
     func testSignedInRequestCarriesBearerToken() throws {

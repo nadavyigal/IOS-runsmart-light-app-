@@ -567,12 +567,7 @@ extension OnboardingProfile {
     }
 
     var supabaseCoachingStyle: String {
-        switch coachingTone.lowercased() {
-        case let s where s.contains("motivat") || s.contains("encourag"): return "encouraging"
-        case let s where s.contains("techni") || s.contains("analytic"): return "analytical"
-        case let s where s.contains("strict") || s.contains("challeng"): return "challenging"
-        default: return "supportive"
-        }
+        CoachingTone.storedStyle(for: coachingTone)
     }
 }
 
@@ -606,12 +601,7 @@ extension TrainingGoalRequest {
     }
 
     var supabaseCoachingStyle: String {
-        switch coachingTone.lowercased() {
-        case let s where s.contains("motivat") || s.contains("encourag"): return "encouraging"
-        case let s where s.contains("techni") || s.contains("analytic"): return "analytical"
-        case let s where s.contains("strict") || s.contains("challeng"): return "challenging"
-        default: return "supportive"
-        }
+        CoachingTone.storedStyle(for: coachingTone)
     }
 }
 

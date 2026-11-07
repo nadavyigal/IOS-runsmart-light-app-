@@ -29,6 +29,38 @@ Verified CodeRabbit's unchanged-import finding against head b27bf40 (hosted Code
 
 Apple Watch track implemented in isolated `/Users/nadavyigal/Developer/runsmart-apple-watch`, branch `codex/apple-watch-workoutkit`, base `61b7cfb`. Existing release checkout untouched. WorkoutKit session-detail send uses current APIs, the phone guide, stable IDs, separate permission flow, capacity/readback checks and queued edit/cancel reconciliation. Health imports refresh late data without duplicate runs, preserve exact identity and failed-lookup state through consolidation, retry exact completion and avoid stale cached completion candidates. Health read choices are shown honestly. Final simulator suite **739 passed / 0 failed** (736 XCTest + 3 Swift Testing, including 14 new tests); actual scheduling denial UI verified. Spec and QA: `docs/specs/2026-10-25-apple-workout.md`, `docs/qa/reports/2026-10-25-apple-workout.md`. Draft PR #165: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/165 ; **paired physical iPhone/Watch round trip remains required; not release-ready**. No version/archive/upload/submission or production configuration changes.
 
+## 2026-11-05 — T7 coach tones merged (PR #176); PR #174 merged
+
+**Status:** PR #174 (1.2.2 release source) merged into `main` on founder's yes, so `main` now matches the live 1.2.2 build. T7 merged into `main` through PR #176 on founder's yes. Founder chose to skip the pre-merge device listening test and check the tones in production. No version bump, no archive, no upload.
+**Current Phase:** One tone list (Motivating, Calm, Technical), a saved choice, and that choice on offline cue wording, speech rate and pitch. The AI cue request sends `coachingStyle`.
+**Active Story:** none. T7 is in `main`, waiting for the next release build.
+**Last Completed Story:** T7 code plus a review fix: sign-out and demo mode now reset the spoken tone, so a previous account's tone is not kept on the phone. `.gitignore` line for `.track-status.md` left uncommitted (tooling, not T7).
+**Next Recommended Story:** Optional: a Play button on the Coaching Tone preview so the runner can hear each tone without running. Founder listening test on a physical iPhone after the next archive (build number above 40). Separately approve or reject `docs/qa/2026-10-31-voice-web-change.md` before the web route is edited.
+**Blockers:** No device listening evidence. `VOICE_COACH_ENABLED` in production unverified. Web route change not applied, so the server ignores `coachingStyle`. Codex review out of credits.
+**Last Validation:** 2026-11-05, full `xcodebuild test` on T7 merged with `main` (incl. #174), iPhone 17 Pro simulator, iOS 26.5: TEST SUCCEEDED, 825 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`, needs `TEST_RUNNER_RUN_SHARE_RENDER_DIR`). Not checked on a device.
+**Last Updated:** 2026-11-05
+
+## 2026-11-04 — 1.2.2 is live on the App Store
+
+**Status:** 1.2.2 is public on the App Store since 2026-10-30 15:13 UTC (Apple lookup API, id 6768297840, polled 3 times with varying URLs on 2026-11-04, all agree). The public lookup does not show the build number. PR #174 records 1.2.2 (40) as the build selected in the ASC 1.2.2 draft, so the live build is most likely 40. Not checked in App Store Connect.
+**Current Phase:** 1.2.2 live. Main does not hold the release source yet: it sits on `codex/release-1-2-2`, PR #174 (draft, 2 commits ahead of main).
+**Active Story:** none. This entry only records the release.
+**Last Completed Story:** 1.2.2 shipped (build most likely 40, see Status): satellite run sharing (PRs #171, #172), plan recovery and plan-failure analytics (PR #173), stats-only fallback when MapKit cannot load. Apple Watch PR #165 is not in this release.
+**Next Recommended Story:** merge PR #174 so main matches the live build. Its progress entry also goes at the top of this file, so keep both entries when resolving. Then confirm in App Store Connect that the live build is 40.
+**Blockers:** none.
+**Last Validation:** 2026-11-04: Apple lookup API, 3 of 3 polls returned version 1.2.2, release date 2026-10-30T15:13:05Z. Docs only, no tests run.
+**Last Updated:** 2026-11-04
+
+## 2026-10-29 — 1.2.2 (40) uploaded and processed
+
+**Status:** Uploaded and processed. Exact 1.2.2 (40) selected in ASC draft, Prepare for Submission; RunSmart Internal assigned and test notes saved. App Review not submitted; physical owner check pending. Public 1.2.1 remains live.
+**Current Phase:** Consolidate PRs 171/172 satellite sharing and PR 173 plan-recovery/analytics fixes; benchmark 5c96738 retained, Watch 165 excluded.
+**Active Story:** Delivery complete to ASC/TestFlight; owner physical share/map/comparison check remains before public review submission. Fixed mapUnavailable blocking PNG/MP4 sharing after map-toggle removal; cancellation/invalid routes preserved, privacy caption accurate with or without map.
+**Last Validation:** New regression red 3/3; renderer green 14/14, 0 failures. Full simulator suite 813/813 passed, 0 failures/skips, including live map renders and MP4; Story/Feed layouts inspected. Release archive signatures/entitlements/dSYMs/privacy and actual packaged backend pass. Distribution IPA signatures/config and live backend pass. Physical owner test pending.
+**Blockers:** Physical owner candidate check not performed. Keychain export prompt was approved by owner and resolved. No App Review submission claimed.
+**Next Recommended Story:** Owner checks TestFlight 1.2.2 (40) sharing/map/comparison; then close PR #174 review/merge and submit exact build 40 for public App Review under release approval.
+**Last Updated:** 2026-10-29
+
 ## 2026-10-29 — Gate A: honest sign-in and plan numbers, plan recovery
 
 **Status:** 1.2.1 (39) in App Review (not checked this session). Branch `claude/gate-a-signin-plan-failures-7f17a9`, PR #173.

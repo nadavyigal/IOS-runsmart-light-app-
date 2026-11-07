@@ -23,10 +23,28 @@ enum RunShareMediaError: LocalizedError {
 enum RunShareMediaRenderer {
     static let videoDuration: Double = 10
     static let videoFramesPerSecond: Int32 = 24
+    typealias MapLoader = @MainActor (RunShareSnapshot, RunShareAssetFormat) async throws -> RunShareMapPlate?
 
-    static func poster(snapshot: RunShareSnapshot, format: RunShareAssetFormat) async throws -> UIImage {
+    private static func defaultMapLoader(snapshot: RunShareSnapshot, format: RunShareAssetFormat) async throws -> RunShareMapPlate? {
+        try await RunSharePosterRenderer.prepareMap(snapshot: snapshot, format: format)
+    }
+
+    /// A failed tile request must not block sharing the run's stats. Invalid routes remain
+    /// errors, and cancellation always wins over a late MapKit failure.
+    private static func availableMap(snapshot: RunShareSnapshot, format: RunShareAssetFormat,
+                                     mapLoader: MapLoader) async throws -> RunShareMapPlate? {
+        do {
+            return try await mapLoader(snapshot, format)
+        } catch RunShareMediaError.mapUnavailable {
+            try Task.checkCancellation()
+            return nil
+        }
+    }
+
+    static func poster(snapshot: RunShareSnapshot, format: RunShareAssetFormat,
+                       mapLoader: MapLoader = defaultMapLoader) async throws -> UIImage {
         try Task.checkCancellation()
-        let map = try await RunSharePosterRenderer.prepareMap(snapshot: snapshot, format: format)
+        let map = try await availableMap(snapshot: snapshot, format: format, mapLoader: mapLoader)
         try Task.checkCancellation()
         return RunSharePosterRenderer.image(snapshot: snapshot, format: format, map: map,
                                             logo: RunSharePosterRenderer.logoImage())
@@ -34,10 +52,11 @@ enum RunShareMediaRenderer {
 
     /// Fixed-frame offline rendering: network is used once to obtain the map plate, never per
     /// frame. Pixel buffers and images are released as frames are written, not retained in an array.
-    static func video(snapshot: RunShareSnapshot, progress: @escaping @MainActor (Double) -> Void) async throws -> URL {
+    static func video(snapshot: RunShareSnapshot, mapLoader: MapLoader = defaultMapLoader,
+                      progress: @escaping @MainActor (Double) -> Void) async throws -> URL {
         try Task.checkCancellation()
         progress(0)
-        let map = try await RunSharePosterRenderer.prepareMap(snapshot: snapshot, format: .video)
+        let map = try await availableMap(snapshot: snapshot, format: .video, mapLoader: mapLoader)
         let logo = RunSharePosterRenderer.logoImage()
         try Task.checkCancellation()
         let url = try RunShareExportFiles.newURL(extension: "mp4")

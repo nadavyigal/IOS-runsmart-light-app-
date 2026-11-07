@@ -14,6 +14,8 @@ struct VoiceCueContext: Encodable {
     var targetPaceMinPerKm: Double?
     var workoutGoal: String?
     var heartRateBPM: Int?
+    /// Stored `profiles.coaching_style` (`encouraging`, `supportive`, `analytical`, or `challenging`).
+    var coachingStyle: String
 }
 
 @MainActor
