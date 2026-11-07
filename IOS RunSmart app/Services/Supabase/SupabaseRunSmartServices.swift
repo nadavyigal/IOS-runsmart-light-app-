@@ -1133,6 +1133,13 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                             return true
                         })
                 }
+                // The batched snapshot can be stale after the upload await. Reload, and skip a run
+                // the user hid or removed meanwhile. The write itself still awaits the network, so
+                // this narrows the race rather than closing it.
+                if run.plannedWorkoutID != nil {
+                    guard let current = self.store.loadRuns().first(where: { $0.id == run.id }),
+                          !self.store.isRunHidden(current) else { return false }
+                }
                 guard let completed = await self.completeMatchingWorkout(for: run) else { return false }
                 await MainActor.run { PushService.shared.cancelWorkoutReminder(workoutID: completed.id) }
                 return true
@@ -1147,6 +1154,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 await self.postRunsChanged()
             },
             notifyPlan: {
+                guard self.currentUserID == syncingUserID else { return }
+                // A workout Health just completed must leave the Watch schedule now, not on the
+                // next Today or Plan load.
+                await self.refreshAppleWorkoutExports()
                 guard self.currentUserID == syncingUserID else { return }
                 await MainActor.run { NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil) }
             })

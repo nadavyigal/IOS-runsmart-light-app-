@@ -297,13 +297,17 @@ extension AppleWorkoutTests {
 
 extension AppleWorkoutTests {
     func testRecoveredUnassociatedLookupReachesCompletionWithoutReplayingReport() async {
+        let owner = UUID()
         var stored = makeActivity()
         stored.providerActivityID = UUID().uuidString
         stored.healthPlanLookupFailed = true
+        stored.healthCompletionRecovery = HealthKitCompletionRecovery(ownerID: owner)
         var incoming = stored
         incoming.healthPlanLookupFailed = false
+        incoming.healthCompletionRecovery = nil
         var saved: [RecordedRun] = []
-        let batch = HealthKitImportBatch.apply([incoming], existing: [stored], isHidden: { _ in false }, save: { saved.append($0) })
+        let batch = HealthKitImportBatch.apply([incoming], existing: [stored], completionOwnerID: owner,
+                                               isHidden: { _ in false }, save: { saved.append($0) })
         XCTAssertEqual(batch.retries.map(\.id), [stored.id])
         XCTAssertTrue(batch.imported.isEmpty)
         let result = HealthKitImportResult(status: ConnectedDeviceStatus(provider: "HealthKit", state: .connected, permissions: []), runs: batch.imported, skippedDuplicates: batch.skipped, refreshedRuns: batch.refreshed, completionRetries: batch.retries)
@@ -323,11 +327,11 @@ extension AppleWorkoutTests {
         var run = makeActivity()
         run.providerActivityID = UUID().uuidString
         run.healthPlanLookupFailed = false
-        run.healthCompletionRecovery = HealthKitCompletionRecovery()
+        let owner = UUID()
+        run.healthCompletionRecovery = HealthKitCompletionRecovery(ownerID: owner)
         var item = workout()
         item.scheduledDate = run.startedAt
         item.distance = "5 km"
-        let owner = UUID()
         var state = try XCTUnwrap(run.healthCompletionRecovery)
         var attempts: [UUID?] = []
         let failed = await HealthKitDeferredCompletion.process(run, ownerID: owner,
@@ -404,12 +408,14 @@ extension AppleWorkoutTests {
         let owner = UUID()
         var completed = workout(complete: true)
         completed.scheduledDate = Date()
+        var unrelated = workout()
+        unrelated.scheduledDate = Date().addingTimeInterval(-30 * 86_400)
         for target in [completed.id, nil] as [UUID?] {
             var run = makeActivity()
             var state = HealthKitCompletionRecovery(ownerID: owner, targetWorkoutID: target)
             run.healthCompletionRecovery = state
             _ = await HealthKitDeferredCompletion.process(run, ownerID: owner,
-                loadWorkouts: { target == nil ? [] : [completed] },
+                loadWorkouts: { target == nil ? [unrelated] : [completed] },
                 saveState: { _, next in state = next; return true },
                 complete: { _ in XCTFail("Completed or unmatched items must not write completion"); return true })
             XCTAssertFalse(state.isPending)
@@ -434,18 +440,116 @@ extension AppleWorkoutTests {
         XCTAssertTrue(batch.retries.isEmpty)
     }
 
-    func testRecoveredLookupBindsOriginatingAccountDuringImport() throws {
+    /// Account A imports a run whose plan lookup fails, signs out (local runs survive), and
+    /// account B's sync resolves the lookup. Only A may complete it.
+    func testFailedLookupRecoveryStaysWithTheAccountThatImportedIt() async throws {
+        let accountA = UUID()
+        let accountB = UUID()
+        var raw = makeActivity()
+        raw.providerActivityID = UUID().uuidString
+        raw.healthPlanLookupFailed = true
+        var firstSave: RecordedRun?
+        _ = HealthKitImportBatch.apply([raw], existing: [], completionOwnerID: accountA,
+            isHidden: { _ in false }, save: { firstSave = $0 })
+        let stored = try XCTUnwrap(firstSave)
+        XCTAssertEqual(stored.healthCompletionRecovery?.ownerID, accountA, "Bind the owner at the first failed import")
+
+        var resolved = raw
+        resolved.healthPlanLookupFailed = false
+        var secondSave: RecordedRun?
+        let batch = HealthKitImportBatch.apply([resolved], existing: [stored], completionOwnerID: accountB,
+            isHidden: { _ in false }, save: { secondSave = $0 })
+        XCTAssertEqual(try XCTUnwrap(secondSave).healthCompletionRecovery?.ownerID, accountA, "B's sync must not take ownership")
+        let retry = try XCTUnwrap(batch.retries.first)
+
+        var item = workout()
+        item.scheduledDate = retry.startedAt
+        item.distance = "5 km"
+        let rejected = await HealthKitDeferredCompletion.process(retry, ownerID: accountB,
+            loadWorkouts: { XCTFail("Another account must not fetch"); return [item] },
+            saveState: { _, _ in XCTFail("Another account must not write"); return false },
+            complete: { _ in XCTFail("Another account must not complete"); return true })
+        XCTAssertFalse(rejected)
+
+        var state = try XCTUnwrap(retry.healthCompletionRecovery)
+        let accepted = await HealthKitDeferredCompletion.process(retry, ownerID: accountA,
+            loadWorkouts: { [item] },
+            saveState: { expected, next in
+                guard state == expected else { return false }
+                state = next
+                return true
+            },
+            complete: { $0.plannedWorkoutID == item.id })
+        XCTAssertTrue(accepted)
+        XCTAssertFalse(state.isPending)
+    }
+
+    func testOwnerlessFailedLookupIsNeverAdoptedByTheResolvingAccount() async {
         var stored = makeActivity()
         stored.providerActivityID = UUID().uuidString
         stored.healthPlanLookupFailed = true
-        var incoming = stored
-        incoming.healthPlanLookupFailed = false
-        let owner = UUID()
+        var resolved = stored
+        resolved.healthPlanLookupFailed = false
         var persisted: RecordedRun?
-        let batch = HealthKitImportBatch.apply([incoming], existing: [stored], completionOwnerID: owner,
+        let batch = HealthKitImportBatch.apply([resolved], existing: [stored], completionOwnerID: UUID(),
             isHidden: { _ in false }, save: { persisted = $0 })
-        XCTAssertEqual(try XCTUnwrap(persisted).healthCompletionRecovery?.ownerID, owner)
-        XCTAssertEqual(batch.retries.first?.healthCompletionRecovery?.ownerID, owner)
+        XCTAssertNil(persisted?.healthCompletionRecovery, "Unknown origin gets no heuristic recovery")
+        XCTAssertTrue(batch.retries.isEmpty)
+
+        var legacy = makeActivity()
+        legacy.healthCompletionRecovery = HealthKitCompletionRecovery(ownerID: nil)
+        let adopted = await HealthKitDeferredCompletion.process(legacy, ownerID: UUID(),
+            loadWorkouts: { XCTFail("Ownerless recovery must not fetch"); return [] },
+            saveState: { _, _ in XCTFail("Ownerless recovery must not bind"); return false },
+            complete: { _ in XCTFail("Ownerless recovery must not complete"); return true })
+        XCTAssertFalse(adopted)
+    }
+
+    func testFailedLookupImportedWhileSignedOutHasNoOwner() throws {
+        var raw = makeActivity()
+        raw.providerActivityID = UUID().uuidString
+        raw.healthPlanLookupFailed = true
+        var saved: RecordedRun?
+        _ = HealthKitImportBatch.apply([raw], existing: [], completionOwnerID: nil,
+            isHidden: { _ in false }, save: { saved = $0 })
+        XCTAssertNil(try XCTUnwrap(saved).healthCompletionRecovery)
+    }
+
+    func testEmptyPlanKeepsDeferredCompletionPending() async {
+        let owner = UUID()
+        var run = makeActivity()
+        var state = HealthKitCompletionRecovery(ownerID: owner)
+        run.healthCompletionRecovery = state
+        let result = await HealthKitDeferredCompletion.process(run, ownerID: owner,
+            loadWorkouts: { [] },
+            saveState: { _, next in state = next; return true },
+            complete: { _ in XCTFail("Nothing to complete"); return true })
+        XCTAssertFalse(result)
+        XCTAssertTrue(state.isPending, "A plan still saving its workouts is not a confirmed no-match")
+    }
+
+    func testUnchangedRouteKeepsStoredPointIDsAndRouteMatch() {
+        let start = Date(timeIntervalSince1970: 1_790_000_000)
+        let points = (0..<3).map { index in
+            RunRoutePoint(latitude: 32.08 + Double(index) * 0.001, longitude: 34.78, timestamp: start.addingTimeInterval(Double(index) * 10),
+                          horizontalAccuracy: 5, altitude: 12, startsNewSegment: index == 0)
+        }
+        var stored = makeActivity()
+        stored.providerActivityID = UUID().uuidString
+        stored.routePoints = points
+        stored.routeMatchResult = RouteMatchResult(routeID: UUID(), candidateRouteID: UUID(), confidence: .matched,
+            distanceDeltaMeters: 20, startDeltaMeters: 10, endDeltaMeters: 10, shapeSimilarity: 0.95, isReversed: false)
+        var incoming = stored
+        incoming.routeMatchResult = nil
+        incoming.routePoints = points.map { point in
+            var reread = point
+            reread.id = UUID()
+            return reread
+        }
+        XCTAssertEqual(HealthKitImportMerge.merge(incoming, stored: stored), stored)
+        let batch = HealthKitImportBatch.apply([incoming], existing: [stored], isHidden: { _ in false },
+            save: { _ in XCTFail("An unchanged route is not a refresh") })
+        XCTAssertTrue(batch.refreshed.isEmpty)
     }
 
     func testRecoveryStoreRejectsNewExactIdentityAndPreservesFinishedState() throws {

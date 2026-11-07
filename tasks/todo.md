@@ -1,6 +1,6 @@
 ## 2026-11-02 — Integrated Watch candidate
 
-- [x] Owner reports Yaniv completed beta38 testing successfully; retain as tester-reported evidence.
+- [x] Owner reports the external tester completed beta38 testing successfully; retain as tester-reported evidence.
 - [x] Reconcile PR165 with current main3c2d679, retaining iPhone improvements and project histories.
 - [x] Red regression; recover Health lookup completion with persistent owner/target and safe retries.
 - [x] Independent QA/race corrections; full841pass/0fail/1existing opt-in render skip.

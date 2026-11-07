@@ -68,11 +68,11 @@ struct HealthKitImportBatch {
         for run in runs {
             guard !isHidden(run) else { batch.skipped += 1; continue }
             if let stored = existing.first(where: { $0.source == .healthKit && $0.providerActivityID == run.providerActivityID }) {
+                // Recovery ownership is bound at the first failed import, never here. A stored
+                // failed-lookup run without a recovery owner came from an unknown account (signed
+                // out, or written before ownership existed); the account resolving the lookup now
+                // may not be the one that ran it, so it gets no heuristic completion.
                 var merged = HealthKitImportMerge.merge(run, stored: stored)
-                if stored.healthPlanLookupFailed == true, merged.healthPlanLookupFailed == false,
-                   merged.plannedWorkoutID == nil, merged.healthCompletionRecovery == nil {
-                    merged.healthCompletionRecovery = HealthKitCompletionRecovery(ownerID: completionOwnerID)
-                }
                 if merged != stored {
                     merged.healthUploadPending = true
                     save(merged)
@@ -89,6 +89,12 @@ struct HealthKitImportBatch {
             } else {
                 var pending = run
                 pending.healthUploadPending = true
+                // Persist the originating account with the failed lookup, so a later sync under
+                // another account cannot claim this run. Completion still waits for the lookup.
+                if pending.healthPlanLookupFailed == true, pending.healthCompletionRecovery == nil,
+                   let completionOwnerID {
+                    pending.healthCompletionRecovery = HealthKitCompletionRecovery(ownerID: completionOwnerID)
+                }
                 save(pending)
                 batch.imported.append(pending)
             }
@@ -104,17 +110,16 @@ enum HealthKitDeferredCompletion {
                         loadWorkouts: () async -> [WorkoutSummary]?,
                         saveState: (HealthKitCompletionRecovery, HealthKitCompletionRecovery) -> Bool,
                         complete: (RecordedRun) async -> Bool) async -> Bool {
+        // Only the account recorded at the first failed import may complete. An ownerless
+        // recovery is never adopted by whoever happens to be signed in.
         guard run.plannedWorkoutID == nil, run.healthPlanLookupFailed != true,
-              var state = run.healthCompletionRecovery, state.isPending,
-              state.ownerID == nil || state.ownerID == ownerID else { return false }
-        if state.ownerID == nil {
-            var bound = state
-            bound.ownerID = ownerID
-            guard saveState(state, bound) else { return false }
-            state = bound
-        }
+              let state = run.healthCompletionRecovery, state.isPending,
+              let owner = state.ownerID, owner == ownerID else { return false }
         // nil means unavailable, not a successful empty plan. Retain pending work.
         guard let workouts = await loadWorkouts() else { return false }
+        // An empty list can be a plan caught between saving itself and saving its workouts.
+        // It does not confirm a no-match, so stay pending and retry on the next sync.
+        guard !workouts.isEmpty else { return false }
         var matchRun = run
         matchRun.plannedWorkoutID = state.targetWorkoutID
         guard let match = TrainingPlanRepository.bestWorkoutMatch(for: matchRun, in: workouts) else {
@@ -266,6 +271,9 @@ enum HealthKitImportMerge {
             return normalized
         }
         if result.routePoints.count < stored.routePoints.count { result.routePoints = stored.routePoints }
+        // Every Health read mints new point IDs. Keep the stored IDs when the geometry is the
+        // same, or an unchanged route looks like a refresh and re-uploads on every sync.
+        if sameGeometry(result.routePoints, stored.routePoints) { result.routePoints = stored.routePoints }
         result.averageHeartRateBPM = incoming.averageHeartRateBPM ?? stored.averageHeartRateBPM
         result.syncedAt = stored.syncedAt
         result.consolidatedActivityID = stored.consolidatedActivityID
@@ -279,6 +287,15 @@ enum HealthKitImportMerge {
 
     private static func persistedDate(_ date: Date) -> Date {
         Date(timeIntervalSince1970: floor(date.timeIntervalSince1970))
+    }
+
+    /// Point-by-point equality on everything except the locally minted `id`.
+    private static func sameGeometry(_ lhs: [RunRoutePoint], _ rhs: [RunRoutePoint]) -> Bool {
+        lhs.count == rhs.count && zip(lhs, rhs).allSatisfy { a, b in
+            a.latitude == b.latitude && a.longitude == b.longitude && a.timestamp == b.timestamp &&
+            a.horizontalAccuracy == b.horizontalAccuracy && a.altitude == b.altitude &&
+            a.startsNewSegment == b.startsNewSegment
+        }
     }
 }
 
@@ -420,20 +437,21 @@ struct HealthKitSyncService {
         let store = HKHealthStore()
         let existing = localStore.loadRuns()
         let localRunIDs = Set(existing.map(\.id))
+        // Daily activity is independent of workouts. Refresh it first, so a failed workout
+        // read does not leave Today showing yesterday's steps and sleep.
+        let wellness = await readDailySnapshot(store: store)
+        if let wellness {
+            localStore.saveHealthKitDailySnapshot(wellness)
+        }
         guard let runs = await readRecentRunningWorkouts(store: store, lookbackDays: lookbackDays, limit: limit, localRunIDs: localRunIDs) else {
             let failed = ConnectedDeviceStatus(provider: Self.providerName, state: .error, lastSuccessfulSync: nil,
                                                permissions: [], message: "Apple Health could not be read. Please try syncing again.")
-            return HealthKitImportResult(status: failed, runs: [], wellness: nil, skippedDuplicates: 0)
+            return HealthKitImportResult(status: failed, runs: [], wellness: wellness, skippedDuplicates: 0)
         }
         let batch = HealthKitImportBatch.apply(runs, existing: existing, completionOwnerID: completionOwnerID,
                                               isHidden: localStore.isRunHidden, save: { localStore.stageHealthImport($0) })
         let imported = batch.imported
         let refreshed = batch.refreshed
-
-        let wellness = await readDailySnapshot(store: store)
-        if let wellness {
-            localStore.saveHealthKitDailySnapshot(wellness)
-        }
 
         let message = runs.isEmpty && wellness == nil
             ? "No readable Health workouts or daily data found. Check running data and read permissions in Health, then sync again."

@@ -1,6 +1,6 @@
 # Apple Watch release candidate — 2 November 2026
 
-Owner approved proceeding after reporting Yaniv completed the beta tests and all looked good. Treat that as tester-reported acceptance of 1.2.1 (38), not an independently observed test matrix. Correct tester: yanivshm@gmail.com; ASC confirms iPhone installation. No additional email or public App Store submission is requested by this continuation.
+Owner approved proceeding after reporting the external tester completed the beta tests and all looked good. Treat that as tester-reported acceptance of 1.2.1 (38), not an independently observed test matrix. Correct tester: the external tester; ASC confirms iPhone installation. No additional email or public App Store submission is requested by this continuation.
 
 ## Story 1: Reconcile the tested Watch feature with main
 
@@ -24,6 +24,6 @@ Tests: reproduce missing completion before the fix; focused transition, persiste
 
 ## Story 3: Prepare the replacement beta
 
-As the release owner I want a traceable signed candidate and short validation checklist so Yaniv can validate the integrated binary before public shipment.
+As the release owner I want a traceable signed candidate and short validation checklist so the external tester can validate the integrated binary before public shipment.
 
 Acceptance: record source, simulator results, app/extension identity, distribution signatures, privacy and dSYM checks, and actual-artifact live backend verification. Preserve manual/foreground sync and no custom live Watch coaching limitations. The candidate's final paired-device check remains external work: Watch workout → Health import → intended completion → repeat sync/relaunch without duplicates. Public App Store submission remains a separate release decision.
