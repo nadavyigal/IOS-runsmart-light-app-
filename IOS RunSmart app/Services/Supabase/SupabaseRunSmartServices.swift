@@ -308,7 +308,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     private func refreshAppleWorkoutExports() async {
         guard let userID = currentUserID else { return }
         planRepo.invalidateActivePlanCache(authUserID: userID)
-        guard let active = await planRepo.activePlan(authUserID: userID) else { return }
+        // An account switch during the plan fetch must not push the previous account's
+        // schedule to the Watch.
+        guard let active = await planRepo.activePlan(authUserID: userID),
+              currentUserID == userID else { return }
         await AppleWorkoutService.shared.reconcile(workouts: active.workouts.map { $0.toWorkoutSummary() })
     }
 
