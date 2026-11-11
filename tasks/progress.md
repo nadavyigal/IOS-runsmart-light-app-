@@ -3,7 +3,7 @@
 Current Phase: unchanged; repo hygiene pass on `claude/2026-11-11-ios-repo-audit`.
 Active Story: delete 4 unreachable views, move 2 reports out of the Xcode project bundle, list the rest for review.
 Next Recommended Story: founder review of docs/audits/2026-11-11-repo-audit.md, item 1 (two Swift 6 concurrency errors) first.
-Blockers: none.
+Blockers: none. PR #179 Tier 1, code-reviewer APPROVED, awaiting founder merge.
 Last Validation: 2026-11-11 iPhone 17 iOS 26.5 full suite 862 passed, 1 skipped, 0 failed before and after.
 Last Updated: 2026-11-11
 
