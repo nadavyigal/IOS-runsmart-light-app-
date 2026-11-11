@@ -3,7 +3,7 @@
 Founder approved "yes, merge + release" on 2026-11-05. Contents: T7 coaching tones (PR #176, merge a624885), nothing else in app code since 1.2.2. Version 1.2.3 skipped: build 41 is the 1.2.3 Apple Watch beta (PR #165).
 
 ## Validation
-- Full `xcodebuild test`, iPhone 17 Pro simulator, iOS 26.5, at 1.2.4 (42): 825 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`).
+- Full `xcodebuild test`, iPhone 17 Pro simulator, iOS 26.5, on the app source of `main` a624885 (project file at 1.2.2 (40)): 825 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`). The release commit `a49420e` sets 1.2.4 (42) and changes only the 12 version lines of `project.pbxproj`.
 - Release archive: app and Live Activity extension 1.2.4 (42), `codesign --verify --deep --strict` pass, both dSYMs present, no WorkoutKit.
 - Exported IPA: both bundles Apple Distribution, get-task-allow false, entitlements as before (Sign in with Apple, associated domains, HealthKit).
 - Upload to App Store Connect succeeded 2026-11-05 18:35 host time.

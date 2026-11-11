@@ -6,9 +6,10 @@ Use the existing demo credentials provided in App Store Connect. Apple sign-in i
 Suggested review flow
 1. Sign in and open Today and Plan.
 2. In Plan, open an upcoming session and tap Send to Apple Watch. With a paired Apple Watch, the session appears in the Workout app's scheduled workouts. Without one, the app shows "Workout scheduling requires a supported iPhone and paired Apple Watch." and the rest of the app is unaffected.
-3. Open Profile, tap the HealthKit tile under Connected, and tap Sync Now. Apple Health access is optional.
-4. Start a run from Run with Audio cues on. GPS search offers Cancel and, after 20 seconds, Start anyway for indoor review. Hold to finish.
-5. Optional: open Profile > Coaching Tone and pick Calm, Technical or Motivating.
+3. With a paired Apple Watch, open that scheduled workout in Apple's Workout app on the Watch, then start, finish and save it.
+4. On the iPhone, open Profile, tap the HealthKit tile under Connected, and tap Sync Now. Apple Health access is optional. After the Watch workout from step 3 is saved, the sync imports it as one run with its distance and time, and the session shows as done in Plan.
+5. Start a run from Run with Audio cues on. GPS search offers Cancel and, after 20 seconds, Start anyway for indoor review. Hold to finish.
+6. Optional: open Profile > Coaching Tone and pick Calm, Technical or Motivating.
 
 Integration and privacy notes
 - Location and background location support active GPS run recording.

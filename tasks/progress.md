@@ -4,10 +4,10 @@
 **Current Phase:** 1.2.5 (43) uploaded on the founder's yes (2026-11-07 20:08:50); in TestFlight beta review (Waiting for Review) with Apple Watch Beta and RunSmart Internal groups. Next: external tester repeats the Watch round trip on build 43.
 **Active Story:** 1.2.5 (43), first public release with the Apple Watch workout round trip.
 **Last Completed Story:** PR #165 merged (review fixes `a4bab42`, `acc8e59`).
-**Next Recommended Story:** After the archive gates pass: TestFlight upload (needs founder yes), the external tester repeats the paired-Watch round trip on build 43, then App Store submission (needs founder yes).
-**Blockers:** Founder approves the keychain prompt during export. The build 41 Watch pass does not cover `a4bab42`/`acc8e59`; build 43 needs its own pass before submission.
+**Next Recommended Story:** The external tester repeats the paired-Watch round trip on the installed 1.2.5 (43) (`docs/qa/releases/1.2.5/testflight-notes.txt`); record build, date, source and result. Then App Store submission (needs founder yes). Do not upload build 43 again.
+**Blockers:** The build 41 Watch pass does not cover `a4bab42`/`acc8e59`; build 43 needs its own paired-Watch pass before submission.
 **Last Validation:** 2026-11-07, release source: full suite 863 tests, 862 passed / 0 failed / 1 skipped, `TEST SUCCEEDED`. Archive from `f43ba8d` and exported IPA: 1.2.5 (43) on app and extension, strict deep codesign pass, Apple Distribution, `get-task-allow` false, dSYMs present, backend gate passed (HTTP 200, Apple and email on). Details in `docs/qa/releases/1.2.5/README.md`.
-**Last Updated:** 2026-11-07
+**Last Updated:** 2026-11-11
 
 
 **Status:** In review. **Current Phase:** Watch release candidate. **Active Story:** PR #165 review fixes and merge of `main` (public 1.2.4). **Last Completed Story:** physical Watch round trip on 1.2.3 (41). **Next Recommended Story:** un-draft PR #165 after a green suite, then cut the 1.2.5 candidate with the Watch app. **Blockers:** none known.
@@ -47,7 +47,7 @@ Apple Watch track implemented in isolated `/Users/nadavyigal/Developer/runsmart-
 **Last Completed Story:** T7 coaching tones merged (PR #176).
 **Next Recommended Story:** After approval: merge PR #177, record the live version, and listen to the three tones on a real run. Coach voice clips (open-source TTS, VoxCPM2 candidate) continue in their own session for a later version.
 **Blockers:** No device listening evidence (founder chose to check in production). Founder must approve the keychain prompt during export and may need to sign in to ASC.
-**Last Validation:** 2026-11-05, full `xcodebuild test` at 1.2.4 (42) on `main` a624885, iPhone 17 Pro simulator, iOS 26.5: TEST SUCCEEDED, 825 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`).
+**Last Validation:** 2026-11-05, full `xcodebuild test` on the app source of `main` a624885 (its project file still says 1.2.2 (40)), iPhone 17 Pro simulator, iOS 26.5: TEST SUCCEEDED, 825 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`). The released 1.2.4 (42) commit `a49420e` differs from a624885 only in the 12 version lines of `project.pbxproj`; no test run is recorded on a49420e itself.
 **Last Updated:** 2026-11-05
 
 ## 2026-11-05 — T7 coach tones merged (PR #176); PR #174 merged
