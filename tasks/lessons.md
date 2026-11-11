@@ -720,3 +720,12 @@ Build 35 passed key-presence checks but live Auth rejected its packaged publisha
 ## 2026-10-29 — Default maps need an offline export path
 
 Removing the share-map toggle made the old mapUnavailable advice impossible to follow. Image and video exports now share one map-failure fallback to stats-only artwork; cancellation still throws and invalid routes remain errors. Keep captions accurate even when no map renders. Regression tests inject map failure into the actual PNG/MP4 exporters.
+
+## 2026-11-07 — A worktree whose git data lives in iCloud hangs git
+
+`~/Developer/runsmart-apple-watch` was a worktree of an old clone under `~/Documents/Projects /`. Its `.git` file pointed into iCloud, so `git fetch` and `git worktree list` hung or timed out, and its remote-tracking ref sat days behind the real PR head (`323ed3e` vs `7d2f9fd`). Work there would have landed on a stale base.
+
+**Rule:** before working in a worktree, `cat <worktree>/.git`. If the gitdir is under `~/Documents`, do not use it. Instead:
+1. In the `~/Developer` clone, run `git fetch origin <branch>` and check that `git rev-parse origin/<branch>` matches the PR head on GitHub. `git worktree add` does not fetch, so an unfetched ref is just as stale.
+2. Add the fresh worktree: `git worktree add -b <branch> <path> origin/<branch>`.
+3. Before retiring the old checkout, carry over everything that only exists there: unpushed commits (`git log origin/<branch>..HEAD`), tracked edits (`git diff HEAD`) and untracked files (`git status --porcelain --untracked-files=all`). Push or cherry-pick the commits and copy the files, then confirm each one is in the new worktree. Creating the new worktree does not delete the old one; remove it only after that check.

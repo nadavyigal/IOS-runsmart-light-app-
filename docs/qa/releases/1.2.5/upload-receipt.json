@@ -1,0 +1,26 @@
+{
+  "version": "1.2.5",
+  "build": "43",
+  "archive_source_commit": "f43ba8d",
+  "main_commit": "8f35e73",
+  "upload_method": "xcodebuild -exportArchive with ExportOptionsAppStoreUpload.plist (destination upload)",
+  "upload_succeeded": true,
+  "upload_completed_host_time": "2026-11-07 20:08:50",
+  "approved_by": "founder message 'Yes, upload' on 2026-11-07",
+  "ipa_signing": "Apple Distribution: Nadav Yigal (8VC4R5M425), get-task-allow false, app and RunSmartRunLiveActivityExtension both 1.2.5 (43)",
+  "backend_gate": "verify-release-backend.py passed on archived and exported app: HTTP 200, Apple and email enabled",
+  "asc_processing_status": "processed; Ready to Submit, then Waiting for Review (TestFlight beta review)",
+  "testflight_groups": [
+    "Apple Watch Beta (external, 2 testers)",
+    "RunSmart Internal (internal, 1 tester)"
+  ],
+  "physical_watch_pass_on_this_build": false,
+  "app_review_submitted": false,
+  "testflight_what_to_test_saved": true,
+  "testflight_what_to_test_verified": "text persisted after reload, 1,099 characters",
+  "testflight_invites": 3,
+  "automatically_notify_testers": true,
+  "testflight_beta_review_submitted": true,
+  "testflight_status_verified_host_time": "2026-11-07 evening, build list shows Waiting for Review with groups RI and AW",
+  "evidence": "build43-waiting-for-beta-review.png"
+}
