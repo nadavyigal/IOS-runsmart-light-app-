@@ -38,6 +38,17 @@ Verified CodeRabbit's unchanged-import finding against head b27bf40 (hosted Code
 
 Apple Watch track implemented in isolated `/Users/nadavyigal/Developer/runsmart-apple-watch`, branch `codex/apple-watch-workoutkit`, base `61b7cfb`. Existing release checkout untouched. WorkoutKit session-detail send uses current APIs, the phone guide, stable IDs, separate permission flow, capacity/readback checks and queued edit/cancel reconciliation. Health imports refresh late data without duplicate runs, preserve exact identity and failed-lookup state through consolidation, retry exact completion and avoid stale cached completion candidates. Health read choices are shown honestly. Final simulator suite **739 passed / 0 failed** (736 XCTest + 3 Swift Testing, including 14 new tests); actual scheduling denial UI verified. Spec and QA: `docs/specs/2026-10-25-apple-workout.md`, `docs/qa/reports/2026-10-25-apple-workout.md`. Draft PR #165: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/165 ; **paired physical iPhone/Watch round trip remains required; not release-ready**. No version/archive/upload/submission or production configuration changes.
 
+## 2026-11-05: 1.2.4 (42) submitted to App Review, T7 coach tones
+
+**Status:** Founder said "yes, merge + release". PR #176 merged into `main` (a624885). Release branch `claude/2026-11-05-release-1-2-4` sets 1.2.4 (42) in all 6 configurations. 1.2.3 is skipped because build 41 is the 1.2.3 Watch beta (PR #165, uploaded 2026-11-02). Archived, IPA verified and uploaded to ASC 18:35 host time. Processed; in TestFlight RunSmart Internal; 1.2.4 ASC draft created with build 42 and What's New. Review notes updated by the founder; submitted, Waiting for Review.
+**Current Phase:** 1.2.4 (42) Waiting for Review. Automatic release to all users after approval.
+**Active Story:** App Review outcome for 1.2.4 (42). Release PR #177 open (version bump and evidence).
+**Last Completed Story:** T7 coaching tones merged (PR #176).
+**Next Recommended Story:** After approval: merge PR #177, record the live version, and listen to the three tones on a real run. Coach voice clips (open-source TTS, VoxCPM2 candidate) continue in their own session for a later version.
+**Blockers:** No device listening evidence (founder chose to check in production). Founder must approve the keychain prompt during export and may need to sign in to ASC.
+**Last Validation:** 2026-11-07, release branch merged with `main` after PR #165 (Watch) landed: version conflict kept 1.2.4 (42), full suite 862 passed, 0 failed, 1 skipped, TEST SUCCEEDED. The submitted build 42 does not contain the Watch code. 2026-11-05, full `xcodebuild test` at 1.2.4 (42) on `main` a624885, iPhone 17 Pro simulator, iOS 26.5: TEST SUCCEEDED, 825 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`).
+**Last Updated:** 2026-11-05
+
 ## 2026-11-05 — T7 coach tones merged (PR #176); PR #174 merged
 
 **Status:** PR #174 (1.2.2 release source) merged into `main` on founder's yes, so `main` now matches the live 1.2.2 build. T7 merged into `main` through PR #176 on founder's yes. Founder chose to skip the pre-merge device listening test and check the tones in production. No version bump, no archive, no upload.
