@@ -3,7 +3,10 @@ import Foundation
 /// Snapshot of an in-progress run, written to disk so a crash or an iOS kill does
 /// not lose it. `RunRecorder` keeps its live state in memory only; this is the
 /// minimum needed to rebuild that state (or save the run as it stood) on relaunch.
-struct RunSessionCheckpoint: Codable, Equatable {
+// `nonisolated`: the store encodes and decodes this on its own serial queue, off the
+// main actor, so its Codable conformance must not inherit the target's default
+// main-actor isolation (an error in Swift 6 mode).
+nonisolated struct RunSessionCheckpoint: Codable, Equatable {
     static let currentSchemaVersion = 1
 
     var schemaVersion: Int = RunSessionCheckpoint.currentSchemaVersion

@@ -123,28 +123,37 @@ final class StravaUploadCoordinator: ObservableObject {
     /// A held run is released anyway after this long, so a summary that is never closed cannot block the upload.
     static let maximumHold: TimeInterval = 15 * 60
 
+    // Main-actor singletons are resolved inside the (main-actor) init body, not in
+    // default arguments: default arguments are evaluated in the caller's context,
+    // which Swift 6 rejects for main-actor statics.
     init(
-        connection: StravaConnectionService = .shared,
-        store: StravaRunStoring = RunSmartLocalStore.shared,
+        connection: StravaConnectionService? = nil,
+        store: StravaRunStoring? = nil,
         ledger: StravaPendingLedger = StravaPendingLedger(),
         detailsLedger: StravaPendingLedger? = nil,
         defaults: UserDefaults = .standard,
         now: @escaping () -> Date = Date.init,
-        makeClient: @escaping () -> StravaClient = {
-            StravaClient(
-                transport: URLSessionStravaTransport(),
-                functionsBaseURL: SupabaseManager.functionsBaseURL,
-                publishableKey: SupabaseManager.supabasePublishableKey
-            )
-        }
+        makeClient: (() -> StravaClient)? = nil
     ) {
-        self.connection = connection
-        self.store = store
+        self.connection = connection ?? .shared
+        self.store = store ?? RunSmartLocalStore.shared
         self.ledger = ledger
         self.detailsLedger = detailsLedger ?? StravaPendingLedger(defaults: defaults, key: "runsmart.strava.pendingDetails")
         self.defaults = defaults
         self.now = now
-        self.makeClient = makeClient
+        if let makeClient {
+            self.makeClient = makeClient
+        } else {
+            let functionsBaseURL = SupabaseManager.functionsBaseURL
+            let publishableKey = SupabaseManager.supabasePublishableKey
+            self.makeClient = {
+                StravaClient(
+                    transport: URLSessionStravaTransport(),
+                    functionsBaseURL: functionsBaseURL,
+                    publishableKey: publishableKey
+                )
+            }
+        }
         autoUploadEnabled = (defaults.object(forKey: Self.autoUploadKey) as? Bool) ?? true
     }
 
