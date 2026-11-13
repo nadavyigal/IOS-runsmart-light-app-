@@ -1,3 +1,12 @@
+# 2026-11-13: Two Swift 6 errors-in-waiting fixed
+
+Current Phase: unchanged; audit item 1 decided by the founder.
+Active Story: RunSessionCheckpoint is nonisolated (encoded on the checkpoint queue); StravaUploadCoordinator resolves main-actor singletons inside init, not in default arguments.
+Next Recommended Story: the 8 remaining main-actor warnings (LocalRunCueService, analytics, training load, route snapshot).
+Blockers: none.
+Last Validation: 2026-11-13 iPhone 17 iOS 26.5 full suite 862 passed, 1 skipped, 0 failed; app warnings 22 to 8, none Swift 6 errors.
+Last Updated: 2026-11-13
+
 # 2026-11-11: Repo audit, unused views removed
 
 Current Phase: unchanged; repo hygiene pass on `claude/2026-11-11-ios-repo-audit`.
