@@ -1,3 +1,12 @@
+# 2026-11-14: Workout completion save (story 0.1)
+
+Current Phase: unchanged.
+Active Story: completed runs mark the planned workout done. `actual_pace` is sent as integer seconds/km (no migration). Failed updates are queued and retried on launch and foreground, dropped after 5 attempts.
+Next Recommended Story: Story 0.2 (match logic / `runs.workout_id` / backfill). Not this PR.
+Blockers: none. Post-release check: `select count(*) from workouts where completed = true and completed_at > '<release date>';`
+Last Validation: 2026-11-14, iPhone 17 simulator, the six workout-completion tests passed (`TEST SUCCEEDED`).
+Last Updated: 2026-11-14
+
 # 2026-11-13: Two Swift 6 errors-in-waiting fixed
 
 Current Phase: unchanged; audit item 1 decided by the founder.

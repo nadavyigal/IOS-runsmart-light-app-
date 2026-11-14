@@ -2978,8 +2978,108 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(object?["completed"] as? Bool, true)
         XCTAssertEqual(object?["actual_distance_km"] as? Double, 7.06)
         XCTAssertEqual(object?["actual_duration_minutes"] as? Int, 40)
-        XCTAssertEqual(object?["actual_pace"] as? Double, Double((run.averagePaceSecondsPerKm * 10).rounded()) / 10)
+        XCTAssertEqual(object?["actual_pace"] as? Int, Int(run.averagePaceSecondsPerKm.rounded()))
+        XCTAssertEqual(object?["actual_pace"] as? Int, 343)
+        let json = String(data: try JSONEncoder().encode(DBWorkoutCompletionUpdate(run: run)), encoding: .utf8)
+        XCTAssertTrue(json?.contains("\"actual_pace\":343") == true)
         XCTAssertNotNil(completedAtFormatter.date(from: object?["completed_at"] as? String ?? ""))
+    }
+
+    func testWorkoutCompletionPayloadRoundsActualPaceToIntegerSeconds() throws {
+        let down = makeRun(source: .runSmart, startedAt: makeDate("2026-05-20"), distanceMeters: 1_000, movingTimeSeconds: 343.3)
+        let up = makeRun(source: .runSmart, startedAt: makeDate("2026-05-20"), distanceMeters: 1_000, movingTimeSeconds: 343.6)
+
+        let downJSON = try JSONSerialization.jsonObject(with: JSONEncoder().encode(DBWorkoutCompletionUpdate(run: down))) as? [String: Any]
+        let upJSON = try JSONSerialization.jsonObject(with: JSONEncoder().encode(DBWorkoutCompletionUpdate(run: up))) as? [String: Any]
+
+        XCTAssertEqual(downJSON?["actual_pace"] as? Int, 343)
+        XCTAssertEqual(upJSON?["actual_pace"] as? Int, 344)
+    }
+
+    func testWorkoutCompletionFailureIsQueued() async {
+        let outbox = makeCompletionOutbox()
+        let workoutID = UUID()
+        let payload = makeCompletionPayload(paceSeconds: 343.3)
+
+        let applied = await outbox.finish(workoutID: workoutID, payload: payload) { _, _ in
+            throw URLError(.notConnectedToInternet)
+        }
+
+        XCTAssertNil(applied)
+        XCTAssertEqual(outbox.pending().map(\.workoutID), [workoutID])
+        XCTAssertEqual(outbox.pending().first?.attemptCount, 1)
+        XCTAssertEqual(outbox.pending().first?.payload, payload)
+    }
+
+    func testWorkoutCompletionRetryClearsRecordOnSuccess() async {
+        let outbox = makeCompletionOutbox()
+        let workoutID = UUID()
+        let payload = makeCompletionPayload(paceSeconds: 300)
+        outbox.recordFailure(workoutID: workoutID, payload: payload)
+
+        await outbox.retryPending { id, sent in
+            XCTAssertEqual(id, workoutID)
+            XCTAssertEqual(sent, payload)
+            return true
+        }
+
+        XCTAssertTrue(outbox.pending().isEmpty)
+    }
+
+    func testWorkoutCompletionZeroRowsIsNotRetried() async {
+        let outbox = makeCompletionOutbox()
+        let workoutID = UUID()
+        outbox.recordFailure(workoutID: workoutID, payload: makeCompletionPayload(paceSeconds: 300))
+        var calls = 0
+
+        await outbox.retryPending { _, _ in
+            calls += 1
+            return false
+        }
+        await outbox.retryPending { _, _ in
+            calls += 1
+            return true
+        }
+
+        XCTAssertEqual(calls, 1)
+        XCTAssertTrue(outbox.pending().isEmpty)
+    }
+
+    func testWorkoutCompletionGivesUpAfterFiveAttempts() async {
+        let outbox = makeCompletionOutbox()
+        let workoutID = UUID()
+        let payload = makeCompletionPayload(paceSeconds: 300)
+        for _ in 1...4 {
+            outbox.recordFailure(workoutID: workoutID, payload: payload)
+        }
+        XCTAssertEqual(outbox.pending().first?.attemptCount, 4)
+
+        var calls = 0
+        await outbox.retryPending { _, _ in
+            calls += 1
+            throw URLError(.badServerResponse)
+        }
+
+        XCTAssertEqual(calls, 1)
+        XCTAssertTrue(outbox.pending().isEmpty)
+        XCTAssertEqual(outbox.gaveUpWorkoutIDs, [workoutID])
+    }
+
+    private func makeCompletionOutbox() -> WorkoutCompletionOutbox {
+        let name = "workout-completion-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return WorkoutCompletionOutbox(defaults: defaults, key: "pending")
+    }
+
+    private func makeCompletionPayload(paceSeconds: Double) -> DBWorkoutCompletionUpdate {
+        let run = makeRun(
+            source: .runSmart,
+            startedAt: makeDate("2026-05-20"),
+            distanceMeters: 1_000,
+            movingTimeSeconds: paceSeconds
+        )
+        return DBWorkoutCompletionUpdate(run: run)
     }
 
     func testCompletedTodayWorkoutFallsThroughToNextActionableWorkout() throws {

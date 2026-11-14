@@ -234,6 +234,7 @@ struct RunSmartLiteAppShell: View {
             }
             isAnalyticsReady = setupAnalyticsIfNeeded()
             Task { await StravaUploadCoordinator.shared.retryPending() }
+            Task { await TrainingPlanRepository().retryPendingWorkoutCompletions() }
             PushService.shared.configureNavigation { destination in
                 router.openNotificationDestination(destination)
             }
@@ -262,6 +263,7 @@ struct RunSmartLiteAppShell: View {
             // Strava: finish uploads that failed or were still processing. Quiet, no UI.
             guard phase == .active, !RunSmartDemoMode.isEnabled else { return }
             Task { await StravaUploadCoordinator.shared.retryPending() }
+            Task { await TrainingPlanRepository().retryPendingWorkoutCompletions() }
         }
         .onChange(of: router.selectedTab) { _, newTab in
             guard !RunSmartDemoMode.isEnabled else { return }
