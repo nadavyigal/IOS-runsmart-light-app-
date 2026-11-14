@@ -10,6 +10,23 @@
 -- Expects a supabase/postgres image (roles anon/authenticated/service_role,
 -- auth.users, auth.uid(), auth.role()).
 
+-- One transaction so a failed guard aborts everything below, even when the
+-- runner (e.g. psql without ON_ERROR_STOP) keeps going after an error.
+begin;
+
+do $$
+begin
+  if to_regclass('public.analytics_events') is not null
+     or to_regclass('public.idempotency_keys') is not null
+     or to_regclass('public.plans') is not null
+     or to_regclass('public.workouts') is not null
+     or to_regclass('public.conversations') is not null
+     or to_regclass('public.conversation_messages') is not null
+     or exists (select 1 from auth.users) then
+    raise exception 'rls_leaks_fixture.sql refused: this database already has app tables or auth users. Run it only on a blank throwaway Postgres.';
+  end if;
+end $$;
+
 create or replace function auth.jwt() returns jsonb
 language sql stable as $$
   select coalesce(
@@ -153,3 +170,5 @@ create policy "Admins can view all runs" on public.runs
   for select using (exists (
     select 1 from auth.users where auth.users.id = auth.uid()
       and auth.users.raw_user_meta_data ->> 'role' = 'admin'));
+
+commit;
