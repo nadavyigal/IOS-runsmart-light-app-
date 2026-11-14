@@ -1950,6 +1950,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         await postReportsChanged()
     }
 
+    func retryPendingWorkoutCompletions() async {
+        await planRepo.retryPendingWorkoutCompletions()
+    }
+
     private func completeMatchingWorkout(for run: RecordedRun) async -> WorkoutSummary? {
         guard let userID = currentUserID else { return nil }
         return await planRepo.completeBestMatchingWorkout(authUserID: userID, for: run)

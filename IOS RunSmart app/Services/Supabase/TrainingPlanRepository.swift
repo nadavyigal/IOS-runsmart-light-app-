@@ -701,26 +701,38 @@ final class TrainingPlanRepository {
             .map { $0.toWorkoutSummary() }
 
         guard let match = Self.bestWorkoutMatch(for: run, in: candidates) else { return nil }
-        do {
-            let updated: [DBWorkout] = try await supabase
-                .from("workouts")
-                .update(DBWorkoutCompletionUpdate(run: run))
-                .eq("id", value: match.id.uuidString)
-                .eq("completed", value: false)
-                .select()
-                .execute()
-                .value
-            guard !updated.isEmpty else { return nil }
-            invalidateActivePlanCache(authUserID: authUserID)
-            var completed = match
-            completed.isComplete = true
-            print("[TrainingPlanRepo] ✅ completed workout=\(match.id) from run=\(run.consolidatedActivityID ?? run.providerActivityID ?? run.id.uuidString)")
-            return completed
-        } catch {
-            if !(error is CancellationError) {
-                print("[TrainingPlanRepo] completeBestMatchingWorkout error:", error)
+        let update = DBWorkoutCompletionUpdate(run: run)
+        let applied = await WorkoutCompletionOutbox.shared.finish(workoutID: match.id, payload: update) { id, payload in
+            try await self.sendWorkoutCompletion(workoutID: id, update: payload)
+        }
+        guard applied == true else { return nil }
+        invalidateActivePlanCache(authUserID: authUserID)
+        var completed = match
+        completed.isComplete = true
+        print("[TrainingPlanRepo] ✅ completed workout=\(match.id) from run=\(run.consolidatedActivityID ?? run.providerActivityID ?? run.id.uuidString)")
+        return completed
+    }
+
+    /// `true` when a row was updated. `false` when zero rows matched (already completed or deleted).
+    func sendWorkoutCompletion(workoutID: UUID, update: DBWorkoutCompletionUpdate) async throws -> Bool {
+        let updated: [DBWorkout] = try await supabase
+            .from("workouts")
+            .update(update)
+            .eq("id", value: workoutID.uuidString)
+            .eq("completed", value: false)
+            .select()
+            .execute()
+            .value
+        return !updated.isEmpty
+    }
+
+    func retryPendingWorkoutCompletions() async {
+        await WorkoutCompletionOutbox.shared.retryPending { [self] id, payload in
+            let applied = try await sendWorkoutCompletion(workoutID: id, update: payload)
+            if applied {
+                invalidateActivePlanCache()
             }
-            return nil
+            return applied
         }
     }
 
@@ -1321,12 +1333,12 @@ private struct DBWorkoutUpdate: Encodable {
     }
 }
 
-struct DBWorkoutCompletionUpdate: Encodable {
+struct DBWorkoutCompletionUpdate: Codable, Equatable {
     let completed: Bool
     let completedAt: String
     let actualDistanceKm: Double
     let actualDurationMinutes: Int
-    let actualPace: Double?
+    let actualPace: Int? // workouts.actual_pace is integer seconds/km
 
     private static let completedAtFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -1340,7 +1352,7 @@ struct DBWorkoutCompletionUpdate: Encodable {
         actualDistanceKm = Double(((run.distanceMeters / 1_000) * 100).rounded()) / 100
         actualDurationMinutes = max(1, Int((run.movingTimeSeconds / 60).rounded()))
         actualPace = run.averagePaceSecondsPerKm.isFinite && run.averagePaceSecondsPerKm > 0
-            ? Double((run.averagePaceSecondsPerKm * 10).rounded()) / 10
+            ? Int(run.averagePaceSecondsPerKm.rounded())
             : nil
     }
 
