@@ -3065,6 +3065,95 @@ final class RunSmartReadinessTests: XCTestCase {
         XCTAssertEqual(outbox.gaveUpWorkoutIDs, [workoutID])
     }
 
+    func testOverlappingWorkoutCompletionRetriesDoNotRequeueSuccess() async {
+        let outbox = makeCompletionOutbox()
+        let workoutID = UUID()
+        let payload = makeCompletionPayload(paceSeconds: 300)
+        outbox.recordFailure(workoutID: workoutID, payload: payload)
+        let calls = CompletionCallCounter()
+        let gate = CompletionRetryGate()
+        let success = Task {
+            await outbox.retryPending { _, _ in
+                calls.increment()
+                await gate.entered()
+                await gate.wait()
+                return true
+            }
+        }
+        await gate.waitUntilEntered()
+        await outbox.retryPending { _, _ in
+            calls.increment()
+            throw URLError(.badServerResponse)
+        }
+        await gate.open()
+        await success.value
+
+        outbox.recordFailure(workoutID: workoutID, payload: payload, createIfMissing: false)
+
+        XCTAssertEqual(calls.value, 1)
+        XCTAssertTrue(outbox.pending().isEmpty)
+    }
+
+    private final class CompletionRetryGate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var didEnter = false
+        private var openContinuation: CheckedContinuation<Void, Never>?
+        private var enteredContinuation: CheckedContinuation<Void, Never>?
+
+        func entered() {
+            lock.lock()
+            didEnter = true
+            let continuation = enteredContinuation
+            enteredContinuation = nil
+            lock.unlock()
+            continuation?.resume()
+        }
+
+        func waitUntilEntered() async {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                lock.lock()
+                if didEnter {
+                    lock.unlock()
+                    continuation.resume()
+                } else {
+                    enteredContinuation = continuation
+                    lock.unlock()
+                }
+            }
+        }
+
+        func wait() async {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                lock.lock()
+                openContinuation = continuation
+                lock.unlock()
+            }
+        }
+
+        func open() {
+            lock.lock()
+            let continuation = openContinuation
+            openContinuation = nil
+            lock.unlock()
+            continuation?.resume()
+        }
+    }
+
+    private final class CompletionCallCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+        var value: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return count
+        }
+        func increment() {
+            lock.lock()
+            count += 1
+            lock.unlock()
+        }
+    }
+
     private func makeCompletionOutbox() -> WorkoutCompletionOutbox {
         let name = "workout-completion-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
