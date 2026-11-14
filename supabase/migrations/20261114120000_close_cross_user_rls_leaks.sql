@@ -1,7 +1,7 @@
 -- Close cross-user data leaks before coach access (Story 1.1).
--- Safe to re-run: only DROP POLICY IF EXISTS statements. Missing
--- tables are skipped with a NOTICE, so this also runs on schemas that never
--- had the web 007 tables.
+-- Safe to re-run: only DROP POLICY IF EXISTS statements. DROP POLICY IF EXISTS
+-- still errors when the table itself is missing, so the web 007 tables (absent
+-- in production) are dropped through a to_regclass guard.
 --
 -- WEB REPO: this must also be copied into the web migration tree
 -- (Running-coach-/v0/supabase/migrations/). It drops policies created there
@@ -63,11 +63,25 @@ drop policy if exists "Authenticated users can insert messages"
 -- user could make themselves "admin". No iOS or web code depends on them (web
 -- admin pages gate on ADMIN_EMAILS instead). None were live in production as of
 -- 2026-11-14; dropped here so no environment keeps them.
-drop policy if exists "Admins can view all runs" on public.runs;
-drop policy if exists "Admins can view all goals" on public.goals;
-drop policy if exists "Admins can view all shoes" on public.shoes;
-drop policy if exists "Admins can view all sleep data" on public.sleep_data;
-drop policy if exists "Admins can view all hrv measurements" on public.hrv_measurements;
-drop policy if exists "Admins can view all recovery scores" on public.recovery_scores;
-drop policy if exists "Admins can view all personal records" on public.personal_records;
-drop policy if exists "Admins can view all heart rate zones" on public.heart_rate_zones;
+do $$
+declare
+    admin_policy record;
+begin
+    for admin_policy in
+        select * from (values
+            ('runs', 'Admins can view all runs'),
+            ('goals', 'Admins can view all goals'),
+            ('shoes', 'Admins can view all shoes'),
+            ('sleep_data', 'Admins can view all sleep data'),
+            ('hrv_measurements', 'Admins can view all hrv measurements'),
+            ('recovery_scores', 'Admins can view all recovery scores'),
+            ('personal_records', 'Admins can view all personal records'),
+            ('heart_rate_zones', 'Admins can view all heart rate zones')
+        ) as p(table_name, policy_name)
+    loop
+        if to_regclass('public.' || admin_policy.table_name) is not null then
+            execute format('drop policy if exists %I on public.%I',
+                admin_policy.policy_name, admin_policy.table_name);
+        end if;
+    end loop;
+end $$;
