@@ -14,7 +14,7 @@ Suggested review flow
 Integration and privacy notes
 - Location and background location support active GPS run recording.
 - Apple Health access is optional. Health data is labeled Apple Health. Workout scheduling uses WorkoutKit on the paired Apple Watch.
-- Garmin connection is optional; Garmin data is labeled Garmin.
+- New Garmin connections are temporarily unavailable. You can record runs and use Apple Watch scheduling and Apple Health sync without a Garmin connection.
 - Strava integration is disabled and hidden.
 - Run titles and notes are stored locally. Calories are estimates.
 - Coach guidance is informational fitness guidance, not medical advice.

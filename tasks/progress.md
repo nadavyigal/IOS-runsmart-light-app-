@@ -1,3 +1,13 @@
+## 2026-11-15 — 1.2.5 (43) App Review preparation
+
+**Status:** App Store Connect version 1.2.5 (43) staged at Ready for Review at 12:55 Israel time.
+**Current Phase:** Build 43 is Testing in Apple Watch Beta. One tester installed it and shows 18 sessions.
+**Active Story:** Submit build 43 to App Review with automatic release after approval.
+**Last Completed Story:** Draft verified after reload. Founder confirmed demo login and directed proceeding with a believed Watch pass; test date and individual results unavailable.
+**Next Recommended Story:** Get final approval and submit build 43. Then reconcile PR #178 with main and run the simulator suite.
+**Blockers:** Final submission approval pending.
+**Last Validation:** Archive source `f43ba8d` contains benchmark fix `5c96738`; processed build 43 verified in App Store Connect.
+
 ## 2026-11-07 — 1.2.5 (43) Apple Watch release candidate started
 
 **Status:** PR #165 (Apple Watch workout round trip and deferred Health completion) merged into `main` on the founder's yes (merge `8f35e73`). 1.2.4 (42) is live on the App Store (Apple lookup, released 2026-11-06). Release branch `claude/2026-11-07-release-1-2-5` merges the 1.2.4 release records from PR #177 (`origin/claude/2026-11-05-release-1-2-4`), so `main` will carry them once this branch merges, and sets 1.2.5 (43) in all six build configurations.
