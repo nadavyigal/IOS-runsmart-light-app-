@@ -1,3 +1,24 @@
+## 2026-11-15 — 1.2.5 (43) App Review preparation
+
+**Status:** App Store Connect version 1.2.5 (43) staged at Ready for Review at 12:55 Israel time.
+**Current Phase:** Build 43 is Testing in Apple Watch Beta. One tester installed it and shows 18 sessions.
+**Active Story:** Submit build 43 to App Review with automatic release after approval.
+**Last Completed Story:** Draft verified after reload. Founder confirmed demo login. Physical-device tester pass on build 43: NOT VERIFIED. No dated step results were supplied.
+**Next Recommended Story:** Get final approval and submit build 43 only after a verified physical pass, if that is still required.
+**Blockers:** Physical-device tester pass on build 43 is NOT VERIFIED. Final submission approval pending.
+**Last Validation:** Archive source `f43ba8d` contains benchmark fix `5c96738`; processed build 43 verified in App Store Connect. The physical pass is not part of that validation.
+
+## 2026-11-07 — 1.2.5 (43) Apple Watch release candidate started
+
+**Status:** PR #165 (Apple Watch workout round trip and deferred Health completion) merged into `main` on the founder's yes (merge `8f35e73`). 1.2.4 (42) is live on the App Store (Apple lookup, released 2026-11-06). Release branch `claude/2026-11-07-release-1-2-5` merges the 1.2.4 release records from PR #177 (`origin/claude/2026-11-05-release-1-2-4`), so `main` will carry them once this branch merges, and sets 1.2.5 (43) in all six build configurations.
+**Current Phase:** 1.2.5 (43) uploaded on the founder's yes (2026-11-07 20:08:50); in TestFlight beta review (Waiting for Review) with Apple Watch Beta and RunSmart Internal groups. Next: external tester repeats the Watch round trip on build 43.
+**Active Story:** 1.2.5 (43), first public release with the Apple Watch workout round trip.
+**Last Completed Story:** PR #165 merged (review fixes `a4bab42`, `acc8e59`).
+**Next Recommended Story:** The external tester repeats the paired-Watch round trip on the installed 1.2.5 (43) (`docs/qa/releases/1.2.5/testflight-notes.txt`); record build, date, source and result. Then App Store submission (needs founder yes). Do not upload build 43 again.
+**Blockers:** The build 41 Watch pass does not cover `a4bab42`/`acc8e59`; build 43 needs its own paired-Watch pass before submission.
+**Last Validation:** 2026-11-07, release source: full suite 863 tests, 862 passed / 0 failed / 1 skipped, `TEST SUCCEEDED`. Archive from `f43ba8d` and exported IPA: 1.2.5 (43) on app and extension, strict deep codesign pass, Apple Distribution, `get-task-allow` false, dSYMs present, backend gate passed (HTTP 200, Apple and email on). Details in `docs/qa/releases/1.2.5/README.md`.
+**Last Updated:** 2026-11-11
+
 # 2026-11-14: Coach Mode story 1.2, coach role and invite code
 
 Current Phase: unchanged; Coach Mode (human coaches) epic 1, branch `feat/coach-role-invite`.
@@ -56,6 +77,33 @@ Live schema check (production `dxqglotcyirxzyqaxqln`, read-only): `runs.workout_
 ## 2026-11-02 — Watch beta accepted by tester; integrated candidate 1.2.3 (41)
 
 Owner reports the external tester completed beta38 tests and all looked good; accepted as tester-reported paired-device evidence. Correct tester the external tester installed on iPhone15ProMax/iOS27.0.1. Reconciled PR165 with main3c2d679 without rewriting history; retained both records and current iPhone features. Reproduced failed→successful unassociated Health lookup losing completion. Deferred recovery persists owner/target, survives transient failure/relaunch, yields to exact Health identity and cannot rematch replacements or replay reports. Independent QA's account-switch/new-exact-ID races fixed with regressions. Final simulator suite: **841 passed /0failed /1existing opt-in map-render skip**,33Watch tests pass. Version1.2.3(41) allocated after live ASC latest40 complete. Source4f20bc0 pushed to PR165; main now mergeable. Signed archive/signatures/versions/HealthKit/privacy/dSYMs and actual-artifact backend HTTP200 pass. Owner approved signing; exported IPA distribution signatures/debugging disabled/dSYMs and actual IPA backend HTTP200 pass. Upload/processing succeeded; build UUIDc554c551-d5d0-4b50-8ffd-6da19b4ea9da attached to Apple Watch Beta. What to Test saved; automatic notification enabled; beta review submitted and live group table verifies Waiting for Review. No public submission/release; final candidate Watch round trip remains pending. See docs/qa/releases/1.2.3-watch-candidate/ and docs/plans/2026-11-02-watch-release-candidate.md. Clean temporary clone protects original worktrees: /private/tmp/runsmart-watch-release-20261102.
+
+## 2026-10-26 — External Watch beta submitted: Waiting for Review
+
+Owner completed signing and private TestFlight review fields, then restored the expired browser session. Existing upload succeeded (no duplicate upload); Apple processing completed for 1.2.1 (38), source `feee81c`. Verified saved review fields without retaining credentials. Added build UUID `1792958d-9264-4ad2-b09e-5f741d314128` to Apple Watch Beta, saved exact testing instructions and submitted for beta review with Automatically notify testers checked. ASC verifies one tester/one build, **Waiting for Review**. Tester remains **No Builds Available** pending Apple approval; delivery/acceptance/install are not claimed. Public1.2.0 unchanged; PR165 draft until physical Watch QA. Existing 749/749 application tests, archive/export/signature/privacy/dSYM and actual-artifact backend checks remain the validation baseline; this continuation changed distribution metadata/docs only. Evidence: `docs/qa/releases/1.2.1-watch-beta/`.
+
+## 2026-10-26 — Approved external Watch beta 1.2.1 (38), local input gate
+
+Owner approved external TestFlight and the named tester invitation. Checked live ASC: build37 latest, no pending newer upload. Committed 1.2.1 (38) across all configurations; app code unchanged from 749/749 test pass. Signed archive and Apple Distribution IPA verified; actual archive/IPA backend HTTP200 checks, privacy, HealthKit, matching versions and dSYMs pass. Created Apple Watch Beta external group and added only the approved tester; actual state No Builds Available. Upload preparation waits in codesign key access; owner asked to approve the protected macOS prompt. Prepared beta-review form; owner must enter contact phone and existing reviewer username/password directly because saved values are masked to automation, then Save. No successful upload/review submission/invitation delivery claim yet. Public1.2.0 unchanged; PR165 draft. Evidence/resume steps: `docs/qa/releases/1.2.1-watch-beta/README.md`.
+
+## 2026-10-26 — PR165 reviewed sync fix and local device archive
+
+Verified CodeRabbit's unchanged-import finding against head b27bf40 (hosted Codex clean at that old head). New change detection preserves local route/consolidation fields and normalizes raw Health timestamps to the ISO8601 store precision. Completion retries are independent; failed uploads use explicit pending/staging and fresh-payload confirmation. Added 10 regressions including real save/reload and fractional timestamp round-trip; final **749/749 tests pass** (746 XCTest + 3 Swift Testing). Signed device Release archive and strict signature/config/HealthKit/dSYM checks pass; actual archived backend HTTP200/provider check passes. Local artifacts: `/Users/nadavyigal/Developer/runsmart-apple-watch-artifacts/2026-10-26/`. Diagnostic build remains 1.2.0 (37); allocate a distinct unused build before authorized internal TestFlight upload. No install/upload, release change, Garmin/Strava activation or production mutation. Apple confirms public 1.2.0; read-only compatible phone-run telemetry is founder/device QA per owner report, not real-user activation or Watch validation. PR165 remains draft pending paired Watch matrix. Evidence: `docs/qa/reports/2026-10-26-apple-workout-candidate.md`.
+
+## 2026-10-25 — Apple Workout draft candidate
+
+Apple Watch track implemented in isolated `/Users/nadavyigal/Developer/runsmart-apple-watch`, branch `codex/apple-watch-workoutkit`, base `61b7cfb`. Existing release checkout untouched. WorkoutKit session-detail send uses current APIs, the phone guide, stable IDs, separate permission flow, capacity/readback checks and queued edit/cancel reconciliation. Health imports refresh late data without duplicate runs, preserve exact identity and failed-lookup state through consolidation, retry exact completion and avoid stale cached completion candidates. Health read choices are shown honestly. Final simulator suite **739 passed / 0 failed** (736 XCTest + 3 Swift Testing, including 14 new tests); actual scheduling denial UI verified. Spec and QA: `docs/specs/2026-10-25-apple-workout.md`, `docs/qa/reports/2026-10-25-apple-workout.md`. Draft PR #165: https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/165 ; **paired physical iPhone/Watch round trip remains required; not release-ready**. No version/archive/upload/submission or production configuration changes.
+
+## 2026-11-05: 1.2.4 (42) submitted to App Review, T7 coach tones
+
+**Status:** Founder said "yes, merge + release". PR #176 merged into `main` (a624885). Release branch `claude/2026-11-05-release-1-2-4` sets 1.2.4 (42) in all 6 configurations. 1.2.3 is skipped because build 41 is the 1.2.3 Watch beta (PR #165, uploaded 2026-11-02). Archived, IPA verified and uploaded to ASC 18:35 host time. Processed; in TestFlight RunSmart Internal; 1.2.4 ASC draft created with build 42 and What's New. Review notes updated by the founder; submitted, Waiting for Review.
+**Current Phase:** 1.2.4 (42) Waiting for Review. Automatic release to all users after approval.
+**Active Story:** App Review outcome for 1.2.4 (42). Release PR #177 open (version bump and evidence).
+**Last Completed Story:** T7 coaching tones merged (PR #176).
+**Next Recommended Story:** After approval: merge PR #177, record the live version, and listen to the three tones on a real run. Coach voice clips (open-source TTS, VoxCPM2 candidate) continue in their own session for a later version.
+**Blockers:** No device listening evidence (founder chose to check in production). Founder must approve the keychain prompt during export and may need to sign in to ASC.
+**Last Validation:** 2026-11-05, full `xcodebuild test` on the app source of `main` a624885 (its project file still says 1.2.2 (40)), iPhone 17 Pro simulator, iOS 26.5: TEST SUCCEEDED, 825 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`). The released 1.2.4 (42) commit `a49420e` differs from a624885 only in the 12 version lines of `project.pbxproj`; no test run is recorded on a49420e itself.
+**Last Updated:** 2026-11-05
 
 ## 2026-11-05 — T7 coach tones merged (PR #176); PR #174 merged
 

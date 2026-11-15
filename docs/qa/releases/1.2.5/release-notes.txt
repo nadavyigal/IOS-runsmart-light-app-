@@ -1,0 +1,3 @@
+Send a planned run to Apple's Workout app on your paired Apple Watch. Open the session in your plan and tap Send to Apple Watch, then run it from Workout on your Watch. Afterwards, sync Apple Health in RunSmart to import the run and mark the session done in your plan.
+
+Apple Health sync runs while RunSmart is open. RunSmart's spoken coaching does not play inside Apple's Workout app.
