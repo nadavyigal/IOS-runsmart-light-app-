@@ -31,6 +31,7 @@ enum SecondaryDestination: Hashable, Identifiable {
     case badgeCabinet
     case shareRun(RecordedRun?)
     case routeDetail(SavedRoute)
+    case joinCoach
     case account
 
     var id: String {
@@ -64,6 +65,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .badgeCabinet: "badgeCabinet"
         case .shareRun(let run): "shareRun-\(run?.id.uuidString ?? "nil")"
         case .routeDetail(let route): "routeDetail-\(route.id)"
+        case .joinCoach: "joinCoach"
         case .account: "account"
         }
     }
@@ -98,6 +100,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .badgeCabinet: "Badge Cabinet"
         case .shareRun: "Share Run"
         case .routeDetail(let route): route.name
+        case .joinCoach: "Join a coach"
         case .account: "Account"
         }
     }
@@ -160,6 +163,8 @@ enum SecondaryDestination: Hashable, Identifiable {
             "Prepare a polished run share card."
         case .routeDetail:
             "Route details, benchmark stats, and actions."
+        case .joinCoach:
+            "Enter your coach's code."
         case .account:
             "Manage your sign-in and profile data."
         }
@@ -195,6 +200,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .badgeCabinet: "seal.fill"
         case .shareRun: "square.and.arrow.up"
         case .routeDetail: "map.fill"
+        case .joinCoach: "person.2.fill"
         case .account: "person.crop.circle.fill"
         }
     }
@@ -213,11 +219,18 @@ struct SecondaryFlowView: View {
 }
 
 private struct SecondaryContentView: View {
+    @EnvironmentObject private var session: SupabaseSession
     var destination: SecondaryDestination
 
     var body: some View {
         if destination == .goalWizard {
             GoalWizardView()
+        } else if destination == .joinCoach {
+            ScrollView {
+                JoinCoachView()
+                    .id(session.currentUserID)
+                    .padding(20)
+            }
         } else {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -294,6 +307,8 @@ private struct SecondaryContentView: View {
             ShareRunView(run: run)
         case .routeDetail(let route):
             RouteDetailScaffold(route: route)
+        case .joinCoach:
+            EmptyView()
         case .account:
             AccountScaffold()
         }
@@ -2973,6 +2988,7 @@ private struct PermissionRow: View {
 
 private struct AccountScaffold: View {
     @EnvironmentObject private var session: SupabaseSession
+    @EnvironmentObject private var coachLinks: CoachLinkStore
     @State private var isSigningOut = false
     @State private var showDeleteAccountConfirmation = false
     @State private var isDeletingAccount = false
@@ -2995,6 +3011,25 @@ private struct AccountScaffold: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            if coachLinks.showsJoinCoach {
+                NavigationLink(value: SecondaryDestination.joinCoach) {
+                    HStack {
+                        Label("Join a coach", systemImage: "person.2.fill")
+                            .font(.body.weight(.semibold))
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.mutedText)
+                    }
+                    .foregroundStyle(Color.textPrimary)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Join a coach")
+            }
+
             if isDemoMode {
                 GlassCard(glow: Color.accentAmber) {
                     Label(

@@ -1,3 +1,13 @@
+# 2026-11-15: Coach Mode story 1.3, athlete joins a coach with consent
+
+Current Phase: unchanged; Coach Mode (human coaches) epic 1, branch `feat/join-coach-consent`.
+Active Story: migration `20261115091000_coach_athlete_links.sql` (table `coach_athlete_links`, RPCs `lookup_invite` returning invite id, `join_coach(code, expected_invite_id, expected_coach_id, expected_athlete_id)`, `my_coach_link`). Settings → "Join a coach" (only when not linked) leads to the code field and the consent screen. A signed-out person uses "Join a coach" on the sign-in screen, which stays on sign-in; after sign-in and any required onboarding they get an empty code field. There is no guest code entry. Share joins only the invite and coach on the consent screen for the athlete who saw it. The server returns the persisted link ID and consent timestamp. If the code now names someone else, the app shows "This code now belongs to {name}", drops the previous consent, and waits for a new Share tap. Not now does not join. Not applied to production. Nadav applies this migration himself. Do not apply an older copy. Do not mirror it to the web repo yet.
+Follow-up before any pilot: Story 1.5 MUST ship athlete "Leave coach" plus a revoke RPC before the pilot. Leaving cuts off all coach access. The consent sentence "You can leave anytime in Settings" stays. Join is not held for this.
+Next Recommended Story: After the founder merges 1.3, prioritize 1.5 (Leave coach) before the pilot. 1.4 adds invite links. Coached-by header is 3.3.
+Blockers: migration not applied to production yet.
+Last Validation: 2026-11-15, SQL coach_athlete_links.sql PASS on throwaway Postgres 17.6 after applying the current migration twice. Includes wrong-athlete rejection and equality of the persisted link identity and consent time in both RPCs.
+Last Updated: 2026-11-15
+
 # 2026-11-14: Coach Mode story 1.2, coach role and invite code
 
 Current Phase: unchanged; Coach Mode (human coaches) epic 1, branch `feat/coach-role-invite`.

@@ -1,3 +1,11 @@
+## 2026-11-15 — Coach Mode pilot consent
+
+- [x] Preserve the join intent through new-account onboarding.
+- [x] Bind consent to the invite, coach and signed-in athlete. Return the stored link ID and consent time.
+- [x] Verify the join migration twice on isolated Postgres and add its two-user tests to PR checks.
+- [ ] Verify a new athlete reaches consent in the signed-in pilot app, including large Dynamic Type.
+- [ ] Finish founder review of Story 1.3, then implement Story 1.5 before enabling the pilot.
+
 ## 2026-11-02 — Integrated Watch candidate
 
 - [x] Owner reports the external tester completed beta38 testing successfully; retain as tester-reported evidence.

@@ -148,6 +148,7 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var planGeneration = PlanGenerationStore()
     @StateObject private var guestJourney = GuestJourneyStore()
     @StateObject private var coachMode = CoachModeStore()
+    @StateObject private var coachLinks = CoachLinkStore()
     @State private var didPresentMorningCheckin = false
     @State private var isShowingLaunch = !RunSmartDemoMode.isEnabled
     @State private var planNotice: RunSmartPlanNotice?
@@ -217,6 +218,7 @@ struct RunSmartLiteAppShell: View {
         .environmentObject(recorder)
         .environmentObject(planGeneration)
         .environmentObject(coachMode)
+        .environmentObject(coachLinks)
         .environment(\.runSmartServices, services)
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
@@ -265,6 +267,15 @@ struct RunSmartLiteAppShell: View {
             guard !RunSmartDemoMode.isEnabled else { return }
             await coachMode.refresh(userID: coachRoleCheckUserID)
         }
+        .task(id: coachRoleCheckUserID) {
+            guard !RunSmartDemoMode.isEnabled else { return }
+            if let userID = coachRoleCheckUserID {
+                coachLinks.beginSession(userID: userID)
+                await coachLinks.refresh(userID: userID)
+            } else {
+                coachLinks.clear()
+            }
+        }
         .onChange(of: coachMode.isCoach) { _, isCoach in
             // A tab that stops existing (sign-out, unflagged coach) must not stay selected.
             if !isCoach, router.selectedTab == .coach {
@@ -275,6 +286,9 @@ struct RunSmartLiteAppShell: View {
             // Strava: finish uploads that failed or were still processing. Quiet, no UI.
             guard phase == .active, !RunSmartDemoMode.isEnabled else { return }
             Task { await coachMode.refresh(userID: coachRoleCheckUserID) }
+            if let userID = coachRoleCheckUserID {
+                Task { await coachLinks.refresh(userID: userID) }
+            }
             Task { await StravaUploadCoordinator.shared.retryPending() }
             Task { await (services as? SupabaseRunSmartServices)?.retryPendingWorkoutCompletions() }
         }
@@ -299,6 +313,7 @@ struct RunSmartLiteAppShell: View {
                 isShowingGuestAuthentication = false
                 if session.hasCompletedOnboarding {
                     guestJourney.clear()
+                    resumeCoachJoinIfReady()
                 }
             } else if !isAuth {
                 Analytics.resetUser()
@@ -306,8 +321,9 @@ struct RunSmartLiteAppShell: View {
             }
         }
         .onChange(of: session.hasCompletedOnboarding) { _, isComplete in
-            guard session.isAuthenticated, isComplete, guestJourney.state.isActive else { return }
-            guestJourney.clear()
+            guard session.isAuthenticated, isComplete else { return }
+            if guestJourney.state.isActive { guestJourney.clear() }
+            resumeCoachJoinIfReady()
         }
         .task(id: session.hasCompletedOnboarding) {
             guard !RunSmartDemoMode.isEnabled else { return }
@@ -348,6 +364,7 @@ struct RunSmartLiteAppShell: View {
                     .presentationDragIndicator(.visible)
                     .environmentObject(router)
                     .environmentObject(session)
+                    .environmentObject(coachLinks)
                     .environmentObject(recorder)
                     .environment(\.runSmartServices, services)
                     .environment(\.runRecorder, recorder)
@@ -408,7 +425,11 @@ struct RunSmartLiteAppShell: View {
                     : "Back to guest setup",
                 guestReturnMessage: SignInView.guestReturnMessage(
                     hasSeenPreview: guestJourney.state.hasSeenPreview
-                )
+                ),
+                onJoinCoach: {
+                    coachLinks.draftCode = ""
+                    coachLinks.resumeJoinAfterSignIn = true
+                }
             )
             .environmentObject(session)
         }
@@ -518,6 +539,13 @@ struct RunSmartLiteAppShell: View {
     }
 
     /// The signed-in user whose coach role to check; nil when signed out or guest.
+    private func resumeCoachJoinIfReady() {
+        if coachLinks.consumeJoinIntent(isAuthenticated: session.isAuthenticated,
+                                        onboardingComplete: session.hasCompletedOnboarding) {
+            router.open(.joinCoach)
+        }
+    }
+
     private var coachRoleCheckUserID: UUID? {
         session.isAuthenticated ? session.currentUserID : nil
     }
@@ -615,7 +643,7 @@ struct RunSmartLiteAppShell: View {
     /// flow, and the route screens, whose map-card lists sat below the fold at
     /// the medium detent (route-feature QA, 2026-07-23).
     private var fullHeightSecondaryDestinations: Set<SecondaryDestination> {
-        [.goalWizard, .routeCreator, .routeSelector]
+        [.goalWizard, .routeCreator, .routeSelector, .joinCoach]
     }
 
 #if DEBUG
