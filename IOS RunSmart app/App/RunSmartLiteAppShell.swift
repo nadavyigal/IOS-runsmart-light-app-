@@ -147,6 +147,7 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var recorder = RunRecorder()
     @StateObject private var planGeneration = PlanGenerationStore()
     @StateObject private var guestJourney = GuestJourneyStore()
+    @StateObject private var coachMode = CoachModeStore()
     @State private var didPresentMorningCheckin = false
     @State private var isShowingLaunch = !RunSmartDemoMode.isEnabled
     @State private var planNotice: RunSmartPlanNotice?
@@ -215,6 +216,7 @@ struct RunSmartLiteAppShell: View {
         .environmentObject(session)
         .environmentObject(recorder)
         .environmentObject(planGeneration)
+        .environmentObject(coachMode)
         .environment(\.runSmartServices, services)
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
@@ -259,9 +261,20 @@ struct RunSmartLiteAppShell: View {
             else { return }
             activationFirstFrameTracker.screenRendered(screen)
         }
+        .task(id: coachRoleCheckUserID) {
+            guard !RunSmartDemoMode.isEnabled else { return }
+            await coachMode.refresh(userID: coachRoleCheckUserID)
+        }
+        .onChange(of: coachMode.isCoach) { _, isCoach in
+            // A tab that stops existing (sign-out, unflagged coach) must not stay selected.
+            if !isCoach, router.selectedTab == .coach {
+                router.selectedTab = .today
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             // Strava: finish uploads that failed or were still processing. Quiet, no UI.
             guard phase == .active, !RunSmartDemoMode.isEnabled else { return }
+            Task { await coachMode.refresh(userID: coachRoleCheckUserID) }
             Task { await StravaUploadCoordinator.shared.retryPending() }
             Task { await (services as? SupabaseRunSmartServices)?.retryPendingWorkoutCompletions() }
         }
@@ -477,7 +490,10 @@ struct RunSmartLiteAppShell: View {
             .safeAreaPadding(.bottom, router.isTabBarHidden ? 0 : CustomTabBar.contentAvoidancePadding)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !router.isTabBarHidden {
-                    CustomTabBar(selectedTab: $router.selectedTab)
+                    CustomTabBar(
+                        selectedTab: $router.selectedTab,
+                        tabs: RunSmartTab.visibleTabs(isCoach: coachMode.isCoach)
+                    )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -491,8 +507,19 @@ struct RunSmartLiteAppShell: View {
         case .plan:    PlanTabView()
         case .run:     RunTabView()
         case .report:  ReportTabView()
+        case .coach:
+            if coachMode.isCoach {
+                CoachTabView()
+            } else {
+                TodayTabView()
+            }
         case .profile: ProfileTabView()
         }
+    }
+
+    /// The signed-in user whose coach role to check; nil when signed out or guest.
+    private var coachRoleCheckUserID: UUID? {
+        session.isAuthenticated ? session.currentUserID : nil
     }
 
     private func showPlanGenerationNotice(_ status: RunSmartPlanGenerationStatus) {

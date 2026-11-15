@@ -508,7 +508,7 @@ final class ScreenAttributionTests: XCTestCase {
         // two buckets, and a uniqueness-only assertion would not notice.
         let expected: [RunSmartTab: String] = [
             .today: "today", .plan: "plan", .run: "run",
-            .report: "report", .profile: "profile"
+            .report: "report", .coach: "coach", .profile: "profile"
         ]
         XCTAssertEqual(Set(expected.keys), Set(RunSmartTab.allCases),
             "a new tab must be given an explicit screen name here")

@@ -67,6 +67,8 @@ enum RunSmartBackgroundContext {
             self = .run(isRecording: false)
         case .report:
             self = .report
+        case .coach:
+            self = .neutral
         case .profile:
             self = .profile
         }
@@ -715,11 +717,12 @@ struct CustomTabBar: View {
     static let contentAvoidancePadding: CGFloat = 96
 
     @Binding var selectedTab: RunSmartTab
+    var tabs: [RunSmartTab] = RunSmartTab.visibleTabs(isCoach: false)
     @Namespace private var indicator
 
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
-            ForEach(RunSmartTab.allCases) { tab in
+            ForEach(tabs) { tab in
                 Button {
                     guard selectedTab != tab else { return }
                     RunSmartHaptics.light()

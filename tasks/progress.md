@@ -1,3 +1,12 @@
+# 2026-11-14: Coach Mode story 1.2, coach role and invite code
+
+Current Phase: unchanged; Coach Mode (human coaches) epic 1, branch `feat/coach-role-invite`.
+Active Story: migration `20261114210000_coach_role_and_invites.sql` (tables `coach_profiles`, `coach_invites`, RPC `get_or_create_my_invite()`), a Coach tab for flagged coaches only, and the invite section (code, link, Copy, Share). Not applied to production; Nadav applies after review. The web repo `Running-coach-` needs the same file in `v0/supabase/migrations/`. Flag a coach with `insert into coach_profiles (user_id, display_name) values ('<uuid>', 'Dana');`. "Coach" here is the human coach, unrelated to the AI coach (`coach_message`, `coaching_style`).
+Next Recommended Story: 1.3 (athlete joins with consent, `coach_athlete_links`), then 1.4 (invite link opens the app).
+Blockers: migration not applied to production yet.
+Last Validation: SQL two-user test `supabase/tests/coach_invites.sql` passes on a throwaway Postgres 17.6 after applying the migration twice; `CoachModeTests` plus `EmailSignInTests` pass on the iPhone 17 Pro simulator.
+Last Updated: 2026-11-14
+
 # 2026-11-14: Workout completion save (story 0.1)
 
 Current Phase: unchanged.
