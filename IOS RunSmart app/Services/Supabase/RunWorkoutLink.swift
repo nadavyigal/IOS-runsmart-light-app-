@@ -50,6 +50,7 @@ final class RunWorkoutLinkOutbox {
     private let defaults: UserDefaults
     private let key: String
     private let lock = NSLock()
+    private let retryGate = WorkoutCompletionRetryGate()
     private let now: () -> Date
 
     init(defaults: UserDefaults = .standard, key: String = "runsmart.runs.pendingWorkoutLinks", now: @escaping () -> Date = Date.init) {
@@ -80,6 +81,7 @@ final class RunWorkoutLinkOutbox {
     }
 
     /// A thrown write counts one attempt and drops the record at `maxAttempts`.
+    /// Only counts against a record that is still queued: a failure never re-adds one a success removed.
     func recordFailure(_ record: PendingRunLink) {
         lock.lock()
         defer { lock.unlock() }
@@ -94,7 +96,14 @@ final class RunWorkoutLinkOutbox {
     }
 
     /// Retries every record. `runNotSynced` keeps the record without counting an attempt until it expires.
+    /// A second call returns immediately while one pass is already running.
     func retryPending(send: (PendingRunLink) async throws -> RunWorkoutLinkResult) async {
+        guard await retryGate.tryEnter() else { return }
+        await performRetry(send)
+        await retryGate.leave()
+    }
+
+    private func performRetry(_ send: (PendingRunLink) async throws -> RunWorkoutLinkResult) async {
         for record in pending() {
             if now().timeIntervalSince(record.queuedAt) > Self.maxAge {
                 print("[TrainingPlanRepo] dropping run link for a run that never synced workout=\(record.workoutID)")

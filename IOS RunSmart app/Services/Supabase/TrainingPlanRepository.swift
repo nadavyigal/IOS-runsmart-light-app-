@@ -779,12 +779,12 @@ final class TrainingPlanRepository {
     }
 
     /// One pass per account per install: link synced runs of the last 30 days that have no workout.
-    /// `localRuns` supply a pinned plan id (Health) when the device knows the run.
-    func backfillRunWorkoutLinks(authUserID: UUID, localRuns: [RecordedRun], dryRun: Bool) async {
+    /// `localRuns` supply a pinned plan id (Health) when the device knows the run. `isHidden` skips hidden runs.
+    func backfillRunWorkoutLinks(authUserID: UUID, localRuns: [RecordedRun], isHidden: @escaping (RecordedRun) -> Bool, dryRun: Bool) async {
         _ = await RunWorkoutBackfill.runOnce(
             userID: authUserID,
             dryRun: dryRun,
-            loadRuns: { await self.unlinkedSyncedRuns(authUserID: authUserID, localRuns: localRuns) },
+            loadRuns: { await self.unlinkedSyncedRuns(authUserID: authUserID, localRuns: localRuns, isHidden: isHidden) },
             loadWorkouts: {
                 self.invalidateActivePlanCache(authUserID: authUserID)
                 guard let active = await self.activePlan(authUserID: authUserID) else { return nil }
@@ -797,7 +797,7 @@ final class TrainingPlanRepository {
     }
 
     /// Nil when the read failed, so the backfill stays pending instead of counting an empty list.
-    private func unlinkedSyncedRuns(authUserID: UUID, localRuns: [RecordedRun]) async -> [RecordedRun]? {
+    private func unlinkedSyncedRuns(authUserID: UUID, localRuns: [RecordedRun], isHidden: (RecordedRun) -> Bool) async -> [RecordedRun]? {
         let since = Calendar.current.date(byAdding: .day, value: -RunWorkoutBackfill.lookbackDays, to: Date()) ?? Date()
         do {
             let rows: [DBRunBackfillRow] = try await supabase
@@ -809,8 +809,7 @@ final class TrainingPlanRepository {
                 .order("completed_at", ascending: true)
                 .execute()
                 .value
-            let localByKey = Dictionary(localRuns.map { ($0.runSourceKey, $0) }, uniquingKeysWith: { first, _ in first })
-            return rows.compactMap { $0.recordedRun(local: $0.key.flatMap { localByKey[$0] }) }
+            return DBRunBackfillRow.matchableRuns(from: rows, localRuns: localRuns, isHidden: isHidden)
         } catch {
             if !(error is CancellationError) {
                 print("[TrainingPlanRepo] backfill runs read error:", error)
@@ -1580,6 +1579,15 @@ struct DBRunBackfillRow: Decodable {
     var key: RunSourceKey? {
         guard let sourceProvider, let sourceActivityID else { return nil }
         return RunSourceKey(sourceProvider: sourceProvider, sourceActivityID: sourceActivityID)
+    }
+
+    /// A run the runner hid or removed is skipped, as in the live flow. The store's hidden key is
+    /// source plus provider activity id, which a server row carries, so no local copy is needed.
+    static func matchableRuns(from rows: [DBRunBackfillRow], localRuns: [RecordedRun], isHidden: (RecordedRun) -> Bool) -> [RecordedRun] {
+        let localByKey = Dictionary(localRuns.map { ($0.runSourceKey, $0) }, uniquingKeysWith: { first, _ in first })
+        return rows
+            .compactMap { row in row.recordedRun(local: row.key.flatMap { localByKey[$0] }) }
+            .filter { !isHidden($0) }
     }
 
     /// The device's own copy wins (it holds a pinned plan id). Rows from other providers are skipped.

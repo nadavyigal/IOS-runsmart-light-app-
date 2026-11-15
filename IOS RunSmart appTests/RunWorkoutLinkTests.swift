@@ -297,7 +297,76 @@ final class RunWorkoutLinkTests: XCTestCase {
         XCTAssertNil(other.recordedRun(local: nil))
     }
 
+    // MARK: review fixes
+
+    func testOverlappingRetriesRunOnePassAndSendOncePerRecord() async {
+        let outbox = freshOutbox()
+        outbox.enqueue(authUserID: UUID(), key: RunSourceKey(sourceProvider: "garmin", sourceActivityID: "x"), workoutID: UUID())
+        let sends = SendCounter()
+
+        async let first: Void = outbox.retryPending { _ in
+            await sends.increment()
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            return .linked
+        }
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        // The first pass is mid-send: this call must return at once without sending.
+        await outbox.retryPending { _ in
+            await sends.increment()
+            return .linked
+        }
+        await first
+
+        let count = await sends.value
+        XCTAssertEqual(count, 1)
+        XCTAssertTrue(outbox.pending().isEmpty)
+
+        // The gate is released afterwards, so a later pass runs.
+        outbox.enqueue(authUserID: UUID(), key: RunSourceKey(sourceProvider: "garmin", sourceActivityID: "y"), workoutID: UUID())
+        await outbox.retryPending { _ in .linked }
+        XCTAssertTrue(outbox.pending().isEmpty)
+    }
+
+    func testFailureAfterSuccessNeverReAddsARemovedRecord() {
+        let outbox = freshOutbox()
+        let record = PendingRunLink(
+            authUserID: UUID(), key: RunSourceKey(sourceProvider: "garmin", sourceActivityID: "x"),
+            workoutID: UUID(), queuedAt: Date(), attemptCount: 0
+        )
+        outbox.enqueue(authUserID: record.authUserID, key: record.key, workoutID: record.workoutID)
+        outbox.remove(record) // a concurrent success
+
+        outbox.recordFailure(record) // a slower pass reports failure afterwards
+
+        XCTAssertTrue(outbox.pending().isEmpty)
+    }
+
+    func testBackfillSkipsHiddenRunsWithOrWithoutALocalCopy() throws {
+        func row(_ id: String, provider: String = "garmin") throws -> DBRunBackfillRow {
+            let json = #"{"source_provider":"\#(provider)","source_activity_id":"\#(id)","completed_at":"2026-11-10T07:00:00+00:00","distance":5,"duration":1500,"heart_rate":null}"#
+            return try JSONDecoder().decode(DBRunBackfillRow.self, from: Data(json.utf8))
+        }
+        // Mirrors RunSmartLocalStore's hidden key: "<source>|<provider activity id>".
+        let hiddenKeys: Set<String> = ["Garmin|hidden-no-copy", "Garmin|hidden-with-copy"]
+        let isHidden: (RecordedRun) -> Bool = { hiddenKeys.contains("\($0.source.rawValue)|\($0.providerActivityID ?? $0.id.uuidString)") }
+        let localCopy = run("hidden-with-copy", km: 5)
+
+        let runs = DBRunBackfillRow.matchableRuns(
+            from: [try row("visible"), try row("hidden-no-copy"), try row("hidden-with-copy")],
+            localRuns: [localCopy],
+            isHidden: isHidden
+        )
+
+        XCTAssertEqual(runs.map(\.providerActivityID), ["visible"])
+    }
+
     // MARK: helpers
+
+    private actor SendCounter {
+        private(set) var value = 0
+        func increment() { value += 1 }
+    }
+
 
     private func freshDefaults() -> UserDefaults {
         let name = "run-workout-link-\(UUID().uuidString)"

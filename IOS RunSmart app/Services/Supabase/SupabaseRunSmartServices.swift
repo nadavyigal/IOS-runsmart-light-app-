@@ -1964,6 +1964,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         await planRepo.backfillRunWorkoutLinks(
             authUserID: userID,
             localRuns: store.loadRuns(),
+            isHidden: { self.store.isRunHidden($0) },
             dryRun: RunWorkoutBackfill.isDryRunRequested
         )
     }

@@ -1,6 +1,6 @@
 import Foundation
 
-private actor WorkoutCompletionRetryGate {
+actor WorkoutCompletionRetryGate {
     private var running = false
 
     func tryEnter() -> Bool {
