@@ -9,3 +9,5 @@
 - [ ] For sensitive work, link the full-head independent review and list material finding dispositions.
 
 Review and merge authority live in Agentic OS GLOBAL-WORKFLOWS.md §7b.
+
+<!-- attestation gate test marker -->
