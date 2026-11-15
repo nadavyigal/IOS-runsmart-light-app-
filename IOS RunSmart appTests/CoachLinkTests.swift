@@ -9,34 +9,95 @@ final class CoachLinkTests: XCTestCase {
         var link: CoachLink?
         var lookup: Result<CoachLookup?, Error> = .success(nil)
         var join: Result<JoinCoachOutcome, Error> = .success(
-            .joined(CoachLookup(coachID: UUID(), displayName: "Dana"))
+            .joined(CoachLookup(
+                inviteID: UUID(uuidString: "11111111-0000-4000-8000-000000000001")!,
+                coachID: UUID(uuidString: "AAAAAAAA-0000-4000-8000-00000000000A")!,
+                displayName: "Dana",
+                code: "ABC234"
+            ))
         )
+        /// Lookups consumed in order. When empty, `lookup` is used.
+        var lookupQueue: [Result<CoachLookup?, Error>] = []
         private(set) var lookupCalls = 0
         private(set) var joinCalls = 0
         private(set) var joinedCode: String?
+        private(set) var joinedInviteID: UUID?
+        private(set) var joinedCoachID: UUID?
         private(set) var currentLinkCalls = 0
+        private var holdFirstLink = false
+        private var releaseLink: CheckedContinuation<Void, Never>?
+        private var linkEntered: CheckedContinuation<Void, Never>?
+
+        func armHoldOnFirstCurrentLink() {
+            holdFirstLink = true
+        }
 
         func currentLink() async throws -> CoachLink? {
             currentLinkCalls += 1
+            if holdFirstLink {
+                holdFirstLink = false
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    releaseLink = continuation
+                    linkEntered?.resume()
+                    linkEntered = nil
+                }
+            }
             return link
+        }
+
+        func waitUntilCurrentLinkBlocked() async {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                if releaseLink != nil {
+                    continuation.resume()
+                    return
+                }
+                linkEntered = continuation
+            }
+        }
+
+        func releaseCurrentLink() {
+            releaseLink?.resume()
+            releaseLink = nil
         }
 
         func lookupInvite(code: String) async throws -> CoachLookup? {
             lookupCalls += 1
-            return try lookup.get()
+            let result: CoachLookup?
+            if !lookupQueue.isEmpty {
+                result = try lookupQueue.removeFirst().get()
+            } else {
+                result = try lookup.get()
+            }
+            guard let found = result else { return nil }
+            return CoachLookup(
+                inviteID: found.inviteID,
+                coachID: found.coachID,
+                displayName: found.displayName,
+                code: code
+            )
         }
 
-        func joinCoach(code: String) async throws -> JoinCoachOutcome {
+        func joinCoach(code: String, inviteID: UUID, coachID: UUID) async throws -> JoinCoachOutcome {
             joinCalls += 1
             joinedCode = code
+            joinedInviteID = inviteID
+            joinedCoachID = coachID
             return try join.get()
         }
     }
 
-    private let dana = CoachLookup(
-        coachID: UUID(uuidString: "AAAAAAAA-0000-4000-8000-00000000000A")!,
-        displayName: "Dana"
-    )
+    private let danaInvite = UUID(uuidString: "11111111-0000-4000-8000-000000000001")!
+    private let ronInvite = UUID(uuidString: "22222222-0000-4000-8000-000000000002")!
+    private let danaCoach = UUID(uuidString: "AAAAAAAA-0000-4000-8000-00000000000A")!
+    private let ronCoach = UUID(uuidString: "CCCCCCCC-0000-4000-8000-00000000000C")!
+
+    private var dana: CoachLookup {
+        CoachLookup(inviteID: danaInvite, coachID: danaCoach, displayName: "Dana", code: "ABC234")
+    }
+
+    private var ron: CoachLookup {
+        CoachLookup(inviteID: ronInvite, coachID: ronCoach, displayName: "Ron", code: "ABC234")
+    }
 
     func testConsentCopyMatchesTheStory() {
         XCTAssertEqual(CoachConsentCopy.title(coach: "Dana"), "Share with Dana?")
@@ -118,7 +179,10 @@ final class CoachLinkTests: XCTestCase {
         await model.share()
 
         XCTAssertEqual(repository.joinedCode, "DANA01")
-        XCTAssertEqual(model.joinedCoach, dana)
+        XCTAssertEqual(repository.joinedInviteID, danaInvite)
+        XCTAssertEqual(repository.joinedCoachID, danaCoach)
+        XCTAssertEqual(model.joinedCoach?.coachID, danaCoach)
+        XCTAssertEqual(model.joinedCoach?.displayName, "Dana")
     }
 
     func testInvalidCodeCopy() async {
@@ -175,7 +239,12 @@ final class CoachLinkTests: XCTestCase {
 
     func testAlreadyLinkedFromJoinUsesTheCurrentCoachName() async {
         let repository = StubRepository()
-        repository.lookup = .success(CoachLookup(coachID: UUID(), displayName: "Ron"))
+        repository.lookup = .success(CoachLookup(
+            inviteID: ronInvite,
+            coachID: ronCoach,
+            displayName: "Ron",
+            code: "RON999"
+        ))
         repository.join = .success(.alreadyLinked(coachName: "Dana"))
         let model = JoinCoachViewModel(code: "RON999", repository: repository)
         await model.continueTapped(isSignedIn: true)
@@ -206,11 +275,58 @@ final class CoachLinkTests: XCTestCase {
         let store = CoachLinkStore(repository: repository)
         XCTAssertFalse(store.showsJoinCoach)
 
-        await store.refresh()
+        let userID = UUID()
+        store.beginSession(userID: userID)
+        await store.refresh(userID: userID)
         XCTAssertTrue(store.showsJoinCoach, "no link means the Settings row is shown")
 
         repository.link = CoachLink(id: UUID(), coachID: dana.coachID, coachName: "Dana")
-        await store.refresh()
+        await store.refresh(userID: userID)
         XCTAssertFalse(store.showsJoinCoach)
+    }
+
+    func testShareRejectsWhenTheCodeNowNamesADifferentCoach() async {
+        let repository = StubRepository()
+        let danaForCode = CoachLookup(
+            inviteID: danaInvite, coachID: danaCoach, displayName: "Dana", code: "ABC234"
+        )
+        let ronForSameCode = CoachLookup(
+            inviteID: ronInvite, coachID: ronCoach, displayName: "Ron", code: "ABC234"
+        )
+        repository.lookupQueue = [.success(danaForCode), .success(ronForSameCode)]
+        let model = JoinCoachViewModel(code: "ABC234", repository: repository)
+
+        await model.continueTapped(isSignedIn: true)
+        XCTAssertEqual(model.phase, .consent(danaForCode))
+
+        await model.share()
+
+        XCTAssertEqual(repository.joinCalls, 0)
+        XCTAssertNil(model.joinedCoach)
+        XCTAssertEqual(model.phase, .consent(ronForSameCode))
+    }
+
+    func testRefreshDiscardsResultAfterUserSwitch() async {
+        let repository = StubRepository()
+        repository.link = CoachLink(id: UUID(), coachID: danaCoach, coachName: "Dana")
+        repository.armHoldOnFirstCurrentLink()
+        let store = CoachLinkStore(repository: repository)
+        let userA = UUID()
+        let userB = UUID()
+        store.beginSession(userID: userA)
+
+        let first = Task { await store.refresh(userID: userA) }
+        await repository.waitUntilCurrentLinkBlocked()
+
+        repository.link = nil
+        store.beginSession(userID: userB)
+        let second = Task { await store.refresh(userID: userB) }
+        await second.value
+        repository.releaseCurrentLink()
+        await first.value
+
+        XCTAssertNil(store.currentLink)
+        XCTAssertTrue(store.didAttemptLoad)
+        XCTAssertTrue(store.showsJoinCoach)
     }
 }

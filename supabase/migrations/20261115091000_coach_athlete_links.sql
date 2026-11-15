@@ -52,10 +52,12 @@ create policy coach_athlete_links_select_own on public.coach_athlete_links
 
 -- RPCs -----------------------------------------------------------------------
 
--- Coach name and id for an active code, case-insensitive. Zero rows when the
--- code is missing or inactive. Authenticated only.
+-- Invite id, coach id, and name for an active code, case-insensitive.
+-- Zero rows when the code is missing or inactive. Authenticated only.
+-- Drop first: the return shape changed, and create or replace cannot do that.
+drop function if exists public.lookup_invite(text);
 create or replace function public.lookup_invite(code text)
-returns table (coach_id uuid, display_name text)
+returns table (invite_id uuid, coach_id uuid, display_name text)
 language plpgsql
 security definer
 set search_path = ''
@@ -68,7 +70,7 @@ begin
   end if;
 
   return query
-  select cp.user_id, cp.display_name
+  select ci.id, cp.user_id, cp.display_name
   from public.coach_invites ci
   join public.coach_profiles cp on cp.user_id = ci.coach_id
   where ci.active
@@ -76,10 +78,17 @@ begin
 end;
 $$;
 
--- One transaction: reject a bad code, a self-join, or an athlete who already
--- has an active link (already_linked, with that coach's name). Otherwise insert
+-- One transaction: reject a bad code, a self-join, a code that no longer names
+-- the invite and coach the athlete consented to, or an athlete who already has
+-- an active link (already_linked, with that coach's name). Otherwise insert
 -- status = active and consented_at = now().
-create or replace function public.join_coach(code text)
+drop function if exists public.join_coach(text);
+drop function if exists public.join_coach(text, uuid, uuid);
+create or replace function public.join_coach(
+  code text,
+  expected_invite_id uuid,
+  expected_coach_id uuid
+)
 returns jsonb
 language plpgsql
 security definer
@@ -87,6 +96,7 @@ set search_path = ''
 as $$
 declare
   v_uid uuid := auth.uid();
+  v_invite uuid;
   v_coach uuid;
   v_name text;
   v_active boolean;
@@ -97,8 +107,8 @@ begin
     raise exception 'not authenticated' using errcode = '42501';
   end if;
 
-  select ci.coach_id, cp.display_name, ci.active
-    into v_coach, v_name, v_active
+  select ci.id, ci.coach_id, cp.display_name, ci.active
+    into v_invite, v_coach, v_name, v_active
   from public.coach_invites ci
   join public.coach_profiles cp on cp.user_id = ci.coach_id
   where upper(ci.code) = upper(btrim(join_coach.code))
@@ -106,6 +116,11 @@ begin
 
   if not found or v_active is not true then
     raise exception 'invalid_code' using errcode = 'P0001';
+  end if;
+
+  if v_invite is distinct from expected_invite_id
+     or v_coach is distinct from expected_coach_id then
+    raise exception 'consent_mismatch' using errcode = 'P0001';
   end if;
 
   if v_coach = v_uid then
@@ -163,8 +178,8 @@ end;
 $$;
 
 revoke all on function public.lookup_invite(text) from public, anon;
-revoke all on function public.join_coach(text) from public, anon;
+revoke all on function public.join_coach(text, uuid, uuid) from public, anon;
 revoke all on function public.my_coach_link() from public, anon;
 grant execute on function public.lookup_invite(text) to authenticated;
-grant execute on function public.join_coach(text) to authenticated;
+grant execute on function public.join_coach(text, uuid, uuid) to authenticated;
 grant execute on function public.my_coach_link() to authenticated;

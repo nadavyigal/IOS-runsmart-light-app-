@@ -267,10 +267,11 @@ struct RunSmartLiteAppShell: View {
         .task(id: coachRoleCheckUserID) {
             guard !RunSmartDemoMode.isEnabled else { return }
             await coachMode.refresh(userID: coachRoleCheckUserID)
-            if coachRoleCheckUserID == nil {
-                coachLinks.clear()
+            if let userID = coachRoleCheckUserID {
+                coachLinks.beginSession(userID: userID)
+                await coachLinks.refresh(userID: userID)
             } else {
-                await coachLinks.refresh()
+                coachLinks.clear()
             }
         }
         .onChange(of: coachMode.isCoach) { _, isCoach in
@@ -283,8 +284,8 @@ struct RunSmartLiteAppShell: View {
             // Strava: finish uploads that failed or were still processing. Quiet, no UI.
             guard phase == .active, !RunSmartDemoMode.isEnabled else { return }
             Task { await coachMode.refresh(userID: coachRoleCheckUserID) }
-            if coachRoleCheckUserID != nil {
-                Task { await coachLinks.refresh() }
+            if let userID = coachRoleCheckUserID {
+                Task { await coachLinks.refresh(userID: userID) }
             }
             Task { await StravaUploadCoordinator.shared.retryPending() }
             Task { await (services as? SupabaseRunSmartServices)?.retryPendingWorkoutCompletions() }

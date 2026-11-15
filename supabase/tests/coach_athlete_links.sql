@@ -41,9 +41,9 @@ insert into coach_profiles (user_id, display_name) values
   ('aaaaaaaa-0000-4000-8000-00000000000a', 'Dana'),
   ('cccccccc-0000-4000-8000-00000000000c', 'Ron');
 
-insert into coach_invites (coach_id, code, active) values
-  ('aaaaaaaa-0000-4000-8000-00000000000a', 'ABC234', true),
-  ('cccccccc-0000-4000-8000-00000000000c', 'RON999', false);
+insert into coach_invites (id, coach_id, code, active) values
+  ('11111111-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-00000000000a', 'ABC234', true),
+  ('22222222-0000-4000-8000-000000000002', 'cccccccc-0000-4000-8000-00000000000c', 'RON999', false);
 
 create function pg_temp.act_as(uid text) returns void language plpgsql as $$
 begin
@@ -86,7 +86,11 @@ begin
     raise exception 'FAIL: lookup_invite did not return Dana';
   end if;
 
-  result := public.join_coach('abc234');
+  result := public.join_coach(
+    'abc234',
+    '11111111-0000-4000-8000-000000000001',
+    'aaaaaaaa-0000-4000-8000-00000000000a'
+  );
   if result->>'status' <> 'joined' then
     raise exception 'FAIL: join_coach status was %, expected joined', result->>'status';
   end if;
@@ -125,7 +129,11 @@ declare
   result jsonb;
   n int;
 begin
-  result := public.join_coach('ABC234');
+  result := public.join_coach(
+    'ABC234',
+    '11111111-0000-4000-8000-000000000001',
+    'aaaaaaaa-0000-4000-8000-00000000000a'
+  );
   if result->>'status' <> 'already_linked' or result->>'display_name' <> 'Dana' then
     raise exception 'FAIL: second join returned %', result;
   end if;
@@ -145,10 +153,13 @@ begin
 end $$;
 
 select pg_temp.expect_error(
-  $q$select public.join_coach('RON999')$q$,
+  $q$select public.join_coach('abc234', '11111111-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-00000000000c')$q$,
+  'P0001', 'join when the consented coach does not match the code');
+select pg_temp.expect_error(
+  $q$select public.join_coach('RON999', '22222222-0000-4000-8000-000000000002', 'cccccccc-0000-4000-8000-00000000000c')$q$,
   'P0001', 'join with an inactive code');
 select pg_temp.expect_error(
-  $q$select public.join_coach('NOPE00')$q$,
+  $q$select public.join_coach('NOPE00', '11111111-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-00000000000a')$q$,
   'P0001', 'join with an invalid code');
 
 -- Coach A sees the link to them. Third user D sees nothing. -----------------------
@@ -170,7 +181,11 @@ end $$;
 -- A cannot join themselves
 do $$
 begin
-  perform public.join_coach('ABC234');
+  perform public.join_coach(
+    'ABC234',
+    '11111111-0000-4000-8000-000000000001',
+    'aaaaaaaa-0000-4000-8000-00000000000a'
+  );
   raise exception 'FAIL: self-join succeeded';
 exception when others then
   if sqlerrm like 'FAIL:%' then raise; end if;
@@ -260,7 +275,9 @@ reset role;
 set local role anon;
 select pg_temp.expect_error('select count(*) from public.coach_athlete_links', '42501', 'anon reading links');
 select pg_temp.expect_error($q$select public.lookup_invite('ABC234')$q$, '42501', 'anon lookup_invite');
-select pg_temp.expect_error($q$select public.join_coach('ABC234')$q$, '42501', 'anon join_coach');
+select pg_temp.expect_error(
+  $q$select public.join_coach('ABC234', '11111111-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-00000000000a')$q$,
+  '42501', 'anon join_coach');
 select pg_temp.expect_error('select public.my_coach_link()', '42501', 'anon my_coach_link');
 
 reset role;
