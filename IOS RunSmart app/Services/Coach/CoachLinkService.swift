@@ -32,6 +32,7 @@ enum CoachLinkServiceError: Error, Equatable {
     case consentMismatch
     case offline
     case notSignedIn
+    case notLinked
 }
 
 /// Reads and creates the athlete's consent link. Later Coach Mode stories reuse this.
@@ -39,6 +40,7 @@ nonisolated protocol CoachLinkRepository: Sendable {
     func currentLink() async throws -> CoachLink?
     func lookupInvite(code: String) async throws -> CoachLookup?
     func joinCoach(code: String, inviteID: UUID, coachID: UUID, athleteID: UUID) async throws -> JoinCoachOutcome
+    func leaveCoach() async throws
 }
 
 nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
@@ -150,6 +152,12 @@ nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
             return .alreadyLinked(coachName: coachName)
         }
     }
+
+    func leaveCoach() async throws {
+        try await SupabaseManager.client
+            .rpc("leave_coach")
+            .execute()
+    }
 }
 
 /// Current link plus the coach's name. Settings uses `showsJoinCoach`.
@@ -176,6 +184,9 @@ final class CoachLinkStore: ObservableObject {
     var showsJoinCoach: Bool {
         didAttemptLoad && currentLink == nil
     }
+
+    /// Set after a successful leave. Settings shows it, then clears it.
+    @Published var leaveNotice: String?
 
     /// Call when the signed-in athlete changes, before any refresh for that athlete.
     func beginSession(userID: UUID) {
@@ -217,6 +228,17 @@ final class CoachLinkStore: ObservableObject {
         guard isAuthenticated, onboardingComplete, resumeJoinAfterSignIn else { return false }
         resumeJoinAfterSignIn = false
         return true
+    }
+
+    /// Clears the cached link only after leave_coach succeeds.
+    func leave(userID: UUID) async throws {
+        guard acceptedUserID == userID else {
+            throw CoachLinkServiceError.notSignedIn
+        }
+        try await repository.leaveCoach()
+        guard acceptedUserID == userID else { return }
+        currentLink = nil
+        didAttemptLoad = true
     }
 
     func noteJoined(_ link: CoachLink, userID: UUID) {
@@ -261,6 +283,110 @@ enum CoachConsentCopy {
 
         If you leave, \(coach) will no longer see your runs. You keep any feedback \(coach) has already given you. You can leave anytime in Settings.
         """
+    }
+
+    /// The three "can see" bullets on the consent screen. My coach repeats them.
+    static func sharedBullets() -> [String] {
+        [
+            "Your training plan",
+            "Your runs: distance, time, pace and average heart rate",
+            "Route maps of new runs you record in RunSmart. The start and end of each route are trimmed for privacy.",
+        ]
+    }
+}
+
+/// A13 copy. `{Coach}` is the coach's display name. Do not reword these sentences.
+enum LeaveCoachCopy {
+    /// Story 4.1 (workout locks) flips this. While false, A13 omits the lock sentence.
+    static let coachWorkoutLocksEnabled = false
+
+    static let failure = "Couldn't leave right now. You're still linked. Try again."
+    static let offline = "Connect to the internet"
+
+    static func monogram(for name: String) -> String {
+        let parts = name.split(whereSeparator: \.isWhitespace)
+        let letters = parts.prefix(2).compactMap(\.first)
+        let text = String(letters).uppercased()
+        return text.isEmpty ? "?" : text
+    }
+
+    static func title(coach: String) -> String {
+        "Leave \(coach)?"
+    }
+
+    static func toast(coach: String) -> String {
+        "You left \(coach). \(coach) no longer sees your runs."
+    }
+
+    /// Full sheet body, including the title line. The lock bullet is included only when
+    /// `coachWorkoutLocksEnabled` is true.
+    static func sheet(coach: String) -> String {
+        var stops = [
+            "• \(coach) won't see your plan, runs or maps.",
+            "• \(coach) won't review your runs or send new feedback.",
+            "• \(coach) can't change your workouts.",
+        ]
+        if coachWorkoutLocksEnabled {
+            stops.append("• Workouts \(coach) set are no longer protected, so RunSmart may adjust them.")
+        }
+        stops.append("• \(coach)'s name and notes are removed from your plan.")
+        let stopBlock = stops.joined(separator: "\n")
+        return """
+        \(title(coach: coach))
+        If you leave, \(coach) will no longer see your runs.
+
+        What stops:
+        \(stopBlock)
+
+        What stays:
+        • Your plan, which RunSmart keeps adapting.
+        • Your run history.
+        • Feedback \(coach) has already given you. You can still read it on the runs it was written for.
+
+        You can join a coach again with a code.
+        """
+    }
+}
+
+/// Leave confirm. Cancel does not call the server. A failed RPC leaves the link in place.
+@MainActor
+final class LeaveCoachModel: ObservableObject {
+    @Published private(set) var errorMessage: String?
+    @Published private(set) var isWorking = false
+    @Published var isOnline: Bool
+
+    init(isOnline: Bool = true) {
+        self.isOnline = isOnline
+    }
+
+    var leaveDisabledReason: String? {
+        isOnline ? nil : LeaveCoachCopy.offline
+    }
+
+    func cancel() {
+        errorMessage = nil
+    }
+
+    /// Returns the toast after the link is cleared. Nil keeps the athlete linked.
+    func confirm(coachName: String, userID: UUID, store: CoachLinkStore) async -> String? {
+        guard !isWorking else { return nil }
+        errorMessage = nil
+        guard isOnline else {
+            errorMessage = LeaveCoachCopy.offline
+            return nil
+        }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try await store.leave(userID: userID)
+            guard store.currentLink == nil else { return nil }
+            let toast = LeaveCoachCopy.toast(coach: coachName)
+            store.leaveNotice = toast
+            return toast
+        } catch {
+            errorMessage = LeaveCoachCopy.failure
+            return nil
+        }
     }
 }
 
@@ -405,7 +531,7 @@ final class JoinCoachViewModel: ObservableObject {
                 return CoachConsentCopy.alreadyLinked(coach: coachName)
             case .consentMismatch:
                 return CoachConsentCopy.invalidCode
-            case .offline:
+            case .offline, .notLinked:
                 return CoachConsentCopy.offline
             }
         }
