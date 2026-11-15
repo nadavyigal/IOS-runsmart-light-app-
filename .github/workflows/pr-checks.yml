@@ -159,13 +159,25 @@ jobs:
           trap 'supabase stop --no-backup' EXIT
           supabase start -x studio,imgproxy,vector,logflare,edge-runtime,mailpit,postgres-meta,supavisor
           db_url="$(supabase status -o json | jq -er '.DB_URL | select(test("^postgres(ql)?://[^@]+@(127[.]0[.]0[.]1|localhost):"))')"
+          sql() {
+            if [[ "$SUITE" == rls_leaks ]]; then
+              # The existing fixture replaces auth.jwt(). Use the bootstrap
+              # superuser on the fresh container's local socket for this suite.
+              project_id="$(sed -n 's/^project_id = "\([^"]*\)"$/\1/p' supabase/config.toml)"
+              test -n "$project_id"
+              docker exec -i "supabase_db_$project_id" \
+                psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < "$1"
+            else
+              psql "$db_url" -v ON_ERROR_STOP=1 -f "$1"
+            fi
+          }
           if [[ -n "$FIXTURE" ]]; then
-            psql "$db_url" -v ON_ERROR_STOP=1 -f "$source_dir/supabase/tests/$FIXTURE.sql"
+            sql "$source_dir/supabase/tests/$FIXTURE.sql"
           fi
           for pass in 1 2; do
-            psql "$db_url" -v ON_ERROR_STOP=1 -f "$source_dir/supabase/migrations/$MIGRATION.sql"
+            sql "$source_dir/supabase/migrations/$MIGRATION.sql"
           done
-          psql "$db_url" -v ON_ERROR_STOP=1 -f "$source_dir/supabase/tests/$SUITE.sql"
+          sql "$source_dir/supabase/tests/$SUITE.sql"
 
   # -------------------------------------------------------------------- gate
   # Advisory during the RunSmart iOS pilot.
