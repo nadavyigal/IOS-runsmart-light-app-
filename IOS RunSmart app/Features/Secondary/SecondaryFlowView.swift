@@ -219,14 +219,18 @@ struct SecondaryFlowView: View {
 }
 
 private struct SecondaryContentView: View {
+    @EnvironmentObject private var session: SupabaseSession
     var destination: SecondaryDestination
 
     var body: some View {
         if destination == .goalWizard {
             GoalWizardView()
         } else if destination == .joinCoach {
-            JoinCoachView()
-                .padding(20)
+            ScrollView {
+                JoinCoachView()
+                    .id(session.currentUserID)
+                    .padding(20)
+            }
         } else {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: RunSmartSpacing.md) {

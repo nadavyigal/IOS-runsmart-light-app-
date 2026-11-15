@@ -72,6 +72,11 @@ grant execute on function pg_temp.act_as(text), pg_temp.expect_error(text, text,
 set local role authenticated;
 select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
 
+select pg_temp.expect_error(
+  $q$select public.join_coach('abc234', '11111111-0000-4000-8000-000000000001',
+        'aaaaaaaa-0000-4000-8000-00000000000a', 'eeeeeeee-0000-4000-8000-00000000000e')$q$,
+  '42501', 'consent from a different athlete cannot create a link');
+
 do $$
 declare
   looked_up int;
@@ -82,19 +87,20 @@ begin
   if looked_up <> 1 then
     raise exception 'FAIL: lookup_invite(abc234) returned % rows, expected 1', looked_up;
   end if;
-  if (select display_name from public.lookup_invite('abc234')) <> 'Dana' then
+  if (select display_name from public.lookup_invite('abc234')) is distinct from 'Dana' then
     raise exception 'FAIL: lookup_invite did not return Dana';
   end if;
 
   result := public.join_coach(
     'abc234',
     '11111111-0000-4000-8000-000000000001',
-    'aaaaaaaa-0000-4000-8000-00000000000a'
+    'aaaaaaaa-0000-4000-8000-00000000000a',
+    'bbbbbbbb-0000-4000-8000-00000000000b'
   );
-  if result->>'status' <> 'joined' then
+  if result->>'status' is distinct from 'joined' then
     raise exception 'FAIL: join_coach status was %, expected joined', result->>'status';
   end if;
-  if result->>'display_name' <> 'Dana' then
+  if result->>'display_name' is distinct from 'Dana' then
     raise exception 'FAIL: join_coach did not return Dana';
   end if;
 
@@ -107,7 +113,14 @@ begin
     raise exception 'FAIL: consented_at was not set';
   end if;
 
-  if (select display_name from public.my_coach_link()) <> 'Dana' then
+  if (result->>'link_id')::uuid is distinct from (select id from public.coach_athlete_links)
+     or (result->>'consented_at')::timestamptz is distinct from (select consented_at from public.coach_athlete_links) then
+    raise exception 'FAIL: join_coach did not return the persisted link ID and consent timestamp';
+  end if;
+
+  if (select display_name from public.my_coach_link()) is distinct from 'Dana'
+     or (select link_id from public.my_coach_link()) is distinct from (select id from public.coach_athlete_links)
+     or (select consented_at from public.my_coach_link()) is distinct from (select consented_at from public.coach_athlete_links) then
     raise exception 'FAIL: my_coach_link did not return Dana';
   end if;
 end $$;
@@ -132,9 +145,10 @@ begin
   result := public.join_coach(
     'ABC234',
     '11111111-0000-4000-8000-000000000001',
-    'aaaaaaaa-0000-4000-8000-00000000000a'
+    'aaaaaaaa-0000-4000-8000-00000000000a',
+    'bbbbbbbb-0000-4000-8000-00000000000b'
   );
-  if result->>'status' <> 'already_linked' or result->>'display_name' <> 'Dana' then
+  if result->>'status' is distinct from 'already_linked' or result->>'display_name' is distinct from 'Dana' then
     raise exception 'FAIL: second join returned %', result;
   end if;
   select count(*) into n from public.coach_athlete_links;
@@ -153,13 +167,13 @@ begin
 end $$;
 
 select pg_temp.expect_error(
-  $q$select public.join_coach('abc234', '11111111-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-00000000000c')$q$,
+  $q$select public.join_coach('abc234', '11111111-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-00000000000c', 'bbbbbbbb-0000-4000-8000-00000000000b')$q$,
   'P0001', 'join when the consented coach does not match the code');
 select pg_temp.expect_error(
-  $q$select public.join_coach('RON999', '22222222-0000-4000-8000-000000000002', 'cccccccc-0000-4000-8000-00000000000c')$q$,
+  $q$select public.join_coach('RON999', '22222222-0000-4000-8000-000000000002', 'cccccccc-0000-4000-8000-00000000000c', 'bbbbbbbb-0000-4000-8000-00000000000b')$q$,
   'P0001', 'join with an inactive code');
 select pg_temp.expect_error(
-  $q$select public.join_coach('NOPE00', '11111111-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-00000000000a')$q$,
+  $q$select public.join_coach('NOPE00', '11111111-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-00000000000a', 'bbbbbbbb-0000-4000-8000-00000000000b')$q$,
   'P0001', 'join with an invalid code');
 
 -- Coach A sees the link to them. Third user D sees nothing. -----------------------
@@ -184,6 +198,7 @@ begin
   perform public.join_coach(
     'ABC234',
     '11111111-0000-4000-8000-000000000001',
+    'aaaaaaaa-0000-4000-8000-00000000000a',
     'aaaaaaaa-0000-4000-8000-00000000000a'
   );
   raise exception 'FAIL: self-join succeeded';
@@ -246,7 +261,7 @@ declare
 begin
   select count(*) into n from public.coach_athlete_links;
   if n <> 1 then raise exception 'FAIL: athlete E sees % links, expected 1', n; end if;
-  if (select display_name from public.my_coach_link()) <> 'Dana' then
+  if (select display_name from public.my_coach_link()) is distinct from 'Dana' then
     raise exception 'FAIL: athlete E is not linked to Dana';
   end if;
 end $$;
@@ -276,7 +291,7 @@ set local role anon;
 select pg_temp.expect_error('select count(*) from public.coach_athlete_links', '42501', 'anon reading links');
 select pg_temp.expect_error($q$select public.lookup_invite('ABC234')$q$, '42501', 'anon lookup_invite');
 select pg_temp.expect_error(
-  $q$select public.join_coach('ABC234', '11111111-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-00000000000a')$q$,
+  $q$select public.join_coach('ABC234', '11111111-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-00000000000a', 'bbbbbbbb-0000-4000-8000-00000000000b')$q$,
   '42501', 'anon join_coach');
 select pg_temp.expect_error('select public.my_coach_link()', '42501', 'anon my_coach_link');
 

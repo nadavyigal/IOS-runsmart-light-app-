@@ -9,6 +9,7 @@ struct CoachLink: Equatable, Sendable {
     let id: UUID
     let coachID: UUID
     let coachName: String
+    let consentedAt: Date
 }
 
 struct CoachLookup: Equatable, Sendable {
@@ -21,7 +22,7 @@ struct CoachLookup: Equatable, Sendable {
 }
 
 enum JoinCoachOutcome: Equatable, Sendable {
-    case joined(CoachLookup)
+    case joined(CoachLink)
     case alreadyLinked(coachName: String)
 }
 
@@ -37,7 +38,7 @@ enum CoachLinkServiceError: Error, Equatable {
 nonisolated protocol CoachLinkRepository: Sendable {
     func currentLink() async throws -> CoachLink?
     func lookupInvite(code: String) async throws -> CoachLookup?
-    func joinCoach(code: String, inviteID: UUID, coachID: UUID) async throws -> JoinCoachOutcome
+    func joinCoach(code: String, inviteID: UUID, coachID: UUID, athleteID: UUID) async throws -> JoinCoachOutcome
 }
 
 nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
@@ -57,23 +58,39 @@ nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
         let linkId: UUID
         let coachId: UUID
         let displayName: String
+        let consentedAt: Date
 
         enum CodingKeys: String, CodingKey {
             case linkId = "link_id"
             case coachId = "coach_id"
             case displayName = "display_name"
+            case consentedAt = "consented_at"
+        }
+
+        var link: CoachLink {
+            CoachLink(id: linkId, coachID: coachId, coachName: displayName, consentedAt: consentedAt)
         }
     }
 
-    private struct JoinPayload: Decodable {
-        let status: String
-        let coachId: UUID
-        let displayName: String
+    private enum JoinPayload: Decodable {
+        case joined(LinkRow)
+        case alreadyLinked(String)
 
-        enum CodingKeys: String, CodingKey {
+        private enum CodingKeys: String, CodingKey {
             case status
-            case coachId = "coach_id"
             case displayName = "display_name"
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            switch try container.decode(String.self, forKey: .status) {
+            case "joined":
+                self = .joined(try LinkRow(from: decoder))
+            case "already_linked":
+                self = .alreadyLinked(try container.decode(String.self, forKey: .displayName))
+            default:
+                throw CoachLinkServiceError.invalidCode
+            }
         }
     }
 
@@ -85,11 +102,13 @@ nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
         let code: String
         let expectedInviteId: UUID
         let expectedCoachId: UUID
+        let expectedAthleteId: UUID
 
         enum CodingKeys: String, CodingKey {
             case code
             case expectedInviteId = "expected_invite_id"
             case expectedCoachId = "expected_coach_id"
+            case expectedAthleteId = "expected_athlete_id"
         }
     }
 
@@ -98,8 +117,7 @@ nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
             .rpc("my_coach_link")
             .execute()
             .value
-        guard let row = rows.first else { return nil }
-        return CoachLink(id: row.linkId, coachID: row.coachId, coachName: row.displayName)
+        return rows.first?.link
     }
 
     func lookupInvite(code: String) async throws -> CoachLookup? {
@@ -116,27 +134,20 @@ nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
         )
     }
 
-    func joinCoach(code: String, inviteID: UUID, coachID: UUID) async throws -> JoinCoachOutcome {
+    func joinCoach(code: String, inviteID: UUID, coachID: UUID, athleteID: UUID) async throws -> JoinCoachOutcome {
         let payload: JoinPayload = try await SupabaseManager.client
             .rpc(
                 "join_coach",
-                params: JoinParams(code: code, expectedInviteId: inviteID, expectedCoachId: coachID)
+                params: JoinParams(code: code, expectedInviteId: inviteID, expectedCoachId: coachID,
+                                   expectedAthleteId: athleteID)
             )
             .execute()
             .value
-        let lookup = CoachLookup(
-            inviteID: inviteID,
-            coachID: payload.coachId,
-            displayName: payload.displayName,
-            code: code
-        )
-        switch payload.status {
-        case "joined":
-            return .joined(lookup)
-        case "already_linked":
-            return .alreadyLinked(coachName: payload.displayName)
-        default:
-            throw CoachLinkServiceError.invalidCode
+        switch payload {
+        case .joined(let row):
+            return .joined(row.link)
+        case .alreadyLinked(let coachName):
+            return .alreadyLinked(coachName: coachName)
         }
     }
 }
@@ -202,8 +213,16 @@ final class CoachLinkStore: ObservableObject {
         }
     }
 
-    func noteJoined(_ lookup: CoachLookup) {
-        currentLink = CoachLink(id: UUID(), coachID: lookup.coachID, coachName: lookup.displayName)
+    func consumeJoinIntent(isAuthenticated: Bool, onboardingComplete: Bool) -> Bool {
+        guard isAuthenticated, onboardingComplete, resumeJoinAfterSignIn else { return false }
+        resumeJoinAfterSignIn = false
+        return true
+    }
+
+    func noteJoined(_ link: CoachLink, userID: UUID) {
+        guard acceptedUserID == userID else { return }
+        loadGeneration += 1
+        currentLink = link
         didAttemptLoad = true
         draftCode = ""
         resumeJoinAfterSignIn = false
@@ -247,7 +266,7 @@ enum CoachConsentCopy {
 
 enum JoinCoachPhase: Equatable {
     case enterCode
-    case consent(CoachLookup)
+    case consent(CoachLookup, athleteID: UUID)
 }
 
 @MainActor
@@ -256,7 +275,7 @@ final class JoinCoachViewModel: ObservableObject {
     @Published private(set) var phase: JoinCoachPhase = .enterCode
     @Published private(set) var errorMessage: String?
     @Published private(set) var isWorking = false
-    @Published private(set) var joinedCoach: CoachLookup?
+    @Published private(set) var joinedCoach: CoachLink?
 
     private let repository: any CoachLinkRepository
 
@@ -265,7 +284,8 @@ final class JoinCoachViewModel: ObservableObject {
         self.repository = repository
     }
 
-    func continueTapped(isSignedIn: Bool) async {
+    func continueTapped(athleteID: UUID?) async {
+        guard !isWorking else { return }
         errorMessage = nil
         let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
         code = trimmed
@@ -274,7 +294,7 @@ final class JoinCoachViewModel: ObservableObject {
             return
         }
         // Code entry is only for a signed-in athlete. Callers route guests to sign-in first.
-        guard isSignedIn else { return }
+        guard let athleteID else { return }
 
         isWorking = true
         defer { isWorking = false }
@@ -290,7 +310,7 @@ final class JoinCoachViewModel: ObservableObject {
                 errorMessage = CoachConsentCopy.invalidCode
                 return
             }
-            phase = .consent(coach)
+            phase = .consent(coach, athleteID: athleteID)
         } catch {
             phase = .enterCode
             errorMessage = Self.message(for: error)
@@ -304,8 +324,12 @@ final class JoinCoachViewModel: ObservableObject {
         phase = .enterCode
     }
 
-    func share() async {
-        guard case .consent(let shown) = phase else { return }
+    func share(athleteID: UUID) async {
+        guard !isWorking, case .consent(let shown, let consentingAthleteID) = phase else { return }
+        guard athleteID == consentingAthleteID else {
+            notNow()
+            return
+        }
         errorMessage = nil
         isWorking = true
         defer { isWorking = false }
@@ -317,14 +341,15 @@ final class JoinCoachViewModel: ObservableObject {
             }
             // The code now names a different invite or coach. Drop the previous consent.
             if resolved.inviteID != shown.inviteID || resolved.coachID != shown.coachID {
-                phase = .consent(resolved)
+                phase = .consent(resolved, athleteID: athleteID)
                 errorMessage = CoachConsentCopy.codeReassigned(coach: resolved.displayName)
                 return
             }
             switch try await repository.joinCoach(
                 code: shown.code,
                 inviteID: shown.inviteID,
-                coachID: shown.coachID
+                coachID: shown.coachID,
+                athleteID: consentingAthleteID
             ) {
             case .joined(let coach):
                 joinedCoach = coach
@@ -334,7 +359,7 @@ final class JoinCoachViewModel: ObservableObject {
             }
         } catch {
             if Self.isConsentMismatch(error) {
-                await reshowConsent(for: shown.code)
+                await reshowConsent(for: shown.code, athleteID: athleteID)
                 return
             }
             let message = Self.message(for: error)
@@ -347,10 +372,10 @@ final class JoinCoachViewModel: ObservableObject {
     }
 
     /// Join refused because the invite moved. Show whoever the code names now, or the invalid-code copy.
-    private func reshowConsent(for code: String) async {
+    private func reshowConsent(for code: String, athleteID: UUID) async {
         do {
             if let resolved = try await repository.lookupInvite(code: code) {
-                phase = .consent(resolved)
+                phase = .consent(resolved, athleteID: athleteID)
                 errorMessage = CoachConsentCopy.codeReassigned(coach: resolved.displayName)
                 return
             }

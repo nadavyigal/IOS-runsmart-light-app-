@@ -8,14 +8,7 @@ final class CoachLinkTests: XCTestCase {
     private final class StubRepository: CoachLinkRepository, @unchecked Sendable {
         var link: CoachLink?
         var lookup: Result<CoachLookup?, Error> = .success(nil)
-        var join: Result<JoinCoachOutcome, Error> = .success(
-            .joined(CoachLookup(
-                inviteID: UUID(uuidString: "11111111-0000-4000-8000-000000000001")!,
-                coachID: UUID(uuidString: "AAAAAAAA-0000-4000-8000-00000000000A")!,
-                displayName: "Dana",
-                code: "ABC234"
-            ))
-        )
+        var join: Result<JoinCoachOutcome, Error> = .failure(CoachLinkServiceError.invalidCode)
         /// Lookups consumed in order. When empty, `lookup` is used.
         var lookupQueue: [Result<CoachLookup?, Error>] = []
         private(set) var lookupCalls = 0
@@ -77,7 +70,7 @@ final class CoachLinkTests: XCTestCase {
             )
         }
 
-        func joinCoach(code: String, inviteID: UUID, coachID: UUID) async throws -> JoinCoachOutcome {
+        func joinCoach(code: String, inviteID: UUID, coachID: UUID, athleteID: UUID) async throws -> JoinCoachOutcome {
             joinCalls += 1
             joinedCode = code
             joinedInviteID = inviteID
@@ -86,6 +79,7 @@ final class CoachLinkTests: XCTestCase {
         }
     }
 
+    private let athleteID = UUID()
     private let danaInvite = UUID(uuidString: "11111111-0000-4000-8000-000000000001")!
     private let ronInvite = UUID(uuidString: "22222222-0000-4000-8000-000000000002")!
     private let danaCoach = UUID(uuidString: "AAAAAAAA-0000-4000-8000-00000000000A")!
@@ -97,6 +91,11 @@ final class CoachLinkTests: XCTestCase {
 
     private var ron: CoachLookup {
         CoachLookup(inviteID: ronInvite, coachID: ronCoach, displayName: "Ron", code: "ABC234")
+    }
+
+    private func persistedLink(for coach: CoachLookup) -> CoachLink {
+        CoachLink(id: danaInvite, coachID: coach.coachID, coachName: coach.displayName,
+                  consentedAt: Date(timeIntervalSince1970: 1_795_000_000))
     }
 
     func testConsentCopyMatchesTheStory() {
@@ -122,7 +121,7 @@ final class CoachLinkTests: XCTestCase {
         let repository = StubRepository()
         let model = JoinCoachViewModel(code: "abc234", repository: repository)
 
-        await model.continueTapped(isSignedIn: false)
+        await model.continueTapped(athleteID: nil)
 
         XCTAssertEqual(model.phase, .enterCode)
         XCTAssertEqual(repository.lookupCalls, 0)
@@ -135,9 +134,9 @@ final class CoachLinkTests: XCTestCase {
         repository.lookup = .success(dana)
         let model = JoinCoachViewModel(code: "ABC234", repository: repository)
 
-        await model.continueTapped(isSignedIn: true)
+        await model.continueTapped(athleteID: athleteID)
 
-        XCTAssertEqual(model.phase, .consent(dana))
+        XCTAssertEqual(model.phase, .consent(dana, athleteID: athleteID))
         XCTAssertEqual(repository.joinCalls, 0)
 
         model.notNow()
@@ -150,13 +149,13 @@ final class CoachLinkTests: XCTestCase {
     func testShareJoinsAndNotNowDoesNot() async {
         let repository = StubRepository()
         repository.lookup = .success(dana)
-        repository.join = .success(.joined(dana))
+        repository.join = .success(.joined(persistedLink(for: dana)))
         let model = JoinCoachViewModel(code: "ABC234", repository: repository)
-        await model.continueTapped(isSignedIn: true)
+        await model.continueTapped(athleteID: athleteID)
 
-        await model.share()
+        await model.share(athleteID: athleteID)
 
-        XCTAssertEqual(model.joinedCoach, dana)
+        XCTAssertEqual(model.joinedCoach, persistedLink(for: dana))
         XCTAssertEqual(repository.joinCalls, 1)
         XCTAssertEqual(repository.joinedCode, "ABC234")
     }
@@ -164,18 +163,40 @@ final class CoachLinkTests: XCTestCase {
     func testShareUsesTheCodeFromConsentWhenTheFieldChanges() async {
         let repository = StubRepository()
         repository.lookup = .success(dana)
-        repository.join = .success(.joined(dana))
+        repository.join = .success(.joined(persistedLink(for: dana)))
         let model = JoinCoachViewModel(code: "DANA01", repository: repository)
-        await model.continueTapped(isSignedIn: true)
+        await model.continueTapped(athleteID: athleteID)
 
         model.code = "RON999"
-        await model.share()
+        await model.share(athleteID: athleteID)
 
         XCTAssertEqual(repository.joinedCode, "DANA01")
         XCTAssertEqual(repository.joinedInviteID, danaInvite)
         XCTAssertEqual(repository.joinedCoachID, danaCoach)
         XCTAssertEqual(model.joinedCoach?.coachID, danaCoach)
-        XCTAssertEqual(model.joinedCoach?.displayName, "Dana")
+        XCTAssertEqual(model.joinedCoach?.coachName, "Dana")
+    }
+
+    func testJoinIntentSurvivesSignInAndOnboardingAndIsConsumedOnce() {
+        let store = CoachLinkStore(repository: StubRepository())
+        store.resumeJoinAfterSignIn = true
+
+        XCTAssertFalse(store.consumeJoinIntent(isAuthenticated: false, onboardingComplete: false))
+        XCTAssertFalse(store.consumeJoinIntent(isAuthenticated: true, onboardingComplete: false))
+        XCTAssertTrue(store.consumeJoinIntent(isAuthenticated: true, onboardingComplete: true))
+        XCTAssertFalse(store.consumeJoinIntent(isAuthenticated: true, onboardingComplete: true))
+    }
+
+    func testAChangeOfAthleteRequiresFreshConsent() async {
+        let repository = StubRepository()
+        repository.lookup = .success(dana)
+        let model = JoinCoachViewModel(code: "ABC234", repository: repository)
+        await model.continueTapped(athleteID: athleteID)
+
+        await model.share(athleteID: UUID())
+
+        XCTAssertEqual(model.phase, .enterCode)
+        XCTAssertEqual(repository.joinCalls, 0)
     }
 
     func testInvalidCodeCopy() async {
@@ -183,7 +204,7 @@ final class CoachLinkTests: XCTestCase {
         repository.lookup = .success(nil)
         let model = JoinCoachViewModel(code: "NOPE00", repository: repository)
 
-        await model.continueTapped(isSignedIn: true)
+        await model.continueTapped(athleteID: athleteID)
 
         XCTAssertEqual(model.phase, .enterCode)
         XCTAssertEqual(model.errorMessage, "That code doesn't work. Check it with your coach.")
@@ -216,10 +237,10 @@ final class CoachLinkTests: XCTestCase {
 
     func testAlreadyLinkedCopy() async {
         let repository = StubRepository()
-        repository.link = CoachLink(id: UUID(), coachID: dana.coachID, coachName: "Dana")
+        repository.link = persistedLink(for: dana)
         let model = JoinCoachViewModel(code: "OTHER1", repository: repository)
 
-        await model.continueTapped(isSignedIn: true)
+        await model.continueTapped(athleteID: athleteID)
 
         XCTAssertEqual(model.phase, .enterCode)
         XCTAssertEqual(
@@ -240,9 +261,9 @@ final class CoachLinkTests: XCTestCase {
         ))
         repository.join = .success(.alreadyLinked(coachName: "Dana"))
         let model = JoinCoachViewModel(code: "RON999", repository: repository)
-        await model.continueTapped(isSignedIn: true)
+        await model.continueTapped(athleteID: athleteID)
 
-        await model.share()
+        await model.share(athleteID: athleteID)
 
         XCTAssertEqual(
             model.errorMessage,
@@ -256,7 +277,7 @@ final class CoachLinkTests: XCTestCase {
         repository.lookup = .failure(URLError(.notConnectedToInternet))
         let model = JoinCoachViewModel(code: "ABC234", repository: repository)
 
-        await model.continueTapped(isSignedIn: true)
+        await model.continueTapped(athleteID: athleteID)
 
         XCTAssertEqual(model.errorMessage, "You need to be online to join.")
         XCTAssertEqual(repository.joinCalls, 0)
@@ -273,7 +294,7 @@ final class CoachLinkTests: XCTestCase {
         await store.refresh(userID: userID)
         XCTAssertTrue(store.showsJoinCoach, "no link means the Settings row is shown")
 
-        repository.link = CoachLink(id: UUID(), coachID: dana.coachID, coachName: "Dana")
+        repository.link = persistedLink(for: dana)
         await store.refresh(userID: userID)
         XCTAssertFalse(store.showsJoinCoach)
     }
@@ -287,30 +308,51 @@ final class CoachLinkTests: XCTestCase {
             inviteID: ronInvite, coachID: ronCoach, displayName: "Ron", code: "ABC234"
         )
         repository.lookupQueue = [.success(danaForCode), .success(ronForSameCode), .success(ronForSameCode)]
-        repository.join = .success(.joined(ronForSameCode))
+        repository.join = .success(.joined(persistedLink(for: ronForSameCode)))
         let model = JoinCoachViewModel(code: "ABC234", repository: repository)
 
-        await model.continueTapped(isSignedIn: true)
-        XCTAssertEqual(model.phase, .consent(danaForCode))
+        await model.continueTapped(athleteID: athleteID)
+        XCTAssertEqual(model.phase, .consent(danaForCode, athleteID: athleteID))
 
-        await model.share()
+        await model.share(athleteID: athleteID)
 
         XCTAssertEqual(repository.joinCalls, 0)
         XCTAssertNil(model.joinedCoach)
-        XCTAssertEqual(model.phase, .consent(ronForSameCode))
+        XCTAssertEqual(model.phase, .consent(ronForSameCode, athleteID: athleteID))
         XCTAssertEqual(model.errorMessage, "This code now belongs to Ron")
 
-        await model.share()
+        await model.share(athleteID: athleteID)
 
         XCTAssertEqual(repository.joinCalls, 1)
         XCTAssertEqual(repository.joinedInviteID, ronInvite)
         XCTAssertEqual(repository.joinedCoachID, ronCoach)
-        XCTAssertEqual(model.joinedCoach?.displayName, "Ron")
+        XCTAssertEqual(model.joinedCoach?.coachName, "Ron")
+    }
+
+    func testJoinKeepsServerLinkAndDiscardsOlderRefresh() async {
+        let repository = StubRepository()
+        repository.armHoldOnFirstCurrentLink()
+        let store = CoachLinkStore(repository: repository)
+        let athlete = UUID()
+        store.beginSession(userID: athlete)
+        let refresh = Task { await store.refresh(userID: athlete) }
+        await repository.waitUntilCurrentLinkBlocked()
+
+        let link = persistedLink(for: dana)
+        store.noteJoined(link, userID: athlete)
+        repository.releaseCurrentLink()
+        await refresh.value
+
+        XCTAssertEqual(store.currentLink, link)
+        XCTAssertFalse(store.showsJoinCoach)
+        store.beginSession(userID: UUID())
+        store.noteJoined(link, userID: athlete)
+        XCTAssertNil(store.currentLink)
     }
 
     func testRefreshDiscardsResultAfterUserSwitch() async {
         let repository = StubRepository()
-        repository.link = CoachLink(id: UUID(), coachID: danaCoach, coachName: "Dana")
+        repository.link = persistedLink(for: dana)
         repository.armHoldOnFirstCurrentLink()
         let store = CoachLinkStore(repository: repository)
         let userA = UUID()

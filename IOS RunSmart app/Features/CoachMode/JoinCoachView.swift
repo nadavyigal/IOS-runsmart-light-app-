@@ -23,16 +23,10 @@ struct JoinCoachView: View {
                 switch model.phase {
                 case .enterCode:
                     codeEntry
-                case .consent(let coach):
+                case .consent(let coach, _):
                     consent(coach)
                 }
             }
-        }
-        .onChange(of: model.joinedCoach) { _, coach in
-            guard let coach else { return }
-            coachLinks.noteJoined(coach)
-            router.selectedTab = .today
-            dismiss()
         }
     }
 
@@ -56,7 +50,8 @@ struct JoinCoachView: View {
             }
 
             Button {
-                Task { await model.continueTapped(isSignedIn: session.isAuthenticated) }
+                let athleteID = session.isAuthenticated ? session.currentUserID : nil
+                Task { await model.continueTapped(athleteID: athleteID) }
             } label: {
                 if model.isWorking {
                     ProgressView()
@@ -87,7 +82,15 @@ struct JoinCoachView: View {
 
             HStack(spacing: 12) {
                 Button {
-                    Task { await model.share() }
+                    guard let athleteID = session.currentUserID else { return }
+                    Task {
+                        await model.share(athleteID: athleteID)
+                        guard session.isAuthenticated, session.currentUserID == athleteID,
+                              let link = model.joinedCoach else { return }
+                        coachLinks.noteJoined(link, userID: athleteID)
+                        router.selectedTab = .today
+                        dismiss()
+                    }
                 } label: {
                     Text("Share")
                         .font(.body.weight(.semibold))

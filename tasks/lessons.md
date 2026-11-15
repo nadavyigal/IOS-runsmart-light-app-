@@ -1,3 +1,7 @@
+## 2026-11-15 — Carry consent through auth and onboarding
+
+An invite preview could outlive its signed-in account, and a new non-guest athlete lost the join intent at onboarding completion. Bind consent writes to the displayed invite and the originating authenticated user in the transaction. Verify the post-sign-in destination for both returning and first-time users. Use the database consent time for subsequent sharing rules.
+
 ## 2026-10-26 — Release gates must stop dependent commands
 
 Run package verification and upload as separate tool calls, or use an explicit fail-fast shell. A failed assertion must prevent later upload commands from starting. Use `codesign -dvv` when checking Authority; `-dv` omits that field and can falsely reject valid distribution signing. Interrupted the premature upload preparation, corrected the check, verified the full IPA, then restarted the authorized upload.

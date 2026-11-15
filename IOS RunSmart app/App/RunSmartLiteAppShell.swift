@@ -266,6 +266,9 @@ struct RunSmartLiteAppShell: View {
         .task(id: coachRoleCheckUserID) {
             guard !RunSmartDemoMode.isEnabled else { return }
             await coachMode.refresh(userID: coachRoleCheckUserID)
+        }
+        .task(id: coachRoleCheckUserID) {
+            guard !RunSmartDemoMode.isEnabled else { return }
             if let userID = coachRoleCheckUserID {
                 coachLinks.beginSession(userID: userID)
                 await coachLinks.refresh(userID: userID)
@@ -310,10 +313,7 @@ struct RunSmartLiteAppShell: View {
                 isShowingGuestAuthentication = false
                 if session.hasCompletedOnboarding {
                     guestJourney.clear()
-                    if coachLinks.resumeJoinAfterSignIn {
-                        coachLinks.resumeJoinAfterSignIn = false
-                        router.open(.joinCoach)
-                    }
+                    resumeCoachJoinIfReady()
                 }
             } else if !isAuth {
                 Analytics.resetUser()
@@ -321,12 +321,9 @@ struct RunSmartLiteAppShell: View {
             }
         }
         .onChange(of: session.hasCompletedOnboarding) { _, isComplete in
-            guard session.isAuthenticated, isComplete, guestJourney.state.isActive else { return }
-            guestJourney.clear()
-            if coachLinks.resumeJoinAfterSignIn {
-                coachLinks.resumeJoinAfterSignIn = false
-                router.open(.joinCoach)
-            }
+            guard session.isAuthenticated, isComplete else { return }
+            if guestJourney.state.isActive { guestJourney.clear() }
+            resumeCoachJoinIfReady()
         }
         .task(id: session.hasCompletedOnboarding) {
             guard !RunSmartDemoMode.isEnabled else { return }
@@ -367,6 +364,7 @@ struct RunSmartLiteAppShell: View {
                     .presentationDragIndicator(.visible)
                     .environmentObject(router)
                     .environmentObject(session)
+                    .environmentObject(coachLinks)
                     .environmentObject(recorder)
                     .environment(\.runSmartServices, services)
                     .environment(\.runRecorder, recorder)
@@ -541,6 +539,13 @@ struct RunSmartLiteAppShell: View {
     }
 
     /// The signed-in user whose coach role to check; nil when signed out or guest.
+    private func resumeCoachJoinIfReady() {
+        if coachLinks.consumeJoinIntent(isAuthenticated: session.isAuthenticated,
+                                        onboardingComplete: session.hasCompletedOnboarding) {
+            router.open(.joinCoach)
+        }
+    }
+
     private var coachRoleCheckUserID: UUID? {
         session.isAuthenticated ? session.currentUserID : nil
     }
@@ -638,7 +643,7 @@ struct RunSmartLiteAppShell: View {
     /// flow, and the route screens, whose map-card lists sat below the fold at
     /// the medium detent (route-feature QA, 2026-07-23).
     private var fullHeightSecondaryDestinations: Set<SecondaryDestination> {
-        [.goalWizard, .routeCreator, .routeSelector]
+        [.goalWizard, .routeCreator, .routeSelector, .joinCoach]
     }
 
 #if DEBUG
