@@ -13,6 +13,7 @@ final class CoachLinkTests: XCTestCase {
         )
         private(set) var lookupCalls = 0
         private(set) var joinCalls = 0
+        private(set) var joinedCode: String?
         private(set) var currentLinkCalls = 0
 
         func currentLink() async throws -> CoachLink? {
@@ -27,6 +28,7 @@ final class CoachLinkTests: XCTestCase {
 
         func joinCoach(code: String) async throws -> JoinCoachOutcome {
             joinCalls += 1
+            joinedCode = code
             return try join.get()
         }
     }
@@ -102,6 +104,21 @@ final class CoachLinkTests: XCTestCase {
 
         XCTAssertEqual(model.joinedCoach, dana)
         XCTAssertEqual(repository.joinCalls, 1)
+        XCTAssertEqual(repository.joinedCode, "ABC234")
+    }
+
+    func testShareUsesTheCodeFromConsentWhenTheFieldChanges() async {
+        let repository = StubRepository()
+        repository.lookup = .success(dana)
+        repository.join = .success(.joined(dana))
+        let model = JoinCoachViewModel(code: "DANA01", repository: repository)
+        await model.continueTapped(isSignedIn: true)
+
+        model.code = "RON999"
+        await model.share()
+
+        XCTAssertEqual(repository.joinedCode, "DANA01")
+        XCTAssertEqual(model.joinedCoach, dana)
     }
 
     func testInvalidCodeCopy() async {

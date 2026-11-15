@@ -82,6 +82,7 @@ struct JoinCoachView: View {
                 .autocorrectionDisabled()
                 .padding(14)
                 .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .disabled(model.isWorking)
                 .accessibilityLabel("Enter code")
 
             if let errorMessage = model.errorMessage {

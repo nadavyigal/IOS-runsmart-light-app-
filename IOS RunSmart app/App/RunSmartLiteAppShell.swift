@@ -158,6 +158,7 @@ struct RunSmartLiteAppShell: View {
     @State private var firstRunActivation: FirstRunActivationContext?
     @State private var isAnalyticsReady = false
     @State private var isShowingGuestAuthentication = false
+    @State private var isShowingJoinCoach = false
     private let activationFirstFrameTracker = ActivationFirstFrameTracker.shared
     private let services: any RunSmartServiceProviding = RunSmartDemoMode.services
 
@@ -300,6 +301,7 @@ struct RunSmartLiteAppShell: View {
             // Strava tokens belong to one RunSmart user: drop them if a different runner signed in.
             StravaConnectionService.shared.reconcileOwnership()
             if isAuth, let userId = session.currentUserID {
+                isShowingJoinCoach = false
                 Analytics.identifyUser(userId: userId.uuidString)
                 if guestJourney.state.isActive,
                    !guestJourney.state.didTrackAuthenticatedUpgrade {
@@ -426,9 +428,16 @@ struct RunSmartLiteAppShell: View {
                     : "Back to guest setup",
                 guestReturnMessage: SignInView.guestReturnMessage(
                     hasSeenPreview: guestJourney.state.hasSeenPreview
-                )
+                ),
+                onJoinCoach: { isShowingJoinCoach = true }
             )
             .environmentObject(session)
+            .fullScreenCover(isPresented: $isShowingJoinCoach) {
+                JoinCoachView()
+                    .padding(20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(RunSmartBackground())
+            }
         }
     }
 

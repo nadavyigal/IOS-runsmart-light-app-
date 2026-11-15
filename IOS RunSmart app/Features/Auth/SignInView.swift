@@ -34,6 +34,7 @@ struct SignInView: View {
     @State private var appleSignInHasFailed = false
     private let onContinueAsGuest: (() -> Void)?
     private let onBackToGuest: (() -> Void)?
+    private let onJoinCoach: (() -> Void)?
     private let backToGuestLabel: String
     private let guestReturnMessage: String
 
@@ -48,12 +49,14 @@ struct SignInView: View {
         onContinueAsGuest: (() -> Void)? = nil,
         onBackToGuest: (() -> Void)? = nil,
         backToGuestLabel: String = "Back to preview",
-        guestReturnMessage: String = SignInView.guestReturnMessage(hasSeenPreview: true)
+        guestReturnMessage: String = SignInView.guestReturnMessage(hasSeenPreview: true),
+        onJoinCoach: (() -> Void)? = nil
     ) {
         self.onContinueAsGuest = onContinueAsGuest
         self.onBackToGuest = onBackToGuest
         self.backToGuestLabel = backToGuestLabel
         self.guestReturnMessage = guestReturnMessage
+        self.onJoinCoach = onJoinCoach
     }
 
     /// First-screen promise pills (WP-44 S1). The audit (§4 Risk 2, §9) flagged
@@ -211,6 +214,16 @@ struct SignInView: View {
                         .opacity(isAwaitingAppleSheet ? 0.6 : 1)
 
                         emailAlternative
+                    }
+
+                    if let onJoinCoach {
+                        Button(action: onJoinCoach) {
+                            Text("Join a coach")
+                                .font(.body.weight(.semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.lime)
+                        .accessibilityLabel("Join a coach")
                     }
 
                     VStack(spacing: 4) {

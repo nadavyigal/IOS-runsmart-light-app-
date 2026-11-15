@@ -201,6 +201,8 @@ final class JoinCoachViewModel: ObservableObject {
     @Published private(set) var joinedCoach: CoachLookup?
 
     private let repository: any CoachLinkRepository
+    /// The code Continue looked up. Share uses this, not the editable field.
+    private var consentedCode: String?
 
     init(code: String = "", repository: any CoachLinkRepository = SupabaseCoachLinkRepository()) {
         self.code = code
@@ -209,6 +211,7 @@ final class JoinCoachViewModel: ObservableObject {
 
     func continueTapped(isSignedIn: Bool) async {
         errorMessage = nil
+        consentedCode = nil
         let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
         code = trimmed
         guard !trimmed.isEmpty else {
@@ -234,6 +237,7 @@ final class JoinCoachViewModel: ObservableObject {
                 errorMessage = CoachConsentCopy.invalidCode
                 return
             }
+            consentedCode = trimmed
             phase = .consent(coach)
         } catch {
             phase = .enterCode
@@ -252,16 +256,17 @@ final class JoinCoachViewModel: ObservableObject {
     func notNow() {
         joinedCoach = nil
         errorMessage = nil
+        consentedCode = nil
         phase = .enterCode
     }
 
     func share() async {
-        guard case .consent = phase else { return }
+        guard case .consent = phase, let consentedCode else { return }
         errorMessage = nil
         isWorking = true
         defer { isWorking = false }
         do {
-            switch try await repository.joinCoach(code: code) {
+            switch try await repository.joinCoach(code: consentedCode) {
             case .joined(let coach):
                 joinedCoach = coach
             case .alreadyLinked(let coachName):
