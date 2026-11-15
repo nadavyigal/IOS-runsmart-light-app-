@@ -1109,7 +1109,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         let syncedCount = await HealthKitImportProcessor.process(result,
             upload: {
                 guard self.currentUserID == syncingUserID else { return 0 }
-                return await self.upsertHealthKitRuns($0)
+                let uploaded = await self.upsertHealthKitRuns($0)
+                // Rows that just reached the server can take the links that were waiting on them.
+                if uploaded > 0 { await self.planRepo.retryPendingRunLinks() }
+                return uploaded
             },
             complete: { run in
                 guard self.currentUserID == syncingUserID else { return false }
@@ -1952,6 +1955,18 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func retryPendingWorkoutCompletions() async {
         await planRepo.retryPendingWorkoutCompletions()
+        await backfillRunWorkoutLinksIfNeeded()
+    }
+
+    /// Runs after pending completions so a queued completion is not matched a second time.
+    private func backfillRunWorkoutLinksIfNeeded() async {
+        guard let userID = currentUserID else { return }
+        await planRepo.backfillRunWorkoutLinks(
+            authUserID: userID,
+            localRuns: store.loadRuns(),
+            isHidden: { self.store.isRunHidden($0) },
+            dryRun: RunWorkoutBackfill.isDryRunRequested
+        )
     }
 
     private func completeMatchingWorkout(for run: RecordedRun) async -> WorkoutSummary? {
@@ -1973,6 +1988,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 .execute()
             // The runner may have set effort, title or notes while the upsert ran: change only the sync time.
             store.markRunSynced(run)
+            await planRepo.retryPendingRunLinks()
         } catch {
             if !(error is CancellationError) {
                 print("[SupabaseServices] completed run upsert error:", error)
@@ -2552,19 +2568,6 @@ struct DBRunInsert: Encodable {
         try container.encode(sourceProvider, forKey: .sourceProvider)
         try container.encode(sourceActivityID, forKey: .sourceActivityID)
         try container.encode(lastSyncedAt, forKey: .lastSyncedAt)
-    }
-}
-
-private extension RecordedRun {
-    var supabaseSourceProvider: String {
-        switch source {
-        case .runSmart:
-            return "runsmart_ios"
-        case .garmin:
-            return "garmin"
-        case .healthKit:
-            return "healthkit"
-        }
     }
 }
 
