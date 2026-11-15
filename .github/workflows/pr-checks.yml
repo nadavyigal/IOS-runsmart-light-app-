@@ -1,0 +1,204 @@
+name: PR checks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+  workflow_dispatch:
+
+# New push to the same PR cancels the older run. Never cancel runs on main.
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ---------------------------------------------------------------- changes
+  # Decides which heavy jobs are needed. Plain git diff, no third-party action.
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ios: ${{ steps.diff.outputs.ios }}
+      db: ${{ steps.diff.outputs.db }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then
+            files="$(git diff --name-only "$BASE_SHA...$HEAD_SHA")"
+          elif [ "$EVENT" = "push" ] && [ -n "${BEFORE:-}" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            files="$(git diff --name-only "$BEFORE" "$GITHUB_SHA")"
+          else
+            files="__ALL__"
+          fi
+          echo "Changed files:"; echo "$files"
+          hit() { [ "$files" = "__ALL__" ] || printf '%s\n' "$files" | grep -Eq "$1"; }
+          IOS='\.swift$|\.xctestplan$|^(IOS RunSmart app|IOS RunSmart appTests|RunSmartShared|RunSmartRunLiveActivityExtension)/|^IOS RunSmart app\.xcodeproj/|^[^/]+\.(xcconfig|plist|entitlements)$|^\.github/workflows/pr-checks\.yml$'
+          DB='^supabase/|^scripts/check_migrations\.py$|^\.github/workflows/pr-checks\.yml$'
+          echo "ios=$(hit "$IOS" && echo true || echo false)"     >> "$GITHUB_OUTPUT"
+          echo "db=$(hit "$DB" && echo true || echo false)"       >> "$GITHUB_OUTPUT"
+
+  # --------------------------------------------------------------------- ios
+  ios:
+    name: iOS build and unit tests
+    needs: changes
+    if: needs.changes.outputs.ios == 'true' && github.event.pull_request.draft != true
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      IOS_PROJECT: IOS RunSmart app.xcodeproj
+      IOS_SCHEME: IOS RunSmart app
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+        with:
+          persist-credentials: false
+      - name: Pick simulator
+        id: sim
+        run: echo "name=$(ruby scripts/select-simulator.rb iphone)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          xcodebuild -version
+          xcodebuild test \
+            -project "$IOS_PROJECT" \
+            -scheme "$IOS_SCHEME" \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath build/test.xcresult \
+            | tee build/xcodebuild.log | tail -n 200
+
+      # tasks/lessons.md (2026-10-25): a launched test host is not proof that tests ran.
+      # Do NOT disable code signing for the simulator: unsigned builds did not load the XCTest bundle.
+      - name: Prove tests actually ran
+        run: |
+          set -euo pipefail
+          xcrun xcresulttool get test-results summary --path build/test.xcresult --compact > build/summary.json
+          cat build/summary.json
+          python3 - <<'PY'
+          import json, sys
+          d = json.load(open("build/summary.json"))
+          passed, failed = d.get("passedTests", 0), d.get("failedTests", 0)
+          print(f"passed={passed} failed={failed} skipped={d.get('skippedTests', 0)}")
+          sys.exit(0 if passed > 0 and failed == 0 else 1)
+          PY
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: xcresult
+          path: |
+            build/test.xcresult
+            build/summary.json
+          retention-days: 7
+
+  # ---------------------------------------------------------------------- db
+  db:
+    name: Supabase migrations
+    needs: changes
+    if: needs.changes.outputs.db == 'true' && github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: rls_leaks
+            migration: 20261114120000_close_cross_user_rls_leaks
+            fixture: rls_leaks_fixture
+          - suite: runs_workout_link
+            migration: 20261114130000_runs_workout_link
+            fixture: runs_workout_link_fixture
+          - suite: coach_invites
+            migration: 20261114210000_coach_role_and_invites
+            fixture: ''
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check migration filenames and history
+        if: matrix.suite == 'rls_leaks'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          args=(--dir supabase/migrations)
+          if [[ -n "$BASE" ]]; then args+=(--base "$BASE"); fi
+          python3 scripts/check_migrations.py "${args[@]}"
+      - uses: supabase/setup-cli@afb1b15109756ea5cf9d8985a359d9095235ca2b
+        with:
+          version: 3.1.0
+      - name: Test on an unlinked throwaway database
+        env:
+          SUITE: ${{ matrix.suite }}
+          MIGRATION: ${{ matrix.migration }}
+          FIXTURE: ${{ matrix.fixture }}
+        run: |
+          set -euo pipefail
+          source_dir="$PWD"
+          cd "$(mktemp -d)"
+          supabase init
+          trap 'supabase stop --no-backup' EXIT
+          supabase start -x studio,imgproxy,vector,logflare,edge-runtime,mailpit,postgres-meta,supavisor
+          db_url="$(supabase status -o json | jq -er '.DB_URL | select(test("^postgres(ql)?://[^@]+@(127[.]0[.]0[.]1|localhost):"))')"
+          sql() {
+            if [[ "$SUITE" == rls_leaks ]]; then
+              # The existing fixture replaces auth.jwt(). Use the bootstrap
+              # superuser on the fresh container's local socket for this suite.
+              project_id="$(sed -n 's/^project_id = "\([^"]*\)"$/\1/p' supabase/config.toml)"
+              test -n "$project_id"
+              docker exec -i "supabase_db_$project_id" \
+                psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < "$1"
+            else
+              psql "$db_url" -v ON_ERROR_STOP=1 -f "$1"
+            fi
+          }
+          if [[ -n "$FIXTURE" ]]; then
+            sql "$source_dir/supabase/tests/$FIXTURE.sql"
+          fi
+          for pass in 1 2; do
+            sql "$source_dir/supabase/migrations/$MIGRATION.sql"
+          done
+          sql "$source_dir/supabase/tests/$SUITE.sql"
+
+  # -------------------------------------------------------------------- gate
+  # Advisory during the RunSmart iOS pilot.
+  gate:
+    name: PR gate
+    if: always()
+    needs: [changes, ios, db]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce expected results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          DRAFT: ${{ github.event.pull_request.draft == true }}
+        run: |
+          jq -e --arg draft "$DRAFT" '
+            . as $needs |
+            .changes.result == "success" and
+            (["ios", "db"] | all(. as $job |
+              ($needs.changes.outputs[$job] | IN("true", "false")) and
+              $needs[$job].result ==
+                (if $draft == "true" or $needs.changes.outputs[$job] == "false"
+                 then "skipped" else "success" end)))
+          ' <<< "$NEEDS"

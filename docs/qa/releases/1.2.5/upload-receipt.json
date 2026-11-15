@@ -15,6 +15,7 @@
     "RunSmart Internal (internal, 1 tester)"
   ],
   "physical_watch_pass_on_this_build": false,
+  "physical_watch_pass_status": "NOT VERIFIED",
   "app_review_submitted": false,
   "testflight_what_to_test_saved": true,
   "testflight_what_to_test_verified": "text persisted after reload, 1,099 characters",

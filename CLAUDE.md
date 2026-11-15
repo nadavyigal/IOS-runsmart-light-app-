@@ -12,3 +12,5 @@ Every session that produces committed code ends with a push and an open PR (or a
 2. If you cannot push or open a PR, end with exactly: "N commits are local-only on branch X - you need to push and open a PR."
 3. Never leave work in a worktree without reporting the worktree path and branch in the final message.
 4. Safety net: the Agentic OS Stranded Work board (`./agentic-os refresh`, then PROJECT-STATUS.md) lists every unpushed branch, local-only commit, and leftover worktree across all projects. It runs as part of the morning brief.
+
+PR review: see the self-contained Code Review Rules in AGENTS.md and follow the canonical Agentic OS policy linked there.

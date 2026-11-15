@@ -7,9 +7,16 @@ enum RunSmartTab: String, CaseIterable, Identifiable {
     case plan = "Plan"
     case run = "Run"
     case report = "Report"
+    /// Human-coach tab (Coach Mode). Only shown to users with a `coach_profiles` row.
+    case coach = "Coach"
     case profile = "Profile"
 
     var id: String { rawValue }
+
+    /// Tabs shown in the tab bar. The Coach tab exists only for coaches.
+    static func visibleTabs(isCoach: Bool) -> [RunSmartTab] {
+        allCases.filter { $0 != .coach || isCoach }
+    }
 
     var symbol: String {
         switch self {
@@ -17,6 +24,7 @@ enum RunSmartTab: String, CaseIterable, Identifiable {
         case .plan: "calendar"
         case .run: "figure.run"
         case .report: "chart.xyaxis.line"
+        case .coach: "person.2"
         case .profile: "person"
         }
     }
@@ -27,6 +35,7 @@ enum RunSmartTab: String, CaseIterable, Identifiable {
         case .plan: "calendar.badge.clock"
         case .run: "figure.run.circle.fill"
         case .report: "chart.xyaxis.line"
+        case .coach: "person.2.fill"
         case .profile: "person.fill"
         }
     }

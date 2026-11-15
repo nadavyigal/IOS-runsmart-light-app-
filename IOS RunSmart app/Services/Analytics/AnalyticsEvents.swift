@@ -587,6 +587,7 @@ extension Analytics {
         case .plan:    "plan"
         case .run:     "run"
         case .report:  "report"
+        case .coach:   "coach"
         case .profile: "profile"
         }
     }

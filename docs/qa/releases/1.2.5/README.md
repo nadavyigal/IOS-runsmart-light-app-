@@ -8,7 +8,7 @@ Founder said "Yes, start 1.2.5" on 2026-11-07 after PR #165 merged (`8f35e73`). 
 - `scripts/verify-release-backend.py` on the archived app and on the exported IPA's app: passed, auth settings HTTP 200, Apple and email sign-in enabled.
 - Exported IPA (13.4 MB): both bundles signed `Apple Distribution: Nadav Yigal (8VC4R5M425)`, `get-task-allow` false on both, HealthKit entitlement on the app.
 - Benchmark inclusion: `git merge-base --is-ancestor 5c96738 f43ba8d` exited 0 for the archive source. App Store Connect shows processed build `609724d7-2c3a-44eb-a1e6-0af3b106f391` as 1.2.5 (43).
-- Paired-Watch round trip on build 43: Believed to have passed, tester report via founder received 2026-11-15. The founder did not have the test date or individual step results and directed us to proceed and collect feedback from users.
+- Paired-Watch round trip on build 43: NOT VERIFIED. No dated step results were supplied. Do not treat a secondhand report as a pass.
 
 ## TestFlight 2026-11-07
 Founder said "Yes, upload". Upload through `ExportOptionsAppStoreUpload.plist` succeeded at 20:08:50 host time. Apple processed build 43 within minutes. What to Test (`testflight-notes.txt`) saved and confirmed after reload. Build 43 added to Apple Watch Beta (external, 2 testers) and RunSmart Internal (internal, 1 tester) with Automatically notify testers on, which submitted it for TestFlight beta review. The build list shows **Waiting for Review**, groups RI and AW, 3 invites (`build43-waiting-for-beta-review.png`). The external tester can install build 43 once Apple approves the beta review. The first group submit attempt did not apply (build stayed at Groups (0)); the second, step-by-step attempt did.
