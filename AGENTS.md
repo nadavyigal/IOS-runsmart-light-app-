@@ -25,3 +25,11 @@ Every session that produces committed code ends with a push and an open PR (or a
 2. If you cannot push or open a PR, end with exactly: "N commits are local-only on branch X - you need to push and open a PR."
 3. Never leave work in a worktree without reporting the worktree path and branch in the final message.
 4. Safety net: the Agentic OS Stranded Work board (`./agentic-os refresh`, then PROJECT-STATUS.md) lists every unpushed branch, local-only commit, and leftover worktree across all projects. It runs as part of the morning brief.
+
+## Code Review Rules
+
+- Review the actual PR diff and the relevant callers, tests, and authorization boundaries. Never independently review your own implementation.
+- Report `P0/P1/P2 | path:line | impact | fix or validation`. P0 is critical, P1 is material, and P2 is a lower-severity risk. Include the full reviewed head SHA, named reviewer/model, explicit verdict, and material finding dispositions. List any unverified checks.
+- A comment marker, reaction, or summary alone does not establish review completion. Recheck the head after every push. Sensitive changes require the named independent review and founder approval.
+- While reviewing, never merge, approve on the founder's behalf, label, push, edit files, or touch production. Only the separately authorized Steward may merge eligible low-risk PRs.
+- Canonical policy: [Agentic OS GLOBAL-WORKFLOWS.md §7b](https://github.com/nadavyigal/Agentic-OS/blob/main/GLOBAL-WORKFLOWS.md#7b-pr-pre-check-by-risk-tier-before-the-pr-steward) (private).
