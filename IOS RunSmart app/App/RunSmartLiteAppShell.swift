@@ -148,6 +148,7 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var planGeneration = PlanGenerationStore()
     @StateObject private var guestJourney = GuestJourneyStore()
     @StateObject private var coachMode = CoachModeStore()
+    @StateObject private var coachLinks = CoachLinkStore()
     @State private var didPresentMorningCheckin = false
     @State private var isShowingLaunch = !RunSmartDemoMode.isEnabled
     @State private var planNotice: RunSmartPlanNotice?
@@ -217,6 +218,7 @@ struct RunSmartLiteAppShell: View {
         .environmentObject(recorder)
         .environmentObject(planGeneration)
         .environmentObject(coachMode)
+        .environmentObject(coachLinks)
         .environment(\.runSmartServices, services)
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
@@ -264,6 +266,11 @@ struct RunSmartLiteAppShell: View {
         .task(id: coachRoleCheckUserID) {
             guard !RunSmartDemoMode.isEnabled else { return }
             await coachMode.refresh(userID: coachRoleCheckUserID)
+            if coachRoleCheckUserID == nil {
+                coachLinks.clear()
+            } else {
+                await coachLinks.refresh()
+            }
         }
         .onChange(of: coachMode.isCoach) { _, isCoach in
             // A tab that stops existing (sign-out, unflagged coach) must not stay selected.
@@ -275,6 +282,9 @@ struct RunSmartLiteAppShell: View {
             // Strava: finish uploads that failed or were still processing. Quiet, no UI.
             guard phase == .active, !RunSmartDemoMode.isEnabled else { return }
             Task { await coachMode.refresh(userID: coachRoleCheckUserID) }
+            if coachRoleCheckUserID != nil {
+                Task { await coachLinks.refresh() }
+            }
             Task { await StravaUploadCoordinator.shared.retryPending() }
             Task { await (services as? SupabaseRunSmartServices)?.retryPendingWorkoutCompletions() }
         }
@@ -299,6 +309,10 @@ struct RunSmartLiteAppShell: View {
                 isShowingGuestAuthentication = false
                 if session.hasCompletedOnboarding {
                     guestJourney.clear()
+                    if coachLinks.resumeJoinAfterSignIn {
+                        coachLinks.resumeJoinAfterSignIn = false
+                        router.open(.joinCoach)
+                    }
                 }
             } else if !isAuth {
                 Analytics.resetUser()
@@ -308,6 +322,10 @@ struct RunSmartLiteAppShell: View {
         .onChange(of: session.hasCompletedOnboarding) { _, isComplete in
             guard session.isAuthenticated, isComplete, guestJourney.state.isActive else { return }
             guestJourney.clear()
+            if coachLinks.resumeJoinAfterSignIn {
+                coachLinks.resumeJoinAfterSignIn = false
+                router.open(.joinCoach)
+            }
         }
         .task(id: session.hasCompletedOnboarding) {
             guard !RunSmartDemoMode.isEnabled else { return }

@@ -1,3 +1,12 @@
+# 2026-11-15: Coach Mode story 1.3, athlete joins a coach with consent
+
+Current Phase: unchanged; Coach Mode (human coaches) epic 1, branch `feat/join-coach-consent`.
+Active Story: migration `20261115091000_coach_athlete_links.sql` (table `coach_athlete_links`, RPCs `lookup_invite`, `join_coach`, `my_coach_link`). Settings → "Join a coach" (only when not linked) leads to the code field and the consent screen. Share creates an active link; Not now does not. Not applied to production. The web repo `Running-coach-` needs the same file in `v0/supabase/migrations/`.
+Next Recommended Story: 1.4 (invite link opens the app). Leave coach is 1.5. Coached-by header is 3.3.
+Blockers: migration not applied to production yet.
+Last Validation: 2026-11-15, SQL coach_athlete_links.sql PASS on throwaway Postgres 17.6 after applying the migration twice; CoachLinkTests 11 passed on iPhone 17 Pro simulator.
+Last Updated: 2026-11-15
+
 # 2026-11-14: Coach Mode story 1.2, coach role and invite code
 
 Current Phase: unchanged; Coach Mode (human coaches) epic 1, branch `feat/coach-role-invite`.
