@@ -15,43 +15,17 @@ struct JoinCoachView: View {
 
     var body: some View {
         Group {
-            switch model.phase {
-            case .enterCode, .needsSignIn:
-                codeEntry
-            case .consent(let coach):
-                consent(coach)
-            }
-        }
-        .fullScreenCover(isPresented: signInPresented) {
-            ZStack(alignment: .topLeading) {
-                SignInView()
-                    .environmentObject(session)
-                Button {
-                    model.returnedFromSignIn()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Color.textPrimary)
-                        .frame(width: 36, height: 36)
-                        .background(Color.surfaceElevated, in: Circle())
+            if !session.isAuthenticated {
+                Text("Sign in to join a coach.")
+                    .font(.body)
+                    .foregroundStyle(Color.textSecondary)
+            } else {
+                switch model.phase {
+                case .enterCode:
+                    codeEntry
+                case .consent(let coach):
+                    consent(coach)
                 }
-                .buttonStyle(.plain)
-                .padding(.leading, 16)
-                .padding(.top, 12)
-                .accessibilityLabel("Back")
-            }
-        }
-        .onAppear {
-            if model.code.isEmpty, !coachLinks.draftCode.isEmpty {
-                model.code = coachLinks.draftCode
-            }
-        }
-        .onChange(of: model.code) { _, newCode in
-            coachLinks.draftCode = newCode
-        }
-        .onChange(of: session.isAuthenticated) { _, signedIn in
-            if signedIn {
-                model.returnedFromSignIn()
             }
         }
         .onChange(of: model.joinedCoach) { _, coach in
@@ -60,17 +34,6 @@ struct JoinCoachView: View {
             router.selectedTab = .today
             dismiss()
         }
-    }
-
-    private var signInPresented: Binding<Bool> {
-        Binding(
-            get: { model.phase == .needsSignIn },
-            set: { presented in
-                if !presented {
-                    model.returnedFromSignIn()
-                }
-            }
-        )
     }
 
     private var codeEntry: some View {
@@ -93,8 +56,6 @@ struct JoinCoachView: View {
             }
 
             Button {
-                coachLinks.draftCode = model.code
-                coachLinks.resumeJoinAfterSignIn = !session.isAuthenticated
                 Task { await model.continueTapped(isSignedIn: session.isAuthenticated) }
             } label: {
                 if model.isWorking {

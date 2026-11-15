@@ -1,12 +1,14 @@
 -- Coach Mode, Story 1.3: an athlete joins a coach by invite code, with consent.
 --
 -- Creates coach_athlete_links and the authenticated RPCs lookup_invite(code)
--- and join_coach(code). Writes go through join_coach only. "Coach" here means a
--- HUMAN coach. It is unrelated to the AI coach (coach_message, coaching_style).
+-- (returns invite_id, coach_id, display_name) and
+-- join_coach(code, expected_invite_id, expected_coach_id).
+-- Writes go through join_coach only. "Coach" here means a HUMAN coach. It is
+-- unrelated to the AI coach (coach_message, coaching_style).
 --
--- Web repo (Running-coach-): this same file must be copied to
--- v0/supabase/migrations/ so both migration trees stay in step.
--- Do not apply this to production from the app PR; Nadav applies it after review.
+-- Do not apply this to production from the app PR. Nadav applies
+-- 20261115091000_coach_athlete_links.sql himself. Do not apply an older copy
+-- of this function. Do not mirror this file to the web repo yet.
 --
 -- Depends on Story 1.2 (coach_profiles, coach_invites).
 --

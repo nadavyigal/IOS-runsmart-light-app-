@@ -35,6 +35,7 @@ struct SignInView: View {
     private let onContinueAsGuest: (() -> Void)?
     private let onBackToGuest: (() -> Void)?
     private let onJoinCoach: (() -> Void)?
+    @State private var joinCoachWaitsForSignIn = false
     private let backToGuestLabel: String
     private let guestReturnMessage: String
 
@@ -217,13 +218,22 @@ struct SignInView: View {
                     }
 
                     if let onJoinCoach {
-                        Button(action: onJoinCoach) {
+                        Button {
+                            joinCoachWaitsForSignIn = true
+                            onJoinCoach()
+                        } label: {
                             Text("Join a coach")
                                 .font(.body.weight(.semibold))
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(Color.lime)
                         .accessibilityLabel("Join a coach")
+                        if joinCoachWaitsForSignIn {
+                            Text("Sign in first. Then you'll enter your coach's code.")
+                                .font(.callout)
+                                .foregroundStyle(Color.textSecondary)
+                                .multilineTextAlignment(.center)
+                        }
                     }
 
                     VStack(spacing: 4) {

@@ -215,6 +215,11 @@ enum CoachConsentCopy {
     static let invalidCode = "That code doesn't work. Check it with your coach."
     static let offline = "You need to be online to join."
 
+    /// Shown when the code no longer names the coach on the consent screen. Share does not link.
+    static func codeReassigned(coach: String) -> String {
+        "This code now belongs to \(coach)"
+    }
+
     static func alreadyLinked(coach: String) -> String {
         "You're with \(coach). Leave \(coach) first to join another coach."
     }
@@ -243,7 +248,6 @@ enum CoachConsentCopy {
 enum JoinCoachPhase: Equatable {
     case enterCode
     case consent(CoachLookup)
-    case needsSignIn
 }
 
 @MainActor
@@ -269,10 +273,8 @@ final class JoinCoachViewModel: ObservableObject {
             errorMessage = CoachConsentCopy.invalidCode
             return
         }
-        guard isSignedIn else {
-            phase = .needsSignIn
-            return
-        }
+        // Code entry is only for a signed-in athlete. Callers route guests to sign-in first.
+        guard isSignedIn else { return }
 
         isWorking = true
         defer { isWorking = false }
@@ -295,13 +297,6 @@ final class JoinCoachViewModel: ObservableObject {
         }
     }
 
-    /// Sign-in finished or was dismissed. The code is unchanged.
-    func returnedFromSignIn() {
-        if phase == .needsSignIn {
-            phase = .enterCode
-        }
-    }
-
     /// Not now: leave the consent screen. Does not call join.
     func notNow() {
         joinedCoach = nil
@@ -320,9 +315,10 @@ final class JoinCoachViewModel: ObservableObject {
                 errorMessage = CoachConsentCopy.invalidCode
                 return
             }
-            // The code now names a different invite or coach than the screen showed.
+            // The code now names a different invite or coach. Drop the previous consent.
             if resolved.inviteID != shown.inviteID || resolved.coachID != shown.coachID {
                 phase = .consent(resolved)
+                errorMessage = CoachConsentCopy.codeReassigned(coach: resolved.displayName)
                 return
             }
             switch try await repository.joinCoach(
@@ -355,7 +351,7 @@ final class JoinCoachViewModel: ObservableObject {
         do {
             if let resolved = try await repository.lookupInvite(code: code) {
                 phase = .consent(resolved)
-                errorMessage = nil
+                errorMessage = CoachConsentCopy.codeReassigned(coach: resolved.displayName)
                 return
             }
         } catch {

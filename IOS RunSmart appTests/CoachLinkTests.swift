@@ -118,23 +118,16 @@ final class CoachLinkTests: XCTestCase {
         )
     }
 
-    func testGuestContinueDoesNotCreateALinkAndKeepsTheCode() async {
+    func testUnsignedContinueDoesNotLookUpOrJoin() async {
         let repository = StubRepository()
         let model = JoinCoachViewModel(code: "abc234", repository: repository)
 
         await model.continueTapped(isSignedIn: false)
 
-        XCTAssertEqual(model.phase, .needsSignIn)
-        XCTAssertEqual(model.code, "abc234")
+        XCTAssertEqual(model.phase, .enterCode)
         XCTAssertEqual(repository.lookupCalls, 0)
         XCTAssertEqual(repository.joinCalls, 0)
         XCTAssertNil(model.joinedCoach)
-
-        model.returnedFromSignIn()
-
-        XCTAssertEqual(model.phase, .enterCode)
-        XCTAssertEqual(model.code, "abc234")
-        XCTAssertEqual(repository.joinCalls, 0)
     }
 
     func testValidCodeShowsConsentAndNotNowCreatesNothing() async {
@@ -293,7 +286,8 @@ final class CoachLinkTests: XCTestCase {
         let ronForSameCode = CoachLookup(
             inviteID: ronInvite, coachID: ronCoach, displayName: "Ron", code: "ABC234"
         )
-        repository.lookupQueue = [.success(danaForCode), .success(ronForSameCode)]
+        repository.lookupQueue = [.success(danaForCode), .success(ronForSameCode), .success(ronForSameCode)]
+        repository.join = .success(.joined(ronForSameCode))
         let model = JoinCoachViewModel(code: "ABC234", repository: repository)
 
         await model.continueTapped(isSignedIn: true)
@@ -304,6 +298,14 @@ final class CoachLinkTests: XCTestCase {
         XCTAssertEqual(repository.joinCalls, 0)
         XCTAssertNil(model.joinedCoach)
         XCTAssertEqual(model.phase, .consent(ronForSameCode))
+        XCTAssertEqual(model.errorMessage, "This code now belongs to Ron")
+
+        await model.share()
+
+        XCTAssertEqual(repository.joinCalls, 1)
+        XCTAssertEqual(repository.joinedInviteID, ronInvite)
+        XCTAssertEqual(repository.joinedCoachID, ronCoach)
+        XCTAssertEqual(model.joinedCoach?.displayName, "Ron")
     }
 
     func testRefreshDiscardsResultAfterUserSwitch() async {
