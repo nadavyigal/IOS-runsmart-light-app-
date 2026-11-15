@@ -1,0 +1,90 @@
+name: PR triage
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled]
+permissions: {}
+concurrency:
+  group: pr-triage-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  label:
+    name: Classify changed paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      sensitive: ${{ steps.classify.outputs.all-labels }}
+    steps:
+      # Runs from the trusted base. Never check out or run files from the PR.
+      - uses: actions/labeler@8558fd74291d67161a8a78ce36a881fa63b766a9 # v5
+        id: classify
+        with:
+          configuration-path: .github/labeler.yml
+          sync-labels: false
+  gate:
+    name: Evaluate Sensitive gate
+    needs: label
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      statuses: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      LABEL_RESULT: ${{ needs.label.result }}
+      CLASSIFIED_LABELS: ${{ needs.label.outputs.sensitive }}
+    steps:
+      - name: Evaluate and record the result against the PR head
+        run: |
+          set -euo pipefail
+          publish() {
+            gh api --method POST "repos/$REPO/statuses/$HEAD_SHA" \
+              -f context='Sensitive gate' -f state="$1" -f description="$2" >/dev/null
+          }
+          info="$(gh api "repos/$REPO/pulls/$PR")"
+          if [[ "$(jq -r .head.sha <<< "$info")" != "$HEAD_SHA" ]]; then
+            echo "A newer revision superseded this run."
+            exit 0
+          fi
+          publish pending 'Checking current-head review evidence'
+          trap 'publish failure "Current-head review evidence is missing or invalid"' EXIT
+          test "$LABEL_RESULT" = success
+          jq -e '.changed_files < 3000' <<< "$info" >/dev/null
+          if jq -e '.draft' <<< "$info" >/dev/null; then
+            echo "Draft. Reevaluate when ready."
+            exit 1
+          fi
+          labels="$(jq -r '[.labels[].name] | join(",")' <<< "$info")"
+          if [[ ",$labels,$CLASSIFIED_LABELS," == *,sensitive,* ]]; then
+            [[ ",$labels," == *,deep-reviewed,* ]]
+            events="$(gh api --paginate --slurp "repos/$REPO/issues/$PR/events?per_page=100")"
+            approval="$(jq -er --arg owner "$OWNER" '
+              add | map(select((.event == "labeled" or .event == "unlabeled") and .label.name == "deep-reviewed"))
+              | sort_by(.created_at, .id) | last
+              | select(.event == "labeled" and .actor.login == $owner and .actor.type == "User")
+              | .created_at' <<< "$events")"
+            comments="$(gh api --paginate --slurp "repos/$REPO/issues/$PR/comments?per_page=100")"
+            jq -e --arg owner "$OWNER" --arg sha "$HEAD_SHA" --arg approval "$approval" '
+              add | any(
+                .user.login == $owner and .user.type == "User" and
+                .updated_at <= $approval and
+                (.body | gsub("\r"; "") | split("\n") as $lines |
+                  $lines[0] == ("<!-- steward-deep-review sha=" + $sha + " -->") and
+                  ($lines[1] | test("^Reviewer: [^[:space:]].+$")) and
+                  ($lines[2] == "Verdict: PASS" or $lines[2] == "Verdict: PASS WITH NOTES") and
+                  $lines[3] == "Findings: resolved" and
+                  ($lines[4] | test("^Evidence: https://github[.]com/[^[:space:]]+$"))))
+            ' <<< "$comments" >/dev/null
+          fi
+          test "$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)" = "$HEAD_SHA"
+          publish success 'Advisory pilot review gate passed'
+          trap - EXIT
