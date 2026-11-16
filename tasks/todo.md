@@ -1,3 +1,12 @@
+## 2026-11-16 — Local Coach Mode QA
+
+- Start Docker Desktop. Use Supabase CLI 3.1.0 and run `git fetch origin` to obtain the two pending migration branches. Run `./scripts/local-coach-qa.sh start` from this checkout. This calls `supabase start` in the ignored, unlinked `.local-coach-qa` directory on a loopback-only Docker network. It replays this checkout's iOS migrations and includes the #192 and #193 SQL from the fetched branches until those files land on main. The local-only bootstrap supplies the older iOS-facing schema and has no production data. It does not reproduce every hosted integration or service.
+- Studio: [http://127.0.0.1:55323](http://127.0.0.1:55323). API: `http://127.0.0.1:55321`. Run `./scripts/local-coach-qa.sh status` to get the local anon or publishable key. Use `./scripts/local-coach-qa.sh stop` to call `supabase stop` against that same directory and keep the local data.
+- In this checkout create the gitignored `RunSmartSecrets.xcconfig` with `SUPABASE_URL = http:/$()/127.0.0.1:55321` and `SUPABASE_PUBLISHABLE_KEY = <local anon/publishable key>`. The escaped slashes avoid xcconfig treating the URL as a comment. Use an iPhone simulator with the Debug scheme's Run arguments set to `-enable-coach-mode`. Sign out of any previous account first and sign in with a local seeded email.
+- Local-only accounts: `coach@qa.example.test`, `athlete1@qa.example.test`, and `athlete2@qa.example.test`. All use `LocalCoachQA123!`. The coach code is `QA2345`. Both athletes have an active plan, three scheduled workouts, and one imported run each. They start unlinked so QA can exercise consent and revocation.
+- A physical iPhone needs the Mac's LAN IP instead of localhost. A loopback-only stack cannot serve it directly. Keep this default configuration private and use a separately authorized, restricted LAN relay for physical-device QA.
+- Run `./scripts/test-local-coach-qa.sh` for the six SQL suites. They use separate disposable Postgres instances because the test fixtures deliberately refuse a seeded database. The regular seeded stack remains available for manual QA. The local project omits Edge Runtime and analytics services.
+
 ## 2026-11-16 — Coach Mode rollout
 
 - Human Coach Mode is OFF by default. In an Xcode **Debug** run, add `-enable-coach-mode` under Scheme → Run → Arguments. Release builds (including current TestFlight archives) ignore the argument. There is no remote switch.

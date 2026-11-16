@@ -12,3 +12,5 @@ xcuserdata/
 *.xcscmblueprint
 supabase/.temp/
 RunSmartSecrets.xcconfig
+
+.local-coach-qa/
