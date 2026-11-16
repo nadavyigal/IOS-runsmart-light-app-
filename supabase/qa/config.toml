@@ -1,0 +1,35 @@
+project_id = "runsmart-coach-local-qa"
+
+[api]
+port = 55321
+
+[db]
+port = 55322
+shadow_port = 55320
+major_version = 17
+
+[studio]
+enabled = true
+port = 55323
+api_url = "http://127.0.0.1"
+
+[local_smtp]
+enabled = true
+port = 55324
+
+[analytics]
+enabled = false
+
+[auth]
+site_url = "http://127.0.0.1:55321"
+additional_redirect_urls = ["runsmart://auth/callback"]
+
+[auth.email]
+enable_confirmations = false
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[storage]
+enabled = false
