@@ -25,6 +25,24 @@ final class CoachModeTests: XCTestCase {
 
     // MARK: Tab visibility
 
+    func testFlagOffRejectsCoachTabAndJoinNavigation() {
+        XCTAssertFalse(RunSmartTab.visibleTabs(isCoach: true, coachModeEnabled: false).contains(.coach))
+        let router = AppRouter(coachModeEnabled: false)
+        router.open(.joinCoach)
+        XCTAssertNil(router.activeSheet)
+        router.open(.account)
+        XCTAssertEqual(router.activeSheet?.id, RunSmartSheet.secondary(.account).id)
+    }
+
+    func testInviteURLDoesNotOpenJoinOrFallThroughToAuth() {
+        let router = AppRouter(coachModeEnabled: false)
+        for rawURL in ["https://www.runsmart-ai.com/join/ABC234", "runsmart://join/ABC234"] {
+            XCTAssertFalse(router.shouldHandleAuthCallback(URL(string: rawURL)!))
+            XCTAssertNil(router.activeSheet)
+        }
+        XCTAssertTrue(router.shouldHandleAuthCallback(URL(string: "runsmart://auth/callback")!))
+    }
+
     func testCoachTabIsHiddenForNonCoaches() {
         let tabs = RunSmartTab.visibleTabs(isCoach: false)
         XCTAssertFalse(tabs.contains(.coach))
@@ -33,7 +51,7 @@ final class CoachModeTests: XCTestCase {
     }
 
     func testCoachTabIsShownToCoachesBesideTheNormalTabs() {
-        let tabs = RunSmartTab.visibleTabs(isCoach: true)
+        let tabs = RunSmartTab.visibleTabs(isCoach: true, coachModeEnabled: true)
         XCTAssertTrue(tabs.contains(.coach))
         XCTAssertEqual(tabs.filter { $0 != .coach }, RunSmartTab.visibleTabs(isCoach: false),
                        "a coach is also an ordinary athlete: every normal tab stays")
@@ -59,7 +77,7 @@ final class CoachModeTests: XCTestCase {
         await store.refresh(userID: userA)
 
         XCTAssertFalse(store.isCoach)
-        XCTAssertFalse(RunSmartTab.visibleTabs(isCoach: store.isCoach).contains(.coach))
+        XCTAssertFalse(RunSmartTab.visibleTabs(isCoach: store.isCoach, coachModeEnabled: true).contains(.coach))
     }
 
     func testUserWithCoachProfileGetsTheTab() async {
@@ -70,7 +88,7 @@ final class CoachModeTests: XCTestCase {
         await store.refresh(userID: userA)
 
         XCTAssertTrue(store.isCoach)
-        XCTAssertTrue(RunSmartTab.visibleTabs(isCoach: store.isCoach).contains(.coach))
+        XCTAssertTrue(RunSmartTab.visibleTabs(isCoach: store.isCoach, coachModeEnabled: true).contains(.coach))
     }
 
     func testSigningOutRemovesTheTab() async {
