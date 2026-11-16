@@ -3,6 +3,7 @@ import SwiftUI
 struct GentleCoachInterventionCard: View {
     var onTalkToCoach: () -> Void
     var onContinue: () -> Void
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
 
     var body: some View {
         RunSmartPanel(cornerRadius: 18, padding: 16, accent: .accentRecovery) {
@@ -16,14 +17,14 @@ struct GentleCoachInterventionCard: View {
                         .foregroundStyle(Color.textPrimary)
                 }
 
-                Text("Want to talk through what's going on? Coach can look at the full picture and suggest a more sustainable approach.")
+                Text(CoachAssistantCopy.apply("Want to talk through what's going on? Coach can look at the full picture and suggest a more sustainable approach.", assistant: coachAssistantActive))
                     .font(.bodyMD)
                     .foregroundStyle(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 10) {
                     Button(action: talkToCoach) {
-                        Text("Talk to Coach")
+                        Text(CoachAssistantCopy.apply("Talk to Coach", assistant: coachAssistantActive))
                             .font(.bodyMD.weight(.semibold))
                             .foregroundStyle(Color.black)
                             .padding(.horizontal, 14)

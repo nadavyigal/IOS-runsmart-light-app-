@@ -191,10 +191,15 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
 
     /// The voice-cue route requires a Supabase session. Returns nil without a token,
     /// so guests skip the network call instead of sending a request that will 401.
-    static func voiceCueRequest(context: VoiceCueContext, baseURLString: String, accessToken: String?) -> URLRequest? {
+    static func voiceCueRequest(
+        context: VoiceCueContext,
+        baseURLString: String,
+        accessToken: String?,
+        coach: CoachContext = .solo
+    ) -> URLRequest? {
         guard let accessToken, !accessToken.isEmpty,
               let url = URL(string: "\(baseURLString)/api/coach/voice-cue"),
-              let bodyData = try? JSONEncoder().encode(context) else { return nil }
+              let bodyData = try? CoachRequestJSON.encode(context, coach: coach) else { return nil }
 
         var request = URLRequest(url: url, timeoutInterval: 8)
         request.httpMethod = "POST"
@@ -211,7 +216,8 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
         guard let request = Self.voiceCueRequest(
             context: context,
             baseURLString: baseURLString,
-            accessToken: accessToken
+            accessToken: accessToken,
+            coach: CoachContextSource.shared.context
         ) else { return }
 
         guard let (data, response) = try? await URLSession.shared.data(for: request),

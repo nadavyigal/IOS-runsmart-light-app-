@@ -8,6 +8,7 @@ import SwiftUI
 struct PlanGenerationStatusCard: View {
     var card: PlanGenerationCard
     var onRetry: () -> Void
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
 
     var body: some View {
         RunSmartPanel(cornerRadius: 20, padding: 16, accent: accent) {
@@ -72,7 +73,7 @@ struct PlanGenerationStatusCard: View {
 
     private var title: String {
         switch card {
-        case .generating: "Coach is building your plan"
+        case .generating: CoachAssistantCopy.apply("Coach is building your plan", assistant: coachAssistantActive)
         case .retry: "We couldn't build your plan"
         case .buildMissingPlan: "You don't have a plan yet"
         }
@@ -92,7 +93,7 @@ struct PlanGenerationStatusCard: View {
         case .retry:
             "Your details are saved. Tap Try again to rebuild your plan without leaving this screen."
         case .buildMissingPlan:
-            "Your goal and schedule are saved. Tap Build my plan and the coach will turn them into a week-by-week plan."
+            CoachAssistantCopy.apply("Your goal and schedule are saved. Tap Build my plan and the coach will turn them into a week-by-week plan.", assistant: coachAssistantActive)
         }
     }
 }

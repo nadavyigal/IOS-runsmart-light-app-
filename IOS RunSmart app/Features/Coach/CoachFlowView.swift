@@ -3,6 +3,8 @@ import SwiftUI
 struct CoachFlowView: View {
     var entryPoint: CoachEntryPoint
     @Environment(\.runSmartServices) private var services
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
+    @Environment(\.coachAssistantName) private var coachAssistantName
     @State private var draft = ""
     @State private var isTyping = false
     @State private var messages: [CoachMessage] = []
@@ -40,6 +42,12 @@ struct CoachFlowView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("RunSmart Coach")
                     .font(.headingMD)
+                if coachAssistantActive, !coachAssistantName.isEmpty {
+                    Text(CoachAssistantCopy.chatPrivacy(coachName: coachAssistantName))
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Text(entryPoint.contextLabel)
                     .font(.labelSM)
                     .tracking(1.1)
@@ -95,7 +103,7 @@ struct CoachFlowView: View {
 
     private var contextPanelTitle: String {
         guard let trainingContext else {
-            return "Preparing Coach context"
+            return CoachAssistantCopy.apply("Preparing Coach context", assistant: coachAssistantActive)
         }
         if trainingContext.limitations.isEmpty {
             return "Using your current training context"
@@ -129,7 +137,7 @@ struct CoachFlowView: View {
             VStack(spacing: 12) {
                 if messages.isEmpty {
                     ContentCard {
-                        Text("No verified coach conversation yet. Ask a question to start a new thread with your current RunSmart context.")
+                        Text(CoachAssistantCopy.apply("No verified coach conversation yet. Ask a question to start a new thread with your current RunSmart context.", assistant: coachAssistantActive))
                             .font(.bodyMD)
                             .foregroundStyle(Color.textSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -150,7 +158,7 @@ struct CoachFlowView: View {
 
     private var inputBar: some View {
         HStack(spacing: 10) {
-            TextField("Ask Coach anything...", text: $draft)
+            TextField(CoachAssistantCopy.apply("Ask Coach anything...", assistant: coachAssistantActive), text: $draft)
                 .textFieldStyle(.plain)
                 .foregroundStyle(Color.textPrimary)
                 .padding(14)

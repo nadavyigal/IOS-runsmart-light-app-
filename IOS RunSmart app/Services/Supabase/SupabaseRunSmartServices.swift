@@ -494,7 +494,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             message: message,
             context: context
         )
-        let body = try JSONEncoder().encode(request)
+        let body = try CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context)
         let client = URLSessionRunSmartAPIClient(
             baseURL: SupabaseManager.functionsBaseURL,
             accessToken: accessToken,
@@ -1278,8 +1278,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
         do {
             let request = Self.reportRequest(for: run, recentRuns: recent, upcomingWorkouts: upcoming)
-            let encoder = JSONEncoder()
-            let body = try encoder.encode(request)
+            let body = try CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context)
             let client = URLSessionRunSmartAPIClient(accessToken: token)
             let payload = try await client.send(
                 RunSmartAPI.Endpoint(path: "api/run-report", method: .post, body: body),
@@ -1345,7 +1344,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             recentLoadDays: recentCount,
             limitations: []
         )
-        guard let body = try? JSONEncoder().encode(request) else {
+        guard let body = try? CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context) else {
             return .fallback(for: run)
         }
         let client = URLSessionRunSmartAPIClient(
@@ -1459,7 +1458,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             readinessAverage: nil,
             limitations: []
         )
-        guard let body = try? JSONEncoder().encode(request) else {
+        guard let body = try? CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context) else {
             print("[SupabaseServices] weekly_summary: failed to encode request, using fallback")
             let fallback = WeeklyProgressSummary.fallback(
                 runsCompleted: weekRuns.count,
@@ -1544,16 +1543,17 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome {
+        let coach = CoachContextSource.shared.context
         guard let token = try? await supabase.auth.session.accessToken else {
             if let cached = FlexWeekServiceSupport.cachedOutcome(for: request, userID: currentUserID) {
                 return cached
             }
-            return FlexWeekServiceSupport.deterministicOutcome(for: request, source: .offlineQueued)
+            return FlexWeekServiceSupport.deterministicOutcome(for: request, source: .offlineQueued, assistant: coach.linkActive)
         }
 
         let requestDTO = FlexWeekServiceSupport.buildRequestDTO(from: request)
-        guard let body = try? JSONEncoder().encode(requestDTO) else {
-            return FlexWeekServiceSupport.deterministicOutcome(for: request)
+        guard let body = try? CoachRequestJSON.encode(requestDTO, coach: coach) else {
+            return FlexWeekServiceSupport.deterministicOutcome(for: request, assistant: coach.linkActive)
         }
 
         let client = URLSessionRunSmartAPIClient(
@@ -1590,17 +1590,17 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             }
 
             print("[SupabaseServices] flex_week: AI response failed validation, using fallback")
-            return FlexWeekServiceSupport.deterministicOutcome(for: request)
+            return FlexWeekServiceSupport.deterministicOutcome(for: request, assistant: coach.linkActive)
         } catch {
             switch error {
             case is FlexWeekTimeoutError:
                 print("[SupabaseServices] flex_week timed out after 4s, using fallback")
             case is CancellationError:
-                return FlexWeekServiceSupport.deterministicOutcome(for: request)
+                return FlexWeekServiceSupport.deterministicOutcome(for: request, assistant: coach.linkActive)
             default:
                 print("[SupabaseServices] flex_week fallback:", error)
             }
-            return FlexWeekServiceSupport.deterministicOutcome(for: request)
+            return FlexWeekServiceSupport.deterministicOutcome(for: request, assistant: coach.linkActive)
         }
     }
 

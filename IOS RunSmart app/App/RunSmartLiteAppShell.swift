@@ -148,7 +148,7 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var planGeneration = PlanGenerationStore()
     @StateObject private var guestJourney = GuestJourneyStore()
     @StateObject private var coachMode = CoachModeStore()
-    @StateObject private var coachLinks = CoachLinkStore()
+    @StateObject private var coachLinks = CoachLinkStore(publishesAssistantContext: true)
     @State private var didPresentMorningCheckin = false
     @State private var isShowingLaunch = !RunSmartDemoMode.isEnabled
     @State private var planNotice: RunSmartPlanNotice?
@@ -219,6 +219,8 @@ struct RunSmartLiteAppShell: View {
         .environmentObject(planGeneration)
         .environmentObject(coachMode)
         .environmentObject(coachLinks)
+        .environment(\.coachAssistantActive, RunSmartFeatures.coachModeEnabled && coachLinks.currentLink != nil)
+        .environment(\.coachAssistantName, coachLinks.currentLink?.coachName ?? "")
         .environment(\.runSmartServices, services)
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)

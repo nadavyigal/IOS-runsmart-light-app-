@@ -29,6 +29,7 @@ enum SplitPaceChart {
 
 struct PostRunSummaryView: View {
     @Environment(\.runSmartServices) private var services
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
     @ObservedObject private var strava = StravaConnectionService.shared
@@ -344,7 +345,7 @@ struct PostRunSummaryView: View {
                 report: outcome?.report,
                 isProcessing: isProcessing,
                 debrief: outcome?.debrief,        // E6: AI debrief from processCompletedActivity
-                title: "COACH",
+                title: CoachAssistantCopy.apply("COACH", assistant: coachAssistantActive),
                 showsSaveAction: false
             ) {
                 PostActivityPlanCard(outcome: outcome, isShortActivity: isShortActivity, hasDebrief: outcome?.debrief != nil)
@@ -356,7 +357,7 @@ struct PostRunSummaryView: View {
                 report: outcome?.report,
                 isProcessing: isProcessing,
                 debrief: outcome?.debrief,
-                title: "COACH"
+                title: CoachAssistantCopy.apply("COACH", assistant: coachAssistantActive)
             )
         }
     }
