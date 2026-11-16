@@ -51,7 +51,7 @@ start)
   fi
   [[ "$(docker network inspect --format '{{index .Options "com.docker.network.bridge.host_binding_ipv4"}}' "$network")" == 127.0.0.1 ]]
   # :5532x avoids collisions with other Supabase workspaces. No host DB credentials.
-  "$cli" start --workdir "$local_dir" --network-id "$network" -x logflare,vector,supavisor,edge-runtime
+  "$cli" start --workdir "$local_dir" --network-id "$network" -x logflare,vector,supavisor,edge-runtime,storage-api,imgproxy
   for service in db kong studio inbucket; do
     bindings="$(docker inspect -f '{{json .NetworkSettings.Ports}}' "supabase_${service}_$project")"
     if ! jq -e '[.[] | .[]? | .HostIp] | length > 0 and all(. == "127.0.0.1")' <<< "$bindings" >/dev/null; then

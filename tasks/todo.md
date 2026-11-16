@@ -5,7 +5,7 @@
 - In this checkout create the gitignored `RunSmartSecrets.xcconfig` with `SUPABASE_URL = http:/$()/127.0.0.1:55321` and `SUPABASE_PUBLISHABLE_KEY = <local anon/publishable key>`. The escaped slashes avoid xcconfig treating the URL as a comment. Use an iPhone simulator with the Debug scheme's Run arguments set to `-enable-coach-mode`. Sign out of any previous account first and sign in with a local seeded email.
 - Local-only accounts: `coach@qa.example.test`, `athlete1@qa.example.test`, and `athlete2@qa.example.test`. All use `LocalCoachQA123!`. The coach code is `QA2345`. Both athletes have an active plan, three scheduled workouts, and one imported run each. They start unlinked so QA can exercise consent and revocation.
 - A physical iPhone needs the Mac's LAN IP instead of localhost. A loopback-only stack cannot serve it directly. Keep this default configuration private and use a separately authorized, restricted LAN relay for physical-device QA.
-- Run `./scripts/test-local-coach-qa.sh` for the six SQL suites. They use separate disposable Postgres instances because the test fixtures deliberately refuse a seeded database. The regular seeded stack remains available for manual QA. The local project omits Edge Runtime and analytics services.
+- Run `./scripts/test-local-coach-qa.sh` for the six SQL suites. They use separate disposable Postgres instances because the test fixtures deliberately refuse a seeded database. The regular seeded stack remains available for manual QA. The local project omits Edge Runtime, storage service, and analytics services.
 
 ## 2026-11-16 — Coach Mode rollout
 
