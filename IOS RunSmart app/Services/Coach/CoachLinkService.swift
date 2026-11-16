@@ -40,7 +40,7 @@ nonisolated protocol CoachLinkRepository: Sendable {
     func currentLink() async throws -> CoachLink?
     func lookupInvite(code: String) async throws -> CoachLookup?
     func joinCoach(code: String, inviteID: UUID, coachID: UUID, athleteID: UUID) async throws -> JoinCoachOutcome
-    func leaveCoach() async throws
+    func leaveCoach(linkID: UUID) async throws
 }
 
 nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
@@ -153,9 +153,9 @@ nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
         }
     }
 
-    func leaveCoach() async throws {
+    func leaveCoach(linkID: UUID) async throws {
         try await SupabaseManager.client
-            .rpc("leave_coach")
+            .rpc("leave_coach", params: ["expected_link_id": linkID])
             .execute()
     }
 }
@@ -231,12 +231,15 @@ final class CoachLinkStore: ObservableObject {
     }
 
     /// Clears the cached link only after leave_coach succeeds.
-    func leave(userID: UUID) async throws {
-        guard acceptedUserID == userID else {
+    func leave(userID: UUID, expectedLinkID: UUID? = nil) async throws {
+        guard acceptedUserID == userID, let link = currentLink,
+              expectedLinkID == nil || expectedLinkID == link.id else {
             throw CoachLinkServiceError.notSignedIn
         }
-        try await repository.leaveCoach()
-        guard acceptedUserID == userID else { return }
+        try await repository.leaveCoach(linkID: link.id)
+        guard acceptedUserID == userID else { throw CancellationError() }
+        if let currentLink, currentLink.id != link.id { throw CancellationError() }
+        loadGeneration += 1
         currentLink = nil
         didAttemptLoad = true
     }
@@ -368,7 +371,7 @@ final class LeaveCoachModel: ObservableObject {
     }
 
     /// Returns the toast after the link is cleared. Nil keeps the athlete linked.
-    func confirm(coachName: String, userID: UUID, store: CoachLinkStore) async -> String? {
+    func confirm(coachName: String, userID: UUID, store: CoachLinkStore, expectedLinkID: UUID? = nil) async -> String? {
         guard !isWorking else { return nil }
         errorMessage = nil
         guard isOnline else {
@@ -378,7 +381,7 @@ final class LeaveCoachModel: ObservableObject {
         isWorking = true
         defer { isWorking = false }
         do {
-            try await store.leave(userID: userID)
+            try await store.leave(userID: userID, expectedLinkID: expectedLinkID)
             guard store.currentLink == nil else { return nil }
             let toast = LeaveCoachCopy.toast(coach: coachName)
             store.leaveNotice = toast

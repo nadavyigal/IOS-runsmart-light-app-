@@ -35,6 +35,8 @@ enum SecondaryDestination: Hashable, Identifiable {
     case myCoach
     case account
 
+    var requiresCoachMode: Bool { self == .joinCoach || self == .myCoach }
+
     var id: String {
         switch self {
         case .workoutDetail(let w): "workoutDetail-\(w.id)"
@@ -231,6 +233,8 @@ private struct SecondaryContentView: View {
     var body: some View {
         if destination == .goalWizard {
             GoalWizardView()
+        } else if destination.requiresCoachMode && !RunSmartFeatures.coachModeEnabled {
+            EmptyView()
         } else if destination == .joinCoach {
             ScrollView {
                 JoinCoachView()
@@ -3022,7 +3026,7 @@ private struct AccountScaffold: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
-            if let notice = coachLinks.leaveNotice {
+            if RunSmartFeatures.coachModeEnabled, let notice = coachLinks.leaveNotice {
                 Text(notice)
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(Color.textPrimary)
@@ -3041,7 +3045,7 @@ private struct AccountScaffold: View {
                     }
             }
 
-            if let link = coachLinks.currentLink {
+            if RunSmartFeatures.coachModeEnabled, let link = coachLinks.currentLink {
                 NavigationLink(value: SecondaryDestination.myCoach) {
                     HStack {
                         Text(LeaveCoachCopy.monogram(for: link.coachName))
@@ -3062,7 +3066,7 @@ private struct AccountScaffold: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("My coach")
-            } else if coachLinks.showsJoinCoach {
+            } else if RunSmartFeatures.coachModeEnabled && coachLinks.showsJoinCoach {
                 NavigationLink(value: SecondaryDestination.joinCoach) {
                     HStack {
                         Label("Join a coach", systemImage: "person.2.fill")

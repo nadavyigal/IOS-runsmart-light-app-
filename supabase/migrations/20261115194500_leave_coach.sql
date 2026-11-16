@@ -1,6 +1,6 @@
 -- Coach Mode, Story 1.5: an athlete leaves their human coach.
 --
--- Adds leave_coach() and tightens the coach SELECT policy on
+-- Adds leave_coach(expected_link_id) and tightens the coach SELECT policy on
 -- coach_athlete_links so a revoked athlete disappears from coach queries.
 -- The athlete still reads their own rows in every status.
 --
@@ -44,7 +44,8 @@ create policy coach_athlete_links_select_coach_active on public.coach_athlete_li
 
 -- leave_coach ----------------------------------------------------------------
 
-create or replace function public.leave_coach()
+drop function if exists public.leave_coach();
+create or replace function public.leave_coach(expected_link_id uuid)
 returns void
 language plpgsql
 security definer
@@ -62,6 +63,7 @@ begin
   set status = 'revoked',
       revoked_at = now()
   where athlete_id = v_uid
+    and id = expected_link_id
     and status = 'active'
   returning coach_id into v_coach;
 
@@ -75,8 +77,8 @@ begin
 end;
 $$;
 
-revoke all on function public.leave_coach() from public, anon;
-grant execute on function public.leave_coach() to authenticated;
+revoke all on function public.leave_coach(uuid) from public, anon;
+grant execute on function public.leave_coach(uuid) to authenticated;
 
 -- Account-deletion cleanup, called by supabase/functions/delete_account ------
 

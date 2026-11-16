@@ -80,7 +80,7 @@ final class CoachLinkTests: XCTestCase {
             return try join.get()
         }
 
-        func leaveCoach() async throws {
+        func leaveCoach(linkID: UUID) async throws {
             leaveCalls += 1
             if let leaveError {
                 throw leaveError
@@ -452,6 +452,35 @@ final class CoachLinkTests: XCTestCase {
         XCTAssertEqual(store.currentLink?.coachName, "Dana")
         XCTAssertFalse(store.showsJoinCoach)
         XCTAssertEqual(repository.leaveCalls, 1)
+    }
+
+    func testLeaveRejectsAStaleLinkAndIgnoresAnOlderRefresh() async throws {
+        let repository = StubRepository()
+        let link = persistedLink(for: dana)
+        repository.link = link
+        let store = CoachLinkStore(repository: repository)
+        let userID = UUID()
+        store.beginSession(userID: userID)
+        store.noteJoined(link, userID: userID)
+        let model = LeaveCoachModel()
+        let stale = await model.confirm(coachName: "Dana", userID: userID, store: store,
+                                       expectedLinkID: UUID())
+        XCTAssertNil(stale)
+        XCTAssertEqual(repository.leaveCalls, 0)
+
+        repository.armHoldOnFirstCurrentLink()
+        let refresh = Task { await store.refresh(userID: userID) }
+        await repository.waitUntilCurrentLinkBlocked()
+        try await store.leave(userID: userID, expectedLinkID: link.id)
+        repository.link = link
+        repository.releaseCurrentLink()
+        await refresh.value
+
+        XCTAssertNil(store.currentLink)
+        XCTAssertTrue(store.showsJoinCoach)
+        let router = AppRouter(coachModeEnabled: false)
+        router.open(.myCoach)
+        XCTAssertNil(router.activeSheet)
     }
 
     func testLeaveSuccessShowsJoinCoachAgain() async {

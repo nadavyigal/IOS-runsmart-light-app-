@@ -58,19 +58,19 @@ grant execute on function pg_temp.act_as(text), pg_temp.expect_error(text, text,
 set local role authenticated;
 select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
 
-select public.join_coach(
+select set_config('test.coach_link_id', public.join_coach(
   'ABC234',
   '11111111-0000-4000-8000-000000000001',
   'aaaaaaaa-0000-4000-8000-00000000000a',
   'bbbbbbbb-0000-4000-8000-00000000000b'
-);
+)->>'link_id', true);
 
 -- A third user, and the coach, cannot revoke B's link ---------------------------
 select pg_temp.act_as('dddddddd-0000-4000-8000-00000000000d');
-select pg_temp.expect_error('select public.leave_coach()', 'P0001', 'third user leave');
+select pg_temp.expect_error($q$select public.leave_coach(current_setting('test.coach_link_id')::uuid)$q$, 'P0001', 'third user leave');
 
 select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
-select pg_temp.expect_error('select public.leave_coach()', 'P0001', 'coach cannot leave as the athlete');
+select pg_temp.expect_error($q$select public.leave_coach(current_setting('test.coach_link_id')::uuid)$q$, 'P0001', 'coach cannot leave as the athlete');
 
 reset role;
 do $$
@@ -93,7 +93,8 @@ select pg_temp.expect_error(
   'client update of links');
 
 -- Leave sets revoked and revoked_at --------------------------------------------
-select public.leave_coach();
+select pg_temp.expect_error($q$select public.leave_coach('aaaaaaaa-0000-4000-8000-000000000001')$q$, 'P0001', 'stale link cannot revoke current link');
+select public.leave_coach(current_setting('test.coach_link_id')::uuid);
 
 reset role;
 do $$
@@ -135,7 +136,7 @@ end $$;
 
 -- Leaving twice raises not_linked ----------------------------------------------
 select pg_temp.expect_error(
-  'select public.leave_coach()',
+  $q$select public.leave_coach(current_setting('test.coach_link_id')::uuid)$q$,
   'P0001',
   'leave twice');
 

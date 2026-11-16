@@ -29,7 +29,8 @@ struct MyCoachView: View {
                     let toast = await model.confirm(
                         coachName: link.coachName,
                         userID: userID,
-                        store: coachLinks
+                        store: coachLinks,
+                        expectedLinkID: link.id
                     )
                     if toast != nil {
                         showLeaveSheet = false

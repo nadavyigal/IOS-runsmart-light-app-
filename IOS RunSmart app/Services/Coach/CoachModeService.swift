@@ -1,4 +1,20 @@
 import Foundation
+
+enum RunSmartFeatures {
+    static let coachModeEnabled: Bool = {
+#if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-enable-coach-mode")
+#else
+        false
+#endif
+    }()
+
+    /// Invite URLs are reserved for Story 1.4 and must never enter authentication handling.
+    static func isCoachInviteURL(_ url: URL) -> Bool {
+        url.host?.caseInsensitiveCompare("join") == .orderedSame
+            || url.pathComponents.dropFirst().first?.caseInsensitiveCompare("join") == .orderedSame
+    }
+}
 import Combine
 import Supabase
 

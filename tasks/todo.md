@@ -1,3 +1,16 @@
+## 2026-11-16 — Coach Mode rollout
+
+- Human Coach Mode is OFF by default. In an Xcode **Debug** run, add `-enable-coach-mode` under Scheme → Run → Arguments. Release builds (including current TestFlight archives) ignore the argument. There is no remote switch.
+- Prior run completion/linking remains enabled because it is ordinary plan adherence. Existing database ownership rules and applied migrations remain in place. The flag stops coach role/link reads and user entry points.
+- Production migrations are frozen. Never replay an already applied file. Read-only production migration history verified these equivalents:
+
+| Repo file prefix | Production version | Migration |
+| --- | --- | --- |
+| 20261114120000 | 20261114191102 | close_cross_user_rls_leaks |
+| 20261114130000 | 20261115065606 | runs_workout_link |
+| 20261114210000 | 20261115065607 | coach_role_and_invites |
+| 20261115091000 | 20261115173534 | coach_athlete_links |
+
 ## 2026-11-15 — Coach Mode pilot consent
 
 - [x] Preserve the join intent through new-account onboarding.

@@ -16,6 +16,16 @@ enum RunSmartSheet: Identifiable {
 @MainActor
 final class AppRouter: ObservableObject {
     @Published var selectedTab: RunSmartTab = AppRouter.initialTab()
+    private let coachModeEnabled: Bool
+
+    init(coachModeEnabled: Bool = RunSmartFeatures.coachModeEnabled) {
+        self.coachModeEnabled = coachModeEnabled
+        if !coachModeEnabled, selectedTab == .coach { selectedTab = .today }
+    }
+
+    func shouldHandleAuthCallback(_ url: URL) -> Bool {
+        !RunSmartFeatures.isCoachInviteURL(url)
+    }
     @Published var activeSheet: RunSmartSheet?
     @Published var flexWeekLaunch: FlexWeekLaunchContext?
     @Published var plannedWorkout: WorkoutSummary?
@@ -52,6 +62,7 @@ final class AppRouter: ObservableObject {
     }
 
     func open(_ destination: SecondaryDestination) {
+        guard coachModeEnabled || !destination.requiresCoachMode else { return }
         activeSheet = .secondary(destination)
     }
 
@@ -223,6 +234,7 @@ struct RunSmartLiteAppShell: View {
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
         .onOpenURL { url in
+            guard router.shouldHandleAuthCallback(url) else { return }
             Task { await session.handleAuthCallback(url) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanGenerationStatusDidChange)) { notification in
@@ -285,7 +297,9 @@ struct RunSmartLiteAppShell: View {
         .onChange(of: scenePhase) { _, phase in
             // Strava: finish uploads that failed or were still processing. Quiet, no UI.
             guard phase == .active, !RunSmartDemoMode.isEnabled else { return }
-            Task { await coachMode.refresh(userID: coachRoleCheckUserID) }
+            if RunSmartFeatures.coachModeEnabled {
+                Task { await coachMode.refresh(userID: coachRoleCheckUserID) }
+            }
             if let userID = coachRoleCheckUserID {
                 Task { await coachLinks.refresh(userID: userID) }
             }
@@ -426,10 +440,10 @@ struct RunSmartLiteAppShell: View {
                 guestReturnMessage: SignInView.guestReturnMessage(
                     hasSeenPreview: guestJourney.state.hasSeenPreview
                 ),
-                onJoinCoach: {
+                onJoinCoach: RunSmartFeatures.coachModeEnabled ? {
                     coachLinks.draftCode = ""
                     coachLinks.resumeJoinAfterSignIn = true
-                }
+                } : nil
             )
             .environmentObject(session)
         }
@@ -529,7 +543,7 @@ struct RunSmartLiteAppShell: View {
         case .run:     RunTabView()
         case .report:  ReportTabView()
         case .coach:
-            if coachMode.isCoach {
+            if RunSmartFeatures.coachModeEnabled && coachMode.isCoach {
                 CoachTabView()
             } else {
                 TodayTabView()
@@ -540,6 +554,7 @@ struct RunSmartLiteAppShell: View {
 
     /// The signed-in user whose coach role to check; nil when signed out or guest.
     private func resumeCoachJoinIfReady() {
+        guard RunSmartFeatures.coachModeEnabled else { return }
         if coachLinks.consumeJoinIntent(isAuthenticated: session.isAuthenticated,
                                         onboardingComplete: session.hasCompletedOnboarding) {
             router.open(.joinCoach)
@@ -547,7 +562,7 @@ struct RunSmartLiteAppShell: View {
     }
 
     private var coachRoleCheckUserID: UUID? {
-        session.isAuthenticated ? session.currentUserID : nil
+        RunSmartFeatures.coachModeEnabled && session.isAuthenticated ? session.currentUserID : nil
     }
 
     private func showPlanGenerationNotice(_ status: RunSmartPlanGenerationStatus) {
