@@ -34,6 +34,8 @@ enum SecondaryDestination: Hashable, Identifiable {
     case joinCoach
     case account
 
+    var requiresCoachMode: Bool { self == .joinCoach }
+
     var id: String {
         switch self {
         case .workoutDetail(let w): "workoutDetail-\(w.id)"
@@ -225,6 +227,8 @@ private struct SecondaryContentView: View {
     var body: some View {
         if destination == .goalWizard {
             GoalWizardView()
+        } else if destination.requiresCoachMode && !RunSmartFeatures.coachModeEnabled {
+            EmptyView()
         } else if destination == .joinCoach {
             ScrollView {
                 JoinCoachView()
@@ -3011,7 +3015,7 @@ private struct AccountScaffold: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
-            if coachLinks.showsJoinCoach {
+            if RunSmartFeatures.coachModeEnabled && coachLinks.showsJoinCoach {
                 NavigationLink(value: SecondaryDestination.joinCoach) {
                     HStack {
                         Label("Join a coach", systemImage: "person.2.fill")
