@@ -112,13 +112,22 @@ private struct LeaveCoachSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        ScrollView {
+            content
+                .padding(20)
+        }
+        .presentationDetents([.large])
+        .interactiveDismissDisabled(model.isWorking)
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(LeaveCoachCopy.sheet(coach: coachName))
                 .font(.body)
                 .foregroundStyle(Color.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let errorMessage = model.errorMessage, model.isOnline {
+            if let errorMessage = model.isOnline ? model.errorMessage : LeaveCoachCopy.offline {
                 Text(errorMessage)
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(Color.accentAmber)
@@ -131,6 +140,7 @@ private struct LeaveCoachSheet: View {
                     dismiss()
                 }
                 .buttonStyle(.bordered)
+                .disabled(model.isWorking)
                 .frame(maxWidth: .infinity)
 
                 Button {
@@ -149,7 +159,5 @@ private struct LeaveCoachSheet: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .padding(20)
-        .presentationDetents([.medium, .large])
     }
 }

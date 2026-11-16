@@ -239,7 +239,19 @@ final class CoachLinkStore: ObservableObject {
             throw CoachLinkServiceError.notSignedIn
         }
         let generation = loadGeneration
-        try await repository.leaveCoach(linkID: link.id)
+        do {
+            try await repository.leaveCoach(linkID: link.id)
+        } catch let leaveError {
+            // A response may be lost after the server committed the revoke.
+            guard acceptedUserID == userID, generation == loadGeneration else { throw CancellationError() }
+            let authoritativeLink: CoachLink?
+            do {
+                authoritativeLink = try await repository.currentLink()
+            } catch {
+                throw leaveError
+            }
+            guard authoritativeLink == nil else { throw leaveError }
+        }
         guard acceptedUserID == userID, generation == loadGeneration else { throw CancellationError() }
         if let currentLink, currentLink.id != link.id { throw CancellationError() }
         loadGeneration += 1

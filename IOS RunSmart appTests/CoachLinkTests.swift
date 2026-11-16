@@ -483,6 +483,20 @@ final class CoachLinkTests: XCTestCase {
         XCTAssertNil(router.activeSheet)
     }
 
+    func testLeaveReconcilesLostResponseWhenServerHasRevokedLink() async {
+        let repository = StubRepository()
+        repository.leaveError = CoachLinkServiceError.offline
+        let store = CoachLinkStore(repository: repository)
+        let userID = UUID()
+        store.beginSession(userID: userID)
+        store.noteJoined(persistedLink(for: dana), userID: userID)
+
+        let toast = await LeaveCoachModel().confirm(coachName: "Dana", userID: userID, store: store)
+
+        XCTAssertNotNil(toast)
+        XCTAssertNil(store.currentLink)
+    }
+
     func testLeaveSuccessShowsJoinCoachAgain() async {
         let repository = StubRepository()
         repository.link = persistedLink(for: dana)
