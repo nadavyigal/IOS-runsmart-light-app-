@@ -194,6 +194,7 @@ final class CoachLinkStore: ObservableObject {
         loadGeneration += 1
         acceptedUserID = userID
         currentLink = nil
+        leaveNotice = nil
         didAttemptLoad = false
     }
 
@@ -201,6 +202,7 @@ final class CoachLinkStore: ObservableObject {
         loadGeneration += 1
         acceptedUserID = nil
         currentLink = nil
+        leaveNotice = nil
         didAttemptLoad = false
     }
 
