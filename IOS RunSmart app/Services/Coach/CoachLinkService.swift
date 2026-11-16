@@ -238,8 +238,9 @@ final class CoachLinkStore: ObservableObject {
               expectedLinkID == nil || expectedLinkID == link.id else {
             throw CoachLinkServiceError.notSignedIn
         }
+        let generation = loadGeneration
         try await repository.leaveCoach(linkID: link.id)
-        guard acceptedUserID == userID else { throw CancellationError() }
+        guard acceptedUserID == userID, generation == loadGeneration else { throw CancellationError() }
         if let currentLink, currentLink.id != link.id { throw CancellationError() }
         loadGeneration += 1
         currentLink = nil

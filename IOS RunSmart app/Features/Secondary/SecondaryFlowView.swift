@@ -244,6 +244,7 @@ private struct SecondaryContentView: View {
         } else if destination == .myCoach {
             ScrollView {
                 MyCoachView()
+                    .id(session.currentUserID)
                     .padding(20)
             }
         } else {

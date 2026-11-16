@@ -498,6 +498,8 @@ final class CoachLinkTests: XCTestCase {
         XCTAssertNil(store.currentLink)
         XCTAssertTrue(store.showsJoinCoach)
         XCTAssertEqual(store.leaveNotice, toast)
+        store.beginSession(userID: UUID())
+        XCTAssertNil(store.leaveNotice)
     }
 
     func testOfflineLeaveDoesNotCallTheServer() async {
