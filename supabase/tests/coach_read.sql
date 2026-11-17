@@ -322,13 +322,13 @@ begin
   select count(*) into n from public.profiles;
   if n <> 0 then raise exception 'FAIL: Dana sees % profiles through RLS', n; end if;
   select count(*) into n from public.wellness_checkins;
-  if n <> 0 then raise exception 'FAIL: Dana sees wellness_checkins', n; end if;
+  if n <> 0 then raise exception 'FAIL: Dana sees % wellness_checkins rows', n; end if;
   select count(*) into n from public.garmin_activities;
-  if n <> 0 then raise exception 'FAIL: Dana sees garmin_activities', n; end if;
+  if n <> 0 then raise exception 'FAIL: Dana sees % garmin_activities rows', n; end if;
   select count(*) into n from public.run_debriefs;
-  if n <> 0 then raise exception 'FAIL: Dana sees run_debriefs', n; end if;
+  if n <> 0 then raise exception 'FAIL: Dana sees % run_debriefs rows', n; end if;
   select count(*) into n from public.conversations;
-  if n <> 0 then raise exception 'FAIL: Dana sees conversations', n; end if;
+  if n <> 0 then raise exception 'FAIL: Dana sees % conversations rows', n; end if;
 
   update public.plans set title = 'hacked'
   where id = '10000000-0000-4000-8000-0000000000b1';
@@ -363,12 +363,11 @@ select pg_temp.expect_error(
   '42501', 'Dana inserting B''s run');
 
 -- Revoked link: B disappears. E remains. ------------------------------------------
-reset role;
-update public.coach_athlete_links
-set status = 'revoked', revoked_at = now()
-where athlete_id = 'bbbbbbbb-0000-4000-8000-00000000000b' and status = 'active';
-
-set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+select public.leave_coach((
+  select id from public.coach_athlete_links
+  where athlete_id = auth.uid() and status = 'active'
+));
 select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
 
 do $$
