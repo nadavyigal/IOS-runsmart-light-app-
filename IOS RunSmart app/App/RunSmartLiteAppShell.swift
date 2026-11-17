@@ -294,7 +294,7 @@ struct RunSmartLiteAppShell: View {
         }
         .onChange(of: coachMode.isCoach) { _, isCoach in
             // A tab that stops existing (sign-out, unflagged coach) must not stay selected.
-            if !isCoach, router.selectedTab == .coach {
+            if (!isCoach || !RunSmartFeatures.coachModeEnabled), router.selectedTab == .coach {
                 router.selectedTab = .today
             }
         }
@@ -538,7 +538,10 @@ struct RunSmartLiteAppShell: View {
                 if !router.isTabBarHidden {
                     CustomTabBar(
                         selectedTab: $router.selectedTab,
-                        tabs: RunSmartTab.visibleTabs(isCoach: coachMode.isCoach)
+                        tabs: RunSmartTab.visibleTabs(
+                            isCoach: coachMode.isCoach,
+                            coachModeEnabled: RunSmartFeatures.coachModeEnabled
+                        )
                     )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
