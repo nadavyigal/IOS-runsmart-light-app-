@@ -68,3 +68,10 @@
 - [ ] Separate public release decision after final candidate validation.
 
 Older entries: [tasks/archive/todo-to-2026-10-29.md](archive/todo-to-2026-10-29.md).
+
+## 2026-11-17 — Coach Mode Story 2.2
+
+- [x] Add security-definer read RPCs for a linked athlete's plan, workouts, and run summaries. No table RLS change.
+- [x] Add `CoachReadService` and `MockCoachReadService`. No coach UI.
+- [ ] Nadav applies `20261117164500_coach_read_rpcs.sql` after review and mirrors it to the web repo. Do not apply it from this PR.
+- [ ] Run date filter uses the UTC date of `runs.completed_at`. Confirm that before Story 2.3.
