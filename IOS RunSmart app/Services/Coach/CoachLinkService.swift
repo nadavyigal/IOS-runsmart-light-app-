@@ -737,6 +737,17 @@ final class JoinCoachViewModel: ObservableObject {
         isWorking = true
         defer { isWorking = false }
         confirm.failure = nil
+        if let notice = GroupPlanRules.dateNotice(
+            raceDate: confirm.settings.raceDate,
+            targetDistance: confirm.settings.targetDistance,
+            today: now(),
+            calendar: calendar
+        ), notice.blocksSave {
+            confirm.failure = .generation
+            phase = .groupConfirm(confirm)
+            errorMessage = notice.message
+            return
+        }
 
         if !confirm.planBuilt {
             guard let plans else {

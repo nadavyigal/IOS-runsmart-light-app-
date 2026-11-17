@@ -228,6 +228,21 @@ final class GroupPlanJoinTests: XCTestCase {
         XCTAssertNil(viewModel.joinedCoach)
     }
 
+    func testExpiredGroupSettingsLeaveThePlanUntouchedAndDoNotJoin() async {
+        let race = calendar.date(byAdding: .day, value: -1, to: today)!
+        let plans = StubPlans()
+        let (viewModel, repository, _) = model(
+            lookup: dana(mode: .group, settings: settings(race: race)), plans: plans
+        )
+        await viewModel.continueTapped(athleteID: athleteID)
+        await viewModel.share(athleteID: athleteID)
+        await viewModel.useGroupPlan(athleteID: athleteID)
+        XCTAssertEqual(plans.generateCalls, 0)
+        XCTAssertEqual(repository.joinCalls, 0)
+        XCTAssertNil(viewModel.joinedCoach)
+        XCTAssertEqual(viewModel.errorMessage, GroupPlanRules.pastDateMessage)
+    }
+
     func testUseBuildsTheGroupPlanThenLinks() async throws {
         let race = calendar.date(byAdding: .day, value: 70, to: today)!
         let group = settings(race: race)
