@@ -27,14 +27,19 @@ create table public.plans (
   id uuid primary key default gen_random_uuid(),
   profile_id uuid not null,
   auth_user_id uuid references auth.users(id) on delete cascade,
-  title text not null
+  title text not null,
+  is_active boolean not null default true
 );
 
 create table public.workouts (
   id uuid primary key default gen_random_uuid(),
   plan_id uuid not null references public.plans(id) on delete cascade,
   auth_user_id uuid references auth.users(id) on delete cascade,
-  completed boolean not null default false
+  completed boolean not null default false,
+  completed_at timestamptz,
+  actual_distance_km numeric,
+  actual_duration_minutes integer check (actual_duration_minutes > 0),
+  actual_pace integer
 );
 
 -- Production shape: bigint id, nullable auth_user_id, unique (provider, activity).

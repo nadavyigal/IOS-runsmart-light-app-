@@ -4,6 +4,15 @@ import Foundation
 struct RunSourceKey: Codable, Hashable {
     let sourceProvider: String
     let sourceActivityID: String
+
+    var dataSource: RunSmartDataSource? {
+        switch sourceProvider {
+        case "runsmart_ios": return .runSmart
+        case "garmin": return .garmin
+        case "healthkit": return .healthKit
+        default: return nil
+        }
+    }
 }
 
 extension RecordedRun {
@@ -21,39 +30,66 @@ extension RecordedRun {
     }
 }
 
-enum RunWorkoutLinkResult: Equatable {
-    case linked
-    /// The run already has a workout. Nothing was changed.
-    case alreadyLinked
-    /// No `runs` row yet. The run has not synced.
-    case runNotSynced
-    /// Another run owns this workout (unique index). Never relinked.
-    case workoutTaken
+enum RunWorkoutLinkResult: String, Decodable {
+    case completed
+    case alreadyCompleted = "already_completed"
+    case runNotSynced = "run_not_synced"
+    case notAvailable = "not_available"
+
+    var didComplete: Bool { self == .completed || self == .alreadyCompleted }
 }
 
 struct PendingRunLink: Codable, Equatable {
+    let id: UUID
     let authUserID: UUID
     let key: RunSourceKey
     let workoutID: UUID
+    let payload: DBWorkoutCompletionUpdate
     let queuedAt: Date
     var attemptCount: Int
 }
 
-/// Run-to-workout links that could not be written yet (offline, or the run row is not synced).
-/// A miss is never queued: only a match whose write failed or whose run is not on the server yet.
+struct CompleteRunWorkoutParams: Encodable {
+    let record: PendingRunLink
+
+    private enum CodingKeys: String, CodingKey {
+        case athlete = "p_expected_athlete"
+        case workout = "p_workout_id"
+        case provider = "p_source_provider"
+        case activity = "p_source_activity_id"
+        case completedAt = "p_completed_at"
+        case distance = "p_actual_distance_km"
+        case duration = "p_actual_duration_minutes"
+        case pace = "p_actual_pace"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(record.authUserID, forKey: .athlete)
+        try values.encode(record.workoutID, forKey: .workout)
+        try values.encode(record.key.sourceProvider, forKey: .provider)
+        try values.encode(record.key.sourceActivityID, forKey: .activity)
+        try values.encode(record.payload.completedAt, forKey: .completedAt)
+        try values.encode(record.payload.actualDistanceKm, forKey: .distance)
+        try values.encode(record.payload.actualDurationMinutes, forKey: .duration)
+        try values.encode(record.payload.actualPace, forKey: .pace)
+    }
+}
+
+/// One durable retry record for the link and its actuals. Legacy split records
+/// cannot prove the source of their actuals. The upgrade pass uses persisted links.
 final class RunWorkoutLinkOutbox {
     static let shared = RunWorkoutLinkOutbox()
     static let maxAttempts = 5
-    /// A run that never reaches the server stops holding a record after this long.
     static let maxAge: TimeInterval = 14 * 24 * 3600
 
     private let defaults: UserDefaults
     private let key: String
     private let lock = NSLock()
-    private let retryGate = WorkoutCompletionRetryGate()
+    private let retryGate = RunWorkoutPassGate()
     private let now: () -> Date
 
-    init(defaults: UserDefaults = .standard, key: String = "runsmart.runs.pendingWorkoutLinks", now: @escaping () -> Date = Date.init) {
+    init(defaults: UserDefaults = .standard, key: String = "runsmart.runs.pendingWorkoutCompletions.v2", now: @escaping () -> Date = Date.init) {
         self.defaults = defaults
         self.key = key
         self.now = now
@@ -65,63 +101,85 @@ final class RunWorkoutLinkOutbox {
         return load()
     }
 
-    /// One record per run: a newer match for the same run replaces the old one.
-    func enqueue(authUserID: UUID, key runKey: RunSourceKey, workoutID: UUID) {
+    /// Preserve the first pending match for this run until the database accepts or rejects it.
+    @discardableResult
+    func enqueue(authUserID: UUID, key runKey: RunSourceKey, workoutID: UUID, payload: DBWorkoutCompletionUpdate) -> PendingRunLink {
         lock.lock()
         defer { lock.unlock() }
-        var list = load().filter { !($0.authUserID == authUserID && $0.key == runKey) }
-        list.append(PendingRunLink(authUserID: authUserID, key: runKey, workoutID: workoutID, queuedAt: now(), attemptCount: 0))
+        var list = load()
+        if let existing = list.first(where: { $0.authUserID == authUserID && $0.key == runKey }) {
+            return existing
+        }
+        let record = PendingRunLink(id: UUID(), authUserID: authUserID, key: runKey, workoutID: workoutID, payload: payload, queuedAt: now(), attemptCount: 0)
+        list.append(record)
         save(list)
+        return record
     }
 
     func remove(_ record: PendingRunLink) {
         lock.lock()
         defer { lock.unlock() }
-        save(load().filter { !($0.authUserID == record.authUserID && $0.key == record.key) })
+        save(load().filter { $0.id != record.id })
     }
 
-    /// A thrown write counts one attempt and drops the record at `maxAttempts`.
-    /// Only counts against a record that is still queued: a failure never re-adds one a success removed.
     func recordFailure(_ record: PendingRunLink) {
         lock.lock()
         defer { lock.unlock() }
         var list = load()
-        guard let index = list.firstIndex(where: { $0.authUserID == record.authUserID && $0.key == record.key }) else { return }
+        guard let index = list.firstIndex(where: { $0.id == record.id }) else { return }
         list[index].attemptCount += 1
         if list[index].attemptCount >= Self.maxAttempts {
-            print("[TrainingPlanRepo] giving up on run link after \(Self.maxAttempts) attempts workout=\(record.workoutID)")
+            print("[TrainingPlanRepo] giving up on run completion after \(Self.maxAttempts) attempts workout=\(record.workoutID)")
             list.remove(at: index)
         }
         save(list)
     }
 
-    /// Retries every record. `runNotSynced` keeps the record without counting an attempt until it expires.
-    /// A second call returns immediately while one pass is already running.
-    func retryPending(send: (PendingRunLink) async throws -> RunWorkoutLinkResult) async {
-        guard await retryGate.tryEnter() else { return }
-        await performRetry(send)
-        await retryGate.leave()
+    func attempt(_ record: PendingRunLink, send: (PendingRunLink) async throws -> RunWorkoutLinkResult) async -> RunWorkoutLinkResult? {
+        if now().timeIntervalSince(record.queuedAt) > Self.maxAge {
+            remove(record)
+            return nil
+        }
+        do {
+            let result = try await send(record)
+            if result != .runNotSynced { remove(record) }
+            return result
+        } catch is CancellationError {
+            return nil
+        } catch {
+            print("[TrainingPlanRepo] run completion write failed:", error)
+            recordFailure(record)
+            return nil
+        }
     }
 
-    private func performRetry(_ send: (PendingRunLink) async throws -> RunWorkoutLinkResult) async {
-        for record in pending() {
-            if now().timeIntervalSince(record.queuedAt) > Self.maxAge {
-                print("[TrainingPlanRepo] dropping run link for a run that never synced workout=\(record.workoutID)")
+    /// A run that has yet to upload waits without consuming an attempt. If we
+    /// can restore its exact local copy, try the same atomic write once more.
+    func retryPending(
+        authUserID: UUID,
+        isHidden: (RunSourceKey) -> Bool = { _ in false },
+        restoreRun: (RunSourceKey) async -> Bool = { _ in false },
+        send: (PendingRunLink) async throws -> RunWorkoutLinkResult
+    ) async -> [UUID] {
+        guard await retryGate.tryEnter() else { return [] }
+        var completed: [UUID] = []
+        for record in pending() where record.authUserID == authUserID {
+            if isHidden(record.key) {
                 remove(record)
                 continue
             }
-            do {
-                switch try await send(record) {
-                case .linked, .alreadyLinked, .workoutTaken: remove(record)
-                case .runNotSynced: continue
+            var result = await attempt(record, send: send)
+            if result == .runNotSynced, await restoreRun(record.key) {
+                if isHidden(record.key) {
+                    remove(record)
+                    continue
                 }
-            } catch is CancellationError {
-                continue
-            } catch {
-                print("[TrainingPlanRepo] run link retry error:", error)
-                recordFailure(record)
+                result = await attempt(record, send: send)
             }
+            if result?.didComplete == true { completed.append(record.workoutID) }
         }
+        await retryGate.leave()
+        return completed
     }
 
     private func load() -> [PendingRunLink] {
@@ -136,7 +194,7 @@ final class RunWorkoutLinkOutbox {
     }
 }
 
-private actor RunWorkoutBackfillGate {
+private actor RunWorkoutPassGate {
     private var running = false
 
     func tryEnter() -> Bool {
@@ -156,15 +214,21 @@ struct RunWorkoutBackfillReport: Equatable {
     var dryRun: Bool
 }
 
-/// One-off, per-install link of the signed-in user's recent synced runs to plan workouts.
+struct RunWorkoutBackfillIncumbent {
+    let workoutID: UUID
+    // A hidden or unusable activity reserves its target without triggering a write.
+    let run: RecordedRun?
+}
+
+/// One pass per account and install to finish legacy links and match recent unlinked runs.
 enum RunWorkoutBackfill {
     static let lookbackDays = 30
     static let dryRunDefaultsKey = "runsmart.debug.runWorkoutBackfillDryRun"
-    private static let gate = RunWorkoutBackfillGate()
+    private static let gate = RunWorkoutPassGate()
 
     /// The flag is per account, so a second account on the same install still gets its pass.
     static func flagKey(for userID: UUID) -> String {
-        "runsmart.runs.workoutLinkBackfill.v1.\(userID.uuidString)"
+        "runsmart.runs.workoutLinkBackfill.v3.\(userID.uuidString)"
     }
 
     /// Dry-run is a debug switch only: `-runsmart.debug.runWorkoutBackfillDryRun YES` in the scheme.
@@ -186,13 +250,14 @@ enum RunWorkoutBackfill {
         calendar: Calendar = .current,
         loadRuns: () async -> [RecordedRun]?,
         loadWorkouts: () async -> [WorkoutSummary]?,
+        loadLinkedRuns: ([WorkoutSummary]) async -> [RunWorkoutBackfillIncumbent]? = { _ in [] },
         apply: (RecordedRun, WorkoutSummary) async -> Bool
     ) async -> RunWorkoutBackfillReport? {
         guard !defaults.bool(forKey: flagKey(for: userID)) else { return nil }
         guard await gate.tryEnter() else { return nil }
         let report = await perform(
             userID: userID, defaults: defaults, dryRun: dryRun, calendar: calendar,
-            loadRuns: loadRuns, loadWorkouts: loadWorkouts, apply: apply
+            loadRuns: loadRuns, loadWorkouts: loadWorkouts, loadLinkedRuns: loadLinkedRuns, apply: apply
         )
         await gate.leave()
         return report
@@ -205,14 +270,25 @@ enum RunWorkoutBackfill {
         calendar: Calendar,
         loadRuns: () async -> [RecordedRun]?,
         loadWorkouts: () async -> [WorkoutSummary]?,
+        loadLinkedRuns: ([WorkoutSummary]) async -> [RunWorkoutBackfillIncumbent]?,
         apply: (RecordedRun, WorkoutSummary) async -> Bool
     ) async -> RunWorkoutBackfillReport? {
-        guard let runs = await loadRuns(), let workouts = await loadWorkouts() else { return nil }
-        let pairs = TrainingPlanRepository.assignRuns(runs, to: workouts, calendar: calendar)
+        guard let workouts = await loadWorkouts() else { return nil }
+        let incomplete = workouts.filter { !$0.isComplete }
+        guard let incumbents = await loadLinkedRuns(incomplete), let runs = await loadRuns() else { return nil }
+        let workoutByID = Dictionary(incomplete.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let reserved = Set(incumbents.map(\.workoutID))
+        let linkedPairs = incumbents.compactMap { incumbent -> (RecordedRun, WorkoutSummary)? in
+            guard let run = incumbent.run, let workout = workoutByID[incumbent.workoutID] else { return nil }
+            return (run, workout)
+        }
+        let available = incomplete.filter { !reserved.contains($0.id) }
+        let pairs = linkedPairs + TrainingPlanRepository.assignRuns(runs, to: available, calendar: calendar)
+        let candidateCount = runs.count + linkedPairs.count
         var report = RunWorkoutBackfillReport(
-            candidateRuns: runs.count,
+            candidateRuns: candidateCount,
             matched: pairs.count,
-            unmatched: runs.count - pairs.count,
+            unmatched: candidateCount - pairs.count,
             applied: 0,
             dryRun: dryRun
         )

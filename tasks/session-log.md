@@ -1,3 +1,11 @@
+## 2026-11-16 — Recover known legacy adherence links on upgrade
+
+The old client could link a run after its separate completion write failed. The versioned upgrade reads the signed-in athlete's persisted run links to incomplete active workouts, repairs usable links through the same transactional RPC, and keeps those workout slots out of heuristic matching. A hidden run reserves its existing slot without being uploaded or completed. A failed link read leaves the upgrade pending.
+
+## 2026-11-15 — Transactional Coach Mode adherence
+
+The prior client made separate completion and link writes. The replacement RPC commits both under the athlete's existing row policies, and the outbox persists one account-scoped match and its actuals. A failed run upload can restore the exact local summary without overwriting a row that already exists. HealthKit ranks its newly imported candidates together before generating a report for the newest. The versioned backfill rechecks eligible unlinked synced runs once. The old split records cannot establish which actuals belong to which run and are not replayed. Verified SQL rollback and ownership on throwaway Postgres 17.6. No production migration or release ran.
+
 ## 2026-11-15 — Coach Mode consent follow-up
 
 Story 1.3 now carries the server link ID and consent timestamp, binds Share to the originating athlete across session changes, and resumes on the empty join form after required onboarding. Added the join database suite to PR checks. Isolated Postgres verified the migration twice and passed the authorization and consent payload regressions. The pilot still requires Story 1.5 and an authenticated device smoke.

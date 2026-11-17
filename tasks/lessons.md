@@ -1,3 +1,15 @@
+## 2026-11-16 — Recover partial writes from persisted associations on upgrade
+
+Replacing two legacy writes with one transaction does not by itself repair records that only received the first write. Exercise the upgrade from both possible partial states. When the run link persisted, use that exact owned association to recover actuals. A detached completion payload cannot identify the winning run.
+
+## 2026-11-15 — Store adherence actuals with their run link in one transaction
+
+Separate requests for workout completion and its run link let network failures or competing imports persist mismatched actuals. Future rule: when a UI requires an association to identify the source of stored metrics, write both in one owner-checked transaction and retry the exact pair and payload together.
+
+## 2026-11-15 — Serialize local Xcode builds when storage is low
+
+Two simultaneous worktree builds filled the data volume before tests ran. Check free space first. On a constrained host, run one build at a time with `COMPILATION_CACHE_ENABLE_CACHING=NO` and `INDEX_ENABLE_DATA_STORE=NO` for throwaway validation. Keep logs and test results when clearing generated build files.
+
 ## 2026-11-15 — Carry consent through auth and onboarding
 
 An invite preview could outlive its signed-in account, and a new non-guest athlete lost the join intent at onboarding completion. Bind consent writes to the displayed invite and the originating authenticated user in the transaction. Verify the post-sign-in destination for both returning and first-time users. Use the database consent time for subsequent sharing rules.

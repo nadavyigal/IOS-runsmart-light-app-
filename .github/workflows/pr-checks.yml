@@ -126,6 +126,10 @@ jobs:
           - suite: runs_workout_link
             migration: 20261114130000_runs_workout_link
             fixture: runs_workout_link_fixture
+          - suite: complete_run_workout
+            migration: 20261117120000_complete_run_workout
+            prerequisite: 20261114130000_runs_workout_link
+            fixture: runs_workout_link_fixture
           - suite: coach_invites
             migration: 20261114210000_coach_role_and_invites
             fixture: ''
