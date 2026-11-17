@@ -21,6 +21,12 @@
 - [ ] Keep `RouteUploadPolicy.isEnabled` false and the default preparer disabled until Story 6.4 implements privacy-zone trimming. Hold pilot invites until then.
 - [ ] Story 6.2 must gate coach reads on an active link and `route_status = 'shared'`.
 
+## 2026-11-17 — Coach Mode Story 6.4
+
+- [x] Carry forward Cursor's endpoint trimming, stable per-run radius, and short-run status.
+- [x] Decode the runs table's bigint ID when acknowledging a short-route write.
+- [ ] Verify the full local app-to-Supabase flow before pilot invites. Keep Release Coach Mode off.
+
 ## 2026-11-15 — Coach Mode: make plan adherence consistent
 
 - [x] Reproduce the missing atomic-write contract with a failing SQL test.

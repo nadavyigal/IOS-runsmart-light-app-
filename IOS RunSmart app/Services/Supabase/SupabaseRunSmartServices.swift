@@ -2014,7 +2014,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
 
         await outbox.retry(ownerID: ownerID, coachModeEnabled: true, canSend: { localRun(for: $0) != nil }) { item in
-            let result = try await self.writeCoachRoute(item)
+            let result = try await self.writePreparedCoachRoute(item)
             guard result == .missing else { return result }
             guard let run = localRun(for: item) else { return .stopped }
             // The summary may have failed offline. A consolidated import can also
@@ -2024,12 +2024,50 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             guard canonical.id == run.id, localRun(for: item) != nil else { return .stopped }
             await self.upsertCompletedRunIfPossible(canonical, expectedOwnerID: ownerID, ignoreDuplicates: true)
             guard localRun(for: item) != nil else { return .stopped }
-            return try await self.writeCoachRoute(item)
+            return try await self.writePreparedCoachRoute(item)
         }
     }
 
+    /// Shared routes go through the 6.1 RPC. A withheld route only marks `too_short` and leaves `route` null.
+    private func writePreparedCoachRoute(_ item: PendingCoachRoute) async throws -> CoachRouteWriteResult {
+        if item.status == .tooShort { return try await markCoachRouteTooShort(item) }
+        return try await writeCoachRoute(item)
+    }
+
     private func writeCoachRoute(_ item: PendingCoachRoute) async throws -> CoachRouteWriteResult {
-        try await supabase.rpc("save_coach_run_route", params: CoachRunRouteParams(item: item)).execute().value
+        guard item.status == .shared, (2...CoachRouteCoordinate.maxPoints).contains(item.points.count) else {
+            return .stopped
+        }
+        return try await supabase.rpc("save_coach_run_route", params: CoachRunRouteParams(item: item)).execute().value
+    }
+
+    /// Sets `route_status = too_short` and `route` null on the athlete's own in-app row.
+    /// A row that already has a route or a status is left alone (returns stopped).
+    private func markCoachRouteTooShort(_ item: PendingCoachRoute) async throws -> CoachRouteWriteResult {
+        guard item.status == .tooShort, item.points.isEmpty else { return .stopped }
+        let activityIDs = [item.runID.uuidString, item.runID.uuidString.lowercased()]
+        let updated: [CoachRunRowID] = try await supabase
+            .from("runs")
+            .update(CoachRouteTooShortUpdate())
+            .eq("auth_user_id", value: item.ownerID.uuidString)
+            .eq("source_provider", value: "runsmart_ios")
+            .in("source_activity_id", values: activityIDs)
+            .is("route", value: nil)
+            .is("route_status", value: nil)
+            .select("id")
+            .execute()
+            .value
+        if !updated.isEmpty { return .saved }
+        let existing: [CoachRunRowID] = try await supabase
+            .from("runs")
+            .select("id")
+            .eq("auth_user_id", value: item.ownerID.uuidString)
+            .eq("source_provider", value: "runsmart_ios")
+            .in("source_activity_id", values: activityIDs)
+            .limit(1)
+            .execute()
+            .value
+        return existing.isEmpty ? .missing : .stopped
     }
 
     private func retryPendingRunLinks(authUserID: UUID) async {

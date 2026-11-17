@@ -740,3 +740,7 @@ Build 35 passed key-presence checks but live Auth rejected its packaged publisha
 ## 2026-10-29 — Default maps need an offline export path
 
 Removing the share-map toggle made the old mapUnavailable advice impossible to follow. Image and video exports now share one map-failure fallback to stats-only artwork; cancellation still throws and invalid routes remain errors. Keep captions accurate even when no map renders. Regression tests inject map failure into the actual PNG/MP4 exporters.
+
+## 2026-11-17 — Use fresh DerivedData after a handoff
+
+An inherited Cursor build still held its Xcode database. Use fresh DerivedData after a handoff unless the inherited build process has been confirmed stopped.
