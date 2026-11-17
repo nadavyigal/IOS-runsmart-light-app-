@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ReportTabView: View {
     @Environment(\.runSmartServices) private var services
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     @EnvironmentObject private var router: AppRouter
     @State private var runs: [RecordedRun] = []
     @State private var segment: ReportSegment = .runs
@@ -175,7 +176,7 @@ struct ReportTabView: View {
                 if isInitialLoad && runReports.isEmpty {
                     ReportLoadingSkeletonRows()
                 } else if runReports.isEmpty {
-                    Text("Complete a run and tap Generate to get your first AI coach report.")
+                    Text(CoachAssistantCopy.apply("Complete a run and tap Generate to get your first AI coach report.", assistant: coachAssistantActive))
                         .font(.bodyMD)
                         .foregroundStyle(Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)

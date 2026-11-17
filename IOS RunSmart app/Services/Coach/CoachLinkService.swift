@@ -209,7 +209,9 @@ enum InviteLink {
 /// Current link plus the coach's name. Settings uses `showsJoinCoach`.
 @MainActor
 final class CoachLinkStore: ObservableObject {
-    @Published private(set) var currentLink: CoachLink?
+    @Published private(set) var currentLink: CoachLink? {
+        didSet { publishAssistantContext() }
+    }
     @Published private(set) var didAttemptLoad = false
 
     /// Kept when Continue sends a signed-out athlete to sign in, so A1 still has the code after.
@@ -228,13 +230,24 @@ final class CoachLinkStore: ObservableObject {
     }
 
     private let repository: any CoachLinkRepository
+    /// Only the app's store publishes into AI requests. Tests keep the default so they cannot leak a link.
+    private let publishesAssistantContext: Bool
     /// Bumped when the signed-in athlete changes, so an older refresh cannot publish.
     private var loadGeneration = 0
     /// The only user id whose refresh may publish. Nil after sign-out.
     private var acceptedUserID: UUID?
 
-    init(repository: any CoachLinkRepository = SupabaseCoachLinkRepository()) {
+    init(
+        repository: any CoachLinkRepository = SupabaseCoachLinkRepository(),
+        publishesAssistantContext: Bool = false
+    ) {
         self.repository = repository
+        self.publishesAssistantContext = publishesAssistantContext
+    }
+
+    private func publishAssistantContext() {
+        guard publishesAssistantContext else { return }
+        CoachContextSource.shared.replace(CoachContext.forRequest(link: currentLink), ownerID: acceptedUserID)
     }
 
     /// The Settings row is shown only when we know there is no active link.

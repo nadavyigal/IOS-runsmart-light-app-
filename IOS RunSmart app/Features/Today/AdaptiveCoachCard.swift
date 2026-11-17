@@ -8,13 +8,14 @@ struct AdaptiveCoachCard: View {
     let prompt: AdaptiveCoachPrompt
     let onReview: () -> Void
     let onDismiss: () -> Void
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
 
     var body: some View {
         RunSmartPanel(cornerRadius: 22, padding: 18, accent: .accentPrimary) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 8) {
                     Image(systemName: "sparkles")
-                    Text("ADAPTIVE COACH")
+                    Text(CoachAssistantCopy.apply("ADAPTIVE COACH", assistant: coachAssistantActive))
                         .font(.caption.weight(.black))
                         .tracking(0.8)
                     Spacer()
@@ -26,7 +27,7 @@ struct AdaptiveCoachCard: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Dismiss adaptive coach suggestion")
+                    .accessibilityLabel(CoachAssistantCopy.apply("Dismiss adaptive coach suggestion", assistant: coachAssistantActive))
                     .accessibilityIdentifier("adaptiveCoach.dismiss")
                 }
                 .foregroundStyle(Color.accentPrimary)

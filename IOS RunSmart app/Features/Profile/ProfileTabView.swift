@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProfileTabView: View {
     @Environment(\.runSmartServices) private var services
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
 
@@ -131,7 +132,7 @@ struct ProfileTabView: View {
         RunSmartPanel(cornerRadius: 22, padding: 18, accent: .accentPrimary) {
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Your AI Coach")
+                    SectionLabel(title: CoachAssistantCopy.apply("Your AI Coach", assistant: coachAssistantActive))
                     HStack(spacing: 8) {
                         Text("Coach Spark")
                             .font(.displayMD)

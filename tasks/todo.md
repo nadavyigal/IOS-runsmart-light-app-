@@ -1,3 +1,9 @@
+## 2026-11-17 — Coach Mode Story 3.5 follow-up
+
+- [x] Reconcile #198 with main so the module has one Coach Mode flag. Tie AI context to the authenticated request account and add Plan and run-share copy for linked athletes.
+- [ ] Re-review the new head and verify voice/report prompt handling in the web service before pilot.
+- [ ] 6.1: My coach toggle depends on #193. Keep the upload policy off until 6.4.
+
 ## 2026-11-17 — Coach Mode Story 6.1
 
 - [x] Implement route preparation, device-local sharing preference and retry, and an athlete-only write to `runs.route` and `runs.route_status`.

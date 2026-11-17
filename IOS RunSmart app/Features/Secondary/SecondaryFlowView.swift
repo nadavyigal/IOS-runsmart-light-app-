@@ -333,6 +333,7 @@ private struct SecondaryContentView: View {
 
 private struct FlowHeader: View {
     var destination: SecondaryDestination
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -342,7 +343,7 @@ private struct FlowHeader: View {
                 Text(destination.title)
                     .font(.displayMD)
                     .foregroundStyle(Color.textPrimary)
-                Text(destination.subtitle)
+                Text(CoachAssistantCopy.apply(destination.subtitle, assistant: coachAssistantActive))
                     .font(.callout)
                     .foregroundStyle(Color.textSecondary)
             }
@@ -390,6 +391,7 @@ private struct FlowHeader: View {
 
 private struct WorkoutDetailScaffold: View {
     @Environment(\.runSmartServices) private var services
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     @EnvironmentObject private var router: AppRouter
     @Environment(\.dismiss) private var dismiss
 
@@ -534,7 +536,7 @@ private struct WorkoutDetailScaffold: View {
 
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Coach Actions")
+                    SectionLabel(title: CoachAssistantCopy.apply("Coach Actions", assistant: coachAssistantActive))
                     ActionRow(title: "Reschedule Workout", detail: "Move this session and preserve weekly balance.", symbol: "calendar.badge.clock") {
                         router.open(.reschedule(workout))
                     }
@@ -544,7 +546,7 @@ private struct WorkoutDetailScaffold: View {
                     ActionRow(title: "Choose Route", detail: "Pick a route that matches the target effort.", symbol: "map") {
                         router.open(.routeSelector)
                     }
-                    ActionRow(title: "Adjust Plan", detail: "Ask the coach to reshuffle the week.", symbol: "slider.horizontal.3") {
+                    ActionRow(title: "Adjust Plan", detail: CoachAssistantCopy.apply("Ask the coach to reshuffle the week.", assistant: coachAssistantActive), symbol: "slider.horizontal.3") {
                         router.open(.planAdjustment)
                     }
                 }
@@ -1498,17 +1500,24 @@ private struct RunReportDetailScaffold: View {
 
 private struct RunReportCoachNotesCard: View {
     var report: RunReportDetail
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
 
     var body: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 12) {
-                SectionLabel(title: report.hasGeneratedReport ? "Coach Notes" : "Coach Report", trailing: scoreLabel)
+                SectionLabel(
+                    title: CoachAssistantCopy.apply(
+                        report.hasGeneratedReport ? "Coach Notes" : "Coach Report",
+                        assistant: coachAssistantActive
+                    ),
+                    trailing: scoreLabel
+                )
                 DetailLine(label: "Insight", value: report.notes.summary)
                 if report.hasGeneratedReport {
                     DetailLine(label: "Effort", value: report.notes.effort)
                     DetailLine(label: "Recovery", value: report.notes.recovery)
                 } else {
-                    Text("This is a real activity, but no generated coach report has been saved yet.")
+                    Text(CoachAssistantCopy.apply("This is a real activity, but no generated coach report has been saved yet.", assistant: coachAssistantActive))
                         .font(.callout)
                         .foregroundStyle(Color.mutedText)
                 }
@@ -1652,6 +1661,7 @@ private struct RunReportNextWorkoutCard: View {
 private struct AudioCuesScaffold: View {
     @ObservedObject private var cues = LocalRunCueService.shared
     @ObservedObject private var coach = VoiceCoachService.shared
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     @AppStorage("runAutoPauseEnabled") private var autoPause = true
 
     var body: some View {
@@ -1680,7 +1690,7 @@ private struct AudioCuesScaffold: View {
                     Toggle("Auto-pause at stops", isOn: $autoPause)
                     Text("Pauses after 8 seconds below 0.5 m/s. Manual pauses resume only when you tap Resume.")
                         .font(.caption).foregroundStyle(Color.mutedText)
-                    Toggle("Extra AI coach cues", isOn: Binding(get: { coach.isEnabled }, set: { coach.setEnabled($0) }))
+                    Toggle(CoachAssistantCopy.apply("Extra AI coach cues", assistant: coachAssistantActive), isOn: Binding(get: { coach.isEnabled }, set: { coach.setEnabled($0) }))
                     Text("AI cues need a signed-in account and an internet connection.")
                         .font(.caption).foregroundStyle(Color.mutedText)
                 }
@@ -1721,6 +1731,7 @@ private struct LapMarkerScaffold: View {
 
 private struct PostRunSummaryScaffold: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     var run: RecordedRun?
 
     private var distanceLabel: String {
@@ -1773,7 +1784,7 @@ private struct PostRunSummaryScaffold: View {
         if run == nil {
             return "RunSmart could not find completed run metrics for this summary. Return to the Run tab and try finishing again."
         }
-        return "Run saved. Great work - your coach will factor this into the plan."
+        return CoachAssistantCopy.apply("Run saved. Great work - your coach will factor this into the plan.", assistant: coachAssistantActive)
     }
 }
 
@@ -2523,6 +2534,7 @@ private struct ConnectedServiceDetailScaffold: View {
 }
 
 private struct FirstSyncReviewCard: View {
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     var review: FirstSyncReview
     var onNextAction: () -> Void
     var onDismiss: () -> Void
@@ -2564,7 +2576,7 @@ private struct FirstSyncReviewCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Coach can now use")
+                    Text(CoachAssistantCopy.apply("Coach can now use", assistant: coachAssistantActive))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.textSecondary)
                     ForEach(review.coachCanUse, id: \.self) { item in

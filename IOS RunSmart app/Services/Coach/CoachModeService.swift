@@ -1,13 +1,17 @@
 import Foundation
 
-enum RunSmartFeatures {
+nonisolated enum RunSmartFeatures {
     static let coachModeEnabled: Bool = {
 #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("-enable-coach-mode")
+        coachModeEnabled(processArguments: ProcessInfo.processInfo.arguments, isDebugBuild: true)
 #else
         false
 #endif
     }()
+
+    static func coachModeEnabled(processArguments: [String], isDebugBuild: Bool) -> Bool {
+        isDebugBuild && processArguments.contains("-enable-coach-mode")
+    }
 
     /// Invite URLs are reserved for Story 1.4 and must never enter authentication handling.
     static func isCoachInviteURL(_ url: URL) -> Bool {
