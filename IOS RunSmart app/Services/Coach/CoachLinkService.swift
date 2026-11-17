@@ -19,6 +19,10 @@ struct CoachLookup: Equatable, Sendable {
     let displayName: String
     /// The exact code that produced this lookup. Share does not read the text field.
     let code: String
+    /// Nil on a database that has not applied Story 1.8 yet. That keeps Story 1.3's immediate join.
+    var planMode: CoachPlanMode? = nil
+    /// Present only for a Group Plan coach whose settings came back complete.
+    var groupPlan: GroupPlanSettings? = nil
 }
 
 enum JoinCoachOutcome: Equatable, Sendable {
@@ -44,18 +48,6 @@ nonisolated protocol CoachLinkRepository: Sendable {
 }
 
 nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
-    private struct LookupRow: Decodable {
-        let inviteId: UUID
-        let coachId: UUID
-        let displayName: String
-
-        enum CodingKeys: String, CodingKey {
-            case inviteId = "invite_id"
-            case coachId = "coach_id"
-            case displayName = "display_name"
-        }
-    }
-
     private struct LinkRow: Decodable {
         let linkId: UUID
         let coachId: UUID
@@ -123,17 +115,11 @@ nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
     }
 
     func lookupInvite(code: String) async throws -> CoachLookup? {
-        let rows: [LookupRow] = try await SupabaseManager.client
+        let rows: [CoachInviteLookupRow] = try await SupabaseManager.client
             .rpc("lookup_invite", params: CodeParams(code: code))
             .execute()
             .value
-        guard let row = rows.first else { return nil }
-        return CoachLookup(
-            inviteID: row.inviteId,
-            coachID: row.coachId,
-            displayName: row.displayName,
-            code: code
-        )
+        return rows.first?.coachLookup(code: code)
     }
 
     func joinCoach(code: String, inviteID: UUID, coachID: UUID, athleteID: UUID) async throws -> JoinCoachOutcome {
@@ -523,6 +509,10 @@ enum JoinCoachPhase: Equatable {
     /// Skeleton of the consent screen while a link's lookup is in flight.
     case resolvingLink
     case consent(CoachLookup, athleteID: UUID)
+    /// A4. The link does not exist yet.
+    case groupConfirm(GroupPlanConfirm)
+    /// "Building your plan…" The link is created only after this succeeds.
+    case building(coachName: String)
 }
 
 @MainActor
@@ -532,14 +522,49 @@ final class JoinCoachViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var isWorking = false
     @Published private(set) var joinedCoach: CoachLink?
+    /// Where to land after a successful link. Individual Plans with no plan opens Build my plan.
+    @Published private(set) var followUp: JoinCoachFollowUp = .today
     /// A2 hint. The typed-code field does not show this on its own.
     @Published private(set) var showsEntryHint = false
 
     private let repository: any CoachLinkRepository
+    var plans: (any GroupPlanAthleteContext)?
+    private let now: @Sendable () -> Date
+    let calendar: Calendar
 
-    init(code: String = "", repository: any CoachLinkRepository = SupabaseCoachLinkRepository()) {
+    init(
+        code: String = "",
+        repository: any CoachLinkRepository = SupabaseCoachLinkRepository(),
+        plans: (any GroupPlanAthleteContext)? = nil,
+        now: @escaping @Sendable () -> Date = { Date() },
+        calendar: Calendar = .current
+    ) {
         self.code = code
         self.repository = repository
+        self.plans = plans
+        self.now = now
+        self.calendar = calendar
+    }
+
+    /// The live join screen calls this once. Tests pass their own context and this does not replace it.
+    func attachLivePlansIfNeeded(
+        services: any RunSmartServiceProviding,
+        profile: @escaping () -> OnboardingProfile
+    ) {
+        guard plans == nil else { return }
+        plans = LiveGroupPlanContext(services: services, profile: profile)
+    }
+
+    var groupFailureMessage: String? {
+        guard case .groupConfirm(let confirm) = phase else { return nil }
+        switch confirm.failure {
+        case .generation:
+            return GroupPlanConfirmCopy.generationFailed
+        case .join:
+            return GroupPlanConfirmCopy.joinFailed(coach: confirm.coach.displayName)
+        case nil:
+            return nil
+        }
     }
 
     func continueTapped(athleteID: UUID?) async {
@@ -662,6 +687,21 @@ final class JoinCoachViewModel: ObservableObject {
                 errorMessage = CoachConsentCopy.codeReassigned(coach: resolved.displayName)
                 return
             }
+            if resolved.planMode == .group {
+                guard let settings = resolved.groupPlan else {
+                    errorMessage = GroupPlanConfirmCopy.generationFailed
+                    return
+                }
+                phase = .groupConfirm(GroupPlanConfirm(
+                    coach: resolved,
+                    athleteID: athleteID,
+                    settings: settings,
+                    replacement: await replacementSentence(),
+                    failure: nil,
+                    planBuilt: false
+                ))
+                return
+            }
             switch try await repository.joinCoach(
                 code: shown.code,
                 inviteID: shown.inviteID,
@@ -670,6 +710,7 @@ final class JoinCoachViewModel: ObservableObject {
             ) {
             case .joined(let coach):
                 joinedCoach = coach
+                followUp = await individualFollowUp()
             case .alreadyLinked(let coachName):
                 phase = .enterCode
                 errorMessage = CoachConsentCopy.alreadyLinked(coach: coachName)
@@ -686,6 +727,88 @@ final class JoinCoachViewModel: ObservableObject {
             }
             errorMessage = message
         }
+    }
+
+    /// A4 confirm. Generates under the athlete's login, then calls join_coach.
+    /// A failed generation never links. A failed join retries the link only.
+    func useGroupPlan(athleteID: UUID) async {
+        guard !isWorking, case .groupConfirm(var confirm) = phase, confirm.athleteID == athleteID else { return }
+        errorMessage = nil
+        isWorking = true
+        defer { isWorking = false }
+        confirm.failure = nil
+        if let notice = GroupPlanRules.dateNotice(
+            raceDate: confirm.settings.raceDate,
+            targetDistance: confirm.settings.targetDistance,
+            today: now(),
+            calendar: calendar
+        ), notice.blocksSave {
+            confirm.failure = .generation
+            phase = .groupConfirm(confirm)
+            errorMessage = notice.message
+            return
+        }
+
+        if !confirm.planBuilt {
+            guard let plans else {
+                confirm.failure = .generation
+                phase = .groupConfirm(confirm)
+                return
+            }
+            phase = .building(coachName: confirm.coach.displayName)
+            var request = GroupPlanRequest.make(
+                settings: confirm.settings,
+                profile: plans.profile(),
+                today: now(),
+                calendar: calendar
+            )
+            request.groupPlanAthleteID = confirm.athleteID
+            let built = await plans.generateAndPersist(request)
+            guard built else {
+                confirm.failure = .generation
+                phase = .groupConfirm(confirm)
+                return
+            }
+            confirm.planBuilt = true
+        }
+
+        do {
+            switch try await repository.joinCoach(
+                code: confirm.coach.code,
+                inviteID: confirm.coach.inviteID,
+                coachID: confirm.coach.coachID,
+                athleteID: confirm.athleteID
+            ) {
+            case .joined(let coach):
+                joinedCoach = coach
+                followUp = .today
+            case .alreadyLinked(let coachName):
+                phase = .enterCode
+                errorMessage = CoachConsentCopy.alreadyLinked(coach: coachName)
+            }
+        } catch {
+            confirm.failure = .join
+            phase = .groupConfirm(confirm)
+        }
+    }
+
+    /// Back to the consent screen. Nothing was shared. A plan already built stays.
+    func cancelGroupPlan() {
+        guard !isWorking, case .groupConfirm(let confirm) = phase else { return }
+        joinedCoach = nil
+        errorMessage = nil
+        phase = .consent(confirm.coach, athleteID: confirm.athleteID)
+    }
+
+    private func replacementSentence() async -> String? {
+        guard let plan = await plans?.activePlan() else { return nil }
+        let summary = GroupPlanConfirmCopy.currentPlanSummary(plan, today: now(), calendar: calendar)
+        return GroupPlanConfirmCopy.replaces(summary)
+    }
+
+    private func individualFollowUp() async -> JoinCoachFollowUp {
+        guard let plans, await plans.isActivePlanConfirmedMissing() else { return .today }
+        return .buildMyPlan
     }
 
     /// Join refused because the invite moved. Show whoever the code names now, or the invalid-code copy.

@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// A1 (enter a code) and A3 (consent). Share creates the link; Not now creates nothing.
+/// A1 (enter a code), A3 (consent), and A4 (group plan confirm).
+/// Individual Plans still link on Share. A Group Plan links only after the plan exists.
 struct JoinCoachView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var session: SupabaseSession
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var coachLinks: CoachLinkStore
@@ -27,10 +29,17 @@ struct JoinCoachView: View {
                     consentSkeleton
                 case .consent(let coach, _):
                     consent(coach)
+                case .groupConfirm(let confirm):
+                    groupConfirm(confirm)
+                case .building(let coachName):
+                    building(coachName)
                 }
             }
         }
-        .onAppear(perform: consumeInviteIfNeeded)
+        .onAppear {
+            model.attachLivePlansIfNeeded(services: services, profile: { session.onboardingProfile })
+            consumeInviteIfNeeded()
+        }
         .onChange(of: coachLinks.pendingInvite) { _, _ in
             consumeInviteIfNeeded()
         }
@@ -146,11 +155,7 @@ struct JoinCoachView: View {
                     guard let athleteID = session.currentUserID else { return }
                     Task {
                         await model.share(athleteID: athleteID)
-                        guard session.isAuthenticated, session.currentUserID == athleteID,
-                              let link = model.joinedCoach else { return }
-                        coachLinks.noteJoined(link, userID: athleteID)
-                        router.selectedTab = .today
-                        dismiss()
+                        finishIfJoined(athleteID: athleteID)
                     }
                 } label: {
                     Text("Share")
@@ -180,5 +185,97 @@ struct JoinCoachView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func groupConfirm(_ confirm: GroupPlanConfirm) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(GroupPlanConfirmCopy.title(coach: confirm.coach.displayName))
+                .font(.displayMD)
+            Text(GroupPlanConfirmCopy.detailsLine(confirm.settings, calendar: model.calendar))
+                .font(.body)
+                .foregroundStyle(Color.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let replacement = confirm.replacement {
+                Text(replacement)
+                    .font(.body)
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let message = model.groupFailureMessage {
+                Text(message)
+                    .font(.callout)
+                    .foregroundStyle(Color.accentHeart)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 12) {
+                Button {
+                    guard let athleteID = session.currentUserID else { return }
+                    Task {
+                        await model.useGroupPlan(athleteID: athleteID)
+                        finishIfJoined(athleteID: athleteID)
+                    }
+                } label: {
+                    Group {
+                        if model.isWorking {
+                            ProgressView()
+                        } else if confirm.failure == nil {
+                            Text(GroupPlanConfirmCopy.useButton(coach: confirm.coach.displayName))
+                        } else {
+                            Text(GroupPlanConfirmCopy.retry)
+                        }
+                    }
+                    .font(.body.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.textPrimary)
+                .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.border, lineWidth: 1))
+                .disabled(model.isWorking)
+                .accessibilityLabel(confirm.failure == nil
+                    ? GroupPlanConfirmCopy.useButton(coach: confirm.coach.displayName)
+                    : GroupPlanConfirmCopy.retry)
+
+                Button {
+                    model.cancelGroupPlan()
+                } label: {
+                    Text(GroupPlanConfirmCopy.cancel)
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.textPrimary)
+                .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.border, lineWidth: 1))
+                .disabled(model.isWorking)
+                .accessibilityLabel(GroupPlanConfirmCopy.cancel)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func building(_ coachName: String) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(GroupPlanConfirmCopy.title(coach: coachName))
+                .font(.displayMD)
+            HStack(spacing: 12) {
+                ProgressView()
+                Text(GroupPlanConfirmCopy.building)
+                    .font(.body)
+                    .foregroundStyle(Color.textSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(GroupPlanConfirmCopy.building)
+    }
+
+    private func finishIfJoined(athleteID: UUID) {
+        guard session.isAuthenticated, session.currentUserID == athleteID,
+              let link = model.joinedCoach else { return }
+        coachLinks.noteJoined(link, userID: athleteID)
+        router.selectedTab = model.followUp == .buildMyPlan ? .plan : .today
+        dismiss()
     }
 }

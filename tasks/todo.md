@@ -1,3 +1,11 @@
+## 2026-11-17 — Coach Mode Story 1.8
+
+- [x] Athlete confirms a Group Plan, their phone generates it, then `join_coach` runs.
+- [x] Migration `20261117160000_lookup_invite_group_plan.sql` is in the PR and not applied.
+- [x] Replace the active plan and insert its workouts in one athlete-scoped transaction. Verify rollback in throwaway Postgres.
+- [ ] Mirror `20261117163000_replace_group_training_plan.sql` before enabling the group join flow.
+- [ ] Nadav reviews, mirrors the migration to the web repo, and applies it. Until then a Group Plan coach still joins like Story 1.3.
+
 ## 2026-11-17 — Coach Mode Story 3.5 follow-up
 
 - [x] Reconcile #198 with main so the module has one Coach Mode flag. Tie AI context to the authenticated request account and add Plan and run-share copy for linked athletes.

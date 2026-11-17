@@ -483,12 +483,71 @@ final class TrainingPlanRepository {
         }
     }
 
-    func persistGeneratedPlan(authUserID: UUID, request: TrainingGoalRequest, generated: RunSmartDTO.GeneratedPlan) async -> Bool {
+    /// `startDate` defaults to now. A group-plan join passes the race date minus
+    /// 16 weeks when the race is further out than the generator's cap, so the
+    /// saved plan covers the final 16 weeks. Every other caller keeps today.
+    func persistGeneratedPlan(
+        authUserID: UUID,
+        request: TrainingGoalRequest,
+        generated: RunSmartDTO.GeneratedPlan,
+        startDate: Date = Date()
+    ) async -> Bool {
         let resolved = await identity(authUserID: authUserID)
         let profileID = resolved.planWriteProfileReference(fallback: authUserID)
         print("[TrainingPlanRepo] persistGeneratedPlan using profileID=\(profileID.debugValue)")
 
         do {
+            let totalWeeks = max(1, min(16, generated.totalWeeks))
+            let endDate = Calendar.current.date(byAdding: .day, value: totalWeeks * 7, to: startDate) ?? request.targetDate
+            let planInsert = DBPlanInsert(
+                profileID: profileID,
+                authUserID: authUserID.uuidString,
+                title: generated.title,
+                description: generated.description,
+                startDate: ISO8601DateFormatter.shortDate.string(from: startDate),
+                endDate: ISO8601DateFormatter.shortDate.string(from: endDate),
+                totalWeeks: totalWeeks,
+                isActive: true,
+                planType: "basic",
+                trainingDaysPerWeek: request.weeklyRunDays,
+                targetDistance: generated.targetDistance,
+                targetTime: generated.targetTime,
+                peakWeeklyVolume: generated.peakWeeklyVolume
+            )
+
+            func workoutInserts(planID: String?) -> [DBWorkoutInsert] {
+                generated.workouts.map {
+                    DBWorkoutInsert(
+                        planID: planID,
+                        authUserID: authUserID.uuidString,
+                        week: $0.week,
+                        day: $0.day,
+                        type: $0.type,
+                        distance: $0.distance,
+                        duration: $0.duration,
+                        pace: $0.pace,
+                        completed: false,
+                        scheduledDate: scheduledDate(startDate: startDate, week: $0.week, day: $0.day),
+                        notes: $0.notes,
+                        workoutStructure: $0.workoutStructure,
+                        intensity: $0.intensity,
+                        trainingPhase: $0.trainingPhase
+                    )
+                }
+            }
+
+            if let athleteID = request.groupPlanAthleteID {
+                guard athleteID == authUserID, supabase.auth.currentUser?.id == athleteID,
+                      !generated.workouts.isEmpty else { return false }
+                let params = GroupPlanReplacementParams(
+                    athleteID: athleteID,
+                    plan: planInsert,
+                    workouts: workoutInserts(planID: nil)
+                )
+                try await supabase.rpc("replace_group_training_plan", params: params).execute()
+                return true
+            }
+
             try await supabase
                 .from("plans")
                 .update(DBPlanActiveUpdate(isActive: false))
@@ -520,26 +579,9 @@ final class TrainingPlanRepository {
                     .execute()
             }
 
-            let startDate = Date()
-            let totalWeeks = max(1, min(16, generated.totalWeeks))
-            let endDate = Calendar.current.date(byAdding: .day, value: totalWeeks * 7, to: startDate) ?? request.targetDate
             let planRows: [DBPlan] = try await supabase
                 .from("plans")
-                .insert(DBPlanInsert(
-                    profileID: profileID,
-                    authUserID: authUserID.uuidString,
-                    title: generated.title,
-                    description: generated.description,
-                    startDate: ISO8601DateFormatter.shortDate.string(from: startDate),
-                    endDate: ISO8601DateFormatter.shortDate.string(from: endDate),
-                    totalWeeks: totalWeeks,
-                    isActive: true,
-                    planType: "basic",
-                    trainingDaysPerWeek: request.weeklyRunDays,
-                    targetDistance: generated.targetDistance,
-                    targetTime: generated.targetTime,
-                    peakWeeklyVolume: generated.peakWeeklyVolume
-                ))
+                .insert(planInsert)
                 .select()
                 .execute()
                 .value
@@ -549,25 +591,7 @@ final class TrainingPlanRepository {
                 return false
             }
 
-            let workouts = generated.workouts.map {
-                DBWorkoutInsert(
-                    planID: plan.id.uuidString,
-                    authUserID: authUserID.uuidString,
-                    week: $0.week,
-                    day: $0.day,
-                    type: $0.type,
-                    distance: $0.distance,
-                    duration: $0.duration,
-                    pace: $0.pace,
-                    completed: false,
-                    scheduledDate: scheduledDate(startDate: startDate, week: $0.week, day: $0.day),
-                    notes: $0.notes,
-                    workoutStructure: $0.workoutStructure,
-                    intensity: $0.intensity,
-                    trainingPhase: $0.trainingPhase
-                )
-            }
-
+            let workouts = workoutInserts(planID: plan.id.uuidString)
             if !workouts.isEmpty {
                 try await supabase
                     .from("workouts")
@@ -1287,6 +1311,18 @@ private struct DBPlanActiveUpdate: Encodable {
     }
 }
 
+private struct GroupPlanReplacementParams: Encodable {
+    let athleteID: UUID
+    let plan: DBPlanInsert
+    let workouts: [DBWorkoutInsert]
+
+    enum CodingKeys: String, CodingKey {
+        case athleteID = "expected_athlete"
+        case plan = "new_plan"
+        case workouts = "new_workouts"
+    }
+}
+
 private struct DBPlanInsert: Encodable {
     let profileID: DBProfileReference
     let authUserID: String
@@ -1319,7 +1355,7 @@ private struct DBPlanInsert: Encodable {
 }
 
 private struct DBWorkoutInsert: Encodable {
-    let planID: String
+    let planID: String?
     let authUserID: String
     let week: Int
     let day: String

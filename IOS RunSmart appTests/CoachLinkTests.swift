@@ -68,7 +68,9 @@ final class CoachLinkTests: XCTestCase {
                 inviteID: found.inviteID,
                 coachID: found.coachID,
                 displayName: found.displayName,
-                code: code
+                code: code,
+                planMode: found.planMode,
+                groupPlan: found.groupPlan
             )
         }
 
@@ -550,7 +552,9 @@ final class InviteDeepLinkTests: XCTestCase {
                 inviteID: found.inviteID,
                 coachID: found.coachID,
                 displayName: found.displayName,
-                code: code
+                code: code,
+                planMode: found.planMode,
+                groupPlan: found.groupPlan
             )
         }
 

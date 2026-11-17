@@ -105,6 +105,14 @@ struct TrainingGoalRequest: Hashable {
     var coachingTone: String
     var targetDate: Date
     var challenge: TrainingChallengeContext? = nil
+    /// Group-plan joins set the coach's distance slug. Nil keeps the goal-text inference.
+    var explicitTargetDistance: String? = nil
+    /// Nil starts the plan today. Set only when a group race is more than 16 weeks out.
+    var planStartDate: Date? = nil
+    /// Nil asks the generator for weeks-until-race, capped at 16, as Build my plan does.
+    var planWeekCount: Int? = nil
+    /// Pins group-plan replacement to the athlete who confirmed it.
+    var groupPlanAthleteID: UUID? = nil
 
     /// Builds the post-onboarding plan request from a profile, applying the same
     /// safe fallbacks everywhere. Shared by onboarding completion and the

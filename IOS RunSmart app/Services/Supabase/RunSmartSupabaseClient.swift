@@ -572,6 +572,20 @@ extension OnboardingProfile {
 }
 
 extension TrainingGoalRequest {
+    /// Distance slug sent to the generator. An explicit group-plan slug wins;
+    /// otherwise the same goal-text inference Build my plan has always used.
+    var resolvedTargetDistance: String? {
+        if let explicitTargetDistance, !explicitTargetDistance.isEmpty {
+            return explicitTargetDistance
+        }
+        let lower = goal.lowercased()
+        if lower.contains("5k") { return "5k" }
+        if lower.contains("10k") { return "10k" }
+        if lower.contains("half") { return "half-marathon" }
+        if lower.contains("marathon") { return "marathon" }
+        return nil
+    }
+
     var webPlanGoal: String {
         let lower = goal.lowercased()
         if lower.contains("habit") || lower.contains("consistency") || lower.contains("just") { return "habit" }

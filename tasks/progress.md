@@ -1,3 +1,13 @@
+# 2026-11-17: Coach Mode story 1.8, group plan on join
+
+Current Phase: Coach Mode pilot foundation.
+Active Story: When an athlete taps Share for a Group Plan coach, they confirm the group plan, their phone generates it, and only then does `join_coach` run. Individual Plans still join on Share. Migration `20261117160000_lookup_invite_group_plan.sql` replaces `lookup_invite(text)` so it also returns `plan_mode` and, for a group coach, the group settings. `join_coach` is unchanged. Not applied to production. Nadav applies it. Copy the same file to `Running-coach-/v0/supabase/migrations/`.
+A race more than 16 weeks out asks the generator for 16 weeks and starts the plan on the race date minus 16 weeks (the final 16 weeks). Before that date, Today keeps the existing empty-workout state. If the plan is saved and `join_coach` then fails, Retry joins again and does not generate again. Cancel leaves that new plan in place and the athlete unlinked.
+Next Recommended Story: 2.2 or 6.4, not this branch.
+Blockers: migration not applied. Group confirm stays hidden until it is, because an older `lookup_invite` has no `plan_mode` and the app keeps Story 1.3's immediate join.
+Last Validation: iPhone 17 Pro simulator, GroupPlanJoinTests 15 passed, plus CoachLinkTests and CoachPlanSetupTests, 47 passed / 0 failed. SQL suite is in PR checks. It was not run locally: Docker would not start.
+Last Updated: 2026-11-17
+
 # 2026-11-15: Coach Mode adherence follow-up
 
 Current Phase: Coach Mode pilot foundation.

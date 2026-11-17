@@ -1,3 +1,7 @@
+## 2026-11-17 — Group plan join
+
+Story 1.8. Share on a Group Plan coach opens the confirm screen and does not link. Use builds the plan on the athlete's phone through the existing generator, then calls `join_coach`. A failed build creates no link. A failed join retries only the link. A race past 16 weeks starts 16 weeks before the race. Individual Plans skip the confirm. Migration not applied. Docker did not start, so the SQL suite was not run on this machine.
+
 ## 2026-11-16 — Recover known legacy adherence links on upgrade
 
 The old client could link a run after its separate completion write failed. The versioned upgrade reads the signed-in athlete's persisted run links to incomplete active workouts, repairs usable links through the same transactional RPC, and keeps those workout slots out of heuristic matching. A hidden run reserves its existing slot without being uploaded or completed. A failed link read leaves the upgrade pending.
