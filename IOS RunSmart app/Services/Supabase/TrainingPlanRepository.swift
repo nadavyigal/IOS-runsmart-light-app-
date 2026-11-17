@@ -483,7 +483,15 @@ final class TrainingPlanRepository {
         }
     }
 
-    func persistGeneratedPlan(authUserID: UUID, request: TrainingGoalRequest, generated: RunSmartDTO.GeneratedPlan) async -> Bool {
+    /// `startDate` defaults to now. A group-plan join passes the race date minus
+    /// 16 weeks when the race is further out than the generator's cap, so the
+    /// saved plan covers the final 16 weeks. Every other caller keeps today.
+    func persistGeneratedPlan(
+        authUserID: UUID,
+        request: TrainingGoalRequest,
+        generated: RunSmartDTO.GeneratedPlan,
+        startDate: Date = Date()
+    ) async -> Bool {
         let resolved = await identity(authUserID: authUserID)
         let profileID = resolved.planWriteProfileReference(fallback: authUserID)
         print("[TrainingPlanRepo] persistGeneratedPlan using profileID=\(profileID.debugValue)")
@@ -520,7 +528,6 @@ final class TrainingPlanRepository {
                     .execute()
             }
 
-            let startDate = Date()
             let totalWeeks = max(1, min(16, generated.totalWeeks))
             let endDate = Calendar.current.date(byAdding: .day, value: totalWeeks * 7, to: startDate) ?? request.targetDate
             let planRows: [DBPlan] = try await supabase

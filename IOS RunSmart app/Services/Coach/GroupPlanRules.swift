@@ -86,6 +86,23 @@ enum GroupPlanRules {
         return Int(ceil(Double(daySpan) / 7.0))
     }
 
+    /// Weeks to ask the generator for, and when that plan starts.
+    /// A race further than 16 weeks away is 16 weeks starting on the race date
+    /// minus 16 weeks (the final 16 weeks). A nearer race starts today, so
+    /// `startDate` is nil and `persistGeneratedPlan` keeps `Date()`.
+    static func planWindow(
+        raceDate: Date,
+        today: Date,
+        calendar: Calendar = .current
+    ) -> (weeks: Int, startDate: Date?) {
+        let raw = max(0, weeksUntilRace(daySpan: daySpan(from: today, to: raceDate, calendar: calendar)))
+        let weeks = min(maxPlanWeeks, max(1, raw))
+        guard raw > maxPlanWeeks else { return (weeks, nil) }
+        let race = calendar.startOfDay(for: raceDate)
+        let start = calendar.date(byAdding: .day, value: -(maxPlanWeeks * 7), to: race) ?? race
+        return (maxPlanWeeks, start)
+    }
+
     static func dateNotice(
         raceDate: Date,
         targetDistance: String,
@@ -115,7 +132,7 @@ enum GroupPlanRules {
     }
 }
 
-enum CoachPlanMode: String, Codable, Equatable, CaseIterable {
+enum CoachPlanMode: String, Codable, Equatable, CaseIterable, Sendable {
     case group
     case individual
 
@@ -134,7 +151,7 @@ enum CoachPlanMode: String, Codable, Equatable, CaseIterable {
     }
 }
 
-struct GroupPlanSettings: Equatable {
+struct GroupPlanSettings: Equatable, Sendable {
     var goal: String
     var targetDistance: String
     var raceDate: Date

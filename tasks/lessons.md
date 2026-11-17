@@ -1,3 +1,7 @@
+## 2026-11-17 — Simulator signing fails on a file-provider path
+
+`codesign` rejects a bundle that carries `com.apple.FinderInfo` with "resource fork, Finder information, or similar detritus not allowed". DerivedData under Documents picked up that attribute from the file provider. Put DerivedData on a local path such as `/tmp` and set `COPYFILE_DISABLE=1`. Do not disable simulator signing: an unsigned test host does not load the XCTest bundle.
+
 ## 2026-11-16 — Recover partial writes from persisted associations on upgrade
 
 Replacing two legacy writes with one transaction does not by itself repair records that only received the first write. Exercise the upgrade from both possible partial states. When the run link persisted, use that exact owned association to recover actuals. A detached completion payload cannot identify the winning run.

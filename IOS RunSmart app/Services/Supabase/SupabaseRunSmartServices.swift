@@ -262,8 +262,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                         promise: $0.promise
                     )
                 },
-                targetDistance: targetDistanceSlug(for: request.goal),
-                totalWeeks: planWeeks(until: request.targetDate),
+                targetDistance: request.resolvedTargetDistance,
+                totalWeeks: request.planWeekCount ?? planWeeks(until: request.targetDate),
                 planPreferences: .init(
                     trainingDays: request.preferredDays,
                     availableDays: request.preferredDays,
@@ -285,7 +285,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 return PlanGenerationFailureReason.classify(response)
             }
 
-            let persisted = await planRepo.persistGeneratedPlan(authUserID: userID, request: request, generated: generated)
+            let persisted = await planRepo.persistGeneratedPlan(
+                authUserID: userID,
+                request: request,
+                generated: generated,
+                startDate: request.planStartDate ?? Date()
+            )
             if persisted {
                 await refreshAppleWorkoutExports()
                 Analytics.trackPlanGenerated(
@@ -2426,15 +2431,6 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     private func recentWeeklyKm(runs: [RecordedRun]) -> Double {
         let start = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
         return runs.filter { $0.startedAt >= start }.reduce(0.0) { $0 + $1.distanceMeters } / 1_000
-    }
-
-    private func targetDistanceSlug(for goal: String) -> String? {
-        let lower = goal.lowercased()
-        if lower.contains("5k") { return "5k" }
-        if lower.contains("10k") { return "10k" }
-        if lower.contains("half") { return "half-marathon" }
-        if lower.contains("marathon") { return "marathon" }
-        return nil
     }
 
     private func hasMorningCheckinToday(userID: UUID) async -> Bool {
