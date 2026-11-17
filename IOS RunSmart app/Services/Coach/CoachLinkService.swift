@@ -745,12 +745,13 @@ final class JoinCoachViewModel: ObservableObject {
                 return
             }
             phase = .building(coachName: confirm.coach.displayName)
-            let request = GroupPlanRequest.make(
+            var request = GroupPlanRequest.make(
                 settings: confirm.settings,
                 profile: plans.profile(),
                 today: now(),
                 calendar: calendar
             )
+            request.groupPlanAthleteID = confirm.athleteID
             let built = await plans.generateAndPersist(request)
             guard built else {
                 confirm.failure = .generation

@@ -202,6 +202,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     /// Builds and saves a plan. Returns nil on success, otherwise why it failed.
     private func generateTrainingPlan(_ request: TrainingGoalRequest) async -> PlanGenerationFailureReason? {
         guard let userID = currentUserID,
+              request.groupPlanAthleteID == nil || request.groupPlanAthleteID == userID,
               let token = try? await supabase.auth.session.accessToken else {
             return .noSession
         }
@@ -285,6 +286,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 return PlanGenerationFailureReason.classify(response)
             }
 
+            guard request.groupPlanAthleteID == nil || currentUserID == userID else { return .noSession }
             let persisted = await planRepo.persistGeneratedPlan(
                 authUserID: userID,
                 request: request,

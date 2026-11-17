@@ -111,6 +111,8 @@ struct TrainingGoalRequest: Hashable {
     var planStartDate: Date? = nil
     /// Nil asks the generator for weeks-until-race, capped at 16, as Build my plan does.
     var planWeekCount: Int? = nil
+    /// Pins group-plan replacement to the athlete who confirmed it.
+    var groupPlanAthleteID: UUID? = nil
 
     /// Builds the post-onboarding plan request from a profile, applying the same
     /// safe fallbacks everywhere. Shared by onboarding completion and the
