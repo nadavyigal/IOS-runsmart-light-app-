@@ -1,9 +1,10 @@
 import Combine
 import Foundation
 
-/// Story 6.4 supplies a privacy-zone preparer and may enable this switch.
+/// Story 6.4 turns this on. Release still uploads nothing: staging also requires
+/// `RunSmartFeatures.coachModeEnabled`, which is false outside a debug coach-mode launch.
 enum RouteUploadPolicy {
-    static let isEnabled = false
+    static let isEnabled = true
 
     static func isEligible(run: RecordedRun, link: CoachLink, sharing: Bool) -> Bool {
         sharing && run.source == .runSmart && run.providerActivityID == nil &&
@@ -34,19 +35,77 @@ struct CoachRouteCoordinate: Codable, Equatable {
     }
 }
 
-protocol RouteUploadPreparer {
-    func prepare(_ points: [RunRoutePoint]) -> [CoachRouteCoordinate]?
+enum CoachRouteVisibility: String, Codable, Equatable {
+    case shared
+    case tooShort = "too_short"
 }
 
-struct DisabledRouteUploadPreparer: RouteUploadPreparer {
-    func prepare(_ points: [RunRoutePoint]) -> [CoachRouteCoordinate]? { nil }
+/// Prepared coach upload. `points` is empty when the route must not be uploaded.
+struct RouteUploadPreparation: Equatable {
+    let points: [CoachRouteCoordinate]
+    let radiusMeters: Double
+
+    var status: CoachRouteVisibility {
+        (2...CoachRouteCoordinate.maxPoints).contains(points.count) ? .shared : .tooShort
+    }
+}
+
+protocol RouteUploadPreparer {
+    /// Work from a copy of `points`. `distanceMeters` is the run's recorded distance.
+    func prepare(_ points: [RunRoutePoint], distanceMeters: Double) -> RouteUploadPreparation
+}
+
+/// Drops a 200–300 m disk around the start and the finish, then encodes with the 6.1 encoder.
+struct PrivacyZoneRouteUploadPreparer: RouteUploadPreparer {
+    private let nextRadius: () -> Double
+
+    init(nextRadius: @escaping () -> Double = {
+        var generator = SystemRandomNumberGenerator()
+        return RouteSharePrivacy.randomCoachUploadRadius(using: &generator)
+    }) {
+        self.nextRadius = nextRadius
+    }
+
+    func prepare(_ points: [RunRoutePoint], distanceMeters: Double) -> RouteUploadPreparation {
+        let radius = RouteSharePrivacy.coachUploadRadius(nextRadius())
+        // Rounding to five decimals can shift a point by less than one meter.
+        let kept = distanceMeters.isFinite && distanceMeters >= RouteSharePrivacy.coachUploadMinimumRunMeters
+            ? RouteSharePrivacy.pointsOutsideEndpointRadius(points, radiusMeters: radius + 1)
+            : []
+        return RouteUploadPreparation(
+            points: CoachRouteCoordinate.encodePreparedPoints(kept) ?? [],
+            radiusMeters: radius
+        )
+    }
 }
 
 struct PendingCoachRoute: Codable, Equatable {
     let ownerID: UUID
     let linkID: UUID
     let runID: UUID
+    /// Prepared coordinates only. Empty when `status` is `tooShort`. Never raw route points.
     let points: [CoachRouteCoordinate]
+    /// Chosen once at staging and reused for every retry of this upload.
+    let radiusMeters: Double
+    let status: CoachRouteVisibility
+}
+
+/// Owner update for a run whose route must stay null. No coordinates.
+struct CoachRouteTooShortUpdate: Encodable, Equatable {
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeNil(forKey: .route)
+        try container.encode(CoachRouteVisibility.tooShort.rawValue, forKey: .routeStatus)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case route
+        case routeStatus = "route_status"
+    }
+}
+
+struct CoachRunRowID: Decodable {
+    let id: Int64
 }
 
 struct CoachRunRouteParams: Encodable {
@@ -87,7 +146,7 @@ final class CoachRouteOutbox: ObservableObject {
          preparer: (any RouteUploadPreparer)? = nil) {
         self.defaults = defaults
         self.enabled = enabled ?? RouteUploadPolicy.isEnabled
-        self.preparer = preparer ?? DisabledRouteUploadPreparer()
+        self.preparer = preparer ?? PrivacyZoneRouteUploadPreparer()
         preferences = defaults.dictionary(forKey: "runsmart.coachRouteSharing.v1") as? [String: Bool] ?? [:]
     }
 
@@ -118,15 +177,23 @@ final class CoachRouteOutbox: ObservableObject {
     }
 
     /// Call only with the fresh recorder result. Import/consolidation never stages routes.
+    /// The queue stores the preparer's output only. Raw `routePoints` are never serialized.
     func stage(_ run: RecordedRun, ownerID: UUID, link: CoachLink, coachModeEnabled: Bool) {
         guard enabled, coachModeEnabled,
-              RouteUploadPolicy.isEligible(run: run, link: link, sharing: sharing(ownerID: ownerID, linkID: link.id)),
-              let points = preparer.prepare(run.routePoints), (2...CoachRouteCoordinate.maxPoints).contains(points.count)
+              RouteUploadPolicy.isEligible(run: run, link: link, sharing: sharing(ownerID: ownerID, linkID: link.id))
         else { return }
 
-        let item = PendingCoachRoute(ownerID: ownerID, linkID: link.id, runID: run.id, points: points)
         var queue = pending
         guard !queue.contains(where: { $0.ownerID == ownerID && $0.runID == run.id }) else { return }
+
+        let preparation = preparer.prepare(run.routePoints, distanceMeters: run.distanceMeters)
+        let shared = preparation.status == .shared
+        let item = PendingCoachRoute(
+            ownerID: ownerID, linkID: link.id, runID: run.id,
+            points: shared ? preparation.points : [],
+            radiusMeters: preparation.radiusMeters,
+            status: shared ? .shared : .tooShort
+        )
         queue.append(item)
         pending = queue
     }

@@ -1,3 +1,7 @@
+## 2026-11-17 — Use fresh DerivedData after a handoff
+
+An inherited Cursor build still held its Xcode database. Use fresh DerivedData after a handoff unless the inherited build process has been confirmed stopped.
+
 ## 2026-11-16 — Recover partial writes from persisted associations on upgrade
 
 Replacing two legacy writes with one transaction does not by itself repair records that only received the first write. Exercise the upgrade from both possible partial states. When the run link persisted, use that exact owned association to recover actuals. A detached completion payload cannot identify the winning run.

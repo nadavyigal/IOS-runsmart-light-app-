@@ -13,6 +13,43 @@ enum RouteSharePrivacy {
 
     static let privacyNote = "The first and last 200 m are kept private."
 
+    /// Coach upload cutoff. The PRD says "~1 km"; this is the one constant.
+    static let coachUploadMinimumRunMeters: Double = 1_000
+    /// Inclusive radius drawn once per run for the coach upload privacy zone.
+    static let coachUploadRadiusRange: ClosedRange<Double> = 200...300
+
+    /// Forces a sample into the coach-upload radius so a bad source cannot hide less than 200 m.
+    static func coachUploadRadius(_ sample: Double) -> Double {
+        guard sample.isFinite else { return coachUploadRadiusRange.lowerBound }
+        return min(max(sample, coachUploadRadiusRange.lowerBound), coachUploadRadiusRange.upperBound)
+    }
+
+    static func randomCoachUploadRadius(using generator: inout some RandomNumberGenerator) -> Double {
+        Double.random(in: coachUploadRadiusRange, using: &generator)
+    }
+
+    /// Points outside a disk around the first point and a disk around the last point.
+    ///
+    /// Reuses the same great-circle distance as `shareableRoute` (`CLLocation.distance`) and does
+    /// not reuse that function's along-path cut or its segment break. A point that passes the start
+    /// or finish again is dropped wherever it sits. The input array is not mutated. Kept points stay
+    /// in order with their original `startsNewSegment` flags, so a map may draw a straight line
+    /// across the gap. That gap is accepted for the coach upload.
+    static func pointsOutsideEndpointRadius(_ points: [RunRoutePoint], radiusMeters: Double) -> [RunRoutePoint] {
+        let copy = points
+        guard copy.count >= 2, radiusMeters.isFinite, radiusMeters > 0 else { return [] }
+        guard CLLocationCoordinate2DIsValid(copy[0].coordinate),
+              CLLocationCoordinate2DIsValid(copy[copy.count - 1].coordinate) else { return [] }
+        let origin = CLLocation(latitude: copy[0].latitude, longitude: copy[0].longitude)
+        let finish = CLLocation(latitude: copy[copy.count - 1].latitude, longitude: copy[copy.count - 1].longitude)
+        return copy.filter { point in
+            guard point.latitude.isFinite, point.longitude.isFinite else { return false }
+            let location = CLLocation(latitude: point.latitude, longitude: point.longitude)
+            return location.distance(from: origin) > radiusMeters
+                && location.distance(from: finish) > radiusMeters
+        }
+    }
+
     /// Distance along the route. Never counts the jump across a segment start (a pause or resume).
     static func pathLengthMeters(_ points: [RunRoutePoint]) -> Double {
         cumulativeMeters(points).last ?? 0

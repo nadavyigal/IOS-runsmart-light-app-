@@ -1,3 +1,9 @@
+## 2026-11-17 — Coach Mode Story 6.4
+
+- [x] Carry forward Cursor's endpoint trimming, stable per-run radius, and short-run status.
+- [x] Decode the runs table's bigint ID when acknowledging a short-route write.
+- [ ] Verify the full local app-to-Supabase flow before pilot invites. Keep Release Coach Mode off.
+
 ## 2026-11-17 — Coach Mode Story 3.5 follow-up
 
 - [x] Reconcile #198 with main so the module has one Coach Mode flag. Tie AI context to the authenticated request account and add Plan and run-share copy for linked athletes.
