@@ -4,6 +4,7 @@ import {
   FLEX_WEEK_SYSTEM_PROMPT,
   instructionsFor,
   readCoachContext,
+  resolveCoachContext,
   RUN_DEBRIEF_SYSTEM_PROMPT,
   SOLO_CAREFUL_PATH,
   SYSTEM_PROMPT,
@@ -85,4 +86,18 @@ Deno.test("linked prompt carries locked workout ids and ignores a solo body", ()
     }),
     { coachDisplayName: "Dana", linkActive: true, lockedWorkoutIds: ["a"] },
   );
+});
+
+Deno.test("solo requests do not look up a coach link", async () => {
+  const coach = await resolveCoachContext({}, async () => {
+    throw new Error("Solo requests must skip the lookup");
+  });
+  assertEquals(coach, null);
+});
+
+Deno.test("linked requests require an active matching coach and ignore client locks", async () => {
+  const body = { coachContext: { ...dana, lockedWorkoutIds: ["client-supplied"] } };
+  assertEquals(await resolveCoachContext(body, () => Promise.resolve(null)), null);
+  assertEquals(await resolveCoachContext(body, () => Promise.resolve("New coach")), null);
+  assertEquals(await resolveCoachContext(body, () => Promise.resolve("Dana")), dana);
 });

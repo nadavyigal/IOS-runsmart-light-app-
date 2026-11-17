@@ -6,7 +6,7 @@ import {
 import { corsHeaders, isOriginAllowed } from "../_shared/cors.ts";
 import {
   instructionsFor,
-  readCoachContext,
+  resolveCoachContext,
   RUN_DEBRIEF_SYSTEM_PROMPT,
   SYSTEM_PROMPT,
   WEEKLY_SUMMARY_SYSTEM_PROMPT,
@@ -259,7 +259,12 @@ Deno.serve(async (req) => {
   const clientTimestamp = stringValue(body.clientTimestamp).trim();
   const context = asRecord(body.context);
   const intent = stringValue(body.intent) || "chat";
-  const coach = readCoachContext(body);
+  const coach = await resolveCoachContext(body, async () => {
+    const { data, error } = await userClient.rpc("my_coach_link");
+    if (error) return null;
+    const name = Array.isArray(data) ? data[0]?.display_name : null;
+    return typeof name === "string" ? name : null;
+  });
 
   // Route run_debrief before the chat-specific validation
   if (intent === "run_debrief") {

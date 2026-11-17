@@ -21,6 +21,22 @@ export function readCoachContext(body: Record<string, unknown> | null | undefine
   return { coachDisplayName: name, linkActive: true, lockedWorkoutIds: locked };
 }
 
+// Coach Mode sends this context only when enabled. Confirm the link independently
+// so a revoked or unlinked athlete stays on the solo prompt.
+export async function resolveCoachContext(
+  body: Record<string, unknown> | null | undefined,
+  activeCoachName: () => Promise<string | null>,
+): Promise<CoachPromptContext | null> {
+  const requested = readCoachContext(body);
+  if (!requested) return null;
+  const coachDisplayName = (await activeCoachName())?.trim();
+  if (!coachDisplayName || coachDisplayName !== requested.coachDisplayName) {
+    return null;
+  }
+  // Coach-set workout locks are not available from the server until Story 4.1.
+  return { coachDisplayName, linkActive: true, lockedWorkoutIds: [] };
+}
+
 /// Solo (`null`) returns `base` with no added or removed characters.
 export function instructionsFor(base: string, coach: CoachPromptContext | null): string {
   if (!coach?.linkActive || !coach.coachDisplayName) return base;
