@@ -559,6 +559,10 @@ final class InviteDeepLinkTests: XCTestCase {
             return .joined(CoachLink(id: inviteID, coachID: coachID, coachName: foundName, consentedAt: Date(timeIntervalSince1970: 0)))
         }
 
+        func leaveCoach(linkID: UUID) async throws {
+            throw CoachLinkServiceError.notLinked
+        }
+
         private var foundName: String { "Dana" }
     }
 
