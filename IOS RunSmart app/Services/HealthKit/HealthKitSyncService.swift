@@ -146,7 +146,8 @@ enum HealthKitImportProcessor {
     static func process(_ result: HealthKitImportResult,
                         upload: ([RecordedRun]) async -> Int,
                         complete: (RecordedRun) async -> Bool,
-                        processNewest: (RecordedRun) async -> Void,
+                        completeNewRuns: ([RecordedRun]) async -> [RunSourceKey: WorkoutSummary],
+                        processNewest: (RecordedRun, WorkoutSummary?) async -> Void,
                         refreshRuns: () async -> Void,
                         notifyPlan: () async -> Void) async -> Int? {
         let changed = result.runs + result.refreshedRuns
@@ -156,10 +157,10 @@ enum HealthKitImportProcessor {
         let uploads = changed + result.uploadRetries
         if !uploads.isEmpty { synced = await upload(uploads) }
         if !changed.isEmpty {
-            for run in newRuns.dropLast() {
-                if await complete(run) { completed = true }
+            if let newest = newRuns.last {
+                let matches = await completeNewRuns(newRuns)
+                await processNewest(newest, matches[newest.runSourceKey])
             }
-            if let newest = newRuns.last { await processNewest(newest) }
             await refreshRuns()
         }
         for run in result.completionRetries {

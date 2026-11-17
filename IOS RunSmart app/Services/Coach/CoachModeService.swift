@@ -22,6 +22,8 @@ nonisolated enum RunSmartFeatures {
 import Combine
 import Supabase
 
+
+
 // "Coach" in this file means a HUMAN coach (Coach Mode). It is unrelated to the AI
 // coach: `coach_message`, `profiles.coaching_style`, `CoachFlowView`.
 

@@ -283,7 +283,8 @@ extension AppleWorkoutTests {
         let synced = await HealthKitImportProcessor.process(result,
             upload: { _ in uploads += 1; return 0 },
             complete: { _ in completions += 1; return true },
-            processNewest: { _ in reports += 1 },
+            completeNewRuns: { _ in XCTFail("No new run"); return [:] },
+            processNewest: { _, _ in reports += 1 },
             refreshRuns: { rematches += 1 },
             notifyPlan: { planNotifications += 1 })
         XCTAssertNil(synced)
@@ -316,7 +317,8 @@ extension AppleWorkoutTests {
         _ = await HealthKitImportProcessor.process(result,
             upload: { $0.count },
             complete: { _ in completions += 1; return true },
-            processNewest: { _ in reports += 1 },
+            completeNewRuns: { _ in XCTFail("No new run"); return [:] },
+            processNewest: { _, _ in reports += 1 },
             refreshRuns: {}, notifyPlan: {})
         XCTAssertEqual(completions, 1)
         XCTAssertEqual(reports, 0)
@@ -608,7 +610,8 @@ extension AppleWorkoutTests {
         _ = await HealthKitImportProcessor.process(result,
             upload: { _ in sideEffects += 1; return 0 },
             complete: { _ in attempts += 1; return false },
-            processNewest: { _ in sideEffects += 1 },
+            completeNewRuns: { _ in XCTFail("No new run"); return [:] },
+            processNewest: { _, _ in sideEffects += 1 },
             refreshRuns: { sideEffects += 1 },
             notifyPlan: { sideEffects += 1 })
         XCTAssertEqual(attempts, 1)
@@ -650,7 +653,8 @@ extension AppleWorkoutTests {
         let count = await HealthKitImportProcessor.process(result,
             upload: { uploaded = $0; return 1 },
             complete: { _ in XCTFail("No plan identity"); return false },
-            processNewest: { _ in XCTFail("No new run") },
+            completeNewRuns: { _ in XCTFail("No new run"); return [:] },
+            processNewest: { _, _ in XCTFail("No new run") },
             refreshRuns: { XCTFail("Upload-only retry must not rematch") },
             notifyPlan: { XCTFail("No completion") })
         XCTAssertEqual(count, 1)

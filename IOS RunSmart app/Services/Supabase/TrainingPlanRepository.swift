@@ -694,8 +694,16 @@ final class TrainingPlanRepository {
     }
 
     func completeBestMatchingWorkout(authUserID: UUID, for run: RecordedRun) async -> WorkoutSummary? {
+        let lastKnownPlan = activePlanCache[authUserID]?.plan
         invalidateActivePlanCache(authUserID: authUserID)
-        guard let active = await activePlan(authUserID: authUserID) else { return nil }
+        guard let active = await activePlan(authUserID: authUserID) ?? lastKnownPlan else {
+            // Preserve a known target if the network failed before the plan
+            // could load. The RPC still requires an owned, active workout.
+            if run.healthPlanLookupFailed != true, let workoutID = run.plannedWorkoutID {
+                _ = await submitRunCompletion(run, workoutID: workoutID, authUserID: authUserID)
+            }
+            return nil
+        }
         let candidates = active.workouts
             .filter { !$0.completed }
             .map { $0.toWorkoutSummary() }
@@ -704,82 +712,69 @@ final class TrainingPlanRepository {
         return await completeAndLink(run: run, workout: match, authUserID: authUserID)
     }
 
-    /// Completes the workout with the run's actuals (Story 0.1 path), then links `runs.workout_id`.
-    /// Zero rows updated means the workout was already completed by something else: no link.
-    private func completeAndLink(run: RecordedRun, workout match: WorkoutSummary, authUserID: UUID) async -> WorkoutSummary? {
-        let update = DBWorkoutCompletionUpdate(run: run)
-        let applied = await WorkoutCompletionOutbox.shared.finish(workoutID: match.id, payload: update) { id, payload in
-            try await self.sendWorkoutCompletion(workoutID: id, update: payload)
-        }
-        guard applied != false else { return nil }
-        // Also on a queued (nil) completion: the retry finishes the workout, the link belongs to this run.
-        await linkRunAfterCompletion(run: run, workoutID: match.id, authUserID: authUserID)
-        guard applied == true else { return nil }
+    /// Match the new activities against a single plan snapshot before any can reserve a workout.
+    func completeMatchingWorkouts(authUserID: UUID, for runs: [RecordedRun]) async -> [RunSourceKey: WorkoutSummary] {
+        guard !runs.isEmpty else { return [:] }
+        let lastKnownPlan = activePlanCache[authUserID]?.plan
         invalidateActivePlanCache(authUserID: authUserID)
-        var completed = match
-        completed.isComplete = true
-        print("[TrainingPlanRepo] ✅ completed workout=\(match.id) from run=\(run.consolidatedActivityID ?? run.providerActivityID ?? run.id.uuidString)")
+        guard let active = await activePlan(authUserID: authUserID) ?? lastKnownPlan else {
+            var selected = Set<UUID>()
+            for run in runs where run.healthPlanLookupFailed != true {
+                if let workoutID = run.plannedWorkoutID, selected.insert(workoutID).inserted {
+                    _ = await submitRunCompletion(run, workoutID: workoutID, authUserID: authUserID)
+                }
+            }
+            return [:]
+        }
+        let pairs = Self.assignRuns(runs, to: active.workouts.map { $0.toWorkoutSummary() })
+        var completed: [RunSourceKey: WorkoutSummary] = [:]
+        for (run, workout) in pairs {
+            if let saved = await completeAndLink(run: run, workout: workout, authUserID: authUserID) {
+                completed[run.runSourceKey] = saved
+            }
+        }
         return completed
     }
 
-    private func linkRunAfterCompletion(run: RecordedRun, workoutID: UUID, authUserID: UUID) async {
-        let key = run.runSourceKey
-        do {
-            switch try await linkRun(key: key, workoutID: workoutID, authUserID: authUserID) {
-            case .runNotSynced:
-                // The row is not on the server yet. Link it when it is.
-                RunWorkoutLinkOutbox.shared.enqueue(authUserID: authUserID, key: key, workoutID: workoutID)
-            case .workoutTaken:
-                print("[TrainingPlanRepo] workout=\(workoutID) is already linked to another run; run stays unlinked")
-            case .linked, .alreadyLinked:
-                break
-            }
-        } catch {
-            if error is CancellationError { return }
-            print("[TrainingPlanRepo] linkRun error:", error)
-            RunWorkoutLinkOutbox.shared.enqueue(authUserID: authUserID, key: key, workoutID: workoutID)
-        }
+    private func completeAndLink(run: RecordedRun, workout match: WorkoutSummary, authUserID: UUID) async -> WorkoutSummary? {
+        guard await submitRunCompletion(run, workoutID: match.id, authUserID: authUserID) else { return nil }
+        var completed = match
+        completed.isComplete = true
+        return completed
     }
 
-    /// Sets `runs.workout_id` only while the run has none, so a run never changes workout.
-    /// The partial unique index rejects a workout that another run already holds.
-    func linkRun(key: RunSourceKey, workoutID: UUID, authUserID: UUID) async throws -> RunWorkoutLinkResult {
-        do {
-            let linked: [DBRunWorkoutLinkRow] = try await supabase
-                .from("runs")
-                .update(["workout_id": workoutID.uuidString])
-                .eq("auth_user_id", value: authUserID.uuidString)
-                .eq("source_provider", value: key.sourceProvider)
-                .eq("source_activity_id", value: key.sourceActivityID)
-                .is("workout_id", value: nil)
-                .select("id")
-                .execute()
-                .value
-            if !linked.isEmpty { return .linked }
-        } catch let error as PostgrestError where error.code == "23505" {
-            return .workoutTaken
-        }
-        // Zero rows: either no such run yet, or it already has a workout.
-        let existing: [DBRunWorkoutLinkRow] = try await supabase
-            .from("runs")
-            .select("id")
-            .eq("auth_user_id", value: authUserID.uuidString)
-            .eq("source_provider", value: key.sourceProvider)
-            .eq("source_activity_id", value: key.sourceActivityID)
-            .limit(1)
-            .execute()
-            .value
-        return existing.isEmpty ? .runNotSynced : .alreadyLinked
+    private func submitRunCompletion(_ run: RecordedRun, workoutID: UUID, authUserID: UUID) async -> Bool {
+        let outbox = RunWorkoutLinkOutbox.shared
+        let record = outbox.enqueue(authUserID: authUserID, key: run.runSourceKey, workoutID: workoutID, payload: DBWorkoutCompletionUpdate(run: run))
+        guard record.workoutID == workoutID,
+              await outbox.attempt(record, send: sendRunWorkoutCompletion)?.didComplete == true else { return false }
+        invalidateActivePlanCache(authUserID: authUserID)
+        return true
     }
 
-    func retryPendingRunLinks() async {
-        await RunWorkoutLinkOutbox.shared.retryPending { [self] record in
-            try await linkRun(key: record.key, workoutID: record.workoutID, authUserID: record.authUserID)
-        }
+    private func sendRunWorkoutCompletion(_ record: PendingRunLink) async throws -> RunWorkoutLinkResult {
+        guard supabase.auth.currentUser?.id == record.authUserID else { throw CancellationError() }
+        let response: RunWorkoutLinkResult = try await supabase
+            .rpc("complete_run_workout", params: CompleteRunWorkoutParams(record: record))
+            .execute().value
+        guard supabase.auth.currentUser?.id == record.authUserID else { throw CancellationError() }
+        return response
     }
 
-    /// One pass per account per install: link synced runs of the last 30 days that have no workout.
-    /// `localRuns` supply a pinned plan id (Health) when the device knows the run. `isHidden` skips hidden runs.
+    func retryPendingRunLinks(
+        authUserID: UUID,
+        isHidden: (RunSourceKey) -> Bool,
+        restoreRun: (RunSourceKey) async -> Bool
+    ) async -> [UUID] {
+        let completed = await RunWorkoutLinkOutbox.shared.retryPending(
+            authUserID: authUserID, isHidden: isHidden, restoreRun: restoreRun, send: sendRunWorkoutCompletion
+        )
+        if !completed.isEmpty { invalidateActivePlanCache(authUserID: authUserID) }
+        return completed
+    }
+
+    /// Finish known links to incomplete active workouts, then match recent unlinked runs.
+    /// Known links are exact and have no age cutoff. Local data can refine their actuals, not their target.
     func backfillRunWorkoutLinks(authUserID: UUID, localRuns: [RecordedRun], isHidden: @escaping (RecordedRun) -> Bool, dryRun: Bool) async {
         _ = await RunWorkoutBackfill.runOnce(
             userID: authUserID,
@@ -790,10 +785,39 @@ final class TrainingPlanRepository {
                 guard let active = await self.activePlan(authUserID: authUserID) else { return nil }
                 return active.workouts.filter { !$0.completed }.map { $0.toWorkoutSummary() }
             },
+            loadLinkedRuns: { workouts in
+                await self.incompleteLinkedRuns(
+                    authUserID: authUserID, workoutIDs: workouts.map(\.id), localRuns: localRuns, isHidden: isHidden
+                )
+            },
             apply: { run, workout in
                 await self.completeAndLink(run: run, workout: workout, authUserID: authUserID) != nil
             }
         )
+    }
+
+    private func incompleteLinkedRuns(
+        authUserID: UUID, workoutIDs: [UUID], localRuns: [RecordedRun], isHidden: (RecordedRun) -> Bool
+    ) async -> [RunWorkoutBackfillIncumbent]? {
+        var rows: [DBRunBackfillRow] = []
+        // Limit each request's URL length. The unique index bounds results to one run per workout.
+        let chunkSize = 50
+        do {
+            for start in stride(from: 0, to: workoutIDs.count, by: chunkSize) {
+                let batch = workoutIDs[start..<min(start + chunkSize, workoutIDs.count)]
+                let page: [DBRunBackfillRow] = try await supabase
+                    .from("runs")
+                    .select("workout_id,source_provider,source_activity_id,completed_at,distance,duration,pace,heart_rate")
+                    .eq("auth_user_id", value: authUserID.uuidString)
+                    .in("workout_id", values: batch.map(\.uuidString))
+                    .execute().value
+                rows.append(contentsOf: page)
+            }
+            return DBRunBackfillRow.incumbents(from: rows, localRuns: localRuns, isHidden: isHidden)
+        } catch {
+            if !(error is CancellationError) { print("[TrainingPlanRepo] backfill linked runs read error:", error) }
+            return nil
+        }
     }
 
     /// Nil when the read failed, so the backfill stays pending instead of counting an empty list.
@@ -816,30 +840,6 @@ final class TrainingPlanRepository {
             }
             return nil
         }
-    }
-
-    /// `true` when a row was updated. `false` when zero rows matched (already completed or deleted).
-    func sendWorkoutCompletion(workoutID: UUID, update: DBWorkoutCompletionUpdate) async throws -> Bool {
-        let updated: [DBWorkout] = try await supabase
-            .from("workouts")
-            .update(update)
-            .eq("id", value: workoutID.uuidString)
-            .eq("completed", value: false)
-            .select()
-            .execute()
-            .value
-        return !updated.isEmpty
-    }
-
-    func retryPendingWorkoutCompletions() async {
-        await WorkoutCompletionOutbox.shared.retryPending { [self] id, payload in
-            let applied = try await sendWorkoutCompletion(workoutID: id, update: payload)
-            if applied {
-                invalidateActivePlanCache()
-            }
-            return applied
-        }
-        await retryPendingRunLinks()
     }
 
     func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool {
@@ -1555,24 +1555,23 @@ extension DBWorkout {
 }
 
 
-struct DBRunWorkoutLinkRow: Decodable {
-    let id: Int
-}
-
 /// The few `runs` columns the backfill needs to rebuild a matchable run.
 struct DBRunBackfillRow: Decodable {
+    let workoutID: UUID?
     let sourceProvider: String?
     let sourceActivityID: String?
     let completedAt: String
     let distance: Double?
     let duration: Int?
+    let pace: Double?
     let heartRate: Int?
 
     enum CodingKeys: String, CodingKey {
+        case workoutID = "workout_id"
         case sourceProvider = "source_provider"
         case sourceActivityID = "source_activity_id"
         case completedAt = "completed_at"
-        case distance, duration
+        case distance, duration, pace
         case heartRate = "heart_rate"
     }
 
@@ -1590,17 +1589,26 @@ struct DBRunBackfillRow: Decodable {
             .filter { !isHidden($0) }
     }
 
+    static func incumbents(
+        from rows: [DBRunBackfillRow], localRuns: [RecordedRun], isHidden: (RecordedRun) -> Bool
+    ) -> [RunWorkoutBackfillIncumbent] {
+        let localByKey = Dictionary(localRuns.map { ($0.runSourceKey, $0) }, uniquingKeysWith: { first, _ in first })
+        return rows.compactMap { row in
+            guard let workoutID = row.workoutID else { return nil }
+            let local = row.key.flatMap { localByKey[$0] }
+            let activity = row.recordedRun(local: local)
+            let usable = activity.flatMap { run in
+                !isHidden(run) && run.movingTimeSeconds.isFinite && run.movingTimeSeconds > 0
+                    && run.distanceMeters.isFinite && run.distanceMeters >= 0 ? run : nil
+            }
+            return RunWorkoutBackfillIncumbent(workoutID: workoutID, run: usable)
+        }
+    }
+
     /// The device's own copy wins (it holds a pinned plan id). Rows from other providers are skipped.
     func recordedRun(local: RecordedRun?) -> RecordedRun? {
         if let local { return local }
-        guard let key, let startedAt = Self.parseDate(completedAt) else { return nil }
-        let source: RunSmartDataSource
-        switch key.sourceProvider {
-        case "runsmart_ios": source = .runSmart
-        case "garmin": source = .garmin
-        case "healthkit": source = .healthKit
-        default: return nil
-        }
+        guard let key, let source = key.dataSource, let startedAt = Self.parseDate(completedAt) else { return nil }
         let km = distance ?? 0
         let seconds = TimeInterval(duration ?? 0)
         return RecordedRun(
@@ -1611,7 +1619,7 @@ struct DBRunBackfillRow: Decodable {
             endedAt: startedAt.addingTimeInterval(seconds),
             distanceMeters: km * 1_000,
             movingTimeSeconds: seconds,
-            averagePaceSecondsPerKm: km > 0 ? seconds / km : 0,
+            averagePaceSecondsPerKm: pace.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? (km > 0 ? seconds / km : 0),
             averageHeartRateBPM: heartRate,
             routePoints: [],
             syncedAt: Date()

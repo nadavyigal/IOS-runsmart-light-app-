@@ -4,6 +4,26 @@
 - [ ] Re-review the new head and verify voice/report prompt handling in the web service before pilot.
 - [ ] 6.1: My coach toggle depends on #193. Keep the upload policy off until 6.4.
 
+## 2026-11-17 — Coach Mode Story 6.1
+
+- [x] Implement route preparation, device-local sharing preference and retry, and an athlete-only write to `runs.route` and `runs.route_status`.
+- [x] Verify the migration applies twice and the new SQL suite passes in throwaway embedded Postgres.
+- [ ] Review Story 6.1 in #199, based on main after #193 landed.
+- [ ] Mirror `20261117100000_coach_route_upload.sql` to the web migration tree at rollout. Production stays frozen.
+- [ ] Keep `RouteUploadPolicy.isEnabled` false and the default preparer disabled until Story 6.4 implements privacy-zone trimming. Hold pilot invites until then.
+- [ ] Story 6.2 must gate coach reads on an active link and `route_status = 'shared'`.
+
+## 2026-11-15 — Coach Mode: make plan adherence consistent
+
+- [x] Reproduce the missing atomic-write contract with a failing SQL test.
+- [x] Add one owner-scoped transaction for run link plus workout actuals and one account-scoped retry record.
+- [x] Rank candidates across a HealthKit import before any new run claims a workout.
+- [x] Verify ownership, active-plan filtering, retry, and rollback on isolated Postgres.
+- [x] Recover persisted links to incomplete active workouts during upgrade. A hidden or invalid incumbent still reserves the workout.
+- [ ] Verify the focused iOS suite and the full signed-in device-to-database path before pilot invites.
+- [ ] Add a bounded retry for cold, unpinned HealthKit imports when the active plan cannot be loaded. If an install already ran backfill, a duplicate upload-only sync does not reattempt matching after the initial plan read failed.
+- [ ] Mirror the SQL migration to the web tree and coordinate its deployment ahead of the updated iOS client.
+
 ## 2026-11-16 — Coach Mode rollout
 
 - Human Coach Mode is OFF by default. In an Xcode **Debug** run, add `-enable-coach-mode` under Scheme → Run → Arguments. Release builds (including current TestFlight archives) ignore the argument. There is no remote switch.

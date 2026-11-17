@@ -50,6 +50,11 @@ final class CoachModeTests: XCTestCase {
                        "non-coaches must see exactly the existing five tabs, in the existing order")
     }
 
+    func testCoachTabIsHiddenWhenCoachModeIsOff() {
+        XCTAssertFalse(RunSmartFeatures.coachModeEnabled)
+        XCTAssertFalse(RunSmartTab.visibleTabs(isCoach: true, coachModeEnabled: false).contains(.coach))
+    }
+
     func testCoachTabIsShownToCoachesBesideTheNormalTabs() {
         let tabs = RunSmartTab.visibleTabs(isCoach: true, coachModeEnabled: true)
         XCTAssertTrue(tabs.contains(.coach))

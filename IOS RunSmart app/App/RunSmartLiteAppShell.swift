@@ -236,8 +236,11 @@ struct RunSmartLiteAppShell: View {
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
         .onOpenURL { url in
-            guard router.shouldHandleAuthCallback(url) else { return }
-            Task { await session.handleAuthCallback(url) }
+            openIncomingURL(url)
+        }
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            guard let url = activity.webpageURL else { return }
+            openIncomingURL(url)
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanGenerationStatusDidChange)) { notification in
             guard let status = notification.object as? RunSmartPlanGenerationStatus else { return }
@@ -286,13 +289,14 @@ struct RunSmartLiteAppShell: View {
             if let userID = coachRoleCheckUserID {
                 coachLinks.beginSession(userID: userID)
                 await coachLinks.refresh(userID: userID)
+                await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
             } else {
                 coachLinks.clear()
             }
         }
         .onChange(of: coachMode.isCoach) { _, isCoach in
             // A tab that stops existing (sign-out, unflagged coach) must not stay selected.
-            if !isCoach, router.selectedTab == .coach {
+            if (!isCoach || !RunSmartFeatures.coachModeEnabled), router.selectedTab == .coach {
                 router.selectedTab = .today
             }
         }
@@ -303,7 +307,10 @@ struct RunSmartLiteAppShell: View {
                 Task { await coachMode.refresh(userID: coachRoleCheckUserID) }
             }
             if let userID = coachRoleCheckUserID {
-                Task { await coachLinks.refresh(userID: userID) }
+                Task {
+                    await coachLinks.refresh(userID: userID)
+                    await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
+                }
             }
             Task { await StravaUploadCoordinator.shared.retryPending() }
             Task { await (services as? SupabaseRunSmartServices)?.retryPendingWorkoutCompletions() }
@@ -339,6 +346,10 @@ struct RunSmartLiteAppShell: View {
         .onChange(of: session.hasCompletedOnboarding) { _, isComplete in
             guard session.isAuthenticated, isComplete else { return }
             if guestJourney.state.isActive { guestJourney.clear() }
+            resumeCoachJoinIfReady()
+        }
+        .onChange(of: session.isLoading) { _, isLoading in
+            guard !isLoading else { return }
             resumeCoachJoinIfReady()
         }
         .task(id: session.hasCompletedOnboarding) {
@@ -535,7 +546,10 @@ struct RunSmartLiteAppShell: View {
                 if !router.isTabBarHidden {
                     CustomTabBar(
                         selectedTab: $router.selectedTab,
-                        tabs: RunSmartTab.visibleTabs(isCoach: coachMode.isCoach)
+                        tabs: RunSmartTab.visibleTabs(
+                            isCoach: coachMode.isCoach,
+                            coachModeEnabled: RunSmartFeatures.coachModeEnabled
+                        )
                     )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
@@ -558,6 +572,25 @@ struct RunSmartLiteAppShell: View {
             }
         case .profile: ProfileTabView()
         }
+    }
+
+    /// Universal links and custom URLs. An invite link never falls through to auth.
+    /// Coach Mode off does not open the join screen.
+    private func openIncomingURL(_ url: URL) {
+        let canOpenJoinNow = !session.isLoading && session.isAuthenticated && session.hasCompletedOnboarding
+        let consumed = coachLinks.receiveInviteLink(
+            url,
+            coachModeEnabled: RunSmartFeatures.coachModeEnabled,
+            canOpenJoinNow: canOpenJoinNow
+        )
+        if consumed {
+            if canOpenJoinNow, coachLinks.pendingInvite != nil {
+                router.open(.joinCoach)
+            }
+            return
+        }
+        guard router.shouldHandleAuthCallback(url) else { return }
+        Task { await session.handleAuthCallback(url) }
     }
 
     /// The signed-in user whose coach role to check; nil when signed out or guest.

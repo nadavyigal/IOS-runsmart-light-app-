@@ -32,9 +32,10 @@ enum SecondaryDestination: Hashable, Identifiable {
     case shareRun(RecordedRun?)
     case routeDetail(SavedRoute)
     case joinCoach
+    case myCoach
     case account
 
-    var requiresCoachMode: Bool { self == .joinCoach }
+    var requiresCoachMode: Bool { self == .joinCoach || self == .myCoach }
 
     var id: String {
         switch self {
@@ -68,6 +69,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .shareRun(let run): "shareRun-\(run?.id.uuidString ?? "nil")"
         case .routeDetail(let route): "routeDetail-\(route.id)"
         case .joinCoach: "joinCoach"
+        case .myCoach: "myCoach"
         case .account: "account"
         }
     }
@@ -103,6 +105,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .shareRun: "Share Run"
         case .routeDetail(let route): route.name
         case .joinCoach: "Join a coach"
+        case .myCoach: "My coach"
         case .account: "Account"
         }
     }
@@ -167,6 +170,8 @@ enum SecondaryDestination: Hashable, Identifiable {
             "Route details, benchmark stats, and actions."
         case .joinCoach:
             "Enter your coach's code."
+        case .myCoach:
+            "Your coach, what they can see, and leaving."
         case .account:
             "Manage your sign-in and profile data."
         }
@@ -203,6 +208,7 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .shareRun: "square.and.arrow.up"
         case .routeDetail: "map.fill"
         case .joinCoach: "person.2.fill"
+        case .myCoach: "person.crop.circle"
         case .account: "person.crop.circle.fill"
         }
     }
@@ -232,6 +238,12 @@ private struct SecondaryContentView: View {
         } else if destination == .joinCoach {
             ScrollView {
                 JoinCoachView()
+                    .id(session.currentUserID)
+                    .padding(20)
+            }
+        } else if destination == .myCoach {
+            ScrollView {
+                MyCoachView()
                     .id(session.currentUserID)
                     .padding(20)
             }
@@ -311,7 +323,7 @@ private struct SecondaryContentView: View {
             ShareRunView(run: run)
         case .routeDetail(let route):
             RouteDetailScaffold(route: route)
-        case .joinCoach:
+        case .joinCoach, .myCoach:
             EmptyView()
         case .account:
             AccountScaffold()
@@ -3027,7 +3039,47 @@ private struct AccountScaffold: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
-            if RunSmartFeatures.coachModeEnabled && coachLinks.showsJoinCoach {
+            if RunSmartFeatures.coachModeEnabled, let notice = coachLinks.leaveNotice {
+                Text(notice)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .accessibilityLabel(notice)
+                    .onAppear {
+                        Task {
+                            try? await Task.sleep(for: .seconds(4))
+                            if coachLinks.leaveNotice == notice {
+                                coachLinks.leaveNotice = nil
+                            }
+                        }
+                    }
+            }
+
+            if RunSmartFeatures.coachModeEnabled, let link = coachLinks.currentLink {
+                NavigationLink(value: SecondaryDestination.myCoach) {
+                    HStack {
+                        Text(LeaveCoachCopy.monogram(for: link.coachName))
+                            .font(.caption.weight(.bold))
+                            .frame(width: 28, height: 28)
+                            .background(Color.white.opacity(0.08), in: Circle())
+                        Text("My coach")
+                            .font(.body.weight(.semibold))
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.mutedText)
+                    }
+                    .foregroundStyle(Color.textPrimary)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("My coach")
+            } else if RunSmartFeatures.coachModeEnabled && coachLinks.showsJoinCoach {
                 NavigationLink(value: SecondaryDestination.joinCoach) {
                     HStack {
                         Label("Join a coach", systemImage: "person.2.fill")

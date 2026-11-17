@@ -126,11 +126,27 @@ jobs:
           - suite: runs_workout_link
             migration: 20261114130000_runs_workout_link
             fixture: runs_workout_link_fixture
+          - suite: complete_run_workout
+            migration: 20261117120000_complete_run_workout
+            prerequisite: 20261114130000_runs_workout_link
+            fixture: runs_workout_link_fixture
           - suite: coach_invites
             migration: 20261114210000_coach_role_and_invites
             fixture: ''
           - suite: coach_athlete_links
             migration: 20261115091000_coach_athlete_links
+            fixture: ''
+            prerequisite: 20261114210000_coach_role_and_invites
+          - suite: leave_coach
+            migration: 20261115194500_leave_coach
+            fixture: ''
+            prerequisite: 20261114210000_coach_role_and_invites 20261115091000_coach_athlete_links
+          - suite: coach_route_upload
+            migration: 20261117100000_coach_route_upload
+            fixture: coach_route_upload_fixture
+            prerequisite: 20261114210000_coach_role_and_invites 20261115091000_coach_athlete_links 20261115194500_leave_coach
+          - suite: coach_plan_mode
+            migration: 20261117130000_coach_plan_mode_group_settings
             fixture: ''
             prerequisite: 20261114210000_coach_role_and_invites
     steps:
@@ -179,9 +195,10 @@ jobs:
           if [[ -n "$FIXTURE" ]]; then
             sql "$source_dir/supabase/tests/$FIXTURE.sql"
           fi
-          if [[ -n "$PREREQUISITE" ]]; then
-            sql "$source_dir/supabase/migrations/$PREREQUISITE.sql"
-          fi
+          read -r -a prerequisites <<< "$PREREQUISITE"
+          for prerequisite in "${prerequisites[@]}"; do
+            sql "$source_dir/supabase/migrations/$prerequisite.sql"
+          done
           for pass in 1 2; do
             sql "$source_dir/supabase/migrations/$MIGRATION.sql"
           done
