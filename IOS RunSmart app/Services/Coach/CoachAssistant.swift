@@ -144,7 +144,7 @@ enum CoachAssistantCopy {
     }
 
     static let swaps: [Swap] = [
-        Swap(id: "plan.upcoming", solo: "Upcoming from Your Coach", linked: "Upcoming workouts"),
+        Swap(id: "plan.upcoming", solo: "Upcoming from Your Coach", linked: "Upcoming workouts in RunSmart"),
         Swap(id: "share.insight", solo: "Include coach insight", linked: "Include RunSmart insight"),
         Swap(id: "profile.section", solo: "Your AI Coach", linked: "RunSmart"),
         Swap(id: "cues.toggle", solo: "Extra AI coach cues", linked: "Extra RunSmart cues"),
