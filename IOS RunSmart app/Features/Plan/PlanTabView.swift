@@ -334,6 +334,7 @@ private enum PlanViewMode: String, CaseIterable, Hashable, Identifiable {
 }
 
 private struct PlanCoachNotesCard: View {
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     var workouts: [WorkoutSummary]
     var goal: GoalSummary
     var onWorkout: (WorkoutSummary) -> Void
@@ -343,7 +344,7 @@ private struct PlanCoachNotesCard: View {
         RunSmartPanel(cornerRadius: 20, padding: 14) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("Upcoming from Your Coach")
+                    Text(CoachAssistantCopy.apply("Upcoming from Your Coach", assistant: coachAssistantActive))
                         .font(.bodyLG.weight(.semibold))
                     Spacer()
                     Button("View all", action: onAll)

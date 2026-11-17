@@ -444,7 +444,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         let fallback = TrainingContextCoachResponder.response(to: message, context: context)
         let clientMessageID = UUID().uuidString
         guard let userID = currentUserID,
-              let token = try? await supabase.auth.session.accessToken else {
+              let authSession = try? await supabase.auth.session, authSession.user.id == userID else {
             return fallback
         }
 
@@ -453,7 +453,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 message,
                 context: context,
                 clientMessageID: clientMessageID,
-                accessToken: token
+                accessToken: authSession.accessToken,
+                athleteID: authSession.user.id
             )
             return live
         } catch {
@@ -486,7 +487,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         _ message: String,
         context: TrainingContextSnapshot,
         clientMessageID: String,
-        accessToken: String
+        accessToken: String,
+        athleteID: UUID
     ) async throws -> CoachMessage {
         let request = RunSmartDTO.SendCoachMessageRequest(
             clientMessageId: clientMessageID,
@@ -494,7 +496,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             message: message,
             context: context
         )
-        let body = try CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context)
+        let body = try CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context(for: athleteID))
         let client = URLSessionRunSmartAPIClient(
             baseURL: SupabaseManager.functionsBaseURL,
             accessToken: accessToken,
@@ -1271,15 +1273,15 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         let fallback = Self
             .fallbackRunReport(for: run, recentRuns: recent, upcomingWorkouts: upcoming)
             .withGarminDeviceFallback(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)
-        guard let token = try? await supabase.auth.session.accessToken else {
+        guard let authSession = try? await supabase.auth.session else {
             await cacheRunReport(fallback)
             return fallback
         }
 
         do {
             let request = Self.reportRequest(for: run, recentRuns: recent, upcomingWorkouts: upcoming)
-            let body = try CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context)
-            let client = URLSessionRunSmartAPIClient(accessToken: token)
+            let body = try CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context(for: authSession.user.id))
+            let client = URLSessionRunSmartAPIClient(accessToken: authSession.accessToken)
             let payload = try await client.send(
                 RunSmartAPI.Endpoint(path: "api/run-report", method: .post, body: body),
                 as: RunSmartDTO.RunReportResponse.self
@@ -1309,7 +1311,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     private func fetchRunDebrief(for run: RecordedRun) async -> PostRunDebriefModel {
-        guard let token = try? await supabase.auth.session.accessToken else {
+        guard let authSession = try? await supabase.auth.session else {
             return .fallback(for: run)
         }
 
@@ -1344,12 +1346,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             recentLoadDays: recentCount,
             limitations: []
         )
-        guard let body = try? CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context) else {
+        guard let body = try? CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context(for: authSession.user.id)) else {
             return .fallback(for: run)
         }
         let client = URLSessionRunSmartAPIClient(
             baseURL: SupabaseManager.functionsBaseURL,
-            accessToken: token,
+            accessToken: authSession.accessToken,
             additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
         )
         do {
@@ -1434,7 +1436,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             prevWeekRuns.reduce(0.0) { $0 + $1.distanceMeters / 1_000.0 }
 
         // Fetch from AI
-        guard let token = try? await supabase.auth.session.accessToken else {
+        guard let authSession = try? await supabase.auth.session else {
             let fallback = WeeklyProgressSummary.fallback(
                 runsCompleted: weekRuns.count,
                 totalDistanceKm: totalDistanceKm
@@ -1458,7 +1460,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             readinessAverage: nil,
             limitations: []
         )
-        guard let body = try? CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context) else {
+        guard let body = try? CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context(for: authSession.user.id)) else {
             print("[SupabaseServices] weekly_summary: failed to encode request, using fallback")
             let fallback = WeeklyProgressSummary.fallback(
                 runsCompleted: weekRuns.count,
@@ -1470,7 +1472,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
         let client = URLSessionRunSmartAPIClient(
             baseURL: SupabaseManager.functionsBaseURL,
-            accessToken: token,
+            accessToken: authSession.accessToken,
             additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
         )
 
@@ -1543,14 +1545,15 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome {
-        let coach = CoachContextSource.shared.context
-        guard let token = try? await supabase.auth.session.accessToken else {
+        guard let authSession = try? await supabase.auth.session else {
+            let coach = CoachContextSource.shared.context(for: currentUserID)
             if let cached = FlexWeekServiceSupport.cachedOutcome(for: request, userID: currentUserID) {
                 return cached
             }
             return FlexWeekServiceSupport.deterministicOutcome(for: request, source: .offlineQueued, assistant: coach.linkActive)
         }
 
+        let coach = CoachContextSource.shared.context(for: authSession.user.id)
         let requestDTO = FlexWeekServiceSupport.buildRequestDTO(from: request)
         guard let body = try? CoachRequestJSON.encode(requestDTO, coach: coach) else {
             return FlexWeekServiceSupport.deterministicOutcome(for: request, assistant: coach.linkActive)
@@ -1558,7 +1561,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
         let client = URLSessionRunSmartAPIClient(
             baseURL: SupabaseManager.functionsBaseURL,
-            accessToken: token,
+            accessToken: authSession.accessToken,
             additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
         )
 

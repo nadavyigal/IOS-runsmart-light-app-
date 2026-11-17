@@ -1,25 +1,6 @@
 import Foundation
 import SwiftUI
 
-/// Coach Mode athlete surfaces. Release stays off. Debug turns on only with `-enable-coach-mode`.
-enum RunSmartFeatures {
-    static var coachModeEnabled: Bool {
-        coachModeEnabled(processArguments: ProcessInfo.processInfo.arguments, isDebugBuild: isDebugBuild)
-    }
-
-    static var isDebugBuild: Bool {
-        #if DEBUG
-        true
-        #else
-        false
-        #endif
-    }
-
-    static func coachModeEnabled(processArguments: [String], isDebugBuild: Bool) -> Bool {
-        isDebugBuild && processArguments.contains("-enable-coach-mode")
-    }
-}
-
 /// What the AI request needs to know about the human coach. Locked ids stay empty until Story 4.1.
 struct CoachContext: Equatable, Sendable {
     var coachDisplayName: String
@@ -47,15 +28,18 @@ final class CoachContextSource: @unchecked Sendable {
 
     private let lock = NSLock()
     private var stored = CoachContext.solo
+    private var ownerID: UUID?
 
-    var context: CoachContext {
+    func context(for userID: UUID?) -> CoachContext {
         lock.lock()
         defer { lock.unlock() }
+        guard let userID, userID == ownerID else { return .solo }
         return stored
     }
 
-    func replace(_ context: CoachContext) {
+    func replace(_ context: CoachContext, ownerID: UUID?) {
         lock.lock()
+        self.ownerID = ownerID
         stored = context
         lock.unlock()
     }
@@ -160,6 +144,8 @@ enum CoachAssistantCopy {
     }
 
     static let swaps: [Swap] = [
+        Swap(id: "plan.upcoming", solo: "Upcoming from Your Coach", linked: "Upcoming workouts"),
+        Swap(id: "share.insight", solo: "Include coach insight", linked: "Include RunSmart insight"),
         Swap(id: "profile.section", solo: "Your AI Coach", linked: "RunSmart"),
         Swap(id: "cues.toggle", solo: "Extra AI coach cues", linked: "Extra RunSmart cues"),
         Swap(id: "run.saved", solo: "Run saved. Great work - your coach will factor this into the plan.", linked: "Run saved. Great work - RunSmart will factor this into the plan."),

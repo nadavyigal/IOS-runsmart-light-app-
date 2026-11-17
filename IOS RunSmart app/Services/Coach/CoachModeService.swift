@@ -1,4 +1,24 @@
 import Foundation
+
+nonisolated enum RunSmartFeatures {
+    static let coachModeEnabled: Bool = {
+#if DEBUG
+        coachModeEnabled(processArguments: ProcessInfo.processInfo.arguments, isDebugBuild: true)
+#else
+        false
+#endif
+    }()
+
+    static func coachModeEnabled(processArguments: [String], isDebugBuild: Bool) -> Bool {
+        isDebugBuild && processArguments.contains("-enable-coach-mode")
+    }
+
+    /// Invite URLs are reserved for Story 1.4 and must never enter authentication handling.
+    static func isCoachInviteURL(_ url: URL) -> Bool {
+        url.host?.caseInsensitiveCompare("join") == .orderedSame
+            || url.pathComponents.dropFirst().first?.caseInsensitiveCompare("join") == .orderedSame
+    }
+}
 import Combine
 import Supabase
 

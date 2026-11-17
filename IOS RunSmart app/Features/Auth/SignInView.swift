@@ -217,7 +217,7 @@ struct SignInView: View {
                         emailAlternative
                     }
 
-                    if let onJoinCoach {
+                    if RunSmartFeatures.coachModeEnabled, let onJoinCoach {
                         Button {
                             joinCoachWaitsForSignIn = true
                             onJoinCoach()

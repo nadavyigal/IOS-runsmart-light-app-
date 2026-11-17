@@ -2,6 +2,18 @@ import XCTest
 @testable import IOS_RunSmart_app
 
 final class CoachAssistantTests: XCTestCase {
+    func testAssistantContextIsOnlyAvailableForTheAuthenticatedOwner() {
+        let source = CoachContextSource()
+        let owner = UUID()
+        let linked = CoachContext(coachDisplayName: "Dana", linkActive: true, lockedWorkoutIDs: [])
+        source.replace(linked, ownerID: owner)
+        XCTAssertEqual(source.context(for: owner), linked)
+        XCTAssertEqual(source.context(for: UUID()), .solo)
+        XCTAssertEqual(source.context(for: nil), .solo)
+        source.replace(.solo, ownerID: nil)
+        XCTAssertEqual(source.context(for: owner), .solo)
+    }
+
     private struct Payload: Encodable {
         let message: String
     }

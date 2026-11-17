@@ -182,7 +182,7 @@ final class CoachLinkStore: ObservableObject {
 
     private func publishAssistantContext() {
         guard publishesAssistantContext else { return }
-        CoachContextSource.shared.replace(CoachContext.forRequest(link: currentLink))
+        CoachContextSource.shared.replace(CoachContext.forRequest(link: currentLink), ownerID: acceptedUserID)
     }
 
     /// The Settings row is shown only when we know there is no active link.

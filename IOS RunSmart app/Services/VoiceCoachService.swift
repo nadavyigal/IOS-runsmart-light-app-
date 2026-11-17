@@ -212,12 +212,12 @@ final class VoiceCoachService: NSObject, ObservableObject, AVAudioPlayerDelegate
     private func fetchAndPlay(context: VoiceCueContext, generation: Int) async {
         guard let baseURLString = Bundle.main.object(forInfoDictionaryKey: "RunSmartAPIBaseURL") as? String else { return }
 
-        let accessToken = try? await SupabaseManager.client.auth.session.accessToken
+        let authSession = try? await SupabaseManager.client.auth.session
         guard let request = Self.voiceCueRequest(
             context: context,
             baseURLString: baseURLString,
-            accessToken: accessToken,
-            coach: CoachContextSource.shared.context
+            accessToken: authSession?.accessToken,
+            coach: CoachContextSource.shared.context(for: authSession?.user.id)
         ) else { return }
 
         guard let (data, response) = try? await URLSession.shared.data(for: request),

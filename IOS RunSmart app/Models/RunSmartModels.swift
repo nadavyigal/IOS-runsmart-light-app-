@@ -14,8 +14,8 @@ enum RunSmartTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// Tabs shown in the tab bar. The Coach tab exists only for coaches.
-    static func visibleTabs(isCoach: Bool) -> [RunSmartTab] {
-        allCases.filter { $0 != .coach || isCoach }
+    static func visibleTabs(isCoach: Bool, coachModeEnabled: Bool = RunSmartFeatures.coachModeEnabled) -> [RunSmartTab] {
+        allCases.filter { $0 != .coach || (coachModeEnabled && isCoach) }
     }
 
     var symbol: String {
