@@ -284,6 +284,7 @@ struct RunSmartLiteAppShell: View {
             if let userID = coachRoleCheckUserID {
                 coachLinks.beginSession(userID: userID)
                 await coachLinks.refresh(userID: userID)
+                await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
             } else {
                 coachLinks.clear()
             }
@@ -301,7 +302,10 @@ struct RunSmartLiteAppShell: View {
                 Task { await coachMode.refresh(userID: coachRoleCheckUserID) }
             }
             if let userID = coachRoleCheckUserID {
-                Task { await coachLinks.refresh(userID: userID) }
+                Task {
+                    await coachLinks.refresh(userID: userID)
+                    await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
+                }
             }
             Task { await StravaUploadCoordinator.shared.retryPending() }
             Task { await (services as? SupabaseRunSmartServices)?.retryPendingWorkoutCompletions() }

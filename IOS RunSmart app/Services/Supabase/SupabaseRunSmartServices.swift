@@ -1958,6 +1958,41 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         await backfillRunWorkoutLinksIfNeeded()
     }
 
+    func retryCoachRoutes(coachLinks: CoachLinkStore) async {
+        guard RouteUploadPolicy.isEnabled, RunSmartFeatures.coachModeEnabled,
+              let ownerID = currentUserID, coachLinks.activeLink(for: ownerID) != nil else { return }
+
+        let outbox = CoachRouteOutbox.shared
+        func localRun(for item: PendingCoachRoute) -> RecordedRun? {
+            guard currentUserID == ownerID,
+                  let link = coachLinks.activeLink(for: ownerID), link.id == item.linkID,
+                  let run = store.loadRuns().first(where: { $0.id == item.runID }),
+                  !store.isRunHidden(run),
+                  RouteUploadPolicy.isEligible(run: run, link: link,
+                                               sharing: outbox.sharing(ownerID: ownerID, linkID: item.linkID))
+            else { return nil }
+            return run
+        }
+
+        await outbox.retry(ownerID: ownerID, coachModeEnabled: true, canSend: { localRun(for: $0) != nil }) { item in
+            let result = try await self.writeCoachRoute(item)
+            guard result == .missing else { return result }
+            guard let run = localRun(for: item) else { return .stopped }
+            // The summary may have failed offline. A consolidated import can also
+            // account for the missing row. Never create a second summary in that case.
+            let recent = await self.recentRuns(limit: 100)
+            let canonical = ActivityConsolidationService.canonicalRun(for: run, in: recent)
+            guard canonical.id == run.id, localRun(for: item) != nil else { return .stopped }
+            await self.upsertCompletedRunIfPossible(canonical, expectedOwnerID: ownerID, ignoreDuplicates: true)
+            guard localRun(for: item) != nil else { return .stopped }
+            return try await self.writeCoachRoute(item)
+        }
+    }
+
+    private func writeCoachRoute(_ item: PendingCoachRoute) async throws -> CoachRouteWriteResult {
+        try await supabase.rpc("save_coach_run_route", params: CoachRunRouteParams(item: item)).execute().value
+    }
+
     /// Runs after pending completions so a queued completion is not matched a second time.
     private func backfillRunWorkoutLinksIfNeeded() async {
         guard let userID = currentUserID else { return }
@@ -1974,16 +2009,19 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return await planRepo.completeBestMatchingWorkout(authUserID: userID, for: run)
     }
 
-    private func upsertCompletedRunIfPossible(_ run: RecordedRun) async {
-        guard let userID = currentUserID else { return }
+    private func upsertCompletedRunIfPossible(_ run: RecordedRun, expectedOwnerID: UUID? = nil,
+                                             ignoreDuplicates: Bool = false) async {
+        guard let userID = currentUserID, expectedOwnerID == nil || userID == expectedOwnerID else { return }
         let identity = await planRepo.identity(authUserID: userID)
+        guard currentUserID == userID else { return }
 
         do {
             try await supabase
                 .from("runs")
                 .upsert(
                     DBRunInsert(run: run, identity: identity, kind: .easy, notes: "Completed activity from \(run.source.rawValue)"),
-                    onConflict: "source_provider,source_activity_id"
+                    onConflict: "source_provider,source_activity_id",
+                    ignoreDuplicates: ignoreDuplicates
                 )
                 .execute()
             // The runner may have set effort, title or notes while the upsert ran: change only the sync time.
