@@ -1,3 +1,10 @@
+## 2026-11-17 — Coach Mode Story 2.2
+
+- [x] Add security-definer read RPCs for a linked athlete's plan, workouts, and run summaries. No table RLS change.
+- [x] Add `CoachReadService` and `MockCoachReadService`. No coach UI.
+- [ ] Nadav applies `20261117164500_coach_read_rpcs.sql` after review and mirrors it to the web repo. Do not apply it from this PR.
+- [ ] Run date filter uses the UTC date of `runs.completed_at`. Confirm that before Story 2.3.
+
 ## 2026-11-17 — Coach Mode Story 3.5 follow-up
 
 - [x] Reconcile #198 with main so the module has one Coach Mode flag. Tie AI context to the authenticated request account and add Plan and run-share copy for linked athletes.

@@ -1,3 +1,12 @@
+# 2026-11-17: Coach Mode story 2.2, coach reads linked athletes
+
+Current Phase: Coach Mode. Branch `feat/coach-read-rpcs`.
+Active Story: migration `20261117164500_coach_read_rpcs.sql` (`is_active_coach_of`, `athlete_display_name`, `coach_list_athletes`, `coach_get_athlete_plan`, `coach_get_athletes_workouts`, `coach_get_athletes_runs`) and `CoachReadService`. No UI. RLS on existing tables is unchanged. Not applied to production. The web repo needs the same migration file.
+Next Recommended Story: 2.3, the athlete list, after this migration is applied.
+Blockers: migration not applied. Run dates are the UTC date of `runs.completed_at`.
+Last Validation: `CoachReadServiceTests` 7 passed on the iPhone 17 Pro simulator. SQL suite is `supabase/tests/coach_read.sql`; local Docker did not start, so that suite is left to CI.
+Last Updated: 2026-11-17
+
 # 2026-11-15: Coach Mode adherence follow-up
 
 Current Phase: Coach Mode pilot foundation.

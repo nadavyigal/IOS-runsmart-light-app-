@@ -1,3 +1,7 @@
+## 2026-11-17 — Coach read RPCs
+
+Story 2.2 adds security-definer RPCs so a coach reads a linked athlete's plan, workouts, and run summaries only while `coach_athlete_links.status` is active. Table policies are unchanged. `runs.route` and run notes are not in the run RPC. `CoachReadService` is the Swift client; there is no new screen. Migration `20261117164500_coach_read_rpcs.sql` is not applied. Simulator: CoachReadServiceTests 7 passed.
+
 ## 2026-11-16 — Recover known legacy adherence links on upgrade
 
 The old client could link a run after its separate completion write failed. The versioned upgrade reads the signed-in athlete's persisted run links to incomplete active workouts, repairs usable links through the same transactional RPC, and keeps those workout slots out of heuristic matching. A hidden run reserves its existing slot without being uploaded or completed. A failed link read leaves the upgrade pending.
