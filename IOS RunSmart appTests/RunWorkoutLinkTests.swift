@@ -148,12 +148,11 @@ final class RunWorkoutLinkTests: XCTestCase {
 
     func testWorkoutTakenByAnotherRunDropsTheQueuedLink() async {
         let outbox = freshOutbox()
-        let userID = UUID()
-        let key = RunSourceKey(sourceProvider: "garmin", sourceActivityID: "late")
-        outbox.enqueue(authUserID: userID, key: key, workoutID: UUID())
+        let record = enqueue(outbox, run("late", km: 5))
 
-        await outbox.retryPending { _ in .workoutTaken }
+        let completed = await outbox.retryPending(authUserID: record.authUserID) { _ in .notAvailable }
 
+        XCTAssertEqual(completed, [])
         XCTAssertTrue(outbox.pending().isEmpty)
     }
 
@@ -193,6 +192,77 @@ final class RunWorkoutLinkTests: XCTestCase {
         let third = await pass()
         XCTAssertEqual(third?.matched, 0)
         XCTAssertEqual(applyCalls, 1)
+    }
+
+    func testUpgradeRecoversAnEstablishedLegacyLinkBeforeCompetingMatches() async throws {
+        let defaults = freshDefaults()
+        let userID = UUID()
+        defaults.set(true, forKey: "runsmart.runs.workoutLinkBackfill.v2.\(userID.uuidString)")
+        let planned = workout(idA)
+        let unrelated = workout(idB)
+        let linked = run("legacy-garmin", day: "2026-08-01", km: 7.2, pinnedTo: idB)
+        let competing = run("later-candidate", km: 5, pinnedTo: idA)
+        var written: [String] = []
+        let report = await RunWorkoutBackfill.runOnce(
+            userID: userID, defaults: defaults, dryRun: false, calendar: calendar,
+            loadRuns: { [competing] },
+            loadWorkouts: { [planned, unrelated] },
+            loadLinkedRuns: { incomplete in
+                XCTAssertEqual(Set(incomplete.map(\.id)), Set([planned.id, unrelated.id]))
+                return [RunWorkoutBackfillIncumbent(workoutID: planned.id, run: linked)]
+            },
+            apply: { source, target in
+                written.append(source.providerActivityID ?? "")
+                XCTAssertEqual(target.id, planned.id, "The persisted association outranks both pins")
+                XCTAssertEqual(DBWorkoutCompletionUpdate(run: source).actualDistanceKm, 7.2)
+                return true
+            }
+        )
+        XCTAssertEqual(report, RunWorkoutBackfillReport(candidateRuns: 2, matched: 1, unmatched: 1, applied: 1, dryRun: false))
+        XCTAssertEqual(written, ["legacy-garmin"])
+        XCTAssertTrue(defaults.bool(forKey: RunWorkoutBackfill.flagKey(for: userID)))
+    }
+
+    func testUpgradeReadsActualsFromTheExactLinkedServerRunWithoutALocalCopy() throws {
+        let json = """
+        {"workout_id":"\(idA)","source_provider":"runsmart_ios","source_activity_id":"previous-run",
+         "completed_at":"2026-08-01T07:00:00Z","distance":6.25,"duration":1919,"pace":307,"heart_rate":146}
+        """
+        let row = try JSONDecoder().decode(DBRunBackfillRow.self, from: Data(json.utf8))
+        let incumbent = try XCTUnwrap(DBRunBackfillRow.incumbents(from: [row], localRuns: [], isHidden: { _ in false }).first)
+        let activity = try XCTUnwrap(incumbent.run)
+        XCTAssertEqual(incumbent.workoutID, UUID(uuidString: idA))
+        XCTAssertEqual(activity.runSourceKey, RunSourceKey(sourceProvider: "runsmart_ios", sourceActivityID: "previous-run"))
+        XCTAssertEqual(DBWorkoutCompletionUpdate(run: activity).actualDistanceKm, 6.25)
+        XCTAssertEqual(DBWorkoutCompletionUpdate(run: activity).actualDurationMinutes, 32)
+        XCTAssertEqual(DBWorkoutCompletionUpdate(run: activity).actualPace, 307)
+
+        let hidden = try XCTUnwrap(DBRunBackfillRow.incumbents(from: [row], localRuns: [], isHidden: { _ in true }).first)
+        XCTAssertEqual(hidden.workoutID, incumbent.workoutID)
+        XCTAssertNil(hidden.run)
+    }
+
+    func testUpgradeLeavesAnUnusableIncumbentReservedAndRetriesAFailedRead() async {
+        let defaults = freshDefaults()
+        let userID = UUID()
+        let planned = workout(idA)
+        let competing = run("competing", km: 5, pinnedTo: idA)
+
+        let failed = await RunWorkoutBackfill.runOnce(
+            userID: userID, defaults: defaults, dryRun: false,
+            loadRuns: { [competing] }, loadWorkouts: { [planned] }, loadLinkedRuns: { _ in nil },
+            apply: { _, _ in XCTFail("No write is safe before reading incumbent links"); return false }
+        )
+        XCTAssertNil(failed)
+        XCTAssertFalse(defaults.bool(forKey: RunWorkoutBackfill.flagKey(for: userID)))
+
+        let repaired = await RunWorkoutBackfill.runOnce(
+            userID: userID, defaults: defaults, dryRun: false,
+            loadRuns: { [competing] }, loadWorkouts: { [planned] },
+            loadLinkedRuns: { _ in [RunWorkoutBackfillIncumbent(workoutID: planned.id, run: nil)] },
+            apply: { _, _ in XCTFail("A hidden or invalid incumbent still reserves its workout"); return false }
+        )
+        XCTAssertEqual(repaired?.matched, 0)
     }
 
     func testDryRunLogsCountsWritesNothingAndLeavesTheFlagUnset() async {
@@ -243,40 +313,104 @@ final class RunWorkoutLinkTests: XCTestCase {
         }
     }
 
-    func testRunNotSyncedKeepsTheLinkWithoutCountingAnAttemptUntilItExpires() async {
+    func testRunNotSyncedKeepsTheCompletionWithoutCountingAnAttemptUntilItExpires() async {
         var clock = Date(timeIntervalSince1970: 1_000_000)
         let outbox = RunWorkoutLinkOutbox(defaults: freshDefaults(), key: "links", now: { clock })
-        outbox.enqueue(authUserID: UUID(), key: RunSourceKey(sourceProvider: "garmin", sourceActivityID: "x"), workoutID: UUID())
+        let activity = run("waiting", km: 5)
+        let record = enqueue(outbox, activity)
 
         for _ in 0..<(RunWorkoutLinkOutbox.maxAttempts + 2) {
-            await outbox.retryPending { _ in .runNotSynced }
+            _ = await outbox.retryPending(authUserID: record.authUserID) { _ in .runNotSynced }
         }
-        XCTAssertEqual(outbox.pending().first?.attemptCount, 0)
+        XCTAssertEqual(outbox.pending(), [record])
 
         clock = clock.addingTimeInterval(RunWorkoutLinkOutbox.maxAge + 1)
-        await outbox.retryPending { _ in .runNotSynced }
+        _ = await outbox.retryPending(authUserID: record.authUserID) { _ in
+            XCTFail("Expired match must not be submitted")
+            return .completed
+        }
         XCTAssertTrue(outbox.pending().isEmpty)
     }
 
-    func testThrownLinkWritesAreDroppedAfterMaxAttempts() async {
-        struct Offline: Error {}
+    func testThrownCompletionWritesAreDroppedAfterMaxAttempts() async {
         let outbox = freshOutbox()
-        outbox.enqueue(authUserID: UUID(), key: RunSourceKey(sourceProvider: "garmin", sourceActivityID: "x"), workoutID: UUID())
+        let record = enqueue(outbox, run("offline", km: 5))
 
         for _ in 0..<RunWorkoutLinkOutbox.maxAttempts {
-            await outbox.retryPending { _ in throw Offline() }
+            _ = await outbox.retryPending(authUserID: record.authUserID) { _ in throw URLError(.notConnectedToInternet) }
         }
 
         XCTAssertTrue(outbox.pending().isEmpty)
     }
 
-    func testLinkedRecordLeavesTheOutbox() async {
+    func testRetryRestoresExactMatchAndPayloadAndOnlyRunsForItsOwner() async {
+        let defaults = freshDefaults()
+        let outbox = RunWorkoutLinkOutbox(defaults: defaults, key: "links")
+        let activity = run("from-health", km: 5.1, source: .healthKit)
+        let record = enqueue(outbox, activity)
+        let result = await outbox.attempt(record) { _ in throw URLError(.notConnectedToInternet) }
+        XCTAssertNil(result)
+        let restored = RunWorkoutLinkOutbox(defaults: defaults, key: "links")
+        XCTAssertEqual(restored.pending().first?.attemptCount, 1)
+        let other = await restored.retryPending(authUserID: UUID()) { _ in
+            XCTFail("Other user must not submit this record")
+            return .completed
+        }
+        XCTAssertEqual(other, [])
+        XCTAssertEqual(restored.pending().count, 1)
+
+        let completed = await restored.retryPending(authUserID: record.authUserID) { sent in
+            XCTAssertEqual(sent.id, record.id)
+            XCTAssertEqual(sent.key, activity.runSourceKey)
+            XCTAssertEqual(sent.workoutID, record.workoutID)
+            XCTAssertEqual(sent.payload, DBWorkoutCompletionUpdate(run: activity))
+            return .alreadyCompleted
+        }
+        XCTAssertEqual(completed, [record.workoutID])
+        XCTAssertTrue(restored.pending().isEmpty)
+    }
+
+    func testRetryRestoresMissingRunBeforeResubmittingTheSameMatch() async {
         let outbox = freshOutbox()
-        outbox.enqueue(authUserID: UUID(), key: RunSourceKey(sourceProvider: "healthkit", sourceActivityID: "x"), workoutID: UUID())
-
-        await outbox.retryPending { _ in .linked }
-
+        let record = enqueue(outbox, run("needs-upload", km: 5))
+        var calls: [String] = []
+        let completed = await outbox.retryPending(authUserID: record.authUserID, restoreRun: { key in
+            XCTAssertEqual(key, record.key)
+            calls.append("restore")
+            return true
+        }, send: { sent in
+            XCTAssertEqual(sent, record)
+            calls.append("send")
+            return calls.count == 1 ? .runNotSynced : .completed
+        })
+        XCTAssertEqual(calls, ["send", "restore", "send"])
+        XCTAssertEqual(completed, [record.workoutID])
         XCTAssertTrue(outbox.pending().isEmpty)
+    }
+
+    func testHiddenRunIsRemovedFromRetryEvenWithoutALocalCopy() async {
+        let activity = run("hidden", km: 5, source: .healthKit)
+        let outbox = freshOutbox()
+        let record = enqueue(outbox, activity)
+        let completed = await outbox.retryPending(authUserID: record.authUserID, isHidden: { $0 == record.key }) { _ in
+            XCTFail("A hidden run must not claim a workout from a previously synced row")
+            return .completed
+        }
+        XCTAssertEqual(completed, [])
+        XCTAssertTrue(outbox.pending().isEmpty)
+    }
+
+    func testRPCParametersPairRunIdentityWithActuals() throws {
+        let activity = run("paired", km: 5.06)
+        let record = enqueue(freshOutbox(), activity)
+        let data = try JSONEncoder().encode(CompleteRunWorkoutParams(record: record))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["p_expected_athlete"] as? String, record.authUserID.uuidString)
+        XCTAssertEqual(json["p_workout_id"] as? String, record.workoutID.uuidString)
+        XCTAssertEqual(json["p_source_provider"] as? String, record.key.sourceProvider)
+        XCTAssertEqual(json["p_source_activity_id"] as? String, record.key.sourceActivityID)
+        XCTAssertEqual(json["p_actual_pace"] as? Int, 330)
+        XCTAssertEqual(json["p_actual_distance_km"] as? Double, 5.06)
     }
 
     func testBackfillRowRebuildsRunAndPrefersTheDeviceCopyForItsPinnedId() throws {
@@ -301,44 +435,67 @@ final class RunWorkoutLinkTests: XCTestCase {
 
     func testOverlappingRetriesRunOnePassAndSendOncePerRecord() async {
         let outbox = freshOutbox()
-        outbox.enqueue(authUserID: UUID(), key: RunSourceKey(sourceProvider: "garmin", sourceActivityID: "x"), workoutID: UUID())
+        let record = enqueue(outbox, run("x", km: 5))
         let sends = SendCounter()
 
-        async let first: Void = outbox.retryPending { _ in
+        async let first = outbox.retryPending(authUserID: record.authUserID) { _ in
             await sends.increment()
             try? await Task.sleep(nanoseconds: 300_000_000)
-            return .linked
+            return .completed
         }
         try? await Task.sleep(nanoseconds: 50_000_000)
-        // The first pass is mid-send: this call must return at once without sending.
-        await outbox.retryPending { _ in
+        let second = await outbox.retryPending(authUserID: record.authUserID) { _ in
             await sends.increment()
-            return .linked
+            return .completed
         }
-        await first
-
+        let completed = await first
+        XCTAssertEqual(second, [])
+        XCTAssertEqual(completed, [record.workoutID])
         let count = await sends.value
         XCTAssertEqual(count, 1)
         XCTAssertTrue(outbox.pending().isEmpty)
-
-        // The gate is released afterwards, so a later pass runs.
-        outbox.enqueue(authUserID: UUID(), key: RunSourceKey(sourceProvider: "garmin", sourceActivityID: "y"), workoutID: UUID())
-        await outbox.retryPending { _ in .linked }
-        XCTAssertTrue(outbox.pending().isEmpty)
     }
 
-    func testFailureAfterSuccessNeverReAddsARemovedRecord() {
+    func testOldFailureDoesNotModifyANewerPendingRecord() {
         let outbox = freshOutbox()
-        let record = PendingRunLink(
-            authUserID: UUID(), key: RunSourceKey(sourceProvider: "garmin", sourceActivityID: "x"),
-            workoutID: UUID(), queuedAt: Date(), attemptCount: 0
-        )
-        outbox.enqueue(authUserID: record.authUserID, key: record.key, workoutID: record.workoutID)
-        outbox.remove(record) // a concurrent success
+        let activity = run("x", km: 5)
+        let record = enqueue(outbox, activity)
+        outbox.remove(record)
+        let newer = enqueue(outbox, activity, userID: record.authUserID)
 
-        outbox.recordFailure(record) // a slower pass reports failure afterwards
+        outbox.recordFailure(record)
 
-        XCTAssertTrue(outbox.pending().isEmpty)
+        XCTAssertNotEqual(record.id, newer.id)
+        XCTAssertEqual(outbox.pending(), [newer])
+    }
+
+    func testNewHealthBatchRanksBeforeNewestReportInEitherArrivalOrder() async throws {
+        let best = run("early-nearest", hour: 7, km: 5.1, source: .healthKit)
+        let newest = run("late-farther", hour: 14, km: 5.9, source: .healthKit)
+        let planned = workout(idA)
+        for imports in [[best, newest], [newest, best]] {
+            var winningRun: String?
+            var reportedRun: String?
+            let batch = HealthKitImportResult(
+                status: ConnectedDeviceStatus(provider: "HealthKit", state: .connected, permissions: []),
+                runs: imports, skippedDuplicates: 0
+            )
+            _ = await HealthKitImportProcessor.process(batch,
+                upload: { $0.count },
+                complete: { _ in XCTFail("New runs must compete as a batch"); return false },
+                completeNewRuns: { runs in
+                    let pairs = TrainingPlanRepository.assignRuns(runs, to: [planned], calendar: self.calendar)
+                    winningRun = pairs.first?.0.providerActivityID
+                    return Dictionary(uniqueKeysWithValues: pairs.map { ($0.0.runSourceKey, $0.1) })
+                },
+                processNewest: { activity, workout in
+                    reportedRun = activity.providerActivityID
+                    XCTAssertNil(workout, "The newest run must not rematch the reserved workout")
+                },
+                refreshRuns: {}, notifyPlan: {})
+            XCTAssertEqual(winningRun, best.providerActivityID)
+            XCTAssertEqual(reportedRun, newest.providerActivityID)
+        }
     }
 
     func testBackfillSkipsHiddenRunsWithOrWithoutALocalCopy() throws {
@@ -373,6 +530,10 @@ final class RunWorkoutLinkTests: XCTestCase {
         let defaults = UserDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
+    }
+
+    private func enqueue(_ outbox: RunWorkoutLinkOutbox, _ activity: RecordedRun, userID: UUID = UUID()) -> PendingRunLink {
+        outbox.enqueue(authUserID: userID, key: activity.runSourceKey, workoutID: UUID(), payload: DBWorkoutCompletionUpdate(run: activity))
     }
 
     private func freshOutbox() -> RunWorkoutLinkOutbox {

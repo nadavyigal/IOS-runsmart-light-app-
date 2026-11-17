@@ -1,3 +1,11 @@
+# 2026-11-15: Coach Mode adherence follow-up
+
+Current Phase: Coach Mode pilot foundation.
+Active Story: Make the workout completion and run association atomic, retain only one retry with the matching run and its actuals, and rank new HealthKit runs as a batch.
+Next Recommended Story: Verify a real in-app run and a third-party HealthKit run produce the expected row links before implementing the Coach adherence view.
+Blockers: `20261117120000_complete_run_workout.sql` must be mirrored in the web repo and applied before the updated iOS client is released. The new client uses the owner-scoped RPC for completion writes. Stage the DB migration first, validate the exact pilot build, and keep pilot participants on that build so older clients do not replay split writes. Upgrade recovery completes persisted links to incomplete active workouts using actuals from the linked run, including links older than the normal 30-day heuristic window. Legacy split payloads without a proven run association are never replayed.
+Last Validation: Throwaway Postgres 17.6 passed the original workout-link test and the new atomic completion test. iOS and physical workout checks are tracked in tasks/todo.md.
+
 # 2026-11-15: Coach Mode story 1.3, athlete joins a coach with consent
 
 Current Phase: unchanged; Coach Mode (human coaches) epic 1, branch `feat/join-coach-consent`.

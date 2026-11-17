@@ -1111,7 +1111,9 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 guard self.currentUserID == syncingUserID else { return 0 }
                 let uploaded = await self.upsertHealthKitRuns($0)
                 // Rows that just reached the server can take the links that were waiting on them.
-                if uploaded > 0 { await self.planRepo.retryPendingRunLinks() }
+                if uploaded > 0, let syncingUserID {
+                    await self.retryPendingRunLinks(authUserID: syncingUserID)
+                }
                 return uploaded
             },
             complete: { run in
@@ -1150,9 +1152,21 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 await MainActor.run { PushService.shared.cancelWorkoutReminder(workoutID: completed.id) }
                 return true
             },
-            processNewest: {
+            completeNewRuns: { runs in
+                guard let syncingUserID, self.currentUserID == syncingUserID else { return [:] }
+                let visible = runs.filter { !self.store.isRunHidden($0) }
+                let matches = await self.planRepo.completeMatchingWorkouts(authUserID: syncingUserID, for: visible)
+                guard self.currentUserID == syncingUserID else { return [:] }
+                await MainActor.run {
+                    for match in matches.values {
+                        PushService.shared.cancelWorkoutReminder(workoutID: match.id)
+                    }
+                }
+                return matches
+            },
+            processNewest: { run, match in
                 guard self.currentUserID == syncingUserID else { return }
-                _ = await self.processCompletedActivity($0)
+                _ = await self.processCompletedActivity(run) { _ in match }
             },
             refreshRuns: {
                 guard self.currentUserID == syncingUserID else { return }
@@ -1630,11 +1644,18 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
+        await processCompletedActivity(run, complete: completeMatchingWorkout)
+    }
+
+    private func processCompletedActivity(
+        _ run: RecordedRun,
+        complete: (RecordedRun) async -> WorkoutSummary?
+    ) async -> PostActivityOutcome {
         let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: await recentRuns(limit: 100)))
         await upsertCompletedRunIfPossible(canonical)
         store.refreshBenchmarkStats()
         async let reportTask = generateRunReportIfMissing(for: canonical)
-        async let completedTask = completeMatchingWorkout(for: canonical)
+        async let completedTask = complete(canonical)
         async let debriefTask = fetchRunDebrief(for: canonical)          // E6
         let (report, completed, debrief) = await (reportTask, completedTask, debriefTask)
 
@@ -1954,8 +1975,16 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func retryPendingWorkoutCompletions() async {
-        await planRepo.retryPendingWorkoutCompletions()
-        await backfillRunWorkoutLinksIfNeeded()
+        guard let userID = currentUserID else { return }
+        await retryPendingRunLinks(authUserID: userID)
+        guard currentUserID == userID else { return }
+        // Finish queued matches before considering unlinked runs for backfill.
+        await planRepo.backfillRunWorkoutLinks(
+            authUserID: userID,
+            localRuns: store.loadRuns(),
+            isHidden: { self.store.isRunHidden($0) },
+            dryRun: RunWorkoutBackfill.isDryRunRequested
+        )
     }
 
     func retryCoachRoutes(coachLinks: CoachLinkStore) async {
@@ -1993,15 +2022,40 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         try await supabase.rpc("save_coach_run_route", params: CoachRunRouteParams(item: item)).execute().value
     }
 
-    /// Runs after pending completions so a queued completion is not matched a second time.
-    private func backfillRunWorkoutLinksIfNeeded() async {
-        guard let userID = currentUserID else { return }
-        await planRepo.backfillRunWorkoutLinks(
-            authUserID: userID,
-            localRuns: store.loadRuns(),
-            isHidden: { self.store.isRunHidden($0) },
-            dryRun: RunWorkoutBackfill.isDryRunRequested
-        )
+    private func retryPendingRunLinks(authUserID: UUID) async {
+        guard currentUserID == authUserID else { return }
+        let completed = await planRepo.retryPendingRunLinks(authUserID: authUserID, isHidden: store.isRunHidden(sourceKey:)) { key in
+            await self.restoreRunForPendingCompletion(key, authUserID: authUserID)
+        }
+        guard !completed.isEmpty, currentUserID == authUserID else { return }
+        await refreshAppleWorkoutExports()
+        guard currentUserID == authUserID else { return }
+        await MainActor.run {
+            for workoutID in completed {
+                PushService.shared.cancelWorkoutReminder(workoutID: workoutID)
+            }
+            NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
+        }
+    }
+
+    private func restoreRunForPendingCompletion(_ key: RunSourceKey, authUserID: UUID) async -> Bool {
+        guard currentUserID == authUserID,
+              let run = store.loadRuns().first(where: { $0.runSourceKey == key }),
+              !store.isRunHidden(run) else { return false }
+        let identity = await planRepo.identity(authUserID: authUserID)
+        guard currentUserID == authUserID, !store.isRunHidden(run) else { return false }
+
+        do {
+            // Recreate a missing row only. A row uploaded concurrently may already
+            // have a workout link or edited details, which retries must preserve.
+            try await supabase.from("runs")
+                .upsert(DBRunInsert(run: run, identity: identity, kind: .easy, notes: nil),
+                        onConflict: "source_provider,source_activity_id", returning: .minimal, ignoreDuplicates: true)
+                .execute()
+            return currentUserID == authUserID
+        } catch {
+            return false
+        }
     }
 
     private func completeMatchingWorkout(for run: RecordedRun) async -> WorkoutSummary? {
@@ -2026,7 +2080,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 .execute()
             // The runner may have set effort, title or notes while the upsert ran: change only the sync time.
             store.markRunSynced(run)
-            await planRepo.retryPendingRunLinks()
+            await retryPendingRunLinks(authUserID: userID)
         } catch {
             if !(error is CancellationError) {
                 print("[SupabaseServices] completed run upsert error:", error)
