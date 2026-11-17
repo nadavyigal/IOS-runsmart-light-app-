@@ -91,7 +91,12 @@ as $$
       select 1
       from public.plans p
       where p.is_active
-        and (p.auth_user_id = l.athlete_id or p.profile_id = l.athlete_id)
+        and (p.auth_user_id = l.athlete_id or p.profile_id = l.athlete_id
+         or (p.auth_user_id is null and exists (
+           select 1 from public.profiles owner_profile
+           where owner_profile.auth_user_id = l.athlete_id
+             and owner_profile.id::text = p.profile_id::text
+         )))
     )
   from public.coach_athlete_links l
   where l.status = 'active'
@@ -128,7 +133,12 @@ as $$
   from public.plans p
   where public.is_active_coach_of(p_athlete)
     and p.is_active
-    and (p.auth_user_id = p_athlete or p.profile_id = p_athlete)
+    and (p.auth_user_id = p_athlete or p.profile_id = p_athlete
+         or (p.auth_user_id is null and exists (
+           select 1 from public.profiles owner_profile
+           where owner_profile.auth_user_id = p_athlete
+             and owner_profile.id::text = p.profile_id::text
+         )))
   order by p.start_date desc, p.id;
 $$;
 
@@ -178,7 +188,12 @@ as $$
   from public.coach_athlete_links l
   join public.plans p
     on p.is_active
-   and (p.auth_user_id = l.athlete_id or p.profile_id = l.athlete_id)
+   and (p.auth_user_id = l.athlete_id or p.profile_id = l.athlete_id
+         or (p.auth_user_id is null and exists (
+           select 1 from public.profiles owner_profile
+           where owner_profile.auth_user_id = l.athlete_id
+             and owner_profile.id::text = p.profile_id::text
+         )))
   join public.workouts w
     on w.plan_id = p.id
    and w.scheduled_date between p_from and p_to

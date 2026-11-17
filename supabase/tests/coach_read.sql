@@ -34,7 +34,7 @@ insert into public.plans (
    'bbbbbbbb-0000-4000-8000-00000000000b', '10K build', '2026-11-16', '2026-12-27', true, 10, 3600),
   ('10000000-0000-4000-8000-0000000000b2', 'bbbbbbbb-0000-4000-8000-00000000000b',
    null, 'Old plan', '2026-10-01', '2026-11-01', false, 5, null),
-  ('10000000-0000-4000-8000-0000000000e1', 'eeeeeeee-0000-4000-8000-00000000000e',
+  ('10000000-0000-4000-8000-0000000000e1', '20000000-0000-4000-8000-00000000000e',
    null, 'Easy start', '2026-11-16', '2026-12-27', true, 5, null),
   ('10000000-0000-4000-8000-0000000000d1', 'dddddddd-0000-4000-8000-00000000000d',
    'dddddddd-0000-4000-8000-00000000000d', 'Unlinked', '2026-11-16', '2026-12-27', true, 8, null);
@@ -250,7 +250,7 @@ begin
     raise exception 'FAIL: B plan summary does not match the active plan';
   end if;
   if (select title from public.coach_get_athlete_plan('eeeeeeee-0000-4000-8000-00000000000e')) is distinct from 'Easy start' then
-    raise exception 'FAIL: plan owned only by profile_id was not returned';
+    raise exception 'FAIL: legacy plan with a distinct profile UUID was not returned';
   end if;
   select count(*) into n from public.coach_get_athlete_plan('ffffffff-0000-4000-8000-00000000000f');
   if n <> 0 then raise exception 'FAIL: F has no plan but % rows were returned', n; end if;
