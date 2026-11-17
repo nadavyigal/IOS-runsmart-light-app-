@@ -230,8 +230,8 @@ struct RunSmartLiteAppShell: View {
         .environmentObject(planGeneration)
         .environmentObject(coachMode)
         .environmentObject(coachLinks)
-        .environment(\.coachAssistantActive, RunSmartFeatures.coachModeEnabled && coachLinks.currentLink != nil)
-        .environment(\.coachAssistantName, coachLinks.currentLink?.coachName ?? "")
+        .environment(\.coachAssistantActive, assistantContext.linkActive)
+        .environment(\.coachAssistantName, assistantContext.coachDisplayName)
         .environment(\.runSmartServices, services)
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
@@ -372,6 +372,8 @@ struct RunSmartLiteAppShell: View {
                     .environmentObject(router)
                     .environmentObject(session)
                     .environmentObject(recorder)
+                    .environment(\.coachAssistantActive, assistantContext.linkActive)
+                    .environment(\.coachAssistantName, assistantContext.coachDisplayName)
                     .environment(\.runSmartServices, services)
                     .environment(\.runRecorder, recorder)
             case .secondary(let destination):
@@ -382,6 +384,8 @@ struct RunSmartLiteAppShell: View {
                     .environmentObject(session)
                     .environmentObject(coachLinks)
                     .environmentObject(recorder)
+                    .environment(\.coachAssistantActive, assistantContext.linkActive)
+                    .environment(\.coachAssistantName, assistantContext.coachDisplayName)
                     .environment(\.runSmartServices, services)
                     .environment(\.runRecorder, recorder)
             }
@@ -393,6 +397,8 @@ struct RunSmartLiteAppShell: View {
             .environmentObject(router)
             .environmentObject(session)
             .environmentObject(recorder)
+            .environment(\.coachAssistantActive, assistantContext.linkActive)
+            .environment(\.coachAssistantName, assistantContext.coachDisplayName)
             .environment(\.runSmartServices, services)
             .environment(\.runRecorder, recorder)
         }
@@ -561,6 +567,10 @@ struct RunSmartLiteAppShell: View {
                                         onboardingComplete: session.hasCompletedOnboarding) {
             router.open(.joinCoach)
         }
+    }
+
+    private var assistantContext: CoachContext {
+        CoachContextSource.shared.context(for: coachRoleCheckUserID)
     }
 
     private var coachRoleCheckUserID: UUID? {
