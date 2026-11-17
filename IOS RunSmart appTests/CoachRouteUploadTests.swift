@@ -315,9 +315,10 @@ final class CoachRouteUploadTests: XCTestCase {
         XCTAssertFalse(text.contains("startsNewSegment"))
         XCTAssertFalse(text.contains("32.08501"))
         let withheld = try JSONEncoder().encode(CoachRouteTooShortUpdate())
-        let withheldText = try XCTUnwrap(String(data: withheld, encoding: .utf8))
-        XCTAssertEqual(withheldText, "{\"route\":null,\"route_status\":\"too_short\"}")
-        XCTAssertFalse(withheldText.contains("lat"))
+        let withheldObject = try XCTUnwrap(JSONSerialization.jsonObject(with: withheld) as? [String: Any])
+        XCTAssertEqual(Set(withheldObject.keys), Set(["route", "route_status"]))
+        XCTAssertTrue(withheldObject["route"] is NSNull)
+        XCTAssertEqual(withheldObject["route_status"] as? String, "too_short")
     }
 
     private let degreesPerMeter = 1.0 / 110_850.0
