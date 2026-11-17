@@ -1,3 +1,12 @@
+## 2026-11-17 — Coach Mode Story 6.1
+
+- [x] Implement route preparation, device-local sharing preference and retry, and an athlete-only write to `runs.route` and `runs.route_status`.
+- [x] Verify the migration applies twice and the new SQL suite passes in throwaway embedded Postgres.
+- [ ] Review Story 6.1 in #199, based on main after #193 landed.
+- [ ] Mirror `20261117100000_coach_route_upload.sql` to the web migration tree at rollout. Production stays frozen.
+- [ ] Keep `RouteUploadPolicy.isEnabled` false and the default preparer disabled until Story 6.4 implements privacy-zone trimming. Hold pilot invites until then.
+- [ ] Story 6.2 must gate coach reads on an active link and `route_status = 'shared'`.
+
 ## 2026-11-16 — Coach Mode rollout
 
 - Human Coach Mode is OFF by default. In an Xcode **Debug** run, add `-enable-coach-mode` under Scheme → Run → Arguments. Release builds (including current TestFlight archives) ignore the argument. There is no remote switch.

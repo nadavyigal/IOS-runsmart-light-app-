@@ -188,9 +188,15 @@ final class CoachLinkStore: ObservableObject {
     /// Set after a successful leave. Settings shows it, then clears it.
     @Published var leaveNotice: String?
 
+    func activeLink(for userID: UUID?) -> CoachLink? {
+        guard let userID, acceptedUserID == userID else { return nil }
+        return currentLink
+    }
+
     /// Call when the signed-in athlete changes, before any refresh for that athlete.
     func beginSession(userID: UUID) {
         guard acceptedUserID != userID else { return }
+        discardCurrentRouteQueue()
         loadGeneration += 1
         acceptedUserID = userID
         currentLink = nil
@@ -198,7 +204,14 @@ final class CoachLinkStore: ObservableObject {
         didAttemptLoad = false
     }
 
+    private func discardCurrentRouteQueue() {
+        if let acceptedUserID, let currentLink {
+            CoachRouteOutbox.shared.discard(ownerID: acceptedUserID, linkID: currentLink.id)
+        }
+    }
+
     func clear() {
+        discardCurrentRouteQueue()
         loadGeneration += 1
         acceptedUserID = nil
         currentLink = nil
@@ -214,6 +227,7 @@ final class CoachLinkStore: ObservableObject {
         do {
             let link = try await repository.currentLink()
             guard generation == loadGeneration, acceptedUserID == capturedUserID else { return }
+            if currentLink?.id != link?.id { discardCurrentRouteQueue() }
             currentLink = link
             didAttemptLoad = true
         } catch is CancellationError {
@@ -254,6 +268,7 @@ final class CoachLinkStore: ObservableObject {
         }
         guard acceptedUserID == userID, generation == loadGeneration else { throw CancellationError() }
         if let currentLink, currentLink.id != link.id { throw CancellationError() }
+        CoachRouteOutbox.shared.discard(ownerID: userID, linkID: link.id)
         loadGeneration += 1
         currentLink = nil
         didAttemptLoad = true

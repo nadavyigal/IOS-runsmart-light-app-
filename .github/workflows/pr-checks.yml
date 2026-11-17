@@ -137,6 +137,10 @@ jobs:
             migration: 20261115194500_leave_coach
             fixture: ''
             prerequisite: 20261114210000_coach_role_and_invites 20261115091000_coach_athlete_links
+          - suite: coach_route_upload
+            migration: 20261117100000_coach_route_upload
+            fixture: coach_route_upload_fixture
+            prerequisite: 20261114210000_coach_role_and_invites 20261115091000_coach_athlete_links 20261115194500_leave_coach
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:

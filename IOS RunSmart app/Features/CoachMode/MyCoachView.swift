@@ -7,6 +7,7 @@ struct MyCoachView: View {
     @EnvironmentObject private var session: SupabaseSession
     @EnvironmentObject private var coachLinks: CoachLinkStore
 
+    @ObservedObject private var routes = CoachRouteOutbox.shared
     @StateObject private var model = LeaveCoachModel()
     @State private var showLeaveSheet = false
     @State private var pathMonitor: NWPathMonitor?
@@ -66,7 +67,19 @@ struct MyCoachView: View {
                 }
             }
 
-            // Story 6.1 adds the route-sharing toggle here.
+            if let userID = session.currentUserID, coachLinks.activeLink(for: userID)?.id == link.id {
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Share route maps with \(link.coachName)", isOn: Binding(
+                        get: { routes.sharing(ownerID: userID, linkID: link.id) },
+                        set: { routes.setSharing($0, ownerID: userID, linkID: link.id) }
+                    ))
+                    Text(RouteUploadPolicy.isEnabled
+                         ? "Maps already shared stay visible to \(link.coachName) until you leave."
+                         : "Route uploads are currently off.")
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                }
+            }
             // Story 3.2 adds the Feedback list here.
 
             Button("Leave coach") {
