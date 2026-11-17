@@ -1,31 +1,128 @@
 import SwiftUI
 import UIKit
 
-/// Coach tab root (UX spec C1, empty state for now). The athlete list arrives in Story 2.3.
+/// Coach tab root. Plan Mode (C2) is a hard gate in front of the invite (C4).
+/// The athlete list arrives in Story 2.3.
 struct CoachTabView: View {
+    @StateObject private var model: CoachPlanSetupModel
+
+    init(repository: any CoachPlanRepository = SupabaseCoachPlanRepository()) {
+        _model = StateObject(wrappedValue: CoachPlanSetupModel(repository: repository))
+    }
+
     var body: some View {
+        if RunSmartFeatures.coachModeEnabled {
+            coachScreen
+        }
+    }
+
+    private var coachScreen: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 14) {
-                RunSmartTopBar(title: "Coach")
+                header
 
-                ContentCard {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("No athletes yet.")
-                            .font(.headingMD)
-                            .foregroundStyle(Color.textPrimary)
-                        Text("Share your invite code to get started.")
-                            .font(.bodyMD)
-                            .foregroundStyle(Color.textSecondary)
+                if model.loadFailed {
+                    loadFailure
+                } else if !model.didLoad {
+                    ProgressView()
+                        .tint(Color.accentPrimary)
+                        .frame(maxWidth: .infinity, minHeight: 96)
+                        .accessibilityLabel("Loading Plan Mode")
+                } else {
+                    if model.showsLockedMode {
+                        PlanModePickerView(
+                            selection: .constant(model.mode),
+                            locked: true,
+                            notice: nil,
+                            errorMessage: nil,
+                            isSaving: false,
+                            onContinue: {}
+                        )
+                    } else {
+                        PlanModePickerView(
+                            selection: $model.pendingMode,
+                            locked: false,
+                            notice: GroupPlanRules.pilotNotice,
+                            errorMessage: model.choiceError,
+                            isSaving: model.isSavingChoice,
+                            onContinue: { Task { await model.confirmChoice() } }
+                        )
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityElement(children: .combine)
-                }
 
-                CoachInviteSection()
+                    if model.showsGroupForm {
+                        GroupPlanSettingsView(
+                            initial: model.groupPlan,
+                            savedMessage: model.savedMessage,
+                            failureMessage: model.settingsError,
+                            isSaving: model.isSavingSettings,
+                            onSave: { settings in Task { await model.saveSettings(settings) } }
+                        )
+                        .id(model.groupPlan?.raceDateString() ?? "new-group-plan")
+                    }
+
+                    if model.showsInvite {
+                        emptyAthletes
+                        CoachInviteSection()
+                    }
+
+                    if let savedMessage = model.savedMessage, model.showsInvite {
+                        Text(savedMessage)
+                            .font(.bodyMD.weight(.semibold))
+                            .foregroundStyle(Color.accentSuccess)
+                            .accessibilityIdentifier("coach-group-plan-saved")
+                    }
+                }
             }
             .padding(.horizontal, 18)
             .padding(.top, 14)
             .padding(.bottom, 140)
+        }
+        .task { await model.load() }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            RunSmartTopBar(title: "Coach")
+            if model.showsGroupMenu {
+                Menu {
+                    Button("Group plan settings") { model.openGroupSettings() }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3)
+                        .foregroundStyle(Color.textSecondary)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Coach menu")
+                .accessibilityIdentifier("coach-tab-menu")
+            }
+        }
+    }
+
+    private var emptyAthletes: some View {
+        ContentCard {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("No athletes yet.")
+                    .font(.headingMD)
+                    .foregroundStyle(Color.textPrimary)
+                Text("Share your invite code to get started.")
+                    .font(.bodyMD)
+                    .foregroundStyle(Color.textSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private var loadFailure: some View {
+        ContentCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Couldn't load Plan Mode.")
+                    .font(.bodyLG)
+                    .foregroundStyle(Color.textPrimary)
+                Button("Retry") { Task { await model.load() } }
+                    .buttonStyle(NeonButtonStyle())
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
