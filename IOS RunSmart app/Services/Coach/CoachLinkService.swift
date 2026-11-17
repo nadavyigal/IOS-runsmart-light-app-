@@ -160,6 +160,52 @@ nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
     }
 }
 
+
+/// `{INVITE_BASE_URL}/join/{CODE}`. The host is `ExternalURLs.inviteBase`; there is no second host.
+enum InviteLink {
+    /// Story 1.2 alphabet (`v_alphabet` in `20261114210000_coach_role_and_invites.sql`).
+    static let alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+    static let length = 6
+
+    enum Route: Equatable {
+        case ignored
+        case unresolved
+        case code(String)
+    }
+
+    /// A matching invite URL with a 6-character alphabet code, a `/join` URL whose code is
+    /// not that shape, or anything else (wrong host, wrong path, junk).
+    static func route(for url: URL, base: URL = ExternalURLs.inviteBase) -> Route {
+        guard let baseHost = base.host, let host = url.host,
+              host.caseInsensitiveCompare(baseHost) == .orderedSame,
+              url.scheme?.caseInsensitiveCompare(base.scheme ?? "https") == .orderedSame
+        else { return .ignored }
+
+        let parts = url.pathComponents.filter { $0 != "/" }
+        guard parts.first?.caseInsensitiveCompare("join") == .orderedSame else { return .ignored }
+        guard parts.count == 2, let code = normalizedCode(parts[1]) else { return .unresolved }
+        return .code(code)
+    }
+
+    /// Bare code, or a full invite link. Does not read the clipboard.
+    static func code(inPasted text: String, base: URL = ExternalURLs.inviteBase) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let code = normalizedCode(trimmed) { return code }
+        guard let url = URL(string: trimmed), case .code(let code) = route(for: url, base: base) else {
+            return nil
+        }
+        return code
+    }
+
+    static func normalizedCode(_ raw: String) -> String? {
+        let code = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard code.count == length else { return nil }
+        let allowed = CharacterSet(charactersIn: alphabet)
+        guard code.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return nil }
+        return code
+    }
+}
+
 /// Current link plus the coach's name. Settings uses `showsJoinCoach`.
 @MainActor
 final class CoachLinkStore: ObservableObject {
@@ -167,8 +213,19 @@ final class CoachLinkStore: ObservableObject {
     @Published private(set) var didAttemptLoad = false
 
     /// Kept when Continue sends a signed-out athlete to sign in, so A1 still has the code after.
+    /// A valid invite link uses the same two fields (Story 1.4).
     @Published var draftCode = ""
     @Published var resumeJoinAfterSignIn = false
+
+    /// Set when an invite link arrives. The join screen consumes it once.
+    @Published var pendingInvite: PendingInvite?
+
+    enum PendingInvite: Equatable {
+        /// Open A1 with this code filled in, then run lookup.
+        case code(String)
+        /// Open A1 with an empty field and the unresolved hint.
+        case unresolved
+    }
 
     private let repository: any CoachLinkRepository
     /// Bumped when the signed-in athlete changes, so an older refresh cannot publish.
@@ -274,6 +331,28 @@ final class CoachLinkStore: ObservableObject {
         didAttemptLoad = true
     }
 
+    /// Records an invite link. Returns true when this URL must not be handled as sign-in.
+    /// Coach Mode off stores nothing and does not open the join screen.
+    @discardableResult
+    func receiveInviteLink(_ url: URL, coachModeEnabled: Bool, canOpenJoinNow: Bool) -> Bool {
+        let route = InviteLink.route(for: url)
+        let isInviteAttempt = route != .ignored || RunSmartFeatures.isCoachInviteURL(url)
+        guard coachModeEnabled, route != .ignored else { return isInviteAttempt }
+        switch route {
+        case .ignored:
+            return isInviteAttempt
+        case .unresolved:
+            draftCode = ""
+            pendingInvite = .unresolved
+        case .code(let code):
+            draftCode = code
+            pendingInvite = .code(code)
+        }
+        // Guests and unfinished onboarding keep the code until A1 can open. Story 1.3's flag.
+        resumeJoinAfterSignIn = !canOpenJoinNow
+        return true
+    }
+
     func noteJoined(_ link: CoachLink, userID: UUID) {
         guard acceptedUserID == userID else { return }
         loadGeneration += 1
@@ -281,6 +360,7 @@ final class CoachLinkStore: ObservableObject {
         didAttemptLoad = true
         draftCode = ""
         resumeJoinAfterSignIn = false
+        pendingInvite = nil
     }
 }
 
@@ -288,6 +368,8 @@ final class CoachLinkStore: ObservableObject {
 enum CoachConsentCopy {
     static let invalidCode = "That code doesn't work. Check it with your coach."
     static let offline = "You need to be online to join."
+    /// A2 when the link cannot be resolved. The manual field stays empty.
+    static let unresolvedLinkHint = "Enter your coach's code"
 
     /// Shown when the code no longer names the coach on the consent screen. Share does not link.
     static func codeReassigned(coach: String) -> String {
@@ -425,6 +507,8 @@ final class LeaveCoachModel: ObservableObject {
 
 enum JoinCoachPhase: Equatable {
     case enterCode
+    /// Skeleton of the consent screen while a link's lookup is in flight.
+    case resolvingLink
     case consent(CoachLookup, athleteID: UUID)
 }
 
@@ -435,6 +519,8 @@ final class JoinCoachViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var isWorking = false
     @Published private(set) var joinedCoach: CoachLink?
+    /// A2 hint. The typed-code field does not show this on its own.
+    @Published private(set) var showsEntryHint = false
 
     private let repository: any CoachLinkRepository
 
@@ -446,6 +532,7 @@ final class JoinCoachViewModel: ObservableObject {
     func continueTapped(athleteID: UUID?) async {
         guard !isWorking else { return }
         errorMessage = nil
+        showsEntryHint = false
         let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
         code = trimmed
         guard !trimmed.isEmpty else {
@@ -474,6 +561,64 @@ final class JoinCoachViewModel: ObservableObject {
             phase = .enterCode
             errorMessage = Self.message(for: error)
         }
+    }
+
+    /// Fills A1 from a system paste. Accepts a bare code or a full invite link.
+    func applyPastedText(_ text: String) {
+        guard let extracted = InviteLink.code(inPasted: text) else { return }
+        code = extracted
+        showsEntryHint = false
+        errorMessage = nil
+    }
+
+    /// Arms the consent skeleton. `resolveFromLink` does the lookup.
+    func consumePendingInvite(_ pending: CoachLinkStore.PendingInvite) {
+        switch pending {
+        case .unresolved:
+            code = ""
+            errorMessage = nil
+            showsEntryHint = true
+            isWorking = false
+            phase = .enterCode
+        case .code(let value):
+            code = value
+            errorMessage = nil
+            showsEntryHint = false
+            isWorking = true
+            phase = .resolvingLink
+        }
+    }
+
+    /// Same lookup as a typed code. A miss, an inactive code, or offline leaves A1 empty with the hint.
+    /// An athlete who is already linked keeps the code and the Story 1.3 message.
+    func resolveFromLink(athleteID: UUID?) async {
+        guard case .resolvingLink = phase else { return }
+        defer { isWorking = false }
+        guard let athleteID else {
+            phase = .enterCode
+            return
+        }
+        do {
+            if let existing = try await repository.currentLink() {
+                phase = .enterCode
+                errorMessage = CoachConsentCopy.alreadyLinked(coach: existing.coachName)
+                return
+            }
+            guard let coach = try await repository.lookupInvite(code: code) else {
+                landUnresolved()
+                return
+            }
+            phase = .consent(coach, athleteID: athleteID)
+        } catch {
+            landUnresolved()
+        }
+    }
+
+    private func landUnresolved() {
+        code = ""
+        errorMessage = nil
+        showsEntryHint = true
+        phase = .enterCode
     }
 
     /// Not now: leave the consent screen. Does not call join.

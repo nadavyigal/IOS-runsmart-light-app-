@@ -532,3 +532,221 @@ final class CoachLinkTests: XCTestCase {
         XCTAssertEqual(store.currentLink?.coachName, "Dana")
     }
 }
+
+
+/// Story 1.4: an invite link opens the join screen. The host is `ExternalURLs.inviteBase`.
+@MainActor
+final class InviteDeepLinkTests: XCTestCase {
+    private final class Stub: CoachLinkRepository, @unchecked Sendable {
+        var link: CoachLink?
+        var lookup: Result<CoachLookup?, Error> = .success(nil)
+        private(set) var joinCalls = 0
+
+        func currentLink() async throws -> CoachLink? { link }
+
+        func lookupInvite(code: String) async throws -> CoachLookup? {
+            guard let found = try lookup.get() else { return nil }
+            return CoachLookup(
+                inviteID: found.inviteID,
+                coachID: found.coachID,
+                displayName: found.displayName,
+                code: code
+            )
+        }
+
+        func joinCoach(code: String, inviteID: UUID, coachID: UUID, athleteID: UUID) async throws -> JoinCoachOutcome {
+            joinCalls += 1
+            return .joined(CoachLink(id: inviteID, coachID: coachID, coachName: foundName, consentedAt: Date(timeIntervalSince1970: 0)))
+        }
+
+        private var foundName: String { "Dana" }
+    }
+
+    private let athleteID = UUID()
+    private let danaInvite = UUID(uuidString: "11111111-0000-4000-8000-000000000001")!
+    private let danaCoach = UUID(uuidString: "AAAAAAAA-0000-4000-8000-00000000000A")!
+
+    private var dana: CoachLookup {
+        CoachLookup(inviteID: danaInvite, coachID: danaCoach, displayName: "Dana", code: "K7M2QX")
+    }
+
+    private func inviteURL(_ code: String) -> URL {
+        ExternalURLs.inviteBase.appendingPathComponent("join").appendingPathComponent(code)
+    }
+
+    // MARK: URL parsing
+
+    func testValidInviteURLExtractsTheCode() {
+        let url = inviteURL("K7M2QX")
+        XCTAssertEqual(InviteLink.route(for: url), .code("K7M2QX"))
+        XCTAssertTrue(url.absoluteString.hasPrefix(ExternalURLs.inviteBase.absoluteString + "/join/"))
+    }
+
+    func testLowercaseCodeIsAccepted() {
+        XCTAssertEqual(InviteLink.route(for: inviteURL("k7m2qx")), .code("K7M2QX"))
+    }
+
+    func testWrongHostIsIgnored() {
+        let apex = URL(string: "https://runsmart-ai.com/join/K7M2QX")!
+        let other = URL(string: "https://example.com/join/K7M2QX")!
+        XCTAssertEqual(InviteLink.route(for: apex), .ignored)
+        XCTAssertEqual(InviteLink.route(for: other), .ignored)
+    }
+
+    func testWrongPathIsIgnored() {
+        let support = ExternalURLs.inviteBase.appendingPathComponent("support")
+        XCTAssertEqual(InviteLink.route(for: support), .ignored)
+    }
+
+    func testJunkIsIgnored() {
+        XCTAssertEqual(InviteLink.route(for: URL(string: "https://example.com/hello")!), .ignored)
+        XCTAssertEqual(InviteLink.route(for: URL(string: "runsmart://join/K7M2QX")!), .ignored)
+        XCTAssertNil(InviteLink.code(inPasted: "not a code and not a link"))
+    }
+
+    func testBadFormatOnTheInvitePathIsUnresolved() {
+        XCTAssertEqual(InviteLink.route(for: inviteURL("IIIIII")), .unresolved)
+        XCTAssertEqual(InviteLink.route(for: inviteURL("NO")), .unresolved)
+    }
+
+    // MARK: Paste
+
+    func testPasteControlExtractsABareCode() {
+        let model = JoinCoachViewModel(repository: Stub())
+        model.applyPastedText("  k7m2qx\n")
+        XCTAssertEqual(model.code, "K7M2QX")
+    }
+
+    func testPasteControlExtractsAFullLink() {
+        let model = JoinCoachViewModel(code: "OLD", repository: Stub())
+        model.applyPastedText(inviteURL("abc234").absoluteString)
+        XCTAssertEqual(model.code, "ABC234")
+    }
+
+    func testPasteControlLeavesTheFieldWhenTheClipboardIsJunk() {
+        let model = JoinCoachViewModel(code: "ABC234", repository: Stub())
+        model.applyPastedText("hello there")
+        XCTAssertEqual(model.code, "ABC234")
+    }
+
+    // MARK: Flow
+
+    func testGuestKeepsTheCodeThroughSignIn() {
+        let store = CoachLinkStore(repository: Stub())
+        let consumed = store.receiveInviteLink(inviteURL("k7m2qx"), coachModeEnabled: true, canOpenJoinNow: false)
+
+        XCTAssertTrue(consumed)
+        XCTAssertEqual(store.draftCode, "K7M2QX")
+        XCTAssertEqual(store.pendingInvite, .code("K7M2QX"))
+        XCTAssertFalse(store.consumeJoinIntent(isAuthenticated: false, onboardingComplete: false))
+        XCTAssertEqual(store.draftCode, "K7M2QX")
+        XCTAssertFalse(store.consumeJoinIntent(isAuthenticated: true, onboardingComplete: false))
+        XCTAssertEqual(store.draftCode, "K7M2QX")
+        XCTAssertTrue(store.consumeJoinIntent(isAuthenticated: true, onboardingComplete: true))
+        XCTAssertEqual(store.draftCode, "K7M2QX")
+        XCTAssertEqual(store.pendingInvite, .code("K7M2QX"))
+    }
+
+    func testFlagOffDoesNotOpenTheJoinScreen() {
+        let store = CoachLinkStore(repository: Stub())
+        let consumed = store.receiveInviteLink(inviteURL("K7M2QX"), coachModeEnabled: false, canOpenJoinNow: true)
+
+        XCTAssertTrue(consumed, "an invite link must not fall through to sign-in")
+        XCTAssertNil(store.pendingInvite)
+        XCTAssertEqual(store.draftCode, "")
+        XCTAssertFalse(store.resumeJoinAfterSignIn)
+    }
+
+    func testBadLinkLandsOnJoinWithTheHint() {
+        let store = CoachLinkStore(repository: Stub())
+        XCTAssertTrue(store.receiveInviteLink(inviteURL("IIIIII"), coachModeEnabled: true, canOpenJoinNow: true))
+        XCTAssertEqual(store.pendingInvite, .unresolved)
+        XCTAssertEqual(store.draftCode, "")
+
+        let model = JoinCoachViewModel(code: "LEFT", repository: Stub())
+        model.consumePendingInvite(.unresolved)
+        XCTAssertEqual(model.code, "")
+        XCTAssertTrue(model.showsEntryHint)
+        XCTAssertEqual(model.phase, .enterCode)
+        XCTAssertEqual(CoachConsentCopy.unresolvedLinkHint, "Enter your coach's code")
+    }
+
+    func testInvalidCodeFromLinkLandsEmptyWithHint() async {
+        let repository = Stub()
+        repository.lookup = .success(nil)
+        let model = JoinCoachViewModel(repository: repository)
+        model.consumePendingInvite(.code("K7M2QX"))
+        XCTAssertEqual(model.phase, .resolvingLink)
+
+        await model.resolveFromLink(athleteID: athleteID)
+
+        XCTAssertEqual(model.code, "")
+        XCTAssertTrue(model.showsEntryHint)
+        XCTAssertNil(model.errorMessage)
+        XCTAssertEqual(model.phase, .enterCode)
+        XCTAssertEqual(repository.joinCalls, 0)
+    }
+
+    func testOfflineLinkLandsEmptyWithHint() async {
+        let repository = Stub()
+        repository.lookup = .failure(URLError(.notConnectedToInternet))
+        let model = JoinCoachViewModel(repository: repository)
+        model.consumePendingInvite(.code("K7M2QX"))
+
+        await model.resolveFromLink(athleteID: athleteID)
+
+        XCTAssertEqual(model.code, "")
+        XCTAssertTrue(model.showsEntryHint)
+        XCTAssertNil(model.errorMessage)
+        XCTAssertEqual(model.phase, .enterCode)
+    }
+
+    func testValidLinkResolvesToConsent() async {
+        let repository = Stub()
+        repository.lookup = .success(dana)
+        let model = JoinCoachViewModel(repository: repository)
+        model.consumePendingInvite(.code("K7M2QX"))
+
+        await model.resolveFromLink(athleteID: athleteID)
+
+        XCTAssertEqual(model.phase, .consent(dana, athleteID: athleteID))
+        XCTAssertFalse(model.showsEntryHint)
+        XCTAssertEqual(repository.joinCalls, 0)
+    }
+
+    func testAlreadyLinkedLinkShowsTheStoryMessage() async {
+        let repository = Stub()
+        repository.link = CoachLink(
+            id: danaInvite, coachID: danaCoach, coachName: "Dana",
+            consentedAt: Date(timeIntervalSince1970: 1)
+        )
+        repository.lookup = .success(dana)
+        let model = JoinCoachViewModel(repository: repository)
+        model.consumePendingInvite(.code("K7M2QX"))
+
+        await model.resolveFromLink(athleteID: athleteID)
+
+        XCTAssertEqual(model.phase, .enterCode)
+        XCTAssertEqual(model.code, "K7M2QX")
+        XCTAssertEqual(
+            model.errorMessage,
+            "You're with Dana. Leave Dana first to join another coach."
+        )
+        XCTAssertFalse(model.showsEntryHint)
+        XCTAssertEqual(repository.joinCalls, 0)
+    }
+
+    func testManualCodeStillReachesConsentAfterABadLink() async {
+        let repository = Stub()
+        repository.lookup = .success(dana)
+        let model = JoinCoachViewModel(repository: repository)
+        model.consumePendingInvite(.unresolved)
+        XCTAssertTrue(model.showsEntryHint)
+
+        model.code = "K7M2QX"
+        await model.continueTapped(athleteID: athleteID)
+
+        XCTAssertEqual(model.phase, .consent(dana, athleteID: athleteID))
+        XCTAssertFalse(model.showsEntryHint)
+    }
+}
