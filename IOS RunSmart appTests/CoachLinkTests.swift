@@ -13,6 +13,8 @@ final class CoachLinkTests: XCTestCase {
         var lookupQueue: [Result<CoachLookup?, Error>] = []
         private(set) var lookupCalls = 0
         private(set) var joinCalls = 0
+        private(set) var leaveCalls = 0
+        var leaveError: Error?
         private(set) var joinedCode: String?
         private(set) var joinedInviteID: UUID?
         private(set) var joinedCoachID: UUID?
@@ -76,6 +78,14 @@ final class CoachLinkTests: XCTestCase {
             joinedInviteID = inviteID
             joinedCoachID = coachID
             return try join.get()
+        }
+
+        func leaveCoach(linkID: UUID) async throws {
+            leaveCalls += 1
+            if let leaveError {
+                throw leaveError
+            }
+            link = nil
         }
     }
 
@@ -372,5 +382,153 @@ final class CoachLinkTests: XCTestCase {
         XCTAssertNil(store.currentLink)
         XCTAssertTrue(store.didAttemptLoad)
         XCTAssertTrue(store.showsJoinCoach)
+    }
+
+    func testLeaveSheetCopyMatchesAndHidesTheLockLine() {
+        XCTAssertFalse(LeaveCoachCopy.coachWorkoutLocksEnabled)
+        let sheet = LeaveCoachCopy.sheet(coach: "Dana")
+        XCTAssertEqual(
+            sheet,
+            """
+            Leave Dana?
+            If you leave, Dana will no longer see your runs.
+
+            What stops:
+            • Dana won't see your plan, runs or maps.
+            • Dana won't review your runs or send new feedback.
+            • Dana can't change your workouts.
+            • Dana's name and notes are removed from your plan.
+
+            What stays:
+            • Your plan, which RunSmart keeps adapting.
+            • Your run history.
+            • Feedback Dana has already given you. You can still read it on the runs it was written for.
+
+            You can join a coach again with a code.
+            """
+        )
+        XCTAssertFalse(sheet.contains("no longer protected"))
+        for bullet in CoachConsentCopy.sharedBullets() {
+            XCTAssertTrue(CoachConsentCopy.body(coach: "Dana").contains(bullet))
+        }
+        XCTAssertEqual(LeaveCoachCopy.monogram(for: "Dana Cohen"), "DC")
+        XCTAssertEqual(
+            LeaveCoachCopy.toast(coach: "Dana"),
+            "You left Dana. Dana no longer sees your runs."
+        )
+    }
+
+    func testCancelLeaveChangesNothing() async {
+        let repository = StubRepository()
+        repository.link = persistedLink(for: dana)
+        let store = CoachLinkStore(repository: repository)
+        let userID = UUID()
+        store.beginSession(userID: userID)
+        store.noteJoined(persistedLink(for: dana), userID: userID)
+        let model = LeaveCoachModel()
+
+        model.cancel()
+
+        XCTAssertEqual(repository.leaveCalls, 0)
+        XCTAssertEqual(store.currentLink, persistedLink(for: dana))
+        XCTAssertFalse(store.showsJoinCoach)
+        XCTAssertNil(model.errorMessage)
+    }
+
+    func testLeaveFailureKeepsTheAthleteLinked() async {
+        let repository = StubRepository()
+        repository.link = persistedLink(for: dana)
+        repository.leaveError = CoachLinkServiceError.offline
+        let store = CoachLinkStore(repository: repository)
+        let userID = UUID()
+        store.beginSession(userID: userID)
+        store.noteJoined(persistedLink(for: dana), userID: userID)
+        let model = LeaveCoachModel()
+
+        let toast = await model.confirm(coachName: "Dana", userID: userID, store: store)
+
+        XCTAssertNil(toast)
+        XCTAssertEqual(model.errorMessage, LeaveCoachCopy.failure)
+        XCTAssertEqual(store.currentLink?.coachName, "Dana")
+        XCTAssertFalse(store.showsJoinCoach)
+        XCTAssertEqual(repository.leaveCalls, 1)
+    }
+
+    func testLeaveRejectsAStaleLinkAndIgnoresAnOlderRefresh() async throws {
+        let repository = StubRepository()
+        let link = persistedLink(for: dana)
+        repository.link = link
+        let store = CoachLinkStore(repository: repository)
+        let userID = UUID()
+        store.beginSession(userID: userID)
+        store.noteJoined(link, userID: userID)
+        let model = LeaveCoachModel()
+        let stale = await model.confirm(coachName: "Dana", userID: userID, store: store,
+                                       expectedLinkID: UUID())
+        XCTAssertNil(stale)
+        XCTAssertEqual(repository.leaveCalls, 0)
+
+        repository.armHoldOnFirstCurrentLink()
+        let refresh = Task { await store.refresh(userID: userID) }
+        await repository.waitUntilCurrentLinkBlocked()
+        try await store.leave(userID: userID, expectedLinkID: link.id)
+        repository.link = link
+        repository.releaseCurrentLink()
+        await refresh.value
+
+        XCTAssertNil(store.currentLink)
+        XCTAssertTrue(store.showsJoinCoach)
+        let router = AppRouter(coachModeEnabled: false)
+        router.open(.myCoach)
+        XCTAssertNil(router.activeSheet)
+    }
+
+    func testLeaveReconcilesLostResponseWhenServerHasRevokedLink() async {
+        let repository = StubRepository()
+        repository.leaveError = CoachLinkServiceError.offline
+        let store = CoachLinkStore(repository: repository)
+        let userID = UUID()
+        store.beginSession(userID: userID)
+        store.noteJoined(persistedLink(for: dana), userID: userID)
+
+        let toast = await LeaveCoachModel().confirm(coachName: "Dana", userID: userID, store: store)
+
+        XCTAssertNotNil(toast)
+        XCTAssertNil(store.currentLink)
+    }
+
+    func testLeaveSuccessShowsJoinCoachAgain() async {
+        let repository = StubRepository()
+        repository.link = persistedLink(for: dana)
+        let store = CoachLinkStore(repository: repository)
+        let userID = UUID()
+        store.beginSession(userID: userID)
+        store.noteJoined(persistedLink(for: dana), userID: userID)
+        let model = LeaveCoachModel()
+
+        let toast = await model.confirm(coachName: "Dana", userID: userID, store: store)
+
+        XCTAssertEqual(toast, "You left Dana. Dana no longer sees your runs.")
+        XCTAssertNil(store.currentLink)
+        XCTAssertTrue(store.showsJoinCoach)
+        XCTAssertEqual(store.leaveNotice, toast)
+        store.beginSession(userID: UUID())
+        XCTAssertNil(store.leaveNotice)
+    }
+
+    func testOfflineLeaveDoesNotCallTheServer() async {
+        let repository = StubRepository()
+        let store = CoachLinkStore(repository: repository)
+        let userID = UUID()
+        store.beginSession(userID: userID)
+        store.noteJoined(persistedLink(for: dana), userID: userID)
+        let model = LeaveCoachModel(isOnline: false)
+
+        XCTAssertEqual(model.leaveDisabledReason, "Connect to the internet")
+        let toast = await model.confirm(coachName: "Dana", userID: userID, store: store)
+
+        XCTAssertNil(toast)
+        XCTAssertEqual(repository.leaveCalls, 0)
+        XCTAssertEqual(store.currentLink?.coachName, "Dana")
     }
 }
