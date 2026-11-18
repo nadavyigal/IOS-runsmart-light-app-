@@ -17,6 +17,20 @@ final class CoachReadServiceTests: XCTestCase {
         XCTAssertEqual(client.runQuery, CoachRunQuery(from: "2026-11-16", to: "2026-11-16", athleteIDs: nil))
     }
 
+    func testLatestRunRequestsOneAthleteThroughTheUTCBoundary() async throws {
+        let client = RecordingClient()
+        let service = CoachReadService(client: client)
+        let date = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-15T22:30:00Z"))
+        let athlete = UUID()
+        _ = try await service.latestRun(for: athlete, through: date)
+        let query = try XCTUnwrap(client.runQuery)
+        XCTAssertEqual(query.to, "2026-11-15")
+        XCTAssertEqual(query.athleteIDs, [athlete])
+        XCTAssertEqual(query.latestThrough, date)
+        let body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(query)) as? [String: Any]
+        XCTAssertEqual(Set(body?.keys.map { $0 } ?? []), ["p_from", "p_to", "p_athlete_ids"])
+    }
+
     func testNilAthleteFilterOmitsTheServerArgument() throws {
         let query = CoachWorkoutQuery(from: "2026-11-16", to: "2026-11-22", athleteIDs: nil)
         let json = try JSONEncoder().encode(query)

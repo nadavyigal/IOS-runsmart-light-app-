@@ -1,3 +1,8 @@
+## 2026-11-18 — Coach Mode Story 2.3
+
+- [x] Add the athlete list, calendar week, shared adherence rules, and a placeholder athlete destination.
+- [ ] Review the athlete list and verify it against a local Supabase instance before pilot use.
+
 ## 2026-11-17 — Coach Mode Story 1.8
 
 - [x] Athlete confirms a Group Plan, their phone generates it, then `join_coach` runs.
