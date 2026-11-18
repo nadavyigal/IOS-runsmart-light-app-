@@ -344,13 +344,21 @@ struct CoachDayDetailView: View {
     var feedback: CoachFeedbackStore?
     var weekStart = ""
     @State private var composer: CoachFeedbackRequest?
+    /// Several runs on one day each load a map; a revoked link is handled once.
+    @State private var handledRevoke = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            CoachDayDetailContent(day: day, calendar: calendar, feedback: feedback, weekStart: weekStart) {
-                composer = $0
-            }
+            CoachDayDetailContent(day: day, calendar: calendar, feedback: feedback, weekStart: weekStart,
+                                  open: { composer = $0 },
+                                  onRunRevoked: {
+                                      // Back to the athlete screen, which shows "no longer in your group".
+                                      guard !handledRevoke else { return }
+                                      handledRevoke = true
+                                      feedback?.markRevoked()
+                                      dismiss()
+                                  })
             .padding(.horizontal, 18)
             .padding(.top, 14)
             .padding(.bottom, 140)
@@ -375,6 +383,8 @@ struct CoachDayDetailContent: View {
     var feedback: CoachFeedbackStore?
     var weekStart = ""
     var open: (CoachFeedbackRequest) -> Void = { _ in }
+    /// Set by the day detail to show each run's map (Story 6.2). Nil draws no map.
+    var onRunRevoked: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -386,13 +396,16 @@ struct CoachDayDetailContent: View {
             }
             ForEach(day.workouts) { item in
                 workoutCard(item)
-                if let run = item.run { feedbackSection(run) }
+                if let run = item.run {
+                    mapBlock(run)
+                    feedbackSection(run)
+                }
             }
             ForEach(day.extraRuns, id: \.id) { run in
                 extraCard(run)
+                mapBlock(run)
                 feedbackSection(run)
             }
-            // Story 6.2 adds the route map block here. Nothing renders in that slot yet.
         }
     }
 
@@ -444,6 +457,13 @@ struct CoachDayDetailContent: View {
                         .foregroundStyle(item.state == .missed ? Color.accentHeart : Color.textSecondary)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func mapBlock(_ run: CoachRunSummary) -> some View {
+        if let onRunRevoked {
+            CoachRunMapBlock(run: run, calendar: calendar, onRevoked: onRunRevoked)
         }
     }
 
