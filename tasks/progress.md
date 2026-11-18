@@ -1,3 +1,12 @@
+# 2026-11-18: Coach Mode story 3.4, coach welcome note
+
+Current Phase: Coach Mode pilot, story 3.4 on `feat/coach-welcome-note`.
+Active Story: Default welcome editor, unread per-athlete overrides, and the signed welcome card on Today.
+Next Recommended Story: Review the PR, mirror the migration to the web repo, and apply it after review.
+Blockers: Founder review and migration application pending.
+Last Validation: iPhone 17 full unit suite, 1,092 passed, 0 failed, 1 existing opt-in map test skipped. Migration check and four throwaway Postgres SQL suites passed.
+Last Updated: 2026-11-18
+
 # 2026-11-18: Coach Mode story 3.3, coach visible on Today and the Plan
 
 Current Phase: Coach Mode pilot, story 3.3 on `feat/coached-by-today-plan`; migration `get_my_coach()` waits for founder apply.

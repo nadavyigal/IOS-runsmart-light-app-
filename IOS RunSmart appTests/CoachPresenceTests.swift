@@ -40,12 +40,12 @@ final class CoachPresenceTests: XCTestCase {
     }
 
     private func note(run: RecordedRun? = nil, week: String? = nil, minutesAfterLink: Double,
-                      read: Date? = nil, coach: UUID? = nil, text: String = "Lovely steady pace.") -> AthleteFeedbackNote {
+                      read: Date? = nil, coach: UUID? = nil, kind: AthleteFeedbackNote.Kind = .note, text: String = "Lovely steady pace.") -> AthleteFeedbackNote {
         AthleteFeedbackNote(
             id: UUID(), coachID: coach ?? coachID, coachName: "Dana",
             runID: run == nil ? nil : 101,
             runSourceProvider: run?.runSourceKey.sourceProvider, runSourceActivityID: run?.runSourceKey.sourceActivityID,
-            weekStart: week, text: text, createdAt: linkedAt.addingTimeInterval(minutesAfterLink * 60), readAt: read
+            weekStart: week, text: text, createdAt: linkedAt.addingTimeInterval(minutesAfterLink * 60), readAt: read, kind: kind
         )
     }
 
@@ -263,6 +263,34 @@ final class CoachPresenceTests: XCTestCase {
         XCTAssertEqual(after?.cards.map(\.id), [weekNote.id], "The read card leaves Today")
     }
 
+    func testWelcomeIsSignedAndPinnedWithinCapUntilRead() async {
+        let coach = link
+        let welcome = note(minutesAfterLink: 1, kind: .welcome, text: "שלום יוני")
+        let newer = note(week: "2026-11-16", minutesAfterLink: 2)
+        let newest = note(week: "2026-11-16", minutesAfterLink: 3)
+        let service = MockAthleteFeedbackService(rows: [welcome, newer, newest])
+        let suite = "CoachWelcomeTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults),
+                                         currentUserID: { [athlete] in athlete })
+        store.beginSession(userID: athlete)
+        await store.load()
+
+        let before = layer(coach, store.notes)
+        XCTAssertEqual(before?.cards.map(\.id), [welcome.id, newest.id])
+        XCTAssertEqual(before?.cards.first?.title, "Welcome from Dana")
+        XCTAssertEqual(before?.cards.first?.note.text, "שלום יוני")
+        XCTAssertEqual(before?.moreCount, 1)
+        XCTAssertEqual(CoachNoteDestination.of(welcome), .welcome)
+        XCTAssertTrue(store.notes(for: saturdayRun()).isEmpty)
+
+        await store.markRead([welcome])
+        XCTAssertEqual(service.markReadCalls, [welcome.id])
+        XCTAssertEqual(layer(coach, store.notes)?.cards.map(\.id), [newest.id, newer.id])
+        XCTAssertEqual(layer(coach, [])?.cards, [])
+    }
+
     // MARK: Leaving
 
     func testAfterLeavingNothingCoachRelatedRenders() async throws {
@@ -282,7 +310,6 @@ final class CoachPresenceTests: XCTestCase {
         let unread = note(week: "2026-11-16", minutesAfterLink: 1)
         XCTAssertNil(layer(gate.coach, [unread]), "No strip and no card")
         XCTAssertNil(PlanCoachHeader.make(coach: gate.coach, planMode: gate.planMode, goal: "10K"), "Solo title")
-        XCTAssertFalse(CoachLayerHooks.showsWelcomeCard(gate))
         XCTAssertFalse(CoachLayerHooks.showsPlanUpdateCard(gate))
         XCTAssertFalse(CoachLayerHooks.showsPraiseCard(gate))
         XCTAssertNil(CoachLayerHooks.editedByLabel(gate, workout: RunSmartPreviewData.workouts[0]))
