@@ -212,6 +212,9 @@ struct CoachAthleteDetailView: View {
                 }
                 .tint(Color.accentPrimary)
             }
+        } else if let current = model.current {
+            // No plan and no runs yet: the strip stays hidden, but a week note still works.
+            weekNote(current)
         }
     }
 

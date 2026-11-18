@@ -53,9 +53,9 @@ final class CoachFeedbackStore: ObservableObject {
 
     func flush() async {
         guard let coachID = currentCoachID() else { return }
-        for note in await outbox.flush(using: service, coachID: coachID) where note.athleteID == athleteID {
-            upsert(note)
-        }
+        let result = await outbox.flush(using: service, coachID: coachID)
+        for note in result.stored where note.athleteID == athleteID { upsert(note) }
+        if result.revokedAthletes.contains(athleteID) { markRevoked() }
     }
 
     /// Retries the queue when the connection comes back.
@@ -104,6 +104,7 @@ struct CoachFeedbackRequest: Identifiable, Equatable {
 enum CoachFeedbackCopy {
     static func sent(_ name: String) -> String { "Sent. \(name) will see this in the app." }
     static let notSent = "Not sent. Saved on this phone."
+    static let rejected = "This note can't be sent. It's saved on this phone."
     static func left(_ name: String) -> String { "\(name) has left your group" }
     static let onRun = "On this run"
     static let onWeek = "On the week"
@@ -111,13 +112,13 @@ enum CoachFeedbackCopy {
 
 @MainActor
 final class CoachFeedbackComposerModel: ObservableObject {
-    enum Status: Equatable { case idle, sending, sent, notSent, revoked }
+    enum Status: Equatable { case idle, sending, sent, notSent, rejected, revoked }
 
     @Published var target: CoachFeedbackTarget {
         didSet {
             guard oldValue != target, editing == nil else { return }
-            drafts.save(text, athleteID: athleteID, target: oldValue)
-            text = drafts.draft(athleteID: athleteID, target: target) ?? ""
+            saveDraft(text, scope: oldValue.key)
+            text = loadDraft(scope: target.key) ?? ""
             selection = NSRange(location: (text as NSString).length, length: 0)
             pendingIDs[oldValue] = pendingID
             pendingID = pendingIDs[target] ?? queuedID(for: target) ?? UUID()
@@ -128,11 +129,11 @@ final class CoachFeedbackComposerModel: ObservableObject {
         didSet {
             guard oldValue != text else { return }
             if let editing, CoachFeedbackText.trimmed(text) == editing.text {
-                drafts.clear(athleteID: athleteID, scope: draftScope)
+                clearDraft(scope: draftScope)
             } else {
-                drafts.save(text, athleteID: athleteID, scope: draftScope)
+                saveDraft(text, scope: draftScope)
             }
-            if status == .notSent || status == .sent { status = .idle }
+            if [.notSent, .sent, .rejected].contains(status) { status = .idle }
         }
     }
     @Published var selection: NSRange
@@ -148,6 +149,7 @@ final class CoachFeedbackComposerModel: ObservableObject {
     /// One id per note being written, so Retry and the reconnect queue never store it twice.
     private var pendingID = UUID()
     private var pendingIDs: [CoachFeedbackTarget: UUID] = [:]
+    /// The coach signed in when the sheet opened. Drafts and queued sends belong to this coach.
     private let coachID: UUID?
 
     private func queuedID(for target: CoachFeedbackTarget) -> UUID? {
@@ -155,6 +157,16 @@ final class CoachFeedbackComposerModel: ObservableObject {
     }
     /// Edits keep their own draft, so "Keep" restores an edit in progress too.
     private var draftScope: String { editing.map { "edit-\($0.id.uuidString)" } ?? target.key }
+
+    private func loadDraft(scope: String) -> String? {
+        coachID.flatMap { drafts.draft(coachID: $0, athleteID: athleteID, scope: scope) }
+    }
+    private func saveDraft(_ text: String, scope: String) {
+        if let coachID { drafts.save(text, coachID: coachID, athleteID: athleteID, scope: scope) }
+    }
+    private func clearDraft(scope: String) {
+        if let coachID { drafts.clear(coachID: coachID, athleteID: athleteID, scope: scope) }
+    }
 
     init(request: CoachFeedbackRequest, athleteID: UUID, athleteName: String,
          service: any CoachFeedbackServing, coachID: UUID?,
@@ -169,15 +181,18 @@ final class CoachFeedbackComposerModel: ObservableObject {
         self.outbox = outbox
         target = request.initial
         let scope = request.editing.map { "edit-\($0.id.uuidString)" } ?? request.initial.key
-        let initialText = drafts.draft(athleteID: athleteID, scope: scope) ?? request.editing?.text ?? ""
+        let saved = coachID.flatMap { drafts.draft(coachID: $0, athleteID: athleteID, scope: scope) }
+        let initialText = saved ?? request.editing?.text ?? ""
         text = initialText
         selection = NSRange(location: (initialText as NSString).length, length: 0)
         // A draft whose send is queued keeps that id, so Send or Discard acts on the same note.
         if request.editing == nil, let queued = queuedID(for: request.initial) { pendingID = queued }
     }
 
+    var isSending: Bool { status == .sending }
+
     var canSend: Bool {
-        guard status != .sending, status != .revoked, CoachFeedbackText.canSend(text) else { return false }
+        guard !isSending, status != .revoked, CoachFeedbackText.canSend(text) else { return false }
         if let editing { return CoachFeedbackText.trimmed(text) != editing.text }
         return true
     }
@@ -194,54 +209,45 @@ final class CoachFeedbackComposerModel: ObservableObject {
 
     /// Inserts a quick chip at the cursor. Never sends.
     func insertChip(_ chip: String) {
+        guard !isSending else { return }
         let result = CoachFeedbackText.insert(chip, into: text, at: selection)
         text = result.text
         selection = result.cursor
     }
 
-    /// Sends on an explicit tap. Returns the stored note on success.
+    /// Sends on an explicit tap. Returns the stored note on success. The target, text, and id
+    /// are captured here, and the view locks them until this attempt resolves.
     @discardableResult
     func send() async -> CoachFeedback? {
         guard canSend else { return nil }
-        let value = CoachFeedbackText.trimmed(text)
-        status = .sending
-        let id = editing?.id ?? pendingID
-        do {
-            let note: CoachFeedback
-            if let editing {
-                note = try await service.edit(id: editing.id, text: value)
-            } else {
-                let stored = try await service.add(id: id, athleteID: athleteID, target: target, text: value)
-                // The id was already stored (a background retry or a send that timed out after
-                // reaching the server) with older text. Save the revised text instead of dropping it.
-                note = stored.text == value ? stored : try await service.edit(id: id, text: value)
-            }
-            outbox.remove(id: id)
-            drafts.clear(athleteID: athleteID, scope: draftScope)
-            status = .sent
-            return note
-        } catch {
-            switch CoachFeedbackError.map(error) {
-            case .notLinked:
-                outbox.remove(id: id)
-                drafts.clear(athleteID: athleteID, scope: draftScope)
-                status = .revoked
-            case .notSent:
-                if let coachID {
-                    outbox.enqueue(PendingCoachFeedback(
-                        id: id, coachID: coachID, athleteID: athleteID, target: target, text: value,
-                        kind: editing == nil ? .add : .edit
-                    ))
-                }
-                status = .notSent
-            }
+        guard let coachID else {
+            status = .notSent
             return nil
         }
+        let item = PendingCoachFeedback(
+            id: editing?.id ?? pendingID, coachID: coachID, athleteID: athleteID,
+            target: target, text: CoachFeedbackText.trimmed(text), kind: editing == nil ? .add : .edit
+        )
+        status = .sending
+        switch await outbox.send(item, using: service) {
+        case .stored(let note):
+            status = .sent
+            return note
+        case .failed(.notLinked):
+            status = .revoked
+        case .failed(.rejected):
+            status = .rejected
+        case .failed(.notSent), .skipped:
+            status = .notSent
+        }
+        return nil
     }
 
     /// Drops the text and any queued send of it, so a discarded note is never sent on reconnect.
+    /// Not available while a send is unresolved; the view keeps the sheet open until then.
     func discardDraft() {
-        drafts.clear(athleteID: athleteID, scope: draftScope)
+        guard !isSending else { return }
+        clearDraft(scope: draftScope)
         outbox.remove(id: editing?.id ?? pendingID)
     }
 }
@@ -277,6 +283,7 @@ struct CoachFeedbackComposer: View {
                 Spacer()
                 Button("Close") { close() }
                     .foregroundStyle(Color.accentPrimary)
+                    .disabled(model.isSending)
             }
 
             if model.showsTargetPicker, let run = model.request.run {
@@ -285,6 +292,7 @@ struct CoachFeedbackComposer: View {
                     Text(CoachFeedbackCopy.onWeek).tag(model.request.week)
                 }
                 .pickerStyle(.segmented)
+                .disabled(model.isSending)
             }
 
             CoachFeedbackTextEditor(text: $model.text, selection: $model.selection) {
@@ -294,8 +302,10 @@ struct CoachFeedbackComposer: View {
             .padding(8)
             .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: RunSmartRadius.md, style: .continuous))
             .accessibilityIdentifier("coach-feedback-text")
+            // Text, target, and chips stay fixed until the send resolves.
+            .disabled(model.isSending)
 
-            chips
+            chips.disabled(model.isSending)
             statusLine
 
             Button {
@@ -325,8 +335,11 @@ struct CoachFeedbackComposer: View {
         .padding(18)
         .presentationDetents([.medium, .large], selection: $detent)
         .presentationDragIndicator(.visible)
-        .interactiveDismissDisabled(model.hasUnsentText)
-        .background(SheetDismissAttemptObserver(blocked: model.hasUnsentText) { asksKeepDraft = true })
+        .interactiveDismissDisabled(model.hasUnsentText || model.isSending)
+        .background(SheetDismissAttemptObserver(blocked: model.hasUnsentText || model.isSending) {
+            // While a send is unresolved the sheet stays open; Keep/Discard comes after it resolves.
+            if !model.isSending { asksKeepDraft = true }
+        })
         .confirmationDialog("Keep draft?", isPresented: $asksKeepDraft, titleVisibility: .visible) {
             Button("Keep") { dismiss() }
             Button("Discard", role: .destructive) {
@@ -379,6 +392,8 @@ struct CoachFeedbackComposer: View {
                 Button("Retry") { Task { if let note = await model.send() { onSaved(note); dismiss() } } }
                     .foregroundStyle(Color.accentPrimary)
             }
+        case .rejected:
+            Text(CoachFeedbackCopy.rejected).font(.bodyMD).foregroundStyle(Color.textPrimary)
         case .revoked:
             Text(CoachFeedbackCopy.left(model.athleteName))
                 .font(.bodyMD).foregroundStyle(Color.textPrimary)
@@ -388,6 +403,7 @@ struct CoachFeedbackComposer: View {
     }
 
     private func close() {
+        guard !model.isSending else { return }
         if model.hasUnsentText { asksKeepDraft = true } else { dismiss() }
     }
 }

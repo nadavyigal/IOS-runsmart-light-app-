@@ -5,6 +5,16 @@ import XCTest
 final class CoachFeedbackTests: XCTestCase {
     private let athlete = UUID()
     private let coach = UUID()
+    /// Who the outbox thinks is signed in. Tests switch it to simulate another coach.
+    private var session: UUID?
+
+    private func makeOutbox() -> CoachFeedbackOutbox {
+        CoachFeedbackOutbox(defaults: defaults, sessionCoachID: { [unowned self] in self.session })
+    }
+
+    private func draft(_ target: CoachFeedbackTarget, coach owner: UUID? = nil) -> String? {
+        CoachFeedbackDraftStore(defaults: defaults).draft(coachID: owner ?? coach, athleteID: athlete, scope: target.key)
+    }
     private var defaults: UserDefaults!
     private var suiteName = ""
 
@@ -12,6 +22,7 @@ final class CoachFeedbackTests: XCTestCase {
         super.setUp()
         suiteName = "CoachFeedbackTests.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)
+        session = coach
     }
 
     override func tearDown() {
@@ -26,7 +37,7 @@ final class CoachFeedbackTests: XCTestCase {
         CoachFeedbackComposerModel(
             request: request, athleteID: athlete, athleteName: "Yoni", service: service, coachID: coach,
             drafts: CoachFeedbackDraftStore(defaults: defaults),
-            outbox: outbox ?? CoachFeedbackOutbox(defaults: defaults)
+            outbox: outbox ?? makeOutbox()
         )
     }
 
@@ -90,37 +101,37 @@ final class CoachFeedbackTests: XCTestCase {
         XCTAssertEqual(note?.runID, 101)
         XCTAssertEqual(model.status, .sent)
         XCTAssertFalse(model.hasUnsentText)
-        XCTAssertNil(CoachFeedbackDraftStore(defaults: defaults).draft(athleteID: athlete, target: .run(101)))
+        XCTAssertNil(draft(.run(101)))
         XCTAssertEqual(CoachFeedbackCopy.sent("Yoni"), "Sent. Yoni will see this in the app.")
     }
 
     func testOfflineQueuesThenRetrySendsOnceWithTheSameID() async {
         let service = MockCoachFeedbackService()
         service.failure = .notSent
-        let outbox = CoachFeedbackOutbox(defaults: defaults)
+        let outbox = makeOutbox()
         let model = composer(service: service, outbox: outbox)
         model.text = "Strong finish."
         let failed = await model.send()
         XCTAssertNil(failed)
         XCTAssertEqual(model.status, .notSent)
         XCTAssertEqual(outbox.pending.count, 1)
-        XCTAssertEqual(CoachFeedbackDraftStore(defaults: defaults).draft(athleteID: athlete, target: .run(101)),
+        XCTAssertEqual(draft(.run(101)),
                        "Strong finish.", "the text stays on this phone")
 
         // Back online: the reconnect flush sends it, then a manual Retry finds the same row.
         service.failure = nil
         let flushed = await outbox.flush(using: service, coachID: coach)
-        XCTAssertEqual(flushed.count, 1)
+        XCTAssertEqual(flushed.stored.count, 1)
         XCTAssertTrue(outbox.pending.isEmpty)
         let retried = await model.send()
-        XCTAssertEqual(retried?.id, flushed.first?.id)
+        XCTAssertEqual(retried?.id, flushed.stored.first?.id)
         XCTAssertEqual(service.stored.count, 1, "the note is stored once")
     }
 
     func testDiscardAfterAFailedSendNeverSendsOnReconnect() async {
         let service = MockCoachFeedbackService()
         service.failure = .notSent
-        let outbox = CoachFeedbackOutbox(defaults: defaults)
+        let outbox = makeOutbox()
         let model = composer(service: service, outbox: outbox)
         model.text = "Not this one."
         _ = await model.send()
@@ -135,7 +146,7 @@ final class CoachFeedbackTests: XCTestCase {
     func testReopenedDraftKeepsTheQueuedIDSoItSendsOnceAndDiscardCancelsIt() async {
         let service = MockCoachFeedbackService()
         service.failure = .notSent
-        let outbox = CoachFeedbackOutbox(defaults: defaults)
+        let outbox = makeOutbox()
         let first = composer(service: service, outbox: outbox)
         first.text = "Strong finish."
         _ = await first.send()
@@ -164,7 +175,7 @@ final class CoachFeedbackTests: XCTestCase {
     func testRevisedTextAfterABackgroundSendIsSavedNotDropped() async {
         let service = MockCoachFeedbackService()
         service.failure = .notSent
-        let outbox = CoachFeedbackOutbox(defaults: defaults)
+        let outbox = makeOutbox()
         let model = composer(service: service, outbox: outbox)
         model.text = "Strong finish."
         _ = await model.send()
@@ -185,7 +196,7 @@ final class CoachFeedbackTests: XCTestCase {
     func testSameTextAfterABackgroundSendIsNotMarkedEdited() async {
         let service = MockCoachFeedbackService()
         service.failure = .notSent
-        let outbox = CoachFeedbackOutbox(defaults: defaults)
+        let outbox = makeOutbox()
         let model = composer(service: service, outbox: outbox)
         model.text = "Nice steady effort."
         _ = await model.send()
@@ -199,27 +210,29 @@ final class CoachFeedbackTests: XCTestCase {
     func testBackgroundFlushRetiresTheDraft() async {
         let service = MockCoachFeedbackService()
         service.failure = .notSent
-        let outbox = CoachFeedbackOutbox(defaults: defaults)
+        let outbox = makeOutbox()
         let model = composer(service: service, outbox: outbox)
         model.text = "Nice steady effort."
         _ = await model.send()
         service.failure = nil
         await outbox.flush(using: service, coachID: coach)
-        XCTAssertNil(CoachFeedbackDraftStore(defaults: defaults).draft(athleteID: athlete, target: .run(101)))
+        XCTAssertNil(draft(.run(101)))
         XCTAssertEqual(composer(service: service, outbox: outbox).text, "", "a sent note does not come back as a draft")
     }
 
     func testQueuedNotesOnlySendWithTheCoachWhoWroteThem() async {
         let service = MockCoachFeedbackService()
-        let outbox = CoachFeedbackOutbox(defaults: defaults)
+        let outbox = makeOutbox()
         outbox.enqueue(PendingCoachFeedback(id: UUID(), coachID: coach, athleteID: athlete, target: .run(101),
                                             text: "From coach A", kind: .add))
         let otherCoach = UUID()
+        session = otherCoach
         let sentAsOther = await outbox.flush(using: service, coachID: otherCoach)
-        XCTAssertTrue(sentAsOther.isEmpty)
+        XCTAssertTrue(sentAsOther.stored.isEmpty)
         XCTAssertTrue(service.stored.isEmpty, "another signed-in coach never sends it")
         XCTAssertEqual(outbox.pending.count, 1, "it waits for its own coach")
 
+        session = coach
         let signedOut = CoachFeedbackStore(athleteID: athlete, athleteName: "Yoni", service: service,
                                            outbox: outbox, currentCoachID: { nil })
         await signedOut.flush()
@@ -238,7 +251,7 @@ final class CoachFeedbackTests: XCTestCase {
         editing.text = "Easy week, well done."
         XCTAssertTrue(editing.hasUnsentText)
         XCTAssertEqual(composer(request, service: service).text, "Easy week, well done.", "Keep restores the edit")
-        XCTAssertNil(CoachFeedbackDraftStore(defaults: defaults).draft(athleteID: athlete, target: .week("2026-11-16")),
+        XCTAssertNil(draft(.week("2026-11-16")),
                      "an edit does not overwrite the week's new-note draft")
         editing.discardDraft()
         XCTAssertEqual(composer(request, service: service).text, "Easy week.", "Discard goes back to the saved note")
@@ -247,7 +260,7 @@ final class CoachFeedbackTests: XCTestCase {
     func testRevokedLinkStopsTheComposerAndDropsTheQueue() async {
         let service = MockCoachFeedbackService()
         service.failure = .notLinked
-        let outbox = CoachFeedbackOutbox(defaults: defaults)
+        let outbox = makeOutbox()
         outbox.enqueue(PendingCoachFeedback(id: UUID(), coachID: coach, athleteID: athlete, target: .week("2026-11-16"),
                                             text: "Queued", kind: .add))
         let model = composer(service: service, outbox: outbox)
@@ -277,7 +290,7 @@ final class CoachFeedbackTests: XCTestCase {
         XCTAssertEqual(service.stored.count, 1)
 
         let store = CoachFeedbackStore(athleteID: athlete, athleteName: "Yoni", service: service,
-                                       outbox: CoachFeedbackOutbox(defaults: defaults), currentCoachID: { [coach] in coach })
+                                       outbox: makeOutbox(), currentCoachID: { [coach] in coach })
         await store.load()
         XCTAssertEqual(store.notes(for: .run(101)).first?.editedAt, edited?.editedAt)
         XCTAssertTrue(store.notes(for: .week("2026-11-16")).isEmpty)
@@ -302,5 +315,101 @@ final class CoachFeedbackTests: XCTestCase {
         XCTAssertEqual(note.target, .week("2026-11-16"))
         XCTAssertEqual(note.text, "שבוע טוב")
         XCTAssertNil(note.editedAt)
+    }
+
+    func testRejectedNoteIsNotRetriedAndKeepsItsText() async {
+        let service = MockCoachFeedbackService()
+        service.failure = .rejected
+        let outbox = makeOutbox()
+        let model = composer(service: service, outbox: outbox)
+        model.text = "On a run that was deleted."
+        _ = await model.send()
+        XCTAssertEqual(model.status, .rejected)
+        XCTAssertTrue(outbox.pending.isEmpty, "a request that can never succeed is not queued")
+        XCTAssertEqual(draft(.run(101)), "On a run that was deleted.", "the text stays recoverable")
+
+        // A queued note that the server later rejects leaves the queue but keeps its draft.
+        outbox.enqueue(PendingCoachFeedback(id: UUID(), coachID: coach, athleteID: athlete, target: .run(101),
+                                            text: "On a run that was deleted.", kind: .add))
+        await outbox.flush(using: service, coachID: coach)
+        XCTAssertTrue(outbox.pending.isEmpty)
+        XCTAssertEqual(draft(.run(101)), "On a run that was deleted.")
+    }
+
+    func testBackgroundRevokeMarksTheAthleteScreen() async {
+        let service = MockCoachFeedbackService()
+        service.failure = .notLinked
+        let outbox = makeOutbox()
+        outbox.enqueue(PendingCoachFeedback(id: UUID(), coachID: coach, athleteID: athlete, target: .week("2026-11-16"),
+                                            text: "Queued", kind: .add))
+        let store = CoachFeedbackStore(athleteID: athlete, athleteName: "Yoni", service: service,
+                                       outbox: outbox, currentCoachID: { [coach] in coach })
+        await store.flush()
+        XCTAssertTrue(store.revoked, "the detail screen reloads and shows the athlete left")
+        XCTAssertTrue(outbox.pending.isEmpty)
+    }
+
+    func testFlushStopsWhenTheSignedInCoachChanges() async {
+        let service = MockCoachFeedbackService()
+        let outbox = makeOutbox()
+        outbox.enqueue(PendingCoachFeedback(id: UUID(), coachID: coach, athleteID: athlete, target: .run(101),
+                                            text: "From coach A", kind: .add))
+        session = UUID()
+        let result = await outbox.flush(using: service, coachID: coach)
+        XCTAssertTrue(result.stored.isEmpty)
+        XCTAssertTrue(service.stored.isEmpty, "never sent under another coach's session")
+        XCTAssertEqual(outbox.pending.count, 1, "kept for its own coach")
+    }
+
+    func testDraftsBelongToTheCoachWhoWroteThem() {
+        let service = MockCoachFeedbackService()
+        let mine = composer(service: service)
+        mine.text = "Private draft"
+        let other = CoachFeedbackComposerModel(
+            request: .onRun(101, weekStart: "2026-11-16"), athleteID: athlete, athleteName: "Yoni",
+            service: service, coachID: UUID(), drafts: CoachFeedbackDraftStore(defaults: defaults), outbox: makeOutbox()
+        )
+        XCTAssertEqual(other.text, "", "another coach on this phone never sees it")
+        XCTAssertEqual(composer(service: service).text, "Private draft")
+    }
+
+    func testBackgroundSendKeepsANewerDraftRevision() async {
+        let service = MockCoachFeedbackService()
+        service.failure = .notSent
+        let outbox = makeOutbox()
+        let model = composer(service: service, outbox: outbox)
+        model.text = "First text."
+        _ = await model.send()
+        model.text = "Revised text, not sent yet."
+        service.failure = nil
+        await outbox.flush(using: service, coachID: coach)
+        XCTAssertEqual(service.stored.map(\.text), ["First text."])
+        XCTAssertEqual(draft(.run(101)), "Revised text, not sent yet.", "the newer revision survives")
+    }
+
+    func testANewerSaveSupersedesAQueuedOlderEdit() async throws {
+        let original = CoachFeedback(id: UUID(), athleteID: athlete, target: .run(101), text: "A",
+                                     createdAt: Date(timeIntervalSince1970: 0))
+        let service = MockCoachFeedbackService(rows: [original])
+        let outbox = makeOutbox()
+        outbox.enqueue(PendingCoachFeedback(id: original.id, coachID: coach, athleteID: athlete, target: .run(101),
+                                            text: "Older edit", kind: .edit))
+        let request = try XCTUnwrap(CoachFeedbackRequest.edit(original, weekStart: "2026-11-16"))
+        let model = composer(request, service: service, outbox: outbox)
+        model.text = "Newest edit"
+        _ = await model.send()
+        await outbox.flush(using: service, coachID: coach)
+        XCTAssertEqual(service.stored.map(\.text), ["Newest edit"], "the older queued edit never lands")
+    }
+
+    func testFlushRemovesOnlyTheExactEntryItSent() async {
+        let service = MockCoachFeedbackService()
+        let outbox = makeOutbox()
+        let id = UUID()
+        let older = PendingCoachFeedback(id: id, coachID: coach, athleteID: athlete, target: .run(101), text: "A", kind: .add)
+        let newer = PendingCoachFeedback(id: id, coachID: coach, athleteID: athlete, target: .run(101), text: "B", kind: .add)
+        outbox.enqueue(newer)
+        outbox.remove(exactly: older)
+        XCTAssertEqual(outbox.pending, [newer], "a completion for A never drops the newer B")
     }
 }

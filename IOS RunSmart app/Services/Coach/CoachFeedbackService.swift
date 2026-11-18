@@ -107,10 +107,19 @@ nonisolated enum CoachFeedbackError: Error, Equatable {
     case notLinked
     /// Network or server trouble. The note is kept on the phone and retried.
     case notSent
+    /// The server will never accept this exact request (the run is gone, the text is empty or
+    /// too long, the note isn't this coach's). It is not retried; the text stays on the phone.
+    case rejected
+
+    /// SQLSTATEs the feedback RPCs raise for a request that can't succeed on retry.
+    static let permanentCodes: Set<String> = ["22023", "P0002", "23505", "23514"]
 
     static func map(_ error: Error) -> CoachFeedbackError {
         if let known = error as? CoachFeedbackError { return known }
-        if let postgrest = error as? PostgrestError, postgrest.message == "not_linked" { return .notLinked }
+        if let postgrest = error as? PostgrestError {
+            if postgrest.message == "not_linked" { return .notLinked }
+            if let code = postgrest.code, permanentCodes.contains(code) { return .rejected }
+        }
         return .notSent
     }
 }
@@ -232,36 +241,40 @@ nonisolated final class MockCoachFeedbackService: CoachFeedbackServing, @uncheck
     var stored: [CoachFeedback] { lock.withLock { rows } }
 }
 
-/// Unsent text, kept on this phone per athlete and run or week.
+/// Unsent text, kept on this phone per coach, athlete, and run or week. The coach is part of
+/// the key, so a different coach signed in on the same phone never sees another coach's draft.
 nonisolated struct CoachFeedbackDraftStore: @unchecked Sendable {
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
-    private func key(_ athleteID: UUID, _ scope: String) -> String {
-        "coachFeedback.draft.\(athleteID.uuidString).\(scope)"
+    private func key(_ coachID: UUID, _ athleteID: UUID, _ scope: String) -> String {
+        "coachFeedback.draft.v2.\(coachID.uuidString).\(athleteID.uuidString).\(scope)"
     }
 
     /// `scope` is a target's `key` for a new note, or `edit-<note id>` for an edit in progress.
-    func draft(athleteID: UUID, scope: String) -> String? {
-        defaults.string(forKey: key(athleteID, scope))
+    func draft(coachID: UUID, athleteID: UUID, scope: String) -> String? {
+        defaults.string(forKey: key(coachID, athleteID, scope))
     }
 
-    func save(_ text: String, athleteID: UUID, scope: String) {
+    func save(_ text: String, coachID: UUID, athleteID: UUID, scope: String) {
         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            clear(athleteID: athleteID, scope: scope)
+            clear(coachID: coachID, athleteID: athleteID, scope: scope)
         } else {
-            defaults.set(text, forKey: key(athleteID, scope))
+            defaults.set(text, forKey: key(coachID, athleteID, scope))
         }
     }
 
-    func clear(athleteID: UUID, scope: String) {
-        defaults.removeObject(forKey: key(athleteID, scope))
+    func clear(coachID: UUID, athleteID: UUID, scope: String) {
+        defaults.removeObject(forKey: key(coachID, athleteID, scope))
     }
 
-    func draft(athleteID: UUID, target: CoachFeedbackTarget) -> String? { draft(athleteID: athleteID, scope: target.key) }
-    func save(_ text: String, athleteID: UUID, target: CoachFeedbackTarget) { save(text, athleteID: athleteID, scope: target.key) }
-    func clear(athleteID: UUID, target: CoachFeedbackTarget) { clear(athleteID: athleteID, scope: target.key) }
+    /// Clears the draft only if it still holds `text`, so a newer revision typed meanwhile survives.
+    func clear(coachID: UUID, athleteID: UUID, scope: String, ifText text: String) {
+        guard let current = draft(coachID: coachID, athleteID: athleteID, scope: scope),
+              CoachFeedbackText.trimmed(current) == CoachFeedbackText.trimmed(text) else { return }
+        clear(coachID: coachID, athleteID: athleteID, scope: scope)
+    }
 }
 
 /// A note that failed to send. Feedback is the one coach action that queues offline.
@@ -278,16 +291,40 @@ nonisolated struct PendingCoachFeedback: Codable, Equatable, Sendable {
     var draftScope: String { kind == .edit ? "edit-\(id.uuidString)" : target.key }
 }
 
+/// What happened to one send.
+enum CoachFeedbackSendOutcome: Equatable, Sendable {
+    case stored(CoachFeedback)
+    case failed(CoachFeedbackError)
+    /// Not sent: the queue entry was gone or replaced, or another coach is signed in.
+    case skipped
+}
+
+struct CoachFeedbackFlushResult: Equatable {
+    var stored: [CoachFeedback] = []
+    /// Athletes whose link turned out revoked while sending.
+    var revokedAthletes: Set<UUID> = []
+}
+
 /// The queue lives in UserDefaults so it survives a relaunch. Retries reuse the note's id,
 /// so a send that reached the server before the connection dropped is not stored twice.
+///
+/// Every send, from the composer or from a reconnect, runs through `serialized`, one at a
+/// time. So a queued replay and a foreground save of the same note never overlap, and each
+/// send checks, right before it goes, that its queue entry is unchanged and that its coach
+/// is still the one signed in.
 @MainActor
 final class CoachFeedbackOutbox {
     static let shared = CoachFeedbackOutbox()
     private let defaults: UserDefaults
-    private let key = "coachFeedback.outbox"
-    private var flushing = false
+    private let key = "coachFeedback.outbox.v2"
+    private let sessionCoachID: () -> UUID?
+    private var tail: Task<Void, Never>?
 
-    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+    init(defaults: UserDefaults = .standard,
+         sessionCoachID: @escaping () -> UUID? = CoachFeedbackSession.currentCoachID) {
+        self.defaults = defaults
+        self.sessionCoachID = sessionCoachID
+    }
 
     var pending: [PendingCoachFeedback] {
         guard let data = defaults.data(forKey: key) else { return [] }
@@ -300,45 +337,106 @@ final class CoachFeedbackOutbox {
         save(items)
     }
 
+    /// Removes every queued version of a note (a newer foreground result supersedes them).
     func remove(id: UUID) { save(pending.filter { $0.id != id }) }
+
+    /// Removes only this exact entry, so a newer version queued meanwhile stays scheduled.
+    func remove(exactly item: PendingCoachFeedback) { save(pending.filter { $0 != item }) }
 
     /// The id of a queued new note, so a reopened draft keeps the same id as its queued copy.
     func pendingID(coachID: UUID, athleteID: UUID, target: CoachFeedbackTarget) -> UUID? {
         pending.last { $0.kind == .add && $0.coachID == coachID && $0.athleteID == athleteID && $0.target == target }?.id
     }
 
-    /// Sends the signed-in coach's queued notes once. Another coach's notes are never sent
-    /// with this session. Sent notes and notes for a revoked link leave the queue and their
-    /// draft; the rest stay for the next reconnect. Returns the notes that were stored.
-    @discardableResult
-    func flush(using service: any CoachFeedbackServing, coachID: UUID) async -> [CoachFeedback] {
-        guard !flushing else { return [] }
-        flushing = true
-        defer { flushing = false }
-        let drafts = CoachFeedbackDraftStore(defaults: defaults)
-        var stored: [CoachFeedback] = []
-        for item in pending where item.coachID == coachID {
-            // Skip an item the composer sent or replaced while this loop was running,
-            // so an older queued text never overwrites a newer save.
-            guard pending.contains(item) else { continue }
+    private var drafts: CoachFeedbackDraftStore { CoachFeedbackDraftStore(defaults: defaults) }
+
+    /// Runs `operation` after every earlier send has finished.
+    private func serialized<T: Sendable>(_ operation: @escaping @MainActor () async -> T) async -> T {
+        let previous = tail
+        let task = Task { @MainActor in
+            await previous?.value
+            return await operation()
+        }
+        tail = Task { _ = await task.value }
+        return await task.value
+    }
+
+    /// One request. If an add finds its id already stored with older text (an earlier send that
+    /// reached the server), the newer text is saved as an edit instead of being dropped.
+    private func deliver(_ item: PendingCoachFeedback, using service: any CoachFeedbackServing) async throws -> CoachFeedback {
+        switch item.kind {
+        case .add:
+            let stored = try await service.add(id: item.id, athleteID: item.athleteID, target: item.target, text: item.text)
+            return stored.text == item.text ? stored : try await service.edit(id: item.id, text: item.text)
+        case .edit:
+            return try await service.edit(id: item.id, text: item.text)
+        }
+    }
+
+    /// The composer's Send. Queues the note when the network fails.
+    func send(_ item: PendingCoachFeedback, using service: any CoachFeedbackServing) async -> CoachFeedbackSendOutcome {
+        await serialized { [self] in
+            guard sessionCoachID() == item.coachID else { return .skipped }
             do {
-                let row: CoachFeedback
-                if item.kind == .add {
-                    row = try await service.add(id: item.id, athleteID: item.athleteID, target: item.target, text: item.text)
-                } else {
-                    row = try await service.edit(id: item.id, text: item.text)
-                }
-                stored.append(row)
+                let row = try await deliver(item, using: service)
                 remove(id: item.id)
-                drafts.clear(athleteID: item.athleteID, scope: item.draftScope)
+                drafts.clear(coachID: item.coachID, athleteID: item.athleteID, scope: item.draftScope, ifText: item.text)
+                return .stored(row)
             } catch {
-                if CoachFeedbackError.map(error) == .notLinked {
+                let failure = CoachFeedbackError.map(error)
+                switch failure {
+                case .notLinked:
                     remove(id: item.id)
-                    drafts.clear(athleteID: item.athleteID, scope: item.draftScope)
+                    drafts.clear(coachID: item.coachID, athleteID: item.athleteID, scope: item.draftScope)
+                case .notSent:
+                    enqueue(item)
+                case .rejected:
+                    remove(id: item.id)
                 }
+                return .failed(failure)
             }
         }
-        return stored
+    }
+
+    /// Sends the signed-in coach's queued notes once, in order. It stops if the signed-in coach
+    /// changes, leaving the rest queued for their own coach. A stored note clears its draft only
+    /// if the draft still holds the sent text. Revoked and rejected notes leave the queue.
+    @discardableResult
+    func flush(using service: any CoachFeedbackServing, coachID: UUID) async -> CoachFeedbackFlushResult {
+        var result = CoachFeedbackFlushResult()
+        for item in pending where item.coachID == coachID {
+            let outcome: CoachFeedbackSendOutcome? = await serialized { [self] in
+                guard sessionCoachID() == coachID else { return nil }
+                // Discarded, sent, or replaced while earlier items were sending.
+                guard pending.contains(item) else { return .skipped }
+                do {
+                    let row = try await deliver(item, using: service)
+                    remove(exactly: item)
+                    drafts.clear(coachID: item.coachID, athleteID: item.athleteID, scope: item.draftScope, ifText: item.text)
+                    return .stored(row)
+                } catch {
+                    let failure = CoachFeedbackError.map(error)
+                    switch failure {
+                    case .notLinked:
+                        remove(exactly: item)
+                        drafts.clear(coachID: item.coachID, athleteID: item.athleteID, scope: item.draftScope)
+                    case .rejected:
+                        // Never retried; the draft keeps the text so the coach can fix it.
+                        remove(exactly: item)
+                    case .notSent:
+                        break
+                    }
+                    return .failed(failure)
+                }
+            }
+            guard let outcome else { break }
+            switch outcome {
+            case .stored(let row): result.stored.append(row)
+            case .failed(.notLinked): result.revokedAthletes.insert(item.athleteID)
+            default: break
+            }
+        }
+        return result
     }
 
     private func save(_ items: [PendingCoachFeedback]) {
