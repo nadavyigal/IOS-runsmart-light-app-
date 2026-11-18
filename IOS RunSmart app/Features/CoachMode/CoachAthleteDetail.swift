@@ -26,6 +26,9 @@ final class CoachAthleteDetailModel: ObservableObject {
             .contains { !$0.extraRuns.isEmpty || $0.workouts.contains { $0.run != nil } }
     }
 
+    /// The week strips show with a plan, or without one when the athlete still has recorded runs.
+    var showsWeeks: Bool { current != nil && (hasPlan || hasRuns) }
+
     /// A second call while a load is running waits for that load, so pull-to-refresh never ends early.
     func load(now: Date = .now, locale: Locale = .current, timeZone: TimeZone = .current) async {
         if let inFlight {
@@ -156,26 +159,35 @@ struct CoachAthleteDetailView: View {
             }
             if model.updatedAt == nil && !model.failure {
                 skeleton
-            } else if !model.hasPlan {
-                ContentCard {
-                    Text("No plan yet").foregroundStyle(Color.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } else if let current = model.current {
-                if !model.hasRuns {
-                    Text("No runs yet").font(.bodyMD).foregroundStyle(Color.textSecondary)
-                }
-                Text("This week").font(.headingMD).accessibilityAddTraits(.isHeader)
-                CoachWeekStrip(week: current, calendar: model.calendar, name: destination.name)
-                if let previous = model.previous {
-                    DisclosureGroup(isExpanded: $showsPreviousWeek) {
-                        CoachWeekStrip(week: previous, calendar: model.calendar, name: destination.name)
-                            .padding(.top, 8)
-                    } label: {
-                        Text("Last week").font(.headingMD).foregroundStyle(Color.textPrimary)
+            } else {
+                if !model.hasPlan {
+                    ContentCard {
+                        Text("No plan yet").foregroundStyle(Color.textPrimary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .tint(Color.accentPrimary)
                 }
+                weeks
+            }
+        }
+    }
+
+    // Recorded runs stay visible without a plan: they show as extra runs.
+    @ViewBuilder
+    private var weeks: some View {
+        if model.showsWeeks, let current = model.current {
+            if !model.hasRuns {
+                Text("No runs yet").font(.bodyMD).foregroundStyle(Color.textSecondary)
+            }
+            Text("This week").font(.headingMD).accessibilityAddTraits(.isHeader)
+            CoachWeekStrip(week: current, calendar: model.calendar, name: destination.name)
+            if let previous = model.previous {
+                DisclosureGroup(isExpanded: $showsPreviousWeek) {
+                    CoachWeekStrip(week: previous, calendar: model.calendar, name: destination.name)
+                        .padding(.top, 8)
+                } label: {
+                    Text("Last week").font(.headingMD).foregroundStyle(Color.textPrimary)
+                }
+                .tint(Color.accentPrimary)
             }
         }
     }

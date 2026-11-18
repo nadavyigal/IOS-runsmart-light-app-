@@ -150,6 +150,23 @@ final class CoachAthleteDetailTests: XCTestCase {
         XCTAssertTrue(withRuns.hasRuns)
     }
 
+    func testRunsStayVisibleWhenTheAthleteHasNoPlan() async throws {
+        var service = MockCoachReadService()
+        service.athletes = [CoachAthleteSummary(athleteID: athlete, displayName: "Yoni", linkedAt: now, hasActivePlan: false)]
+        let empty = CoachAthleteDetailModel(athleteID: athlete, service: service)
+        await empty.load(now: now, locale: Locale(identifier: "en_US"), timeZone: .gmt)
+        XCTAssertFalse(empty.hasPlan)
+        XCTAssertFalse(empty.showsWeeks, "no plan and no runs: only the notice")
+
+        service.runResults = [try run(9, on: "2026-11-16"), try run(10, on: "2026-11-10")]
+        let model = CoachAthleteDetailModel(athleteID: athlete, service: service)
+        await model.load(now: now, locale: Locale(identifier: "en_US"), timeZone: .gmt)
+        XCTAssertFalse(model.hasPlan)
+        XCTAssertTrue(model.showsWeeks, "recorded runs are not hidden behind No plan yet")
+        XCTAssertEqual(model.current?.days.first { $0.iso == "2026-11-16" }?.marker, .extra)
+        XCTAssertEqual(model.previous?.days.first { $0.iso == "2026-11-10" }?.extraRuns.map(\.id), [10])
+    }
+
     func testRunLinkedToAHiddenWorkoutIsExtraAndNeverMatchedByDate() throws {
         let rest = UUID(), completed = UUID()
         let workouts = try [
