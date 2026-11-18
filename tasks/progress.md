@@ -1,3 +1,11 @@
+# 2026-11-18: Coach Mode story 3.4, coach welcome note
+
+Current Phase: Coach Mode pilot, story 3.4 on `feat/coach-welcome-note`.
+Active Story: Default welcome editor, unread per-athlete overrides, signed welcome card on Today; rejoining athletes get a fresh welcome.
+Next Recommended Story: Review the PR, mirror the migration to the web repo, and apply it after review.
+Blockers: Founder review and migration application pending.
+Last Validation: iPhone 17 full unit suite, 1,093 passed, 0 failed, after code-reviewer fixes (rejoin, name cap, per-athlete template). SQL suite runs in CI.
+
 # 2026-11-18: Coach Mode story 6.3, athlete hides one run's map
 
 Current Phase: Coach Mode pilot, story 6.3 on `feat/hide-run-map` (#212); migration `20261118170000_set_run_route_hidden.sql` waits for founder apply.

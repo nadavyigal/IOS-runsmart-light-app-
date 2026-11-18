@@ -5,6 +5,12 @@ import UIKit
 struct CoachTabView: View {
     @StateObject private var model: CoachPlanSetupModel
 
+    @State private var showsWelcomeEditor = false
+    @State private var showsWelcomeHint = false
+
+    private let welcomeService = SupabaseCoachWelcomeService()
+    private let welcomeHint = CoachWelcomeHint()
+
     let ownerID: UUID
     @ObservedObject var athletes: CoachAthleteListModel
 
@@ -31,6 +37,17 @@ struct CoachTabView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 14) {
                 header
+                if showsWelcomeHint {
+                    ContentCard {
+                        Button(action: openWelcomeEditor) {
+                            Label("Add a welcome for new athletes", systemImage: "hand.wave")
+                                .font(.bodyMD.weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentPrimary)
+                    }
+                }
 
                 if model.loadFailed {
                     loadFailure
@@ -96,6 +113,14 @@ struct CoachTabView: View {
             .padding(.bottom, 140)
         }
         .task { await model.load() }
+        .task {
+            if let settings = try? await welcomeService.settings(athleteID: nil), !Task.isCancelled {
+                showsWelcomeHint = welcomeHint.shouldShow(ownerID: ownerID, savedText: settings.savedText)
+            }
+        }
+        .sheet(isPresented: $showsWelcomeEditor) {
+            CoachWelcomeEditor(service: welcomeService)
+        }
         .task(id: model.showsInvite) {
             if model.showsInvite { await athletes.refresh(owner: ownerID) }
         }
@@ -107,19 +132,26 @@ struct CoachTabView: View {
     private var header: some View {
         HStack(spacing: 12) {
             RunSmartTopBar(title: "Coach")
-            if model.showsGroupMenu {
-                Menu {
+            Menu {
+                if model.showsGroupMenu {
                     Button("Group plan settings") { model.openGroupSettings() }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.title3)
-                        .foregroundStyle(Color.textSecondary)
-                        .frame(width: 44, height: 44)
                 }
-                .accessibilityLabel("Coach menu")
-                .accessibilityIdentifier("coach-tab-menu")
+                Button("Welcome note", action: openWelcomeEditor)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title3)
+                    .foregroundStyle(Color.textSecondary)
+                    .frame(width: 44, height: 44)
             }
+            .accessibilityLabel("Coach menu")
+            .accessibilityIdentifier("coach-tab-menu")
         }
+    }
+
+    private func openWelcomeEditor() {
+        welcomeHint.consume(ownerID: ownerID)
+        showsWelcomeHint = false
+        showsWelcomeEditor = true
     }
 
     private var loadFailure: some View {

@@ -105,18 +105,7 @@ struct TodayCoachCardView: View {
     let onRead: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            CoachAvatarRow(coachName: coachName, spacing: 8) {
-                Text(verbatim: card.title)
-                    .font(.labelLG)
-                    .foregroundStyle(Color.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
-            // Never truncated; each paragraph keeps its own direction (Hebrew allowed).
-            CoachFeedbackBody(text: card.note.text)
+        CoachSignedCard(title: card.title, text: card.note.text, coachName: coachName) {
             Button(action: onRead) {
                 Text(CoachPresenceCopy.read)
                     .font(.bodyMD.weight(.semibold))
@@ -124,13 +113,44 @@ struct TodayCoachCardView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(Color.accentPrimary)
-            .accessibilityHint(card.note.isRunNote ? "Opens the run" : "Opens the week in your plan")
+            .accessibilityHint(readHint)
+        }
+        .accessibilityIdentifier("today-coach-card")
+    }
+
+    private var readHint: String {
+        switch CoachNoteDestination.of(card.note) {
+        case .welcome: "Marks the welcome as read"
+        case .run: "Opens the run"
+        case .week: "Opens the week in your plan"
+        }
+    }
+}
+
+struct CoachSignedCard<Footer: View>: View {
+    let title: String
+    let text: String
+    let coachName: String
+    @ViewBuilder let footer: Footer
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            CoachAvatarRow(coachName: coachName, spacing: 8) {
+                Text(verbatim: title)
+                    .font(.labelLG)
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            CoachFeedbackBody(text: text)
+            footer
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.surfaceElevated.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.accentPrimary.opacity(0.35), lineWidth: 1))
-        .accessibilityIdentifier("today-coach-card")
     }
 }
 
