@@ -5,6 +5,9 @@ struct TodayTabView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
     @EnvironmentObject private var planGeneration: PlanGenerationStore
+    /// Story 3.3: the coach layer renders only while this gate is active.
+    @EnvironmentObject private var coachPresence: CoachPresence
+    @EnvironmentObject private var athleteFeedback: AthleteFeedbackStore
 
     @State private var recommendation = TodayRecommendation.placeholder
     @State private var routes: [RouteSuggestion] = []
@@ -48,6 +51,19 @@ struct TodayTabView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 14) {
                 header
+
+                // A5 reading order: "Coached by" strip, coach cards, then the AI message
+                // and today's workout below. Nothing here without an active link.
+                if let coachLayer {
+                    TodayCoachSection(
+                        layer: coachLayer,
+                        onRead: readCoachNote,
+                        onMore: { router.open(.myCoach) },
+                        onRetry: { Task { await athleteFeedback.load() } }
+                    )
+                }
+                // Hooks, no UI yet: welcome (3.4), plan update (4.3/5.2) and praise (5.4)
+                // cards join this layer through CoachLayerHooks, which reads coachPresence.
 
                 if RunSmartFeatureFlags.adaptiveCoachEnabled, let prompt = adaptiveCoachPrompt {
                     AdaptiveCoachCard(
@@ -308,6 +324,34 @@ struct TodayTabView: View {
                     .background(Color.accentPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    private var coachLayer: TodayCoachLayer? {
+        TodayCoachLayer.make(
+            coach: coachPresence.coach,
+            notes: athleteFeedback.notes,
+            loadState: athleteFeedback.loadState,
+            runs: recentRuns
+        )
+    }
+
+    /// Read: records `read_at` (the card leaves Today), then opens the note's run or week.
+    /// A run that isn't on this phone opens My coach, where the note stays listed.
+    private func readCoachNote(_ note: AthleteFeedbackNote) {
+        Task { await athleteFeedback.markRead([note]) }
+        if case .week(let start) = CoachNoteDestination.of(note) {
+            router.planFocusDate = start
+            router.selectedTab = .plan
+            return
+        }
+        Task {
+            guard let run = await AthleteFeedbackOpening.resolveRun(note, services: services) else {
+                router.open(.myCoach)
+                return
+            }
+            let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
+            router.open(.runReportDetail(report, run: run))
         }
     }
 

@@ -120,7 +120,7 @@ struct MyCoachView: View {
         }
         openTask?.cancel()
         openTask = Task {
-            guard let run = await resolveRun(note) else {
+            guard let run = await AthleteFeedbackOpening.resolveRun(note, services: services) else {
                 if !Task.isCancelled { unavailableNoteID = note.id }
                 return
             }
@@ -128,18 +128,6 @@ struct MyCoachView: View {
             guard !Task.isCancelled else { return }
             router.open(.runReportDetail(report, run: run))
         }
-    }
-
-    /// Looks the run up in every stored run first (no recent-runs limit), then in recent runs.
-    private func resolveRun(_ note: AthleteFeedbackNote) async -> RecordedRun? {
-        if let id = note.runSourceActivityID,
-           let stored = await services.recordedRun(forReportRunID: id),
-           note.matches(stored) {
-            // May be the merged run for this activity (for example its Apple Health copy);
-            // it carries the note's key in `mergedSourceKeys`, so the report shows the note.
-            return stored
-        }
-        return await services.recentRuns().first { note.matches($0) }
     }
 
     private func coach(_ link: CoachLink) -> some View {

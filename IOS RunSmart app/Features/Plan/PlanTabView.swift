@@ -5,6 +5,8 @@ struct PlanTabView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
     @EnvironmentObject private var planGeneration: PlanGenerationStore
+    /// Story 3.3: the coach header renders only while this gate is active.
+    @EnvironmentObject private var coachPresence: CoachPresence
 
     @State private var weekWorkouts: [WorkoutSummary] = []
     @State private var nextWorkouts: [WorkoutSummary] = []
@@ -313,9 +315,23 @@ struct PlanTabView: View {
         withAnimation { proxy.scrollTo(week.id, anchor: .top) }
     }
 
+    /// A6 while linked; the solo "Plan" title otherwise (A14).
+    @ViewBuilder
     private var header: some View {
-        RunSmartTopBar(title: "Plan")
+        if let coachHeader = PlanCoachHeader.make(
+            coach: coachPresence.coach,
+            planMode: coachPresence.planMode,
+            goal: activePlan?.title
+        ) {
+            PlanCoachHeaderView(header: coachHeader, soloTitle: Self.soloTitle) {
+                router.open(.myCoach)
+            }
+        } else {
+            RunSmartTopBar(title: Self.soloTitle)
+        }
     }
+
+    static let soloTitle = "Plan"
 
     private var plannedTodayWorkout: WorkoutSummary? {
         nextWorkouts.first(where: { $0.isToday }) ?? weekWorkouts.first(where: { Calendar.current.isDateInToday($0.scheduledDate) })
