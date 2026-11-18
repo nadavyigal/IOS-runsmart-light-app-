@@ -81,16 +81,22 @@ final class CoachAthleteDetailModel: ObservableObject {
     }
 }
 
-/// C5 Athlete detail. Read-only in this story.
+/// C5 Athlete detail. Plan data is read-only; the coach can write feedback (Story 3.1).
 struct CoachAthleteDetailView: View {
     let destination: CoachAthleteDestination
     @StateObject private var model: CoachAthleteDetailModel
+    @StateObject private var feedback: CoachFeedbackStore
     @Environment(\.dismiss) private var dismiss
     @State private var showsPreviousWeek = false
+    @State private var composer: CoachFeedbackRequest?
 
-    init(destination: CoachAthleteDestination, service: any CoachReadServing = CoachReadService()) {
+    init(destination: CoachAthleteDestination, service: any CoachReadServing = CoachReadService(),
+         feedbackService: any CoachFeedbackServing = SupabaseCoachFeedbackService()) {
         self.destination = destination
         _model = StateObject(wrappedValue: CoachAthleteDetailModel(athleteID: destination.athleteID, service: service))
+        _feedback = StateObject(wrappedValue: CoachFeedbackStore(
+            athleteID: destination.athleteID, athleteName: destination.name, service: feedbackService
+        ))
     }
 
     var body: some View {
@@ -108,7 +114,20 @@ struct CoachAthleteDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .task { await model.load() }
-        .refreshable { await model.load() }
+        .task { await feedback.load() }
+        .refreshable {
+            await model.load()
+            await feedback.load()
+        }
+        .onAppear { feedback.startReachability() }
+        .onDisappear { feedback.stopReachability() }
+        .sheet(item: $composer) { request in
+            CoachFeedbackComposer(request: request, store: feedback,
+                                  onSaved: { feedback.upsert($0) }, onRevoked: { feedback.markRevoked() })
+        }
+        .onChange(of: feedback.revoked) { _, revoked in
+            if revoked { Task { await model.load() } }
+        }
         .onChange(of: model.revoked) { _, revoked in
             guard revoked else { return }
             Task {
@@ -179,17 +198,27 @@ struct CoachAthleteDetailView: View {
                 Text("No runs yet").font(.bodyMD).foregroundStyle(Color.textSecondary)
             }
             Text("This week").font(.headingMD).accessibilityAddTraits(.isHeader)
-            CoachWeekStrip(week: current, calendar: model.calendar, name: destination.name)
+            CoachWeekStrip(week: current, calendar: model.calendar, name: destination.name, feedback: feedback)
+            weekNote(current)
             if let previous = model.previous {
                 DisclosureGroup(isExpanded: $showsPreviousWeek) {
-                    CoachWeekStrip(week: previous, calendar: model.calendar, name: destination.name)
-                        .padding(.top, 8)
+                    VStack(alignment: .leading, spacing: 10) {
+                        CoachWeekStrip(week: previous, calendar: model.calendar, name: destination.name, feedback: feedback)
+                        weekNote(previous)
+                    }
+                    .padding(.top, 8)
                 } label: {
                     Text("Last week").font(.headingMD).foregroundStyle(Color.textPrimary)
                 }
                 .tint(Color.accentPrimary)
             }
         }
+    }
+
+    private func weekNote(_ week: CoachAthleteWeekDays) -> some View {
+        let start = CoachReadDay.iso(week.start, calendar: model.calendar)
+        return CoachFeedbackSection(store: feedback, target: .week(start), weekStart: start,
+                                    buttonTitle: "Week note") { composer = $0 }
     }
 
     private var skeleton: some View {
@@ -215,6 +244,7 @@ struct CoachWeekStrip: View {
     let week: CoachAthleteWeekDays
     let calendar: Calendar
     let name: String
+    var feedback: CoachFeedbackStore?
     @Environment(\.dynamicTypeSize) private var size
 
     var body: some View {
@@ -232,7 +262,8 @@ struct CoachWeekStrip: View {
 
     private func link<Label: View>(_ day: CoachDay, @ViewBuilder label: () -> Label) -> some View {
         NavigationLink {
-            CoachDayDetailView(day: day, calendar: calendar, name: name)
+            CoachDayDetailView(day: day, calendar: calendar, name: name, feedback: feedback,
+                               weekStart: CoachReadDay.iso(week.start, calendar: calendar))
         } label: {
             label()
         }
@@ -307,22 +338,40 @@ struct CoachDayDetailView: View {
     let day: CoachDay
     let calendar: Calendar
     let name: String
+    var feedback: CoachFeedbackStore?
+    var weekStart = ""
+    @State private var composer: CoachFeedbackRequest?
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            CoachDayDetailContent(day: day, calendar: calendar)
-                .padding(.horizontal, 18)
-                .padding(.top, 14)
-                .padding(.bottom, 140)
+            CoachDayDetailContent(day: day, calendar: calendar, feedback: feedback, weekStart: weekStart) {
+                composer = $0
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 14)
+            .padding(.bottom, 140)
         }
         .navigationTitle(Text(day.date, format: Date.FormatStyle(calendar: calendar).weekday(.wide).day().month(.abbreviated)))
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $composer) { request in
+            if let feedback {
+                CoachFeedbackComposer(request: request, store: feedback, onSaved: { feedback.upsert($0) }) {
+                    feedback.markRevoked()
+                    // Back to the athlete screen, which shows the "no longer in your group" state.
+                    dismiss()
+                }
+            }
+        }
     }
 }
 
 struct CoachDayDetailContent: View {
     let day: CoachDay
     let calendar: Calendar
+    var feedback: CoachFeedbackStore?
+    var weekStart = ""
+    var open: (CoachFeedbackRequest) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -332,10 +381,15 @@ struct CoachDayDetailContent: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            ForEach(day.workouts) { item in workoutCard(item) }
-            ForEach(day.extraRuns, id: \.id) { run in extraCard(run) }
-            // Story 6.2 adds the route map block here, and Story 3.1 the feedback section.
-            // Nothing renders in either slot yet.
+            ForEach(day.workouts) { item in
+                workoutCard(item)
+                if let run = item.run { feedbackSection(run) }
+            }
+            ForEach(day.extraRuns, id: \.id) { run in
+                extraCard(run)
+                feedbackSection(run)
+            }
+            // Story 6.2 adds the route map block here. Nothing renders in that slot yet.
         }
     }
 
@@ -387,6 +441,14 @@ struct CoachDayDetailContent: View {
                         .foregroundStyle(item.state == .missed ? Color.accentHeart : Color.textSecondary)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func feedbackSection(_ run: CoachRunSummary) -> some View {
+        if let feedback {
+            CoachFeedbackSection(store: feedback, target: .run(Int64(run.id)), weekStart: weekStart,
+                                 buttonTitle: "Write feedback", open: open)
         }
     }
 
