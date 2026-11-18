@@ -1,3 +1,12 @@
+# 2026-11-18: 3.2 follow-up, Plan scrolls to standalone week notes (#210)
+
+Current Phase: Coach Mode pilot; #210 merged with main after #211, no migration.
+Active Story: Plan scrolls to a week note whose week has no workouts; cancellation-aware read test. This Week target dropped, #211 owns it.
+Next Recommended Story: Founder merges #210; then #212 (6.3) and #213 (3.4).
+Blockers: None.
+Last Validation: iPhone 17 simulator, full unit suite 1086 passed, 0 failed, including testACancelledViewTaskThenReopenStillRetriesTheRead.
+Last Updated: 2026-11-18
+
 # 2026-11-18: Coach Mode story 3.3, coach visible on Today and the Plan
 
 Current Phase: Coach Mode pilot, story 3.3 on `feat/coached-by-today-plan`; migration `get_my_coach()` waits for founder apply.
