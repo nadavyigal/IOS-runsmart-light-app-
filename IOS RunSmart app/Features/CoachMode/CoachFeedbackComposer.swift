@@ -14,15 +14,19 @@ final class CoachFeedbackStore: ObservableObject {
     let athleteName: String
     let service: any CoachFeedbackServing
     let outbox: CoachFeedbackOutbox
+    /// The signed-in coach. Read on each use, so a sign-out or account switch is respected.
+    let currentCoachID: () -> UUID?
     private var monitor: NWPathMonitor?
 
     init(athleteID: UUID, athleteName: String,
          service: any CoachFeedbackServing = SupabaseCoachFeedbackService(),
-         outbox: CoachFeedbackOutbox = .shared) {
+         outbox: CoachFeedbackOutbox = .shared,
+         currentCoachID: @escaping () -> UUID? = CoachFeedbackSession.currentCoachID) {
         self.athleteID = athleteID
         self.athleteName = athleteName
         self.service = service
         self.outbox = outbox
+        self.currentCoachID = currentCoachID
     }
 
     func notes(for target: CoachFeedbackTarget) -> [CoachFeedback] {
@@ -48,7 +52,8 @@ final class CoachFeedbackStore: ObservableObject {
     func markRevoked() { revoked = true }
 
     func flush() async {
-        for note in await outbox.flush(using: service) where note.athleteID == athleteID {
+        guard let coachID = currentCoachID() else { return }
+        for note in await outbox.flush(using: service, coachID: coachID) where note.athleteID == athleteID {
             upsert(note)
         }
     }
@@ -115,7 +120,7 @@ final class CoachFeedbackComposerModel: ObservableObject {
             text = drafts.draft(athleteID: athleteID, target: target) ?? ""
             selection = NSRange(location: (text as NSString).length, length: 0)
             pendingIDs[oldValue] = pendingID
-            pendingID = pendingIDs[target] ?? UUID()
+            pendingID = pendingIDs[target] ?? queuedID(for: target) ?? UUID()
             status = .idle
         }
     }
@@ -143,13 +148,20 @@ final class CoachFeedbackComposerModel: ObservableObject {
     /// One id per note being written, so Retry and the reconnect queue never store it twice.
     private var pendingID = UUID()
     private var pendingIDs: [CoachFeedbackTarget: UUID] = [:]
+    private let coachID: UUID?
+
+    private func queuedID(for target: CoachFeedbackTarget) -> UUID? {
+        coachID.flatMap { outbox.pendingID(coachID: $0, athleteID: athleteID, target: target) }
+    }
     /// Edits keep their own draft, so "Keep" restores an edit in progress too.
     private var draftScope: String { editing.map { "edit-\($0.id.uuidString)" } ?? target.key }
 
     init(request: CoachFeedbackRequest, athleteID: UUID, athleteName: String,
-         service: any CoachFeedbackServing, drafts: CoachFeedbackDraftStore = CoachFeedbackDraftStore(),
+         service: any CoachFeedbackServing, coachID: UUID?,
+         drafts: CoachFeedbackDraftStore = CoachFeedbackDraftStore(),
          outbox: CoachFeedbackOutbox = .shared) {
         self.request = request
+        self.coachID = coachID
         self.athleteID = athleteID
         self.athleteName = athleteName
         self.service = service
@@ -160,6 +172,8 @@ final class CoachFeedbackComposerModel: ObservableObject {
         let initialText = drafts.draft(athleteID: athleteID, scope: scope) ?? request.editing?.text ?? ""
         text = initialText
         selection = NSRange(location: (initialText as NSString).length, length: 0)
+        // A draft whose send is queued keeps that id, so Send or Discard acts on the same note.
+        if request.editing == nil, let queued = queuedID(for: request.initial) { pendingID = queued }
     }
 
     var canSend: Bool {
@@ -210,10 +224,12 @@ final class CoachFeedbackComposerModel: ObservableObject {
                 drafts.clear(athleteID: athleteID, scope: draftScope)
                 status = .revoked
             case .notSent:
-                outbox.enqueue(PendingCoachFeedback(
-                    id: id, athleteID: athleteID, target: target, text: value,
-                    kind: editing == nil ? .add : .edit
-                ))
+                if let coachID {
+                    outbox.enqueue(PendingCoachFeedback(
+                        id: id, coachID: coachID, athleteID: athleteID, target: target, text: value,
+                        kind: editing == nil ? .add : .edit
+                    ))
+                }
                 status = .notSent
             }
             return nil
@@ -242,7 +258,7 @@ struct CoachFeedbackComposer: View {
          onSaved: @escaping (CoachFeedback) -> Void, onRevoked: @escaping () -> Void) {
         _model = StateObject(wrappedValue: CoachFeedbackComposerModel(
             request: request, athleteID: store.athleteID, athleteName: store.athleteName,
-            service: store.service, outbox: store.outbox
+            service: store.service, coachID: store.currentCoachID(), outbox: store.outbox
         ))
         self.onSaved = onSaved
         self.onRevoked = onRevoked

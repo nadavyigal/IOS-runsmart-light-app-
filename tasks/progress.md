@@ -94,7 +94,7 @@ Last Updated: 2026-11-11
 - Active Story: 3.1 coach writes feedback on a run or a week, with drafts and offline queue
 - Next Recommended Story: 3.2 athlete sees coach feedback, after the 3.1 PR merges and the migration is applied
 - Blockers: migration 20261118100000_coach_feedback not applied; founder applies after review
-- Last Validation: 34 coach unit tests pass on iPhone 17 simulator; SQL suite runs in CI only
+- Last Validation: 37 coach unit tests pass; coach_feedback SQL suite passes in CI
 - Last Updated: 2026-11-18
 
 ## 2026-11-18 Story 2.4 review fix (#206)

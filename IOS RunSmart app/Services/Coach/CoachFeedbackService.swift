@@ -97,6 +97,11 @@ nonisolated struct CoachFeedback: Codable, Identifiable, Equatable, Sendable {
     }
 }
 
+enum CoachFeedbackSession {
+    /// The signed-in user, who is the coach on these screens.
+    static func currentCoachID() -> UUID? { SupabaseManager.client.auth.currentUser?.id }
+}
+
 nonisolated enum CoachFeedbackError: Error, Equatable {
     /// The link is revoked or missing (`not_linked` from the RPC).
     case notLinked
@@ -263,10 +268,14 @@ nonisolated struct CoachFeedbackDraftStore: @unchecked Sendable {
 nonisolated struct PendingCoachFeedback: Codable, Equatable, Sendable {
     enum Kind: String, Codable, Sendable { case add, edit }
     let id: UUID
+    /// The signed-in coach who wrote it. Only that coach's session ever sends it.
+    let coachID: UUID
     let athleteID: UUID
     let target: CoachFeedbackTarget
     let text: String
     let kind: Kind
+
+    var draftScope: String { kind == .edit ? "edit-\(id.uuidString)" : target.key }
 }
 
 /// The queue lives in UserDefaults so it survives a relaunch. Retries reuse the note's id,
@@ -293,15 +302,22 @@ final class CoachFeedbackOutbox {
 
     func remove(id: UUID) { save(pending.filter { $0.id != id }) }
 
-    /// Sends every queued note once. Sent notes and notes for a revoked link leave the
-    /// queue; the rest stay for the next reconnect. Returns the notes that were stored.
+    /// The id of a queued new note, so a reopened draft keeps the same id as its queued copy.
+    func pendingID(coachID: UUID, athleteID: UUID, target: CoachFeedbackTarget) -> UUID? {
+        pending.last { $0.kind == .add && $0.coachID == coachID && $0.athleteID == athleteID && $0.target == target }?.id
+    }
+
+    /// Sends the signed-in coach's queued notes once. Another coach's notes are never sent
+    /// with this session. Sent notes and notes for a revoked link leave the queue and their
+    /// draft; the rest stay for the next reconnect. Returns the notes that were stored.
     @discardableResult
-    func flush(using service: any CoachFeedbackServing) async -> [CoachFeedback] {
+    func flush(using service: any CoachFeedbackServing, coachID: UUID) async -> [CoachFeedback] {
         guard !flushing else { return [] }
         flushing = true
         defer { flushing = false }
+        let drafts = CoachFeedbackDraftStore(defaults: defaults)
         var stored: [CoachFeedback] = []
-        for item in pending {
+        for item in pending where item.coachID == coachID {
             do {
                 let row: CoachFeedback
                 if item.kind == .add {
@@ -311,8 +327,12 @@ final class CoachFeedbackOutbox {
                 }
                 stored.append(row)
                 remove(id: item.id)
+                drafts.clear(athleteID: item.athleteID, scope: item.draftScope)
             } catch {
-                if CoachFeedbackError.map(error) == .notLinked { remove(id: item.id) }
+                if CoachFeedbackError.map(error) == .notLinked {
+                    remove(id: item.id)
+                    drafts.clear(athleteID: item.athleteID, scope: item.draftScope)
+                }
             }
         }
         return stored
