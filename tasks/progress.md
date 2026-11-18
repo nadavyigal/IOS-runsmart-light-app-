@@ -1,3 +1,12 @@
+# 2026-11-18: CI, Supabase matrix port clash
+
+Current Phase: Coach Mode pilot; CI fix on `ci/sql-port-clash`, workflow only, no SQL.
+Active Story: Reserve Supabase CLI ports 54320-54329 so outbound connections never take 54322 before Postgres binds; log port owners on failure.
+Next Recommended Story: Founder merges this, then re-runs SQL checks on #212 and #213.
+Blockers: None.
+Last Validation: Two consecutive PR runs with every Supabase migrations matrix job green (see PR).
+Last Updated: 2026-11-18
+
 # 2026-11-18: Coach Mode story 3.3, coach visible on Today and the Plan
 
 Current Phase: Coach Mode pilot, story 3.3 on `feat/coached-by-today-plan`; migration `get_my_coach()` waits for founder apply.
