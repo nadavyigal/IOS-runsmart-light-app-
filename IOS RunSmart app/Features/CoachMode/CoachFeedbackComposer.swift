@@ -105,6 +105,7 @@ enum CoachFeedbackCopy {
     static func sent(_ name: String) -> String { "Sent. \(name) will see this in the app." }
     static let notSent = "Not sent. Saved on this phone."
     static let rejected = "This note can't be sent. It's saved on this phone."
+    static let conflict = "This note changed on another phone. Your text is saved on this phone."
     static func left(_ name: String) -> String { "\(name) has left your group" }
     static let onRun = "On this run"
     static let onWeek = "On the week"
@@ -112,7 +113,7 @@ enum CoachFeedbackCopy {
 
 @MainActor
 final class CoachFeedbackComposerModel: ObservableObject {
-    enum Status: Equatable { case idle, sending, sent, notSent, rejected, revoked }
+    enum Status: Equatable { case idle, sending, sent, notSent, rejected, conflict, revoked }
 
     @Published var target: CoachFeedbackTarget {
         didSet {
@@ -133,7 +134,7 @@ final class CoachFeedbackComposerModel: ObservableObject {
             } else {
                 saveDraft(text, scope: draftScope)
             }
-            if [.notSent, .sent, .rejected].contains(status) { status = .idle }
+            if [.notSent, .sent, .rejected, .conflict].contains(status) { status = .idle }
         }
     }
     @Published var selection: NSRange
@@ -226,7 +227,8 @@ final class CoachFeedbackComposerModel: ObservableObject {
         }
         let item = PendingCoachFeedback(
             id: editing?.id ?? pendingID, coachID: coachID, athleteID: athleteID,
-            target: target, text: CoachFeedbackText.trimmed(text), kind: editing == nil ? .add : .edit
+            target: target, text: CoachFeedbackText.trimmed(text), kind: editing == nil ? .add : .edit,
+            baseRevision: editing?.revision
         )
         status = .sending
         switch await outbox.send(item, using: service) {
@@ -237,6 +239,8 @@ final class CoachFeedbackComposerModel: ObservableObject {
             status = .revoked
         case .failed(.rejected):
             status = .rejected
+        case .failed(.conflict):
+            status = .conflict
         case .failed(.notSent), .skipped:
             status = .notSent
         }
@@ -256,6 +260,7 @@ final class CoachFeedbackComposerModel: ObservableObject {
 
 struct CoachFeedbackComposer: View {
     @StateObject private var model: CoachFeedbackComposerModel
+    private let store: CoachFeedbackStore
     let onSaved: (CoachFeedback) -> Void
     let onRevoked: () -> Void
     @Environment(\.dismiss) private var dismiss
@@ -271,6 +276,7 @@ struct CoachFeedbackComposer: View {
         ))
         self.onSaved = onSaved
         self.onRevoked = onRevoked
+        self.store = store
     }
 
     var body: some View {
@@ -319,6 +325,9 @@ struct CoachFeedbackComposer: View {
                         try? await Task.sleep(for: .seconds(2))
                         onRevoked()
                         dismiss()
+                    } else if model.status == .conflict {
+                        // Fetch the newer text, so reopening the note edits from the current revision.
+                        await store.load()
                     }
                 }
             } label: {
@@ -394,6 +403,8 @@ struct CoachFeedbackComposer: View {
             }
         case .rejected:
             Text(CoachFeedbackCopy.rejected).font(.bodyMD).foregroundStyle(Color.textPrimary)
+        case .conflict:
+            Text(CoachFeedbackCopy.conflict).font(.bodyMD).foregroundStyle(Color.textPrimary)
         case .revoked:
             Text(CoachFeedbackCopy.left(model.athleteName))
                 .font(.bodyMD).foregroundStyle(Color.textPrimary)
@@ -434,6 +445,12 @@ struct CoachFeedbackTextEditor: UIViewRepresentable {
     }
 
     func updateUIView(_ view: UITextView, context: Context) {
+        // SwiftUI's .disabled doesn't reach a UIKit view; read it from the environment.
+        let enabled = context.environment.isEnabled
+        if view.isEditable != enabled {
+            view.isEditable = enabled
+            if !enabled { view.resignFirstResponder() }
+        }
         if view.text != text { view.text = text }
         if view.selectedRange != selection, selection.location + selection.length <= (view.text as NSString).length {
             view.selectedRange = selection

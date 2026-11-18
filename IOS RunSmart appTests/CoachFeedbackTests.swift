@@ -412,4 +412,48 @@ final class CoachFeedbackTests: XCTestCase {
         outbox.remove(exactly: older)
         XCTAssertEqual(outbox.pending, [newer], "a completion for A never drops the newer B")
     }
+
+    func testSessionThatChangesAfterTheCheckNeverPublishesTheNote() async {
+        // The outbox still sees coach A, but the request runs under coach B's session.
+        let service = MockCoachFeedbackService()
+        service.signedInCoach = UUID()
+        let outbox = makeOutbox()
+        let model = composer(service: service, outbox: outbox)
+        model.text = "From coach A"
+        _ = await model.send()
+        XCTAssertEqual(model.status, .notSent)
+        XCTAssertTrue(service.stored.isEmpty, "the server refuses a request meant for another coach")
+        XCTAssertEqual(outbox.pending.map(\.coachID), [coach], "kept queued for coach A")
+        await outbox.flush(using: service, coachID: coach)
+        XCTAssertEqual(outbox.pending.count, 1)
+        XCTAssertEqual(draft(.run(101)), "From coach A", "the draft is kept too")
+    }
+
+    func testAStaleEditFromAnotherPhoneIsRefusedAndKept() async throws {
+        let original = CoachFeedback(id: UUID(), athleteID: athlete, target: .run(101), text: "A",
+                                     createdAt: Date(timeIntervalSince1970: 0))
+        let service = MockCoachFeedbackService(rows: [original])
+        let request = try XCTUnwrap(CoachFeedbackRequest.edit(original, weekStart: "2026-11-16"))
+        let model = composer(request, service: service)
+        service.editElsewhere(id: original.id, text: "Saved on phone B")
+        model.text = "Typed on phone A"
+        let saved = await model.send()
+        XCTAssertNil(saved)
+        XCTAssertEqual(model.status, .conflict)
+        XCTAssertEqual(service.stored.map(\.text), ["Saved on phone B"], "the newer save is not overwritten")
+        XCTAssertEqual(composer(request, service: service).text, "Typed on phone A", "phone A's text stays on the phone")
+    }
+
+    func testAQueuedStaleEditIsDroppedWithoutOverwriting() async {
+        let original = CoachFeedback(id: UUID(), athleteID: athlete, target: .run(101), text: "A",
+                                     createdAt: Date(timeIntervalSince1970: 0))
+        let service = MockCoachFeedbackService(rows: [original])
+        let outbox = makeOutbox()
+        outbox.enqueue(PendingCoachFeedback(id: original.id, coachID: coach, athleteID: athlete, target: .run(101),
+                                            text: "Queued on phone A", kind: .edit, baseRevision: 0))
+        service.editElsewhere(id: original.id, text: "Saved on phone B")
+        await outbox.flush(using: service, coachID: coach)
+        XCTAssertEqual(service.stored.map(\.text), ["Saved on phone B"])
+        XCTAssertTrue(outbox.pending.isEmpty, "a conflict is not retried forever")
+    }
 }

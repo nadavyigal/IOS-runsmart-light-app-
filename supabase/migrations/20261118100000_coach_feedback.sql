@@ -15,6 +15,12 @@
 -- only while the link is active. There is no client insert, update, or delete
 -- policy, and no delete anywhere in the MVP. Writes go through the two RPCs.
 --
+-- Both RPCs take the coach the app expects (p_coach). If the signed-in session is a
+-- different user, they raise wrong_coach and write nothing, so a session that changes
+-- while a queued note is sending can't publish one coach's text as another's.
+-- Edits carry the revision they started from (p_revision). A stale edit raises
+-- edit_conflict instead of overwriting a newer save from another phone.
+--
 -- Idempotent: create if not exists, guarded constraints, create or replace,
 -- policies dropped and recreated, grants restated.
 
@@ -28,11 +34,14 @@ create table if not exists public.coach_feedback (
   created_at timestamptz not null default now(),
   edited_at timestamptz,
   read_at timestamptz,
+  revision integer not null default 0,
   constraint coach_feedback_one_target
     check ((run_id is null) <> (week_start is null)),
   constraint coach_feedback_text_length
     check (length(btrim(text)) > 0 and char_length(text) <= 2000)
 );
+
+alter table public.coach_feedback add column if not exists revision integer not null default 0;
 
 -- The run FK only when runs exists, so the file also runs on a schema without it.
 do $$
@@ -72,6 +81,10 @@ create policy coach_feedback_coach_select on public.coach_feedback
 
 -- RPCs -----------------------------------------------------------------------
 
+-- Earlier drafts of this file had shorter signatures. Drop them so only one of each exists.
+drop function if exists public.coach_add_feedback(uuid, bigint, date, text, uuid);
+drop function if exists public.coach_edit_feedback(uuid, text);
+
 -- p_id is optional and lets the app retry a queued note without a duplicate:
 -- a second call with the same id returns the stored row.
 create or replace function public.coach_add_feedback(
@@ -79,7 +92,8 @@ create or replace function public.coach_add_feedback(
   p_run bigint,
   p_week_start date,
   p_text text,
-  p_id uuid default null
+  p_id uuid default null,
+  p_coach uuid default null
 )
 returns setof public.coach_feedback
 language plpgsql
@@ -92,6 +106,9 @@ declare
 begin
   if auth.uid() is null then
     raise exception 'not authenticated' using errcode = '42501';
+  end if;
+  if p_coach is not null and p_coach <> auth.uid() then
+    raise exception 'wrong_coach' using errcode = '28000';
   end if;
   if not public.is_active_coach_of(p_athlete) then
     raise exception 'not_linked' using errcode = 'P0001';
@@ -130,7 +147,13 @@ end;
 $$;
 
 -- Only the author, only while the link is active. read_at is unchanged.
-create or replace function public.coach_edit_feedback(p_id uuid, p_text text)
+-- With p_revision, the edit applies only if the row is still at that revision.
+create or replace function public.coach_edit_feedback(
+  p_id uuid,
+  p_text text,
+  p_coach uuid default null,
+  p_revision integer default null
+)
 returns setof public.coach_feedback
 language plpgsql
 security definer
@@ -139,13 +162,18 @@ as $$
 declare
   v_text text := btrim(coalesce(p_text, ''));
   v_athlete uuid;
+  v_revision integer;
 begin
   if auth.uid() is null then
     raise exception 'not authenticated' using errcode = '42501';
   end if;
-  select f.athlete_id into v_athlete
+  if p_coach is not null and p_coach <> auth.uid() then
+    raise exception 'wrong_coach' using errcode = '28000';
+  end if;
+  select f.athlete_id, f.revision into v_athlete, v_revision
   from public.coach_feedback f
-  where f.id = p_id and f.coach_id = auth.uid();
+  where f.id = p_id and f.coach_id = auth.uid()
+  for update;
   if not found then
     raise exception 'not_found' using errcode = 'P0002';
   end if;
@@ -159,15 +187,19 @@ begin
     raise exception 'text_too_long' using errcode = '22023';
   end if;
 
+  if p_revision is not null and p_revision <> v_revision then
+    raise exception 'edit_conflict' using errcode = '40001';
+  end if;
+
   return query
   update public.coach_feedback f
-  set text = v_text, edited_at = now()
+  set text = v_text, edited_at = now(), revision = f.revision + 1
   where f.id = p_id
   returning f.*;
 end;
 $$;
 
-revoke all on function public.coach_add_feedback(uuid, bigint, date, text, uuid) from public, anon;
-grant execute on function public.coach_add_feedback(uuid, bigint, date, text, uuid) to authenticated;
-revoke all on function public.coach_edit_feedback(uuid, text) from public, anon;
-grant execute on function public.coach_edit_feedback(uuid, text) to authenticated;
+revoke all on function public.coach_add_feedback(uuid, bigint, date, text, uuid, uuid) from public, anon;
+grant execute on function public.coach_add_feedback(uuid, bigint, date, text, uuid, uuid) to authenticated;
+revoke all on function public.coach_edit_feedback(uuid, text, uuid, integer) from public, anon;
+grant execute on function public.coach_edit_feedback(uuid, text, uuid, integer) to authenticated;

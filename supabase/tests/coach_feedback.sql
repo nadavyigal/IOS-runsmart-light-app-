@@ -162,6 +162,43 @@ select pg_temp.expect_error(
   $q$select * from public.coach_edit_feedback('30000000-0000-4000-8000-000000000001', ' ')$q$,
   '22023', 'edit to empty');
 
+-- Revision: the edit above moved it to 1. An edit from revision 0 (another phone) is refused
+-- and leaves the newer text alone; an edit from revision 1 applies and moves it to 2.
+select pg_temp.expect_error(
+  $q$select * from public.coach_edit_feedback('30000000-0000-4000-8000-000000000001', 'Stale phone',
+     'aaaaaaaa-0000-4000-8000-00000000000a', 0)$q$,
+  '40001', 'stale edit from another phone');
+do $$
+declare
+  r public.coach_feedback;
+begin
+  select * into r from public.coach_feedback where id = '30000000-0000-4000-8000-000000000001';
+  if r.text <> 'Strong finish, well paced.' or r.revision <> 1 then
+    raise exception 'FAIL: stale edit changed the row: %', row_to_json(r);
+  end if;
+  select * into r from public.coach_edit_feedback('30000000-0000-4000-8000-000000000001', 'Current phone',
+    'aaaaaaaa-0000-4000-8000-00000000000a', 1);
+  if r.text <> 'Current phone' or r.revision <> 2 then
+    raise exception 'FAIL: current-revision edit stored wrong: %', row_to_json(r);
+  end if;
+end $$;
+
+-- Expected coach: a request meant for another coach writes nothing.
+select pg_temp.expect_error(
+  $q$select * from public.coach_add_feedback('bbbbbbbb-0000-4000-8000-00000000000b', null, '2026-11-16', 'Hi',
+     null, 'cccccccc-0000-4000-8000-00000000000c')$q$,
+  '28000', 'add meant for another coach');
+select pg_temp.expect_error(
+  $q$select * from public.coach_edit_feedback('30000000-0000-4000-8000-000000000001', 'Hi',
+     'cccccccc-0000-4000-8000-00000000000c')$q$,
+  '28000', 'edit meant for another coach');
+do $$
+begin
+  if (select text from public.coach_feedback where id = '30000000-0000-4000-8000-000000000001') <> 'Current phone' then
+    raise exception 'FAIL: a wrong-coach edit changed the row';
+  end if;
+end $$;
+
 -- Ron is a coach but not linked --------------------------------------------------
 select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
 select pg_temp.expect_count('select 1 from public.coach_feedback', 0, 'another coach reads');

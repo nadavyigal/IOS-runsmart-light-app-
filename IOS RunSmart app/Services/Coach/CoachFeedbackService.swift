@@ -32,6 +32,8 @@ nonisolated struct CoachFeedback: Codable, Identifiable, Equatable, Sendable {
     let text: String
     let createdAt: Date
     let editedAt: Date?
+    /// Goes up by one on each edit. An edit sent from an older revision is refused.
+    let revision: Int
 
     var target: CoachFeedbackTarget? {
         if let runID { return .run(runID) }
@@ -47,9 +49,11 @@ nonisolated struct CoachFeedback: Codable, Identifiable, Equatable, Sendable {
         case text
         case createdAt = "created_at"
         case editedAt = "edited_at"
+        case revision
     }
 
-    init(id: UUID, athleteID: UUID, target: CoachFeedbackTarget, text: String, createdAt: Date, editedAt: Date? = nil) {
+    init(id: UUID, athleteID: UUID, target: CoachFeedbackTarget, text: String, createdAt: Date,
+         editedAt: Date? = nil, revision: Int = 0) {
         self.id = id
         self.athleteID = athleteID
         switch target {
@@ -59,6 +63,7 @@ nonisolated struct CoachFeedback: Codable, Identifiable, Equatable, Sendable {
         self.text = text
         self.createdAt = createdAt
         self.editedAt = editedAt
+        self.revision = revision
     }
 
     init(from decoder: Decoder) throws {
@@ -70,6 +75,7 @@ nonisolated struct CoachFeedback: Codable, Identifiable, Equatable, Sendable {
         text = try c.decode(String.self, forKey: .text)
         createdAt = try Self.date(c.decode(String.self, forKey: .createdAt), key: .createdAt, in: c)
         editedAt = try c.decodeIfPresent(String.self, forKey: .editedAt).map { try Self.date($0, key: .editedAt, in: c) }
+        revision = try c.decodeIfPresent(Int.self, forKey: .revision) ?? 0
     }
 
     func encode(to encoder: Encoder) throws {
@@ -81,6 +87,7 @@ nonisolated struct CoachFeedback: Codable, Identifiable, Equatable, Sendable {
         try c.encode(text, forKey: .text)
         try c.encode(Self.iso(createdAt), forKey: .createdAt)
         try c.encodeIfPresent(editedAt.map(Self.iso), forKey: .editedAt)
+        try c.encode(revision, forKey: .revision)
     }
 
     private static func date(_ raw: String, key: CodingKeys, in c: KeyedDecodingContainer<CodingKeys>) throws -> Date {
@@ -110,6 +117,8 @@ nonisolated enum CoachFeedbackError: Error, Equatable {
     /// The server will never accept this exact request (the run is gone, the text is empty or
     /// too long, the note isn't this coach's). It is not retried; the text stays on the phone.
     case rejected
+    /// The note changed on another phone after this edit started. Not retried; the text is kept.
+    case conflict
 
     /// SQLSTATEs the feedback RPCs raise for a request that can't succeed on retry.
     static let permanentCodes: Set<String> = ["22023", "P0002", "23505", "23514"]
@@ -118,6 +127,9 @@ nonisolated enum CoachFeedbackError: Error, Equatable {
         if let known = error as? CoachFeedbackError { return known }
         if let postgrest = error as? PostgrestError {
             if postgrest.message == "not_linked" { return .notLinked }
+            if postgrest.message == "edit_conflict" { return .conflict }
+            // The session no longer belongs to the coach who wrote it: keep it queued for them.
+            if postgrest.message == "wrong_coach" { return .notSent }
             if let code = postgrest.code, permanentCodes.contains(code) { return .rejected }
         }
         return .notSent
@@ -126,8 +138,11 @@ nonisolated enum CoachFeedbackError: Error, Equatable {
 
 nonisolated protocol CoachFeedbackServing: Sendable {
     /// `id` is generated on the phone so a retried send never stores the note twice.
-    func add(id: UUID, athleteID: UUID, target: CoachFeedbackTarget, text: String) async throws -> CoachFeedback
-    func edit(id: UUID, text: String) async throws -> CoachFeedback
+    /// `coachID` is the coach the app expects to be signed in. The server refuses the
+    /// request (`wrong_coach`) if the session is someone else.
+    func add(id: UUID, athleteID: UUID, target: CoachFeedbackTarget, text: String, coachID: UUID) async throws -> CoachFeedback
+    /// `revision` is the revision the edit started from; nil skips the check.
+    func edit(id: UUID, text: String, coachID: UUID, revision: Int?) async throws -> CoachFeedback
     /// The coach's notes for one athlete. RLS returns nothing once the link is revoked.
     func list(athleteID: UUID) async throws -> [CoachFeedback]
 }
@@ -138,27 +153,41 @@ private nonisolated struct CoachAddFeedbackParams: Encodable, Sendable {
     let p_week_start: String?
     let p_text: String
     let p_id: UUID
+    let p_coach: UUID
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(p_athlete, forKey: .p_athlete)
-        // Always send both keys, null included, so PostgREST picks the 5-argument function.
+        // Always send every key, null included, so PostgREST picks the 6-argument function.
         try c.encode(p_run, forKey: .p_run)
         try c.encode(p_week_start, forKey: .p_week_start)
         try c.encode(p_text, forKey: .p_text)
         try c.encode(p_id, forKey: .p_id)
+        try c.encode(p_coach, forKey: .p_coach)
     }
 
-    enum CodingKeys: String, CodingKey { case p_athlete, p_run, p_week_start, p_text, p_id }
+    enum CodingKeys: String, CodingKey { case p_athlete, p_run, p_week_start, p_text, p_id, p_coach }
 }
 
 private nonisolated struct CoachEditFeedbackParams: Encodable, Sendable {
     let p_id: UUID
     let p_text: String
+    let p_coach: UUID
+    let p_revision: Int?
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(p_id, forKey: .p_id)
+        try c.encode(p_text, forKey: .p_text)
+        try c.encode(p_coach, forKey: .p_coach)
+        try c.encode(p_revision, forKey: .p_revision)
+    }
+
+    enum CodingKeys: String, CodingKey { case p_id, p_text, p_coach, p_revision }
 }
 
 nonisolated struct SupabaseCoachFeedbackService: CoachFeedbackServing {
-    func add(id: UUID, athleteID: UUID, target: CoachFeedbackTarget, text: String) async throws -> CoachFeedback {
+    func add(id: UUID, athleteID: UUID, target: CoachFeedbackTarget, text: String, coachID: UUID) async throws -> CoachFeedback {
         var run: Int64?
         var week: String?
         switch target {
@@ -167,7 +196,7 @@ nonisolated struct SupabaseCoachFeedbackService: CoachFeedbackServing {
         }
         let rows: [CoachFeedback] = try await SupabaseManager.client
             .rpc(CoachFeedbackRPC.add, params: CoachAddFeedbackParams(
-                p_athlete: athleteID, p_run: run, p_week_start: week, p_text: text, p_id: id
+                p_athlete: athleteID, p_run: run, p_week_start: week, p_text: text, p_id: id, p_coach: coachID
             ))
             .execute()
             .value
@@ -175,9 +204,11 @@ nonisolated struct SupabaseCoachFeedbackService: CoachFeedbackServing {
         return row
     }
 
-    func edit(id: UUID, text: String) async throws -> CoachFeedback {
+    func edit(id: UUID, text: String, coachID: UUID, revision: Int?) async throws -> CoachFeedback {
         let rows: [CoachFeedback] = try await SupabaseManager.client
-            .rpc(CoachFeedbackRPC.edit, params: CoachEditFeedbackParams(p_id: id, p_text: text))
+            .rpc(CoachFeedbackRPC.edit, params: CoachEditFeedbackParams(
+                p_id: id, p_text: text, p_coach: coachID, p_revision: revision
+            ))
             .execute()
             .value
         guard let row = rows.first else { throw CoachFeedbackError.notSent }
@@ -187,7 +218,7 @@ nonisolated struct SupabaseCoachFeedbackService: CoachFeedbackServing {
     func list(athleteID: UUID) async throws -> [CoachFeedback] {
         try await SupabaseManager.client
             .from(CoachFeedbackRPC.table)
-            .select("id,athlete_id,run_id,week_start,text,created_at,edited_at")
+            .select("id,athlete_id,run_id,week_start,text,created_at,edited_at,revision")
             .eq("athlete_id", value: athleteID)
             .order("created_at", ascending: true)
             .execute()
@@ -200,15 +231,18 @@ nonisolated final class MockCoachFeedbackService: CoachFeedbackServing, @uncheck
     private let lock = NSLock()
     private var rows: [CoachFeedback] = []
     var failure: CoachFeedbackError?
+    /// When set, requests for any other coach fail as the server's `wrong_coach` does.
+    var signedInCoach: UUID?
     private(set) var addCalls = 0
     var now = Date()
 
     init(rows: [CoachFeedback] = []) { self.rows = rows }
 
-    func add(id: UUID, athleteID: UUID, target: CoachFeedbackTarget, text: String) async throws -> CoachFeedback {
+    func add(id: UUID, athleteID: UUID, target: CoachFeedbackTarget, text: String, coachID: UUID) async throws -> CoachFeedback {
         try lock.withLock {
             addCalls += 1
             if let failure { throw failure }
+            if let signedInCoach, signedInCoach != coachID { throw CoachFeedbackError.notSent }
             if let existing = rows.first(where: { $0.id == id }) { return existing }
             let row = CoachFeedback(id: id, athleteID: athleteID, target: target,
                                     text: text.trimmingCharacters(in: .whitespacesAndNewlines), createdAt: now)
@@ -217,17 +251,29 @@ nonisolated final class MockCoachFeedbackService: CoachFeedbackServing, @uncheck
         }
     }
 
-    func edit(id: UUID, text: String) async throws -> CoachFeedback {
+    func edit(id: UUID, text: String, coachID: UUID, revision: Int?) async throws -> CoachFeedback {
         try lock.withLock {
             if let failure { throw failure }
+            if let signedInCoach, signedInCoach != coachID { throw CoachFeedbackError.notSent }
             guard let index = rows.firstIndex(where: { $0.id == id }), let target = rows[index].target else {
-                throw CoachFeedbackError.notSent
+                throw CoachFeedbackError.rejected
             }
             let old = rows[index]
+            if let revision, revision != old.revision { throw CoachFeedbackError.conflict }
             rows[index] = CoachFeedback(id: id, athleteID: old.athleteID, target: target,
                                         text: text.trimmingCharacters(in: .whitespacesAndNewlines),
-                                        createdAt: old.createdAt, editedAt: now)
+                                        createdAt: old.createdAt, editedAt: now, revision: old.revision + 1)
             return rows[index]
+        }
+    }
+
+    /// Simulates a save from another phone.
+    func editElsewhere(id: UUID, text: String) {
+        lock.withLock {
+            guard let index = rows.firstIndex(where: { $0.id == id }), let target = rows[index].target else { return }
+            let old = rows[index]
+            rows[index] = CoachFeedback(id: id, athleteID: old.athleteID, target: target, text: text,
+                                        createdAt: old.createdAt, editedAt: now, revision: old.revision + 1)
         }
     }
 
@@ -287,6 +333,8 @@ nonisolated struct PendingCoachFeedback: Codable, Equatable, Sendable {
     let target: CoachFeedbackTarget
     let text: String
     let kind: Kind
+    /// For an edit: the note's revision when the coach started editing.
+    var baseRevision: Int? = nil
 
     var draftScope: String { kind == .edit ? "edit-\(id.uuidString)" : target.key }
 }
@@ -366,10 +414,12 @@ final class CoachFeedbackOutbox {
     private func deliver(_ item: PendingCoachFeedback, using service: any CoachFeedbackServing) async throws -> CoachFeedback {
         switch item.kind {
         case .add:
-            let stored = try await service.add(id: item.id, athleteID: item.athleteID, target: item.target, text: item.text)
-            return stored.text == item.text ? stored : try await service.edit(id: item.id, text: item.text)
+            let stored = try await service.add(id: item.id, athleteID: item.athleteID, target: item.target,
+                                               text: item.text, coachID: item.coachID)
+            guard stored.text != item.text else { return stored }
+            return try await service.edit(id: item.id, text: item.text, coachID: item.coachID, revision: stored.revision)
         case .edit:
-            return try await service.edit(id: item.id, text: item.text)
+            return try await service.edit(id: item.id, text: item.text, coachID: item.coachID, revision: item.baseRevision)
         }
     }
 
@@ -390,7 +440,8 @@ final class CoachFeedbackOutbox {
                     drafts.clear(coachID: item.coachID, athleteID: item.athleteID, scope: item.draftScope)
                 case .notSent:
                     enqueue(item)
-                case .rejected:
+                case .rejected, .conflict:
+                    // Not retried. The draft keeps the text so the coach can redo it.
                     remove(id: item.id)
                 }
                 return .failed(failure)
@@ -420,7 +471,7 @@ final class CoachFeedbackOutbox {
                     case .notLinked:
                         remove(exactly: item)
                         drafts.clear(coachID: item.coachID, athleteID: item.athleteID, scope: item.draftScope)
-                    case .rejected:
+                    case .rejected, .conflict:
                         // Never retried; the draft keeps the text so the coach can fix it.
                         remove(exactly: item)
                     case .notSent:
