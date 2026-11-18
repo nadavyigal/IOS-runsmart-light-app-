@@ -1,6 +1,11 @@
-# 2026-11-18 — Story 6.3, per-run coach map visibility
+# 2026-11-18: Coach Mode story 6.3, athlete hides one run's map
 
-Post-run and saved-run screens share a durable, per-run hide choice. The upload queue withholds hidden routes and retries uploaded visibility changes through the owner RPC. The throwaway SQL suite verifies the coach RPC response and summary through hide and unhide. Nadav applies `20261118170000_set_run_route_hidden.sql` after review and mirrors it to `Running-coach-/v0/supabase/migrations/`.
+Current Phase: Coach Mode pilot, story 6.3 on `feat/hide-run-map` (#212); migration `20261118170000_set_run_route_hidden.sql` waits for founder apply.
+Active Story: Per-run "Hide map from {Coach}" on post-run and run detail; hide before upload withholds the route; owner RPC flips shared and hidden.
+Next Recommended Story: Founder merges #212, applies the migration and mirrors it to the web repo; then 3.4 (#213).
+Blockers: Migration not applied; until it is, hiding an uploaded map fails and stays queued.
+Last Validation: iPhone 17 simulator, full unit suite 1089 passed, 0 failed; code-reviewer approved; SQL suite runs in CI.
+Last Updated: 2026-11-18
 
 # 2026-11-18: Coach Mode story 3.3, coach visible on Today and the Plan
 

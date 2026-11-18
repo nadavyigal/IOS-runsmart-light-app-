@@ -965,9 +965,11 @@ struct AthleteMapControl: ViewModifier {
                         Text(label)
                         Spacer()
                         Button("Unhide") { change(false, key: key, linkID: link.id) }
+                            .frame(minWidth: 44, minHeight: 44)
                     }
                 } else {
                     Toggle(label, isOn: Binding(get: { choice.hidden }, set: { change($0, key: key, linkID: link.id) }))
+                        .frame(minHeight: 44)
                 }
                 if choice.needsSync {
                     Text("Will update when you’re online")
