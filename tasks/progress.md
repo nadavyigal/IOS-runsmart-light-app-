@@ -1,3 +1,11 @@
+# 2026-11-18: Two-model sensitive PR review
+
+Current Phase: Review workflow simplification requested by the founder.
+Active Story: Keep path classification and PR checks; remove the manual Sensitive gate. Sensitive PRs use two independent distinct-model reviews and passing checks.
+Blockers: None. Two-model reviews are recorded on the PR; Agentic OS policy is merged and the Steward automation is updated.
+Last Validation: Workflow syntax and hosted checks are recorded on the PR.
+Last Updated: 2026-11-18
+
 # 2026-11-18: CI, Supabase matrix port clash
 
 Current Phase: Coach Mode pilot; CI fix on `ci/sql-port-clash`, workflow only, no SQL.

@@ -1,25 +1,17 @@
-# Independent PR review
+# Independent AI review
 
-Review the actual diff and relevant callers, tests, and authorization boundaries.
-Pin the PR head and target base before reading. Recheck the head before posting.
-Report P0/P1/P2 findings with a file and line, impact, and requested validation.
-Include the full head SHA, your name/model, explicit verdict (PASS, PASS WITH
-NOTES, or CHANGES REQUIRED), and disposition of each material finding. List
-anything unverified. An author does not independently review their own work.
-Follow the named cross-vendor requirement for sensitive work.
+Read the actual PR diff, relevant callers, tests, access boundaries and failure paths.
+Check the full head SHA and target base before reading and recheck before posting.
 
-Founder only: after verifying the linked independent review, matching head,
-reviewer identity, required review coverage, and resolution of material
-findings, post this five-line attestation on the PR, then add deep-reviewed.
-After any new push, verify the new review and remove/reapply the label.
+Post the full reviewed head SHA, your model/reviewer identity, an explicit verdict
+(PASS, PASS WITH NOTES or CHANGES REQUIRED), and material finding dispositions.
+Use `P0/P1/P2 | file:line | impact | fix or validation` for findings.
 
-    <!-- steward-deep-review sha=<full 40-character head SHA> -->
-    Reviewer: <named independent reviewer and model>
-    Verdict: PASS
-    Findings: resolved
-    Evidence: <GitHub link to the completed review>
+Sensitive changes require two independent AI reviews from distinct models.
+The implementer's own reading is not a review. Hosted Codex plus a completed
+CodeRabbit review is one supported pair. Two named, distinct models in fresh
+read-only review sessions also qualify. Human approval, attestation comments
+and `deep-reviewed` labels are not part of the review requirement.
 
-Use PASS WITH NOTES only for accepted non-material follow-ups. The attestation
-and label are evidence for the advisory gate. Merge authority stays with the
-founder for sensitive changes. No reviewer may merge, label, push, edit, or
-operate production while reviewing.
+Resolve material findings and pass required checks. The Steward verifies
+reviews and merge eligibility. Review-only agents do not merge or label PRs.
