@@ -28,8 +28,9 @@ Every session that produces committed code ends with a push and an open PR (or a
 
 ## Code Review Rules
 
-- Review the actual PR diff and the relevant callers, tests, and authorization boundaries. Never independently review your own implementation.
-- Report `P0/P1/P2 | path:line | impact | fix or validation`. P0 is critical, P1 is material, and P2 is a lower-severity risk. Include the full reviewed head SHA, named reviewer/model, explicit verdict, and material finding dispositions. List any unverified checks.
-- A comment marker, reaction, or summary alone does not establish review completion. Recheck the head after every push. Sensitive changes require the named independent review and founder approval.
-- While reviewing, never merge, approve on the founder's behalf, label, push, edit files, or touch production. Only the separately authorized Steward may merge eligible low-risk PRs.
+- Ordinary code needs one completed AI review. Sensitive changes need two independent reviews by distinct AI models. No human review, founder attestation or `deep-reviewed` label is required.
+- Each review identifies the full head SHA and reviewer/model, gives PASS, PASS WITH NOTES or CHANGES REQUIRED, and records material finding dispositions. Report `P0/P1/P2 | path:line | impact | fix or validation`.
+- Read the diff and relevant callers, tests and access boundaries. An implementer's own reading is not an independent review. Bot walkthroughs, skipped reviews, reactions and rate-limit notices do not count.
+- Review evidence must cover the current head. Reuse completed reviews and request only missing coverage. Resolve material findings and pass required checks before merge.
+- The Steward may merge eligible PRs after verifying the evidence, head, base, prerequisites and side effects. Review-only agents do not merge, label, push, edit files or operate production.
 - Canonical policy: [Agentic OS GLOBAL-WORKFLOWS.md §7b](https://github.com/nadavyigal/Agentic-OS/blob/main/GLOBAL-WORKFLOWS.md#7b-pr-pre-check-by-risk-tier-before-the-pr-steward) (private).

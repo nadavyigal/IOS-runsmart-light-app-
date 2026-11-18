@@ -1,3 +1,11 @@
+# 2026-11-18: Two-model sensitive PR review
+
+Current Phase: Review workflow simplification requested by the founder.
+Active Story: Keep path classification and PR checks; remove the manual Sensitive gate. Sensitive PRs use two independent distinct-model reviews and passing checks.
+Blockers: Independent review and merge of the workflow/policy PRs.
+Last Validation: Workflow syntax and hosted checks are recorded on the PR.
+Last Updated: 2026-11-18
+
 # 2026-11-18: Coach Mode story 3.3, coach visible on Today and the Plan
 
 Current Phase: Coach Mode pilot, story 3.3 on `feat/coached-by-today-plan`; migration `get_my_coach()` waits for founder apply.
