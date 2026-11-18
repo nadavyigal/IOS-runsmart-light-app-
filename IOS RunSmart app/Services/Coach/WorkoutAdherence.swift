@@ -7,6 +7,12 @@ enum WorkoutAdherence: Equatable {
         guard let run, run.workoutID == workout.id, run.athleteID == workout.athleteID else {
             return workout.scheduledDate < today ? .missed : .planned
         }
+        return measure(workout: workout, run: run)
+    }
+
+    /// The 80% rule only: planned distance when set, otherwise planned duration.
+    /// Callers decide whether the run belongs to the workout.
+    static func measure(workout: CoachWorkoutSummary, run: CoachRunSummary) -> Self {
         if workout.plannedDistance > 0 {
             return run.distanceKm >= workout.plannedDistance * 0.8 ? .done : .partial
         }
@@ -14,6 +20,12 @@ enum WorkoutAdherence: Equatable {
             return Double(run.durationSeconds) >= Double(minutes) * 60 * 0.8 ? .done : .partial
         }
         return .done
+    }
+
+    /// One workout's state from all runs linked to it. Any done run wins; otherwise the first linked run.
+    static func state(workout: CoachWorkoutSummary, linkedRuns: [CoachRunSummary], today: String) -> Self {
+        let states = linkedRuns.map { classify(workout: workout, run: $0, today: today) }
+        return states.contains(.done) ? .done : states.first ?? classify(workout: workout, run: nil, today: today)
     }
 
     static func classify(run: CoachRunSummary) -> Self? {
@@ -87,11 +99,9 @@ struct CoachAthleteRow: Identifiable, Equatable {
             let athleteRuns = runsByAthlete[athlete.athleteID, default: []]
             let linkedRuns = Dictionary(grouping: athleteRuns, by: \.workoutID)
             let results = workoutsByAthlete[athlete.athleteID, default: []].map { workout in
-                let states = linkedRuns[workout.id, default: []].map {
-                    WorkoutAdherence.classify(workout: workout, run: $0, today: today)
-                }
-                let state = states.contains(.done) ? WorkoutAdherence.done
-                    : states.first ?? WorkoutAdherence.classify(workout: workout, run: nil, today: today)
+                let state = WorkoutAdherence.state(
+                    workout: workout, linkedRuns: linkedRuns[workout.id, default: []], today: today
+                )
                 return (date: workout.scheduledDate, state: state)
             }
             let status: Status

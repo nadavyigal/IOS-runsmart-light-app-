@@ -1,3 +1,12 @@
+# 2026-11-18: Coach Mode story 2.4, athlete detail
+
+Current Phase: Coach Mode pilot foundation, story 2.4 on `feat/coach-athlete-detail`, stacked on 2.3 (#204).
+Active Story: Coach opens an athlete: two-week strip, day detail with planned vs actual, matched-by-date, revoked and no-plan states. Read-only.
+Next Recommended Story: Founder merges #204 then this PR; then 3.1 coach feedback.
+Blockers: Stacked on #204; retarget to main after #204 merges.
+Last Validation: iPhone 17 simulator, 29 coach tests passed (detail, adherence, read service, plan setup); screens rendered from sample data.
+Last Updated: 2026-11-18
+
 # 2026-11-18: Coach Mode story 2.3, athlete list review fixes
 
 Current Phase: Coach Mode pilot foundation, story 2.3 (PR #204) review fixes.
@@ -79,6 +88,14 @@ Next Recommended Story: founder review of docs/audits/2026-11-11-repo-audit.md, 
 Blockers: none. PR #179 Tier 1, code-reviewer APPROVED, awaiting founder merge.
 Last Validation: 2026-11-11 iPhone 17 iOS 26.5 full suite 862 passed, 1 skipped, 0 failed before and after.
 Last Updated: 2026-11-11
+
+## 2026-11-18 Story 2.4 review fix (#206)
+- Current Phase: Coach Mode Phase 2, athlete detail (2.4) in review
+- Active Story: 2.4 fix, no-plan athletes keep their recorded runs visible as extra runs
+- Next Recommended Story: 3.1 coach feedback, after #206 merges
+- Blockers: none; founder merges #206
+- Last Validation: 23 coach unit tests pass on iPhone 17 simulator, 0 failed
+- Last Updated: 2026-11-18
 
 ## 2026-11-14 — Story 0.2: runs link to their workout (PR open, not merged)
 
