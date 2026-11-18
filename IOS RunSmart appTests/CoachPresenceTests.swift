@@ -60,6 +60,9 @@ final class CoachPresenceTests: XCTestCase {
         )
     }
 
+    /// Wednesday 18 Nov 2026: inside the week that starts 16 Nov.
+    private let today = ISO8601DateFormatter().date(from: "2026-11-18T12:00:00Z")!
+
     private var utc: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
@@ -69,7 +72,7 @@ final class CoachPresenceTests: XCTestCase {
     private func layer(_ coach: CoachLink?, _ notes: [AthleteFeedbackNote],
                        state: AthleteFeedbackStore.LoadState = .loaded, runs: [RecordedRun] = []) -> TodayCoachLayer? {
         TodayCoachLayer.make(coach: coach, notes: notes, loadState: state, runs: runs,
-                             calendar: utc, locale: Locale(identifier: "en_US"))
+                             calendar: utc, locale: Locale(identifier: "en_US"), now: today)
     }
 
     // MARK: Strip
@@ -196,6 +199,14 @@ final class CoachPresenceTests: XCTestCase {
         XCTAssertEqual(today?.cards.map(\.title), ["Dana's note for this week", "Dana on your Saturday run"])
         XCTAssertEqual(today?.moreCount, 1)
         XCTAssertEqual(CoachPresenceCopy.more(2, coach: "Dana"), "2 more from Dana")
+    }
+
+    func testAnOlderWeekNoteNamesItsWeekInsteadOfThisWeek() {
+        let older = note(week: "2026-11-09", minutesAfterLink: 1)
+        let current = note(week: "2026-11-16", minutesAfterLink: 2)
+        let today = layer(link, [older, current])
+        XCTAssertEqual(today?.cards.map(\.title),
+                       ["Dana's note for this week", "Dana's note for the week of Nov 9"])
     }
 
     func testRunNotOnThisPhoneStillTitlesTheCard() {

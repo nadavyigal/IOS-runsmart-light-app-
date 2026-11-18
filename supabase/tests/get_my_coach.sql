@@ -129,7 +129,17 @@ select set_config('request.jwt.claim.sub', '', true);
 select pg_temp.expect_error($q$select * from public.get_my_coach()$q$, '42501', 'no auth.uid');
 
 -- anon is denied -----------------------------------------------------------------------
+-- Checked as a privilege, so the auth.uid() guard above can't make this pass by itself.
 reset role;
+do $$
+begin
+  if pg_catalog.has_function_privilege('anon', 'public.get_my_coach()', 'EXECUTE') then
+    raise exception 'FAIL: anon can execute get_my_coach';
+  end if;
+  if not pg_catalog.has_function_privilege('authenticated', 'public.get_my_coach()', 'EXECUTE') then
+    raise exception 'FAIL: authenticated cannot execute get_my_coach';
+  end if;
+end $$;
 set local role anon;
 select pg_temp.expect_error($q$select * from public.get_my_coach()$q$, '42501', 'anon reads');
 

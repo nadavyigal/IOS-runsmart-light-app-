@@ -130,6 +130,7 @@ enum CoachPresenceCopy {
         return "\(coach) on your \(weekday) run"
     }
     static func weekCard(_ coach: String) -> String { "\(coach)'s note for this week" }
+    static func pastWeekCard(_ coach: String, weekOf: String) -> String { "\(coach)'s note for the week of \(weekOf)" }
     static func more(_ count: Int, coach: String) -> String { "\(count) more from \(coach)" }
     static func refreshFailed(_ coach: String) -> String { "Couldn't refresh \(coach)'s updates" }
     static let read = "Read"
@@ -171,7 +172,8 @@ struct TodayCoachLayer: Equatable {
         loadState: AthleteFeedbackStore.LoadState,
         runs: [RecordedRun],
         calendar: Calendar = .current,
-        locale: Locale = .current
+        locale: Locale = .current,
+        now: Date = .now
     ) -> TodayCoachLayer? {
         guard let coach else { return nil }
         let unread = notes
@@ -179,7 +181,7 @@ struct TodayCoachLayer: Equatable {
             .sorted { $0.createdAt > $1.createdAt }
         let cards = unread.prefix(maxCards).map { note in
             TodayCoachCard(note: note, title: title(for: note, coach: coach.coachName, runs: runs,
-                                                    calendar: calendar, locale: locale))
+                                                    calendar: calendar, locale: locale, now: now))
         }
         let status: Status
         switch loadState {
@@ -193,8 +195,21 @@ struct TodayCoachLayer: Equatable {
     }
 
     static func title(for note: AthleteFeedbackNote, coach: String, runs: [RecordedRun],
-                      calendar: Calendar, locale: Locale) -> String {
-        guard note.isRunNote else { return CoachPresenceCopy.weekCard(coach) }
+                      calendar: Calendar, locale: Locale, now: Date = .now) -> String {
+        guard note.isRunNote else {
+            // "This week" only while the note's week contains today; otherwise name its date.
+            guard let start = note.weekStartDate(calendar: calendar),
+                  let end = calendar.date(byAdding: .day, value: 7, to: start),
+                  !(now >= start && now < end) else {
+                return CoachPresenceCopy.weekCard(coach)
+            }
+            let formatter = DateFormatter()
+            formatter.calendar = calendar
+            formatter.timeZone = calendar.timeZone
+            formatter.locale = locale
+            formatter.setLocalizedDateFormatFromTemplate("dMMM")
+            return CoachPresenceCopy.pastWeekCard(coach, weekOf: formatter.string(from: start))
+        }
         let run = runs.first { note.matches($0) }
         return CoachPresenceCopy.runCard(coach, weekday: run.map { weekday($0.startedAt, calendar: calendar, locale: locale) })
     }

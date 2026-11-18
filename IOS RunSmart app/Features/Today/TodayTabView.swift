@@ -27,6 +27,8 @@ struct TodayTabView: View {
     @State private var weeklySummary: WeeklyProgressSummary? = nil
     @State private var weeklySummaryFetchedKey: String = ""    // ISO week key of last fetch attempt
     @State private var pendingLoadTask: Task<Void, Never>?
+    /// Opening a coach note's run. Cancelled by a newer Read or by leaving Today.
+    @State private var coachNoteOpenTask: Task<Void, Never>?
     // Adaptive Coach: dismissal persists 24h (policy-enforced); shown-event
     // dedupes per prompt so a scroll away and back doesn't double-count.
     @AppStorage("runsmart.adaptiveCoach.lastDismissedAt") private var adaptiveCoachDismissedAt: Double = 0
@@ -217,6 +219,11 @@ struct TodayTabView: View {
         .task {
             await loadData()
         }
+        .onDisappear {
+            // A report must not open over another tab after Today is gone.
+            coachNoteOpenTask?.cancel()
+            coachNoteOpenTask = nil
+        }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanDidChange)) { _ in
             scheduleLoad()
         }
@@ -340,17 +347,20 @@ struct TodayTabView: View {
     /// A run that isn't on this phone opens My coach, where the note stays listed.
     private func readCoachNote(_ note: AthleteFeedbackNote) {
         Task { await athleteFeedback.markRead([note]) }
+        coachNoteOpenTask?.cancel()
+        coachNoteOpenTask = nil
         if case .week(let start) = CoachNoteDestination.of(note) {
             router.planFocusDate = start
             router.selectedTab = .plan
             return
         }
-        Task {
+        coachNoteOpenTask = Task {
             guard let run = await AthleteFeedbackOpening.resolveRun(note, services: services) else {
-                router.open(.myCoach)
+                if !Task.isCancelled { router.open(.myCoach) }
                 return
             }
             let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
+            guard !Task.isCancelled else { return }
             router.open(.runReportDetail(report, run: run))
         }
     }
