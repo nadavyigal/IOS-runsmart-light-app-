@@ -1379,6 +1379,7 @@ private struct RunReportDetailScaffold: View {
                         .clipShape(Capsule(style: .continuous))
                 }
             }
+            .modifier(AthleteMapControl(run: reportRun, detail: true))
             if let reportRun, !reportRun.routePoints.isEmpty {
                 GlassCard(padding: 8, glow: Color.lime) {
                     RouteMapView(points: reportRun.routePoints, title: "Run Route")
