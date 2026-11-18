@@ -1,3 +1,11 @@
+# 2026-11-18: 3.2 follow-up, Plan scrolls to standalone week notes (#210)
+
+Current Phase: Coach Mode pilot; #210 merged with main after #211, no migration.
+Active Story: Plan scrolls to a week note whose week has no workouts; cancellation-aware read test. This Week target dropped, #211 owns it.
+Next Recommended Story: Founder merges #210; then #212 (6.3) and #213 (3.4).
+Blockers: None.
+Last Validation: iPhone 17 simulator, full unit suite 1086 passed, 0 failed, including testACancelledViewTaskThenReopenStillRetriesTheRead.
+
 # 2026-11-18: Coach Mode story 3.4, coach welcome note
 
 Current Phase: Coach Mode pilot, story 3.4 on `feat/coach-welcome-note`.
@@ -130,6 +138,14 @@ Next Recommended Story: founder review of docs/audits/2026-11-11-repo-audit.md, 
 Blockers: none. PR #179 Tier 1, code-reviewer APPROVED, awaiting founder merge.
 Last Validation: 2026-11-11 iPhone 17 iOS 26.5 full suite 862 passed, 1 skipped, 0 failed before and after.
 Last Updated: 2026-11-11
+
+## 2026-11-18 Story 3.2 follow-up, Plan scroll and read test
+- Current Phase: Coach Mode Phase 3; 3.2 merged (#208), follow-up #210 open
+- Active Story: Plan scrolls to any week note; cancellation-aware read test
+- Next Recommended Story: 3.3 Today card and Coached-by header
+- Blockers: #209 (6.2) waits for founder merge yes; migrations not applied
+- Last Validation: full suite 1065 passed, 0 failed on iPhone 17 simulator
+- Last Updated: 2026-11-18
 
 ## 2026-11-18 Story 6.2 coach sees route map
 - Current Phase: Coach Mode Phase 6, coach route map (6.2) in review

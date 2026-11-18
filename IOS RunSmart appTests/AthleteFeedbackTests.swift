@@ -373,6 +373,30 @@ final class AthleteFeedbackTests: XCTestCase {
         XCTAssertNotNil(AthleteFeedbackCache(defaults: defaults).load(userID: athlete)?.first?.readAt)
     }
 
+    func testACancelledViewTaskThenReopenStillRetriesTheRead() async {
+        let service = GatedFeedbackService()
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults), currentUserID: { [unowned self] in self.signedIn })
+        store.beginSession(userID: athlete)
+        let unread = note(week: "2026-11-16", created: linkedAt.addingTimeInterval(60))
+        let load = Task { await store.load() }
+        await service.waitForLists(1)
+        service.resumeList(0, with: [unread])
+        await load.value
+
+        let firstView = Task { await store.markRead([unread]) }
+        await service.waitForReads(1)
+        firstView.cancel()                      // the screen closed
+        await store.markRead([unread])          // and opened again while the read is pending
+        XCTAssertEqual(service.cancelledReads, 0, "closing the screen does not cancel the request")
+        service.resumeRead(0, with: .failure(URLError(.timedOut)))
+        await service.waitForReads(2)           // the one retry
+        service.resumeRead(1, with: .success(linkedAt.addingTimeInterval(120)))
+        await firstView.value
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(store.unreadCount(link: link), 0)
+        XCTAssertEqual(service.readCount, 2)
+    }
+
     func testANoteOnARunShowsOnTheMergedRunForThatActivity() async {
         let recorded = run(endedAt: linkedAt.addingTimeInterval(86_400))
         var healthCopy = run(endedAt: recorded.endedAt, source: .healthKit, providerID: "hk-1")
@@ -387,7 +411,8 @@ final class AthleteFeedbackTests: XCTestCase {
 nonisolated final class GatedFeedbackService: AthleteFeedbackFetching, @unchecked Sendable {
     private let lock = NSLock()
     private var lists: [CheckedContinuation<[AthleteFeedbackNote], Never>] = []
-    private var reads: [CheckedContinuation<Result<Date?, Error>, Never>] = []
+    private var reads: [CheckedContinuation<Result<Date?, Error>, Never>?] = []
+    private(set) var cancelledReads = 0
 
     var listCount: Int { lock.withLock { lists.count } }
     var readCount: Int { lock.withLock { reads.count } }
@@ -396,8 +421,27 @@ nonisolated final class GatedFeedbackService: AthleteFeedbackFetching, @unchecke
         await withCheckedContinuation { continuation in lock.withLock { lists.append(continuation) } }
     }
 
+    /// Honours cancellation like a real network call: a cancelled caller gets CancellationError.
     func markRead(id: UUID) async throws -> Date? {
-        try await withCheckedContinuation { continuation in lock.withLock { reads.append(continuation) } }.get()
+        let index = lock.withLock { reads.count }
+        return try await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                lock.withLock { reads.append(continuation) }
+                if Task.isCancelled { cancelRead(index) }
+            }
+        } onCancel: {
+            self.cancelRead(index)
+        }.get()
+    }
+
+    private func cancelRead(_ index: Int) {
+        let continuation: CheckedContinuation<Result<Date?, Error>, Never>? = lock.withLock {
+            guard index < reads.count, let pending = reads[index] else { return nil }
+            reads[index] = nil
+            cancelledReads += 1
+            return pending
+        }
+        continuation?.resume(returning: .failure(CancellationError()))
     }
 
     func resumeList(_ index: Int, with rows: [AthleteFeedbackNote]) {
@@ -405,7 +449,12 @@ nonisolated final class GatedFeedbackService: AthleteFeedbackFetching, @unchecke
     }
 
     func resumeRead(_ index: Int, with result: Result<Date?, Error>) {
-        lock.withLock { reads[index] }.resume(returning: result)
+        let continuation: CheckedContinuation<Result<Date?, Error>, Never>? = lock.withLock {
+            let pending = reads[index]
+            reads[index] = nil
+            return pending
+        }
+        continuation?.resume(returning: result)
     }
 
     func waitForLists(_ count: Int) async {
