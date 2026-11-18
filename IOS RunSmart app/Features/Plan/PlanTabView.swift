@@ -6,6 +6,8 @@ struct PlanTabView: View {
     @EnvironmentObject private var session: SupabaseSession
     @EnvironmentObject private var planGeneration: PlanGenerationStore
     @EnvironmentObject private var athleteFeedback: AthleteFeedbackStore
+    /// Story 3.3: the coach header renders only while this gate is active.
+    @EnvironmentObject private var coachPresence: CoachPresence
 
     @State private var weekWorkouts: [WorkoutSummary] = []
     @State private var nextWorkouts: [WorkoutSummary] = []
@@ -83,6 +85,10 @@ struct PlanTabView: View {
                             )
                             openWorkoutDetail(workout)
                         }
+                        // Scroll target for a current-week coach note opened from Today. When
+                        // Weekly Review falls back to every week, its card for this week is the
+                        // target instead, so the id is never used twice.
+                        .id(reviewWeeks.isEmpty ? AnyHashable("plan-this-week") : AnyHashable(current.id))
                         .runSmartStaggeredAppear(index: 0)
 
                         FlexWeekAdjustPill {
@@ -322,9 +328,23 @@ struct PlanTabView: View {
         }
     }
 
+    /// A6 while linked; the solo "Plan" title otherwise (A14).
+    @ViewBuilder
     private var header: some View {
-        RunSmartTopBar(title: "Plan")
+        if let coachHeader = PlanCoachHeader.make(
+            coach: coachPresence.coach,
+            planMode: coachPresence.planMode,
+            goal: activePlan?.title
+        ) {
+            PlanCoachHeaderView(header: coachHeader, soloTitle: Self.soloTitle) {
+                router.open(.myCoach)
+            }
+        } else {
+            RunSmartTopBar(title: Self.soloTitle)
+        }
     }
+
+    static let soloTitle = "Plan"
 
     private var plannedTodayWorkout: WorkoutSummary? {
         nextWorkouts.first(where: { $0.isToday }) ?? weekWorkouts.first(where: { Calendar.current.isDateInToday($0.scheduledDate) })
@@ -437,8 +457,6 @@ private struct PlanCurrentWeekSection: View {
 
             PlanWeekSummaryCard(week: week, onWorkout: onWorkout)
         }
-        // A scroll target, so a week note picked in My coach can bring This Week into view.
-        .id(week.id)
     }
 }
 
