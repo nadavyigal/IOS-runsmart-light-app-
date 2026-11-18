@@ -23,15 +23,15 @@ Last checked: 2026-11-18. Source of the plan: `COACH-MODE-ALL-PROMPTS.md`.
 | 3.1 | Coach writes feedback | merged | [#207](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/207) | `coach_feedback`, add/edit RPCs, outbox |
 | 3.2 | Athlete sees coach feedback | merged | [#208](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/208) | `my_coach_feedback`, `mark_feedback_read`, badge, 72 h line |
 | 6.2 | Coach sees route map | merged | [#209](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/209) | `coach_get_run_route`, "Map hidden" / "No map" |
-| 6.3 | Athlete hides one run's map | PR open | [#212](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/212) | `set_run_route_hidden`, A9/A10 toggle, hide-before-upload |
+| 6.3 | Athlete hides one run's map | merged | [#212](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/212) | `set_run_route_hidden`, A9/A10 toggle, hide-before-upload |
 | 3.3 | Coach visible on Today and Plan | merged | [#211](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/211) | `get_my_coach`, `CoachPresence` |
-| 3.4 | Coach welcome note | PR open | [#213](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/213) | welcome template, per-athlete override, Today welcome card |
+| 3.4 | Coach welcome note | merged | [#213](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/213) | welcome template, per-athlete override, Today welcome card |
 
-Follow-up PR, not a story: [#210](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/210) (3.2 follow-up, Plan scroll targets).
+Follow-up PRs, not stories: [#210](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/210) (3.2 follow-up, Plan scroll targets) and [#214](https://github.com/nadavyigal/IOS-runsmart-light-app-/pull/214) (CI port clash), both merged.
 
 ## Not started
 
-None. All 21 stories are merged or have an open PR.
+None. All 21 stories are merged.
 
 ## Migrations not applied yet (apply in this order, then mirror each to `Running-coach-/v0/supabase/migrations/`)
 
@@ -39,5 +39,5 @@ None. All 21 stories are merged or have an open PR.
 2. `20261118120000_athlete_feedback_read.sql` (3.2)
 3. `20261118140000_coach_run_route.sql` (6.2)
 4. `20261118160000_get_my_coach.sql` (3.3)
-5. `20261118170000_set_run_route_hidden.sql` (6.3, after #212 merges)
-6. `20261118180000_coach_welcome_note.sql` (3.4, after #213 merges)
+5. `20261118170000_set_run_route_hidden.sql` (6.3)
+6. `20261118180000_coach_welcome_note.sql` (3.4)

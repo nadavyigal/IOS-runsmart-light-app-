@@ -1,3 +1,12 @@
+# 2026-11-18: Coach Mode pre-pilot stories all merged
+
+Current Phase: Coach Mode pilot; all 21 pre-pilot stories merged (6.3 #212, 3.4 #213, follow-up #210).
+Active Story: None. Six migrations wait for founder apply and web-repo mirror, listed in tasks/coach-mode-status.md.
+Next Recommended Story: Founder applies migrations 20261118100000 to 20261118180000 in order, then pilot QA on device.
+Blockers: Migrations not applied.
+Last Validation: Full unit suite 1097 passed, 0 failed on #210 after merging main with 6.3 and 3.4.
+Last Updated: 2026-11-18
+
 # 2026-11-18: 3.2 follow-up, Plan scrolls to standalone week notes (#210)
 
 Current Phase: Coach Mode pilot; #210 merged with main after #211, no migration.
