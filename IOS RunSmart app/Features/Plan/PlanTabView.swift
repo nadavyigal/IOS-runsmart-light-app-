@@ -5,6 +5,7 @@ struct PlanTabView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
     @EnvironmentObject private var planGeneration: PlanGenerationStore
+    @EnvironmentObject private var athleteFeedback: AthleteFeedbackStore
 
     @State private var weekWorkouts: [WorkoutSummary] = []
     @State private var nextWorkouts: [WorkoutSummary] = []
@@ -306,11 +307,19 @@ struct PlanTabView: View {
         guard let date = pendingFocusDate else { return }
         let calendar = Calendar.current
         let day = calendar.startOfDay(for: date)
-        guard let week = planWeeks.first(where: {
+        if let week = planWeeks.first(where: {
             day >= calendar.startOfDay(for: $0.startDate) && day <= calendar.startOfDay(for: $0.endDate)
-        }) else { return }
-        pendingFocusDate = nil
-        withAnimation { proxy.scrollTo(week.id, anchor: .top) }
+        }) {
+            pendingFocusDate = nil
+            withAnimation { proxy.scrollTo(week.id, anchor: .top) }
+            return
+        }
+        // No card covers that week (its workouts were removed): scroll to its standalone note.
+        let anchor = PlanWeekNoteAnchor.id(for: date, calendar: calendar)
+        if athleteFeedback.notes.contains(where: { PlanWeekNoteAnchor.id(for: $0) == anchor }) {
+            pendingFocusDate = nil
+            withAnimation { proxy.scrollTo(anchor, anchor: .top) }
+        }
     }
 
     private var header: some View {
@@ -428,6 +437,21 @@ private struct PlanCurrentWeekSection: View {
 
             PlanWeekSummaryCard(week: week, onWorkout: onWorkout)
         }
+        // A scroll target, so a week note picked in My coach can bring This Week into view.
+        .id(week.id)
+    }
+}
+
+/// Scroll ids for standalone week notes (weeks with no plan card), keyed by `week_start`.
+enum PlanWeekNoteAnchor {
+    static func id(for note: AthleteFeedbackNote) -> String? {
+        note.weekStart.map { "week-note-\($0)" }
+    }
+
+    static func id(for date: Date, calendar: Calendar) -> String {
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        return "week-note-\(CoachReadDay.iso(date, calendar: gregorian))"
     }
 }
 
@@ -492,6 +516,7 @@ extension PlanWeeklyReviewSection {
                         }
                         AthleteFeedbackCard(note: note)
                     }
+                    .id(PlanWeekNoteAnchor.id(for: note))
                     .task(id: note.id) { await feedback.markRead([note]) }
                 }
             }
