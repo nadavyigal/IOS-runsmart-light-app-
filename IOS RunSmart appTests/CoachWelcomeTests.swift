@@ -15,6 +15,19 @@ final class CoachWelcomeTests: XCTestCase {
         XCTAssertTrue(draft.canSave)
     }
 
+    func testAthleteEditorStartsFromTheCoachTemplate() throws {
+        let json = #"{"coach_name":"Dana","saved_text":null,"can_edit":true,"default_text":"Hi {first name}!"}"#
+        let settings = try JSONDecoder().decode(CoachWelcomeSettings.self, from: Data(json.utf8))
+        var draft = CoachWelcomeDraft(savedText: settings.savedText, starter: settings.defaultText)
+        XCTAssertEqual(draft.text, "Hi {first name}!")
+        XCTAssertFalse(draft.canSave)
+        draft.confirmedStarter = true
+        XCTAssertTrue(draft.canSave)
+        XCTAssertEqual(CoachWelcomeDraft(savedText: nil, starter: "  ").text, CoachWelcomeDraft.starter)
+        let legacy = #"{"coach_name":"Dana","saved_text":null,"can_edit":true}"#
+        XCTAssertNil(try JSONDecoder().decode(CoachWelcomeSettings.self, from: Data(legacy.utf8)).defaultText)
+    }
+
     func testSavedTemplateCanBeCleared() {
         var draft = CoachWelcomeDraft(savedText: "Hello!")
         XCTAssertFalse(draft.canSave)

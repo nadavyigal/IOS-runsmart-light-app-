@@ -17,7 +17,10 @@ insert into auth.users (id, email, aud, role) values
   ('aaaaaaaa-0000-4000-8000-000000000004', 'nameless@example.com', 'authenticated', 'authenticated'),
   ('aaaaaaaa-0000-4000-8000-000000000005', 'revoked@example.com', 'authenticated', 'authenticated'),
   ('aaaaaaaa-0000-4000-8000-000000000006', 'unlinked@example.com', 'authenticated', 'authenticated'),
-  ('aaaaaaaa-0000-4000-8000-000000000007', 'prior-override@example.com', 'authenticated', 'authenticated');
+  ('aaaaaaaa-0000-4000-8000-000000000007', 'prior-override@example.com', 'authenticated', 'authenticated'),
+  ('aaaaaaaa-0000-4000-8000-000000000008', 'rejoin@example.com', 'authenticated', 'authenticated'),
+  ('aaaaaaaa-0000-4000-8000-000000000009', 'longname@example.com', 'authenticated', 'authenticated'),
+  ('aaaaaaaa-0000-4000-8000-000000000010', 'rejoin-override@example.com', 'authenticated', 'authenticated');
 
 insert into public.coach_profiles (user_id, display_name)
 values ('aaaaaaaa-0000-4000-8000-000000000001', 'Dana');
@@ -27,7 +30,19 @@ insert into public.coach_athlete_links (coach_id, athlete_id, status, consented_
 select 'aaaaaaaa-0000-4000-8000-000000000001', id,
        case when email = 'revoked@example.com' then 'revoked' else 'active' end, now()
 from auth.users where email in ('early@example.com', 'yona@example.com', 'nameless@example.com',
-                               'revoked@example.com', 'prior-override@example.com');
+                               'revoked@example.com', 'prior-override@example.com',
+                               'rejoin@example.com', 'longname@example.com', 'rejoin-override@example.com');
+insert into public.profiles (auth_user_id, name)
+values ('aaaaaaaa-0000-4000-8000-000000000009', repeat('x', 300) || ' Levi');
+-- The rejoining athlete left an earlier link with the same coach, and read that link's welcome.
+insert into public.coach_athlete_links (coach_id, athlete_id, status, consented_at, revoked_at, welcome_claimed_at)
+select 'aaaaaaaa-0000-4000-8000-000000000001', a::uuid, 'revoked',
+       now() - interval '10 days', now() - interval '5 days', now() - interval '10 days'
+from unnest(array['aaaaaaaa-0000-4000-8000-000000000008', 'aaaaaaaa-0000-4000-8000-000000000010']) a;
+insert into public.coach_feedback (coach_id, athlete_id, kind, text, created_at, read_at)
+select 'aaaaaaaa-0000-4000-8000-000000000001', a::uuid, 'welcome',
+       'Old welcome', now() - interval '10 days', now() - interval '9 days'
+from unnest(array['aaaaaaaa-0000-4000-8000-000000000008', 'aaaaaaaa-0000-4000-8000-000000000010']) a;
 
 create function pg_temp.act_as(uid text) returns void language plpgsql as $$
 begin
@@ -105,6 +120,48 @@ begin
   end if;
 end $$;
 
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-000000000008');
+select public.claim_welcome_note();
+do $$
+begin
+  if (select count(*) from public.my_coach_feedback()) <> 1
+     or not exists (select 1 from public.my_coach_feedback()
+                    where kind = 'welcome' and read_at is null and edited_at is null
+                      and text = E'Hello!\n\nSee you Sunday.' and created_at >= now()) then
+    raise exception 'FAIL: a returning athlete must get a fresh, unread welcome for the new link';
+  end if;
+end $$;
+
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-000000000001');
+do $$
+begin
+  if (select row(saved_text, can_edit) from public.get_coach_welcome('aaaaaaaa-0000-4000-8000-000000000010'))
+       is distinct from row(null::text, true) then
+    raise exception 'FAIL: a welcome from an earlier link must not lock the editor';
+  end if;
+end $$;
+select public.coach_set_athlete_welcome('aaaaaaaa-0000-4000-8000-000000000010', 'Welcome back!');
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-000000000010');
+select public.claim_welcome_note();
+do $$
+begin
+  if (select count(*) from public.my_coach_feedback()) <> 1
+     or not exists (select 1 from public.my_coach_feedback()
+                    where text = 'Welcome back!' and read_at is null and edited_at is null) then
+    raise exception 'FAIL: an override after rejoining must replace the old welcome as unread and survive the claim';
+  end if;
+end $$;
+
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-000000000009');
+select public.claim_welcome_note();
+do $$
+begin
+  if (select text from public.my_coach_feedback())
+       is distinct from E'Hello, ' || repeat('x', 40) || E'!\n\nSee you Sunday.' then
+    raise exception 'FAIL: the substituted first name must be capped at 40 characters';
+  end if;
+end $$;
+
 select pg_temp.act_as('aaaaaaaa-0000-4000-8000-000000000004');
 select public.claim_welcome_note();
 do $$
@@ -134,6 +191,10 @@ begin
      or (select saved_text from public.get_coach_welcome())
        is distinct from E'Hello, {first name}!\n\nSee you Sunday.' then
     raise exception 'FAIL: override must update only the intended athlete';
+  end if;
+  if (select default_text from public.get_coach_welcome('aaaaaaaa-0000-4000-8000-000000000003'))
+       is distinct from E'Hello, {first name}!\n\nSee you Sunday.' then
+    raise exception 'FAIL: the per-athlete editor must receive the coach template as its default';
   end if;
 end $$;
 

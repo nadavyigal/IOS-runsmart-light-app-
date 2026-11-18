@@ -5,11 +5,14 @@ nonisolated struct CoachWelcomeSettings: Decodable, Sendable {
     let coachName: String
     let savedText: String?
     let canEdit: Bool
+    /// The coach's template. The per-athlete editor starts from it.
+    var defaultText: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case coachName = "coach_name"
         case savedText = "saved_text"
         case canEdit = "can_edit"
+        case defaultText = "default_text"
     }
 }
 

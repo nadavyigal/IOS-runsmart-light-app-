@@ -16,9 +16,11 @@ alter table public.coach_feedback
     (kind = 'note' and ((run_id is null) <> (week_start is null)))
     or (kind = 'welcome' and run_id is null and week_start is null)
   ),
-  -- Welcome input is capped in the setters. Name substitution may expand it.
+  -- Welcome input is capped at 2,000 in the setters. Name substitution (first name,
+  -- at most 40 characters) may expand it, so a welcome gets a larger fixed ceiling.
   add constraint coach_feedback_text_length check (
-    length(btrim(text)) > 0 and (kind = 'welcome' or char_length(text) <= 2000)
+    length(btrim(text)) > 0
+    and char_length(text) <= case when kind = 'welcome' then 8000 else 2000 end
   );
 
 create unique index if not exists coach_feedback_one_welcome
@@ -46,7 +48,7 @@ begin
   end if;
   v_name := nullif(btrim(regexp_replace(v_name, '[[:space:]]+', ' ', 'g')), '');
   if v_name is not null then
-    return replace(v_text, '{first name}', split_part(v_name, ' ', 1));
+    return replace(v_text, '{first name}', left(split_part(v_name, ' ', 1), 40));
   end if;
 
   -- At a sentence or line ending, remove the delimiter before a missing name.
@@ -106,18 +108,23 @@ begin
 
   select cp.welcome_template into v_template
   from public.coach_profiles cp where cp.user_id = v_link.coach_id;
+  -- A welcome (or override) written for this link wins. One from an earlier link
+  -- with the same coach is replaced below, so a returning athlete is welcomed again.
   if v_template is null or exists (
     select 1 from public.coach_feedback f
     where f.coach_id = v_link.coach_id and f.athlete_id = v_link.athlete_id and f.kind = 'welcome'
+      and f.created_at >= v_link.consented_at
   ) then
     return;
   end if;
   v_text := public.render_coach_welcome(v_template, v_link.athlete_id);
 
   if nullif(v_text, '') is not null then
-    insert into public.coach_feedback (coach_id, athlete_id, kind, text)
+    insert into public.coach_feedback as f (coach_id, athlete_id, kind, text)
     values (v_link.coach_id, v_link.athlete_id, 'welcome', v_text)
-    on conflict (coach_id, athlete_id) where kind = 'welcome' do nothing;
+    on conflict (coach_id, athlete_id) where kind = 'welcome' do update
+    set text = excluded.text, created_at = now(), edited_at = null, read_at = null, revision = 0
+    where f.created_at < v_link.consented_at;
   end if;
 end;
 $$;
@@ -156,8 +163,14 @@ begin
   set text = excluded.text,
       -- A new override on a rejoined link should appear on that link's Today.
       created_at = greatest(f.created_at, v_consented_at),
-      edited_at = case when f.text <> excluded.text then now() else f.edited_at end
-  where f.read_at is null;
+      -- A welcome from an earlier link is replaced as a fresh, unread note.
+      read_at = case when f.created_at < v_consented_at then null else f.read_at end,
+      edited_at = case
+        when f.created_at < v_consented_at then null
+        when f.text <> excluded.text then now()
+        else f.edited_at
+      end
+  where f.read_at is null or f.created_at < v_consented_at;
   if not found then
     raise exception 'welcome_already_read' using errcode = 'P0001';
   end if;
@@ -166,8 +179,10 @@ $$;
 
 -- Load the editor from server state. Existing sent text and read status are scoped
 -- to the coach's active athlete. With no athlete, read the caller's own template.
+-- default_text is the coach's template, so the per-athlete editor can start from it.
+drop function if exists public.get_coach_welcome(uuid);
 create or replace function public.get_coach_welcome(p_athlete uuid default null)
-returns table (coach_name text, saved_text text, can_edit boolean)
+returns table (coach_name text, saved_text text, can_edit boolean, default_text text)
 language plpgsql
 stable
 security definer
@@ -179,12 +194,17 @@ begin
   end if;
 
   return query
+  -- A welcome from an earlier link with this athlete counts as none.
   select cp.display_name,
          case when p_athlete is null then cp.welcome_template else f.text end,
-         f.read_at is null
+         f.read_at is null,
+         cp.welcome_template
   from public.coach_profiles cp
+  left join public.coach_athlete_links l
+    on l.coach_id = cp.user_id and l.athlete_id = p_athlete and l.status = 'active'
   left join public.coach_feedback f
     on f.coach_id = cp.user_id and f.athlete_id = p_athlete and f.kind = 'welcome'
+   and f.created_at >= l.consented_at
   where cp.user_id = auth.uid();
 end;
 $$;

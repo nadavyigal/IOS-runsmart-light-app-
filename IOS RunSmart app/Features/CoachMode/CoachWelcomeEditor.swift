@@ -5,16 +5,21 @@ struct CoachWelcomeDraft {
     static let maximumLength = 2000
 
     private let savedText: String?
+    /// What a first open shows: the built-in starter, or for one athlete the coach's own template.
+    private let starterText: String
     var text: String
     var confirmedStarter = false
 
-    init(savedText: String?) {
+    init(savedText: String?, starter: String? = nil) {
         self.savedText = savedText
-        text = savedText ?? Self.starter
+        let starter = starter?.trimmingCharacters(in: .whitespacesAndNewlines)
+        starterText = (starter?.isEmpty == false ? starter : nil) ?? Self.starter
+        text = savedText ?? starterText
     }
 
     var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
-    var offersStarterConfirmation: Bool { savedText == nil && trimmed == Self.starter }
+    var starter: String { starterText }
+    var offersStarterConfirmation: Bool { savedText == nil && trimmed == starterText }
     var canSave: Bool {
         guard trimmed.unicodeScalars.count <= Self.maximumLength else { return false }
         if let savedText { return trimmed != savedText }
@@ -162,7 +167,9 @@ struct CoachWelcomeEditor: View {
         do {
             let result = try await service.settings(athleteID: athlete?.athleteID)
             guard !Task.isCancelled else { return }
-            draft = CoachWelcomeDraft(savedText: result.savedText)
+            // One athlete's editor starts from the coach's own template when there is one.
+            draft = CoachWelcomeDraft(savedText: result.savedText,
+                                      starter: athlete == nil ? nil : result.defaultText)
             settings = result
         } catch {
             if !Task.isCancelled { loadFailed = true }
@@ -178,7 +185,7 @@ struct CoachWelcomeEditor: View {
 
         do {
             try await service.save(text, athleteID: athlete?.athleteID)
-            draft = CoachWelcomeDraft(savedText: text)
+            draft = CoachWelcomeDraft(savedText: text, starter: draft.starter)
             savedMessage = if let athlete {
                 "Saved. Only \(athlete.name) will see this welcome."
             } else if text.isEmpty {

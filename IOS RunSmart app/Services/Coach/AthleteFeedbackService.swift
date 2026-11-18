@@ -354,7 +354,8 @@ final class AthleteFeedbackStore: ObservableObject {
     private func reconciled(_ note: AthleteFeedbackNote) -> AthleteFeedbackNote {
         guard note.readAt == nil else { return note }
         var copy = note
-        if let confirmed = confirmedReads[note.id] {
+        // A welcome row is reused when an athlete rejoins; a read from before it was rewritten no longer counts.
+        if let confirmed = confirmedReads[note.id], confirmed >= note.createdAt {
             copy.readAt = confirmed
         } else if pendingReads.contains(note.id) {
             copy.readAt = notes.first { $0.id == note.id }?.readAt
