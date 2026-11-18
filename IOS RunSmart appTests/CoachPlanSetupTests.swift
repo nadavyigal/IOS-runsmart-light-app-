@@ -205,4 +205,22 @@ final class CoachPlanSetupTests: XCTestCase {
         XCTAssertEqual(GroupPlanRules.minWeeksBeforeRace["half-marathon"], 8)
         XCTAssertEqual(GroupPlanRules.minWeeksBeforeRace["marathon"], 12)
     }
+
+    func testRaceDateIsGregorianOnTheWireForAnyDeviceCalendar() throws {
+        let zone = TimeZone(identifier: "Asia/Jerusalem")!
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = zone
+        let race = try XCTUnwrap(gregorian.date(from: DateComponents(year: 2026, month: 11, day: 16, hour: 9)))
+        let settings = GroupPlanSettings(
+            goal: "distance", targetDistance: "10k", raceDate: race, level: "beginner", runsPerWeek: 3
+        )
+        for identifier in [Calendar.Identifier.gregorian, .buddhist, .japanese, .islamicUmmAlQura] {
+            var device = Calendar(identifier: identifier)
+            device.timeZone = zone
+            XCTAssertEqual(settings.raceDateString(calendar: device), "2026-11-16", "\(identifier)")
+            let parsed = try XCTUnwrap(GroupPlanSettings.raceDate(from: "2026-11-16", calendar: device), "\(identifier)")
+            XCTAssertEqual(gregorian.dateComponents([.year, .month, .day], from: parsed),
+                           DateComponents(year: 2026, month: 11, day: 16), "\(identifier)")
+        }
+    }
 }

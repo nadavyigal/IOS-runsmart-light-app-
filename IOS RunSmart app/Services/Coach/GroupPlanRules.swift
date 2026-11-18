@@ -159,21 +159,26 @@ struct GroupPlanSettings: Equatable, Sendable {
     var runsPerWeek: Int
 
     func raceDateString(calendar: Calendar = .current) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "yyyy-MM-dd"
+        let formatter = Self.wireFormatter(timeZone: calendar.timeZone)
         return formatter.string(from: calendar.startOfDay(for: raceDate))
     }
 
     static func raceDate(from string: String, calendar: Calendar = .current) -> Date? {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "yyyy-MM-dd"
+        let formatter = Self.wireFormatter(timeZone: calendar.timeZone)
         return formatter.date(from: string)
+    }
+
+    /// `race_date` is a Postgres `date`: always a Gregorian `yyyy-MM-dd`. The device calendar may be
+    /// Buddhist or Japanese, which would write the year as 2569 or 8, so it is never used here.
+    private static func wireFormatter(timeZone: TimeZone) -> DateFormatter {
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = timeZone
+        let formatter = DateFormatter()
+        formatter.calendar = gregorian
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
     }
 }
 
