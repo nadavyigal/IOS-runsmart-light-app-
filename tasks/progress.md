@@ -4,7 +4,7 @@ Current Phase: Coach Mode pilot, story 3.3 on `feat/coached-by-today-plan`; migr
 Active Story: "Coached by" strip and unread coach cards on Today; coach plan title on Plan; one CoachPresence gate; hooks for 3.4/4.3/5.2/5.4.
 Next Recommended Story: Founder merges #210 and this PR, applies 20261118160000_get_my_coach.sql; then 3.4 welcome note.
 Blockers: Migration not applied; until it is, the Plan keeps the solo title under the strip.
-Last Validation: iPhone 17 simulator, full unit suite 1084 passed, 0 failed (14 new CoachPresence tests). SQL suite runs in CI.
+Last Validation: iPhone 17 simulator, full unit suite 1085 passed, 0 failed, incl. Plan Mode retry fix from Codex review. SQL suite runs in CI.
 Last Updated: 2026-11-18
 
 # 2026-11-18: Coach Mode story 2.4, athlete detail
