@@ -6,6 +6,9 @@ struct MyCoachView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var session: SupabaseSession
     @EnvironmentObject private var coachLinks: CoachLinkStore
+    @EnvironmentObject private var feedback: AthleteFeedbackStore
+    @EnvironmentObject private var router: AppRouter
+    @Environment(\.runSmartServices) private var services
 
     @ObservedObject private var routes = CoachRouteOutbox.shared
     @StateObject private var model = LeaveCoachModel()
@@ -39,6 +42,66 @@ struct MyCoachView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// A11 Feedback row: every note from this coach since joining, newest first. Each opens
+    /// its run (run detail) or its week (Plan). Shown only while linked.
+    private func feedbackList(_ link: CoachLink) -> some View {
+        let notes = feedback.currentNotes(link: link)
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(AthleteFeedbackCopy.feedbackRow)
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+            if notes.isEmpty {
+                Text("No notes from \(link.coachName) yet.")
+                    .font(.body)
+                    .foregroundStyle(Color.textSecondary)
+            }
+            ForEach(notes) { note in
+                Button { open(note) } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Text(verbatim: AthleteFeedbackFormat.header(note))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.textSecondary)
+                            if note.readAt == nil {
+                                Circle().fill(Color.accentPrimary).frame(width: 8, height: 8)
+                                    .accessibilityLabel("Unread")
+                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.forward").foregroundStyle(Color.textSecondary)
+                        }
+                        Text(verbatim: note.text)
+                            .font(.body)
+                            .foregroundStyle(Color.textPrimary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .environment(\.layoutDirection,
+                                         CoachFeedbackText.isRightToLeft(note.text) ? .rightToLeft : .leftToRight)
+                    }
+                    .padding(12)
+                    .frame(minHeight: 44)
+                    .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(note.isRunNote ? "Opens the run" : "Opens the week in your plan")
+            }
+        }
+    }
+
+    private func open(_ note: AthleteFeedbackNote) {
+        guard note.isRunNote else {
+            router.activeSheet = nil
+            router.selectedTab = .plan
+            return
+        }
+        Task {
+            let runs = await services.recentRuns()
+            guard let run = runs.first(where: { note.matches($0.runSourceKey) }) else { return }
+            let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
+            router.open(.runReportDetail(report, run: run))
         }
     }
 
@@ -80,7 +143,7 @@ struct MyCoachView: View {
                         .foregroundStyle(Color.textSecondary)
                 }
             }
-            // Story 3.2 adds the Feedback list here.
+            feedbackList(link)
 
             Button("Leave coach") {
                 model.cancel()

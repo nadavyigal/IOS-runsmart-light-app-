@@ -89,6 +89,14 @@ Blockers: none. PR #179 Tier 1, code-reviewer APPROVED, awaiting founder merge.
 Last Validation: 2026-11-11 iPhone 17 iOS 26.5 full suite 862 passed, 1 skipped, 0 failed before and after.
 Last Updated: 2026-11-11
 
+## 2026-11-18 Story 3.2 athlete sees coach feedback
+- Current Phase: Coach Mode Phase 3, athlete feedback (3.2) in review
+- Active Story: 3.2 notes pinned on runs and weeks, Today badge, pending review line, My coach list
+- Next Recommended Story: 3.3 Today card and Coached-by header, after 3.2 merges
+- Blockers: migrations 20261118100000 and 20261118120000 not applied; founder applies after review
+- Last Validation: full suite 1054 passed, 0 failed; athlete_feedback_read SQL suite runs in CI
+- Last Updated: 2026-11-18
+
 ## 2026-11-18 Story 3.1 coach feedback write
 - Current Phase: Coach Mode Phase 3, coach feedback (3.1) in review
 - Active Story: 3.1 coach writes feedback on a run or a week, with drafts and offline queue

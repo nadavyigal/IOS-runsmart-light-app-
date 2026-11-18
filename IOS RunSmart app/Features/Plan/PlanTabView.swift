@@ -423,7 +423,8 @@ private struct PlanWeeklyReviewSection: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
-                VStack(spacing: 14) {
+                // Lazy, so a past week's coach note is marked read only when its card comes on screen.
+                LazyVStack(spacing: 14) {
                     ForEach(weeks) { week in
                         PlanWeekSummaryCard(week: week, onWorkout: onWorkout)
                     }
@@ -457,6 +458,9 @@ private struct PlanWeekSummaryCard: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
                 }
+
+                // Story 3.2: the coach's week note, pinned at the top of its week.
+                AthleteWeekFeedbackSection(start: week.startDate, end: week.endDate, calendar: week.calendar)
 
                 HStack(spacing: 7) {
                     ForEach(0..<progressCount, id: \.self) { _ in
