@@ -89,6 +89,14 @@ Blockers: none. PR #179 Tier 1, code-reviewer APPROVED, awaiting founder merge.
 Last Validation: 2026-11-11 iPhone 17 iOS 26.5 full suite 862 passed, 1 skipped, 0 failed before and after.
 Last Updated: 2026-11-11
 
+## 2026-11-18 Story 3.2 follow-up, Plan scroll and read test
+- Current Phase: Coach Mode Phase 3; 3.2 merged (#208), follow-up #210 open
+- Active Story: Plan scrolls to any week note; cancellation-aware read test
+- Next Recommended Story: 3.3 Today card and Coached-by header
+- Blockers: #209 (6.2) waits for founder merge yes; migrations not applied
+- Last Validation: full suite 1065 passed, 0 failed on iPhone 17 simulator
+- Last Updated: 2026-11-18
+
 ## 2026-11-18 Story 3.2 athlete sees coach feedback
 - Current Phase: Coach Mode Phase 3, athlete feedback (3.2) in review
 - Active Story: 3.2 notes pinned on runs and weeks, Today badge, pending review line, My coach list
