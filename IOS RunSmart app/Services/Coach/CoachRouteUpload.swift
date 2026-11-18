@@ -131,6 +131,21 @@ enum CoachRouteWriteResult: String, Decodable {
     case saved, missing, stopped
 }
 
+struct CoachMapKey: Codable, Hashable {
+    let ownerID: UUID
+    let linkID: UUID
+    let runID: UUID
+}
+
+struct CoachMapChoice: Codable, Equatable {
+    var hidden = false
+    var needsSync = false
+}
+
+extension PendingCoachRoute {
+    var mapKey: CoachMapKey { .init(ownerID: ownerID, linkID: linkID, runID: runID) }
+}
+
 @MainActor
 final class CoachRouteOutbox: ObservableObject {
     static let shared = CoachRouteOutbox()
@@ -142,9 +157,40 @@ final class CoachRouteOutbox: ObservableObject {
     private var isFlushing = false
     @Published private(set) var preferences: [String: Bool]
 
+    private static let choicesKey = "runsmart.coachMapChoices.v1"
+    @Published private(set) var choices: [CoachMapKey: CoachMapChoice] {
+        didSet { defaults.set(try? JSONEncoder().encode(choices), forKey: Self.choicesKey) }
+    }
+
+    func choice(for key: CoachMapKey) -> CoachMapChoice? {
+        if let choice = choices[key] { return choice }
+        // Includes queued routes from versions before per-run controls existed.
+        return pending.contains { $0.mapKey == key && $0.status == .shared } ? CoachMapChoice() : nil
+    }
+
+    func setHidden(_ hidden: Bool, for key: CoachMapKey) {
+        guard let choice = choice(for: key), choice.hidden != hidden else { return }
+        choices[key] = CoachMapChoice(hidden: hidden, needsSync: true)
+    }
+
+    func recordServerState(_ hidden: Bool?, for key: CoachMapKey, expected: CoachMapChoice?) {
+        guard choices[key] == expected, expected?.needsSync != true else { return }
+        // No server row is expected for a map hidden before its first upload.
+        if hidden == nil, pending.contains(where: { $0.mapKey == key }) { return }
+        choices[key] = hidden.map { CoachMapChoice(hidden: $0) }
+    }
+
+    func acknowledge(_ choice: CoachMapChoice, for key: CoachMapKey) {
+        guard choices[key] == choice else { return }
+        choices[key]?.needsSync = false
+    }
+
     init(defaults: UserDefaults = .standard, enabled: Bool? = nil,
          preparer: (any RouteUploadPreparer)? = nil) {
         self.defaults = defaults
+        choices = defaults.data(forKey: Self.choicesKey).flatMap {
+            try? JSONDecoder().decode([CoachMapKey: CoachMapChoice].self, from: $0)
+        } ?? [:]
         self.enabled = enabled ?? RouteUploadPolicy.isEnabled
         self.preparer = preparer ?? PrivacyZoneRouteUploadPreparer()
         preferences = defaults.dictionary(forKey: "runsmart.coachRouteSharing.v1") as? [String: Bool] ?? [:]
@@ -165,6 +211,9 @@ final class CoachRouteOutbox: ObservableObject {
     }
 
     func discard(ownerID: UUID, linkID: UUID) {
+        for item in pending where item.ownerID == ownerID && item.linkID == linkID {
+            if choices[item.mapKey]?.needsSync != true { choices.removeValue(forKey: item.mapKey) }
+        }
         pending = pending.filter { $0.ownerID != ownerID || $0.linkID != linkID }
     }
 
@@ -173,7 +222,10 @@ final class CoachRouteOutbox: ObservableObject {
             guard let data = defaults.data(forKey: queueKey) else { return [] }
             return (try? JSONDecoder().decode([PendingCoachRoute].self, from: data)) ?? []
         }
-        set { defaults.set(try? JSONEncoder().encode(newValue), forKey: queueKey) }
+        set {
+            objectWillChange.send()
+            defaults.set(try? JSONEncoder().encode(newValue), forKey: queueKey)
+        }
     }
 
     /// Call only with the fresh recorder result. Import/consolidation never stages routes.
@@ -205,9 +257,13 @@ final class CoachRouteOutbox: ObservableObject {
         isFlushing = true
         defer { isFlushing = false }
         for item in pending where item.ownerID == ownerID {
-            guard pending.contains(item), sharing(ownerID: ownerID, linkID: item.linkID), canSend(item) else { continue }
+            guard choices[item.mapKey]?.hidden != true, pending.contains(item),
+                  sharing(ownerID: ownerID, linkID: item.linkID), canSend(item) else { continue }
             do {
                 let result = try await send(item)
+                if result == .saved, item.status == .shared, pending.contains(item), choices[item.mapKey] == nil {
+                    choices[item.mapKey] = CoachMapChoice()
+                }
                 if result != .missing { pending = pending.filter { $0 != item } }
             } catch {
                 // Keep the prepared route for the next sync or foreground.

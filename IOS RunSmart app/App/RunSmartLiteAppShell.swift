@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import Network
 
 enum RunSmartSheet: Identifiable {
     case coach(CoachEntryPoint)
@@ -306,6 +307,16 @@ struct RunSmartLiteAppShell: View {
             } else {
                 coachLinks.clear()
                 athleteFeedback.beginSession(userID: nil)
+            }
+        }
+        .task(id: coachRoleCheckUserID) {
+            guard RunSmartFeatures.coachModeEnabled, let userID = coachRoleCheckUserID,
+                  !RunSmartDemoMode.isEnabled else { return }
+            for await path in NWPathMonitor() where path.status == .satisfied {
+                guard !Task.isCancelled else { return }
+                if CoachRouteOutbox.shared.choices.contains(where: { $0.key.ownerID == userID && $0.value.needsSync }) {
+                    await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
+                }
             }
         }
         .onChange(of: coachRoleCheckUserID) { _, userID in

@@ -1997,7 +1997,55 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         )
     }
 
+    private struct MapRow: Decodable {
+        let id: Int64
+        let route_status: String?
+    }
+
+    private func mapRow(_ key: CoachMapKey) async throws -> MapRow? {
+        let rows: [MapRow] = try await supabase.from("runs").select("id,route_status")
+            .eq("auth_user_id", value: key.ownerID.uuidString)
+            .eq("source_provider", value: "runsmart_ios")
+            .in("source_activity_id", values: [key.runID.uuidString, key.runID.uuidString.lowercased()])
+            .limit(1).execute().value
+        return rows.first
+    }
+
+    func refreshMapChoice(_ key: CoachMapKey, coachLinks: CoachLinkStore) async {
+        let outbox = CoachRouteOutbox.shared
+        let expected = outbox.choices[key]
+        guard currentUserID == key.ownerID, expected?.needsSync != true else { return }
+        do {
+            let status = try await mapRow(key)?.route_status
+            guard coachLinks.activeLink(for: key.ownerID)?.id == key.linkID,
+                  currentUserID == key.ownerID else { return }
+            let hidden: Bool? = status == "shared" ? false : status == "hidden_by_athlete" ? true : nil
+            outbox.recordServerState(hidden, for: key, expected: expected)
+        } catch { /* Keep the cached visibility offline. */ }
+    }
+
+    private struct MapParams: Encodable {
+        let p_run: Int64
+        let p_hidden: Bool
+    }
+
+    private var retryingMaps = false
+    private var retryMapsAgain = false
+
     func retryCoachRoutes(coachLinks: CoachLinkStore) async {
+        if retryingMaps {
+            retryMapsAgain = true
+            return
+        }
+        retryingMaps = true
+        defer { retryingMaps = false }
+        repeat {
+            retryMapsAgain = false
+            await flushCoachRoutes(coachLinks: coachLinks)
+        } while retryMapsAgain
+    }
+
+    private func flushCoachRoutes(coachLinks: CoachLinkStore) async {
         guard RouteUploadPolicy.isEnabled, RunSmartFeatures.coachModeEnabled,
               let ownerID = currentUserID, coachLinks.activeLink(for: ownerID) != nil else { return }
 
@@ -2024,7 +2072,29 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             guard canonical.id == run.id, localRun(for: item) != nil else { return .stopped }
             await self.upsertCompletedRunIfPossible(canonical, expectedOwnerID: ownerID, ignoreDuplicates: true)
             guard localRun(for: item) != nil else { return .stopped }
+            guard outbox.choice(for: item.mapKey)?.hidden != true else { return .missing }
             return try await self.writePreparedCoachRoute(item)
+        }
+        // Serialize visibility after uploads, including a hide tapped during an upload.
+        for (key, choice) in outbox.choices where key.ownerID == ownerID && choice.needsSync {
+            guard currentUserID == ownerID, coachLinks.activeLink(for: ownerID)?.id == key.linkID else { continue }
+            do {
+                let row = try await mapRow(key)
+                guard currentUserID == ownerID, coachLinks.activeLink(for: ownerID)?.id == key.linkID,
+                      outbox.choices[key] == choice else { continue }
+                if let row, ["shared", "hidden_by_athlete"].contains(row.route_status ?? "") {
+                    try await supabase.rpc("set_run_route_hidden",
+                        params: MapParams(p_run: row.id, p_hidden: choice.hidden)).execute()
+                } else if outbox.pending.contains(where: { $0.mapKey == key }) {
+                    // An unhide is still outstanding until its prepared route is actually uploaded.
+                    guard choice.hidden else { continue }
+                } else {
+                    outbox.acknowledge(choice, for: key)
+                    outbox.recordServerState(nil, for: key, expected: outbox.choices[key])
+                    continue
+                }
+                outbox.acknowledge(choice, for: key)
+            } catch { /* Retry the persisted choice on the next sync. */ }
         }
     }
 

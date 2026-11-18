@@ -109,6 +109,72 @@ final class CoachRouteUploadTests: XCTestCase {
         XCTAssertTrue(reopened.pending.isEmpty)
     }
 
+    func testMapControlRequiresRecordedRunAndCurrentLink() {
+        var run = makeRun()
+        XCTAssertNil(AthleteMapControl.key(run: run, owner: owner, link: nil, enabled: true))
+        XCTAssertNil(AthleteMapControl.key(run: run, owner: nil, link: link, enabled: true))
+        XCTAssertNil(AthleteMapControl.key(run: run, owner: owner, link: link, enabled: false))
+        XCTAssertEqual(AthleteMapControl.key(run: run, owner: owner, link: link, enabled: true),
+                       CoachMapKey(ownerID: owner, linkID: link.id, runID: run.id))
+        run.providerActivityID = "import"
+        XCTAssertNil(AthleteMapControl.key(run: run, owner: owner, link: link, enabled: true))
+        run.providerActivityID = nil
+        run.source = .healthKit
+        XCTAssertNil(AthleteMapControl.key(run: run, owner: owner, link: link, enabled: true))
+    }
+
+    func testHideWhileUploadIsInFlightKeepsLatestChoice() async throws {
+        let suite = UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let outbox = CoachRouteOutbox(defaults: defaults, enabled: true, preparer: TestPreparer())
+        outbox.stage(makeRun(), ownerID: owner, link: link, coachModeEnabled: true)
+        let key = try XCTUnwrap(outbox.pending.first?.mapKey)
+        await outbox.retry(ownerID: owner, coachModeEnabled: true, canSend: { _ in true }) { item in
+            outbox.setHidden(true, for: item.mapKey)
+            return .saved
+        }
+        XCTAssertTrue(outbox.pending.isEmpty)
+        outbox.recordServerState(false, for: key, expected: nil)
+        XCTAssertEqual(outbox.choice(for: key), CoachMapChoice(hidden: true, needsSync: true))
+    }
+
+    func testHideBeforeUploadSurvivesRelaunchAndUnhideSendsOnce() async throws {
+        let suite = UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let outbox = CoachRouteOutbox(defaults: defaults, enabled: true, preparer: TestPreparer())
+        let run = makeRun()
+        let key = CoachMapKey(ownerID: owner, linkID: link.id, runID: run.id)
+        XCTAssertNil(outbox.choice(for: key))
+        outbox.stage(run, ownerID: owner, link: link, coachModeEnabled: true)
+        XCTAssertEqual(outbox.choice(for: key)?.hidden, false)
+        outbox.setHidden(true, for: key)
+        let reopened = CoachRouteOutbox(defaults: defaults, enabled: true)
+        XCTAssertEqual(reopened.choice(for: key)?.needsSync, true)
+        await reopened.retry(ownerID: owner, coachModeEnabled: true, canSend: { _ in true }) { _ in
+            XCTFail("Hidden pending map uploaded")
+            return .saved
+        }
+        let hidden = try XCTUnwrap(reopened.choice(for: key))
+        reopened.acknowledge(hidden, for: key)
+        reopened.recordServerState(nil, for: key, expected: reopened.choices[key])
+        XCTAssertEqual(reopened.choice(for: key)?.hidden, true, "Detail refresh must preserve a withheld route")
+        reopened.setHidden(false, for: key)
+        reopened.acknowledge(hidden, for: key)
+        XCTAssertEqual(reopened.choice(for: key)?.needsSync, true)
+        var sends = 0
+        for _ in 0..<2 {
+            await reopened.retry(ownerID: owner, coachModeEnabled: true, canSend: { _ in true }) { _ in
+                sends += 1
+                return .saved
+            }
+        }
+        XCTAssertEqual(sends, 1)
+        XCTAssertEqual(AthleteMapControl.label(coach: "Dana", detail: true, hidden: true), "You hid this map from Dana")
+        XCTAssertEqual(AthleteMapControl.label(coach: "Dana", detail: false, hidden: true), "Hide map from Dana")
+    }
+
     func testWebCoordinateShapeAndCap() throws {
         let first = makeRun().routePoints[0]
         var last = first
@@ -131,6 +197,7 @@ final class CoachRouteUploadTests: XCTestCase {
         let outbox = CoachRouteOutbox(defaults: defaults, enabled: true)
         outbox.stage(makeRun(), ownerID: owner, link: link, coachModeEnabled: true)
         let item = try XCTUnwrap(outbox.pending.first)
+        XCTAssertNil(outbox.choice(for: item.mapKey))
         XCTAssertEqual(item.status, .tooShort)
         XCTAssertTrue(item.points.isEmpty)
         XCTAssertGreaterThanOrEqual(item.radiusMeters, 200)

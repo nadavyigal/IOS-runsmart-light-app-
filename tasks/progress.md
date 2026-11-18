@@ -1,3 +1,7 @@
+# 2026-11-18 — Story 6.3, per-run coach map visibility
+
+Post-run and saved-run screens share a durable, per-run hide choice. The upload queue withholds hidden routes and retries uploaded visibility changes through the owner RPC. The throwaway SQL suite verifies the coach RPC response and summary through hide and unhide. Nadav applies `20261118170000_set_run_route_hidden.sql` after review and mirrors it to `Running-coach-/v0/supabase/migrations/`.
+
 # 2026-11-18: Coach Mode story 3.3, coach visible on Today and the Plan
 
 Current Phase: Coach Mode pilot, story 3.3 on `feat/coached-by-today-plan`; migration `get_my_coach()` waits for founder apply.
