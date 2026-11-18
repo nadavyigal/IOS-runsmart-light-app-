@@ -1,3 +1,12 @@
+# 2026-11-18: Coach Mode story 2.4, athlete detail
+
+Current Phase: Coach Mode pilot foundation, story 2.4 on `feat/coach-athlete-detail`, stacked on 2.3 (#204).
+Active Story: Coach opens an athlete: two-week strip, day detail with planned vs actual, matched-by-date, revoked and no-plan states. Read-only.
+Next Recommended Story: Founder merges #204 then this PR; then 3.1 coach feedback.
+Blockers: Stacked on #204; retarget to main after #204 merges.
+Last Validation: iPhone 17 simulator, 29 coach tests passed (detail, adherence, read service, plan setup); screens rendered from sample data.
+Last Updated: 2026-11-18
+
 # 2026-11-18: Coach Mode story 2.3, athlete list review fixes
 
 Current Phase: Coach Mode pilot foundation, story 2.3 (PR #204) review fixes.
