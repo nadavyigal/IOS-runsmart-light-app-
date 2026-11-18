@@ -417,7 +417,11 @@ final class CoachFeedbackOutbox {
             let stored = try await service.add(id: item.id, athleteID: item.athleteID, target: item.target,
                                                text: item.text, coachID: item.coachID)
             guard stored.text != item.text else { return stored }
-            return try await service.edit(id: item.id, text: item.text, coachID: item.coachID, revision: stored.revision)
+            // Revision 0 means the stored text is this phone's own earlier send, so it is safe to
+            // replace. Anything higher was edited since (for example on another phone): keep this
+            // text on the phone instead of overwriting that edit.
+            guard stored.revision == 0 else { throw CoachFeedbackError.conflict }
+            return try await service.edit(id: item.id, text: item.text, coachID: item.coachID, revision: 0)
         case .edit:
             return try await service.edit(id: item.id, text: item.text, coachID: item.coachID, revision: item.baseRevision)
         }

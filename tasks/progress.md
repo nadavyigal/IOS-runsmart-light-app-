@@ -94,7 +94,7 @@ Last Updated: 2026-11-11
 - Active Story: 3.1 coach writes feedback on a run or a week, with drafts and offline queue
 - Next Recommended Story: 3.2 athlete sees coach feedback, after the 3.1 PR merges and the migration is applied
 - Blockers: migration 20261118100000_coach_feedback not applied; founder applies after review
-- Last Validation: full suite 1042 passed, 0 failed; SQL suite with revision checks runs in CI
+- Last Validation: full suite 1043 passed, 0 failed; SQL suite with revision checks runs in CI
 - Last Updated: 2026-11-18
 
 ## 2026-11-18 Story 2.4 review fix (#206)
@@ -102,7 +102,7 @@ Last Updated: 2026-11-11
 - Active Story: 2.4 fix, no-plan athletes keep their recorded runs visible as extra runs
 - Next Recommended Story: 3.1 coach feedback, after #206 merges
 - Blockers: none; founder merges #206
-- Last Validation: 23 coach unit tests pass on iPhone 17 simulator, 0 failed
+- Last Validation: full suite 1043 passed, 0 failed; SQL suite with revision checks runs in CI
 - Last Updated: 2026-11-18
 
 ## 2026-11-14 — Story 0.2: runs link to their workout (PR open, not merged)

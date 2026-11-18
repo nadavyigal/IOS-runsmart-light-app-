@@ -444,6 +444,24 @@ final class CoachFeedbackTests: XCTestCase {
         XCTAssertEqual(composer(request, service: service).text, "Typed on phone A", "phone A's text stays on the phone")
     }
 
+    func testARetriedAddNeverOverwritesAnEditFromAnotherPhone() async {
+        // Phone A's add reached the server but the reply was lost; phone B then edited the note.
+        let id = UUID()
+        let service = MockCoachFeedbackService(rows: [
+            CoachFeedback(id: id, athleteID: athlete, target: .run(101), text: "First text",
+                          createdAt: Date(timeIntervalSince1970: 0))
+        ])
+        service.editElsewhere(id: id, text: "Edited on phone B")
+        let outbox = makeOutbox()
+        CoachFeedbackDraftStore(defaults: defaults).save("Revised on phone A", coachID: coach, athleteID: athlete, scope: "run-101")
+        outbox.enqueue(PendingCoachFeedback(id: id, coachID: coach, athleteID: athlete, target: .run(101),
+                                            text: "Revised on phone A", kind: .add))
+        await outbox.flush(using: service, coachID: coach)
+        XCTAssertEqual(service.stored.map(\.text), ["Edited on phone B"], "phone B's edit is not overwritten")
+        XCTAssertTrue(outbox.pending.isEmpty, "a conflict is not retried forever")
+        XCTAssertEqual(draft(.run(101)), "Revised on phone A", "phone A's text stays on the phone")
+    }
+
     func testAQueuedStaleEditIsDroppedWithoutOverwriting() async {
         let original = CoachFeedback(id: UUID(), athleteID: athlete, target: .run(101), text: "A",
                                      createdAt: Date(timeIntervalSince1970: 0))
