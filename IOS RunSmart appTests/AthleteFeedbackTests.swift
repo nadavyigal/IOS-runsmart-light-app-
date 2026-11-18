@@ -5,6 +5,8 @@ import XCTest
 final class AthleteFeedbackTests: XCTestCase {
     private let coach = UUID()
     private let athlete = UUID()
+    /// Who the Supabase session says is signed in.
+    private var signedIn: UUID?
     private let linkedAt = ISO8601DateFormatter().date(from: "2026-11-10T08:00:00Z")!
     private var defaults: UserDefaults!
     private var suiteName = ""
@@ -13,6 +15,7 @@ final class AthleteFeedbackTests: XCTestCase {
         super.setUp()
         suiteName = "AthleteFeedbackTests.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)
+        signedIn = athlete
     }
 
     override func tearDown() {
@@ -42,7 +45,7 @@ final class AthleteFeedbackTests: XCTestCase {
     }
 
     private func store(_ service: MockAthleteFeedbackService) -> AthleteFeedbackStore {
-        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults))
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults), currentUserID: { [unowned self] in self.signedIn })
         store.beginSession(userID: athlete)
         return store
     }
@@ -208,7 +211,7 @@ final class AthleteFeedbackTests: XCTestCase {
 
     func testANewerLoadWinsOverAnOlderOneThatAnswersLate() async {
         let service = GatedFeedbackService()
-        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults))
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults), currentUserID: { [unowned self] in self.signedIn })
         store.beginSession(userID: athlete)
         let old = note(week: "2026-11-09", created: linkedAt)
         let new = note(week: "2026-11-16", created: linkedAt.addingTimeInterval(60))
@@ -226,7 +229,7 @@ final class AthleteFeedbackTests: XCTestCase {
 
     func testAListFetchedBeforeAConfirmedReadKeepsTheRead() async {
         let service = GatedFeedbackService()
-        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults))
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults), currentUserID: { [unowned self] in self.signedIn })
         store.beginSession(userID: athlete)
         let unread = note(week: "2026-11-16", created: linkedAt.addingTimeInterval(60))
         let firstLoad = Task { await store.load() }
@@ -247,7 +250,7 @@ final class AthleteFeedbackTests: XCTestCase {
 
     func testOnlyServerConfirmedReadsAreCached() async {
         let service = GatedFeedbackService()
-        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults))
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults), currentUserID: { [unowned self] in self.signedIn })
         store.beginSession(userID: athlete)
         let unread = note(week: "2026-11-16", created: linkedAt.addingTimeInterval(60))
         let load = Task { await store.load() }
@@ -267,7 +270,7 @@ final class AthleteFeedbackTests: XCTestCase {
 
     func testReopeningWhileAReadIsPendingRetriesOnceIfItFails() async {
         let service = GatedFeedbackService()
-        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults))
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults), currentUserID: { [unowned self] in self.signedIn })
         store.beginSession(userID: athlete)
         let unread = note(week: "2026-11-16", created: linkedAt.addingTimeInterval(60))
         let load = Task { await store.load() }
@@ -297,6 +300,62 @@ final class AthleteFeedbackTests: XCTestCase {
         let weeks = [(start: calendar.date(from: DateComponents(year: 2026, month: 11, day: 16))!,
                       end: calendar.date(from: DateComponents(year: 2026, month: 11, day: 22))!)]
         XCTAssertEqual(store.uncoveredWeekNotes(month: month, weeks: weeks, calendar: calendar).map(\.id), [orphan.id])
+    }
+    func testALoadIsNeverSavedUnderAnotherAccount() async {
+        let service = MockAthleteFeedbackService(rows: [note(week: "2026-11-16", created: linkedAt)])
+        let store = store(service)
+        signedIn = UUID()  // the session moved on before the store heard about it
+        await store.load()
+        XCTAssertTrue(store.notes.isEmpty)
+        XCTAssertNil(AthleteFeedbackCache(defaults: defaults).load(userID: athlete), "nothing cached under the old athlete")
+    }
+
+    func testReadsStopWhenTheAthleteChanges() async {
+        let service = GatedFeedbackService()
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults), currentUserID: { [unowned self] in self.signedIn })
+        store.beginSession(userID: athlete)
+        let a = note(week: "2026-11-16", created: linkedAt.addingTimeInterval(60))
+        let b = note(week: "2026-11-09", created: linkedAt.addingTimeInterval(60))
+        let load = Task { await store.load() }
+        await service.waitForLists(1)
+        service.resumeList(0, with: [a, b])
+        await load.value
+
+        let reads = Task { await store.markRead([a, b]) }
+        await service.waitForReads(1)
+        store.beginSession(userID: UUID())
+        service.resumeRead(0, with: .success(linkedAt))
+        await reads.value
+        XCTAssertEqual(service.readCount, 1, "no read is sent for the old session")
+    }
+
+    func testClosingTheScreenDoesNotCancelTheRead() async {
+        let service = GatedFeedbackService()
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults), currentUserID: { [unowned self] in self.signedIn })
+        store.beginSession(userID: athlete)
+        let unread = note(week: "2026-11-16", created: linkedAt.addingTimeInterval(60))
+        let load = Task { await store.load() }
+        await service.waitForLists(1)
+        service.resumeList(0, with: [unread])
+        await load.value
+
+        let viewTask = Task { await store.markRead([unread]) }
+        await service.waitForReads(1)
+        viewTask.cancel()  // the view closed
+        service.resumeRead(0, with: .success(linkedAt.addingTimeInterval(120)))
+        await viewTask.value
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(store.unreadCount(link: link), 0)
+        XCTAssertNotNil(AthleteFeedbackCache(defaults: defaults).load(userID: athlete)?.first?.readAt)
+    }
+
+    func testANoteOnARunShowsOnTheMergedRunForThatActivity() async {
+        let recorded = run(endedAt: linkedAt.addingTimeInterval(86_400))
+        var healthCopy = run(endedAt: recorded.endedAt, source: .healthKit, providerID: "hk-1")
+        healthCopy.mergedSourceKeys = [recorded.runSourceKey, healthCopy.runSourceKey]
+        let store = store(MockAthleteFeedbackService(rows: [note(on: recorded, created: recorded.endedAt.addingTimeInterval(60))]))
+        await store.load()
+        XCTAssertEqual(store.notes(for: healthCopy).count, 1, "shown on the run Activity displays")
     }
 }
 

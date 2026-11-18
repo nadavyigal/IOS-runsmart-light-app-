@@ -122,11 +122,17 @@ where id = '40000000-0000-4000-8000-000000000001';
 set local role authenticated;
 select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
 do $$
+declare
+  returned timestamptz;
+  stored timestamptz;
 begin
-  if public.mark_feedback_read('40000000-0000-4000-8000-000000000001') is distinct from '2026-01-01T00:00:00Z'::timestamptz
-     or (select read_at from public.my_coach_feedback() where id = '40000000-0000-4000-8000-000000000001')
-        is distinct from '2026-01-01T00:00:00Z'::timestamptz then
-    raise exception 'FAIL: a second mark read overwrote the first read_at';
+  -- Two statements: the stored value is read after the call, not in its snapshot.
+  returned := public.mark_feedback_read('40000000-0000-4000-8000-000000000001');
+  select f.read_at into stored from public.my_coach_feedback() f
+  where f.id = '40000000-0000-4000-8000-000000000001';
+  if returned is distinct from '2026-01-01T00:00:00Z'::timestamptz
+     or stored is distinct from '2026-01-01T00:00:00Z'::timestamptz then
+    raise exception 'FAIL: a second mark read overwrote the first read_at (returned %, stored %)', returned, stored;
   end if;
   if (select text from public.my_coach_feedback() where id = '40000000-0000-4000-8000-000000000001')
      is distinct from 'Strong finish.' then

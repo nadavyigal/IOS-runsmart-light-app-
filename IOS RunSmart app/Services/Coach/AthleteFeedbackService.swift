@@ -95,6 +95,11 @@ nonisolated struct AthleteFeedbackNote: Codable, Identifiable, Equatable, Sendab
         runSourceProvider == key.sourceProvider && runSourceActivityID == key.sourceActivityID
     }
 
+    /// True for `run` or for any copy merged into it (Activity shows one run per activity).
+    func matches(_ run: RecordedRun) -> Bool {
+        run.feedbackSourceKeys.contains(where: matches)
+    }
+
     /// The week's first day. The server sends a Gregorian SQL date, so it is read with a
     /// Gregorian calendar in `calendar`'s time zone, whatever calendar the device uses.
     func weekStartDate(calendar: Calendar) -> Date? {
@@ -194,6 +199,13 @@ nonisolated struct AthleteFeedbackCache: @unchecked Sendable {
     }
 }
 
+extension RecordedRun {
+    /// This run's `runs` key plus those of copies merged into it.
+    var feedbackSourceKeys: [RunSourceKey] {
+        [runSourceKey] + (mergedSourceKeys ?? [])
+    }
+}
+
 /// The line under a run while the coach hasn't written about it yet (FR-18b).
 enum CoachReviewLine: Equatable {
     case willReview(coach: String)
@@ -235,6 +247,8 @@ final class AthleteFeedbackStore: ObservableObject {
 
     private let service: any AthleteFeedbackFetching
     private let cache: AthleteFeedbackCache
+    /// The signed-in account. A list is fetched and saved only while it matches the session.
+    private let currentUserID: () -> UUID?
     private var userID: UUID?
     /// Bumped when the athlete changes. Work from an older session never applies.
     private var generation = 0
@@ -249,9 +263,11 @@ final class AthleteFeedbackStore: ObservableObject {
     private var reopenedWhilePending: Set<UUID> = []
 
     init(service: any AthleteFeedbackFetching = SupabaseAthleteFeedbackService(),
-         cache: AthleteFeedbackCache = AthleteFeedbackCache()) {
+         cache: AthleteFeedbackCache = AthleteFeedbackCache(),
+         currentUserID: @escaping () -> UUID? = CoachFeedbackSession.currentCoachID) {
         self.service = service
         self.cache = cache
+        self.currentUserID = currentUserID
     }
 
     /// Call when the signed-in athlete changes. Shows that athlete's cached notes at once.
@@ -267,14 +283,16 @@ final class AthleteFeedbackStore: ObservableObject {
     }
 
     func load() async {
-        guard let userID else { return }
+        // The request runs as whoever is signed in. Only fetch, and only keep the answer,
+        // while that account is this store's athlete, so it is never saved under another one.
+        guard let userID, currentUserID() == userID else { return }
         let session = generation
         loadRequest += 1
         let request = loadRequest
         loadState = .loading
         do {
             let rows = try await service.list()
-            guard session == generation, request == loadRequest else { return }
+            guard session == generation, request == loadRequest, currentUserID() == userID else { return }
             notes = rows.map(reconciled).sorted { $0.createdAt > $1.createdAt }
             persist(userID: userID)
             loadState = .loaded
@@ -297,8 +315,7 @@ final class AthleteFeedbackStore: ObservableObject {
     }
 
     func notes(for run: RecordedRun) -> [AthleteFeedbackNote] {
-        let key = run.runSourceKey
-        return notes.filter { $0.isRunNote && $0.matches(key) }.sorted { $0.createdAt < $1.createdAt }
+        notes.filter { $0.isRunNote && $0.matches(run) }.sorted { $0.createdAt < $1.createdAt }
     }
 
     /// Week notes whose week starts inside this plan week.
@@ -351,9 +368,16 @@ final class AthleteFeedbackStore: ObservableObject {
             pendingReads.insert(note.id)
             setReadAt(now, for: note.id)
         }
-        for note in unread {
-            await confirmRead(note.id, session: session)
+        // Its own task, so closing the screen (which cancels the view's task) can't cancel
+        // the read or its retry.
+        let work = Task { @MainActor in
+            for note in unread {
+                // Stop if the athlete changed: never send reads for an old session.
+                guard session == generation else { return }
+                await confirmRead(note.id, session: session)
+            }
         }
+        await work.value
     }
 
     private func confirmRead(_ id: UUID, session: Int) async {

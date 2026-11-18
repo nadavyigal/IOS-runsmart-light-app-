@@ -20,6 +20,8 @@ struct PlanTabView: View {
     @State private var recovery: RecoverySnapshot = .loading
     @State private var trainingLoad: TrainingLoadSnapshot = .loading
     @State private var viewMode: PlanViewMode = .month
+    /// A week note's week to scroll to once its month's cards exist (Story 3.2).
+    @State private var pendingFocusDate: Date?
     @State private var navPath: [SecondaryDestination] = []
 
     private var weekRangeLabel: String {
@@ -57,6 +59,7 @@ struct PlanTabView: View {
         let weeksForReview = reviewWeeks.isEmpty ? planWeeks : reviewWeeks
 
         NavigationStack(path: $navPath) {
+            ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     header
@@ -130,7 +133,8 @@ struct PlanTabView: View {
                             onNextMonth: showNextMonth
                         )
                     case .weekly:
-                        PlanWeeklyReviewSection(weeks: weeksForReview, month: displayedMonth, onWorkout: openWorkoutDetail)
+                        PlanWeeklyReviewSection(weeks: weeksForReview, coveredWeeks: planWeeks,
+                                                month: displayedMonth, onWorkout: openWorkoutDetail)
                     case .progress:
                         PlanProgressSection(
                             goal: goal,
@@ -166,6 +170,9 @@ struct PlanTabView: View {
                 .padding(.horizontal, 18)
                 .padding(.top, 18)
                 .padding(.bottom, 140)
+            }
+            .onChange(of: planWeeks.map(\.id)) { _, _ in scrollToFocusedWeek(proxy) }
+            .onChange(of: pendingFocusDate) { _, _ in scrollToFocusedWeek(proxy) }
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: SecondaryDestination.self) { destination in
@@ -290,6 +297,20 @@ struct PlanTabView: View {
         router.planFocusDate = nil
         displayedMonth = date
         viewMode = .weekly
+        pendingFocusDate = date
+    }
+
+    /// Scrolls to the card for the focused week once it exists, so its note comes on screen
+    /// (and is marked read by the card). Waits if the month's weeks haven't loaded yet.
+    private func scrollToFocusedWeek(_ proxy: ScrollViewProxy) {
+        guard let date = pendingFocusDate else { return }
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: date)
+        guard let week = planWeeks.first(where: {
+            day >= calendar.startOfDay(for: $0.startDate) && day <= calendar.startOfDay(for: $0.endDate)
+        }) else { return }
+        pendingFocusDate = nil
+        withAnimation { proxy.scrollTo(week.id, anchor: .top) }
     }
 
     private var header: some View {
@@ -412,6 +433,8 @@ private struct PlanCurrentWeekSection: View {
 
 private struct PlanWeeklyReviewSection: View {
     var weeks: [PlanWeekSummary]
+    /// Every week card on screen (including This Week), so no note shows twice.
+    var coveredWeeks: [PlanWeekSummary] = []
     var month: Date = Date()
     var onWorkout: (WorkoutSummary) -> Void
     @EnvironmentObject private var feedback: AthleteFeedbackStore
@@ -440,6 +463,7 @@ private struct PlanWeeklyReviewSection: View {
                 LazyVStack(spacing: 14) {
                     ForEach(weeks) { week in
                         PlanWeekSummaryCard(week: week, onWorkout: onWorkout)
+                            .id(week.id)
                     }
                 }
             }
@@ -454,20 +478,23 @@ extension PlanWeeklyReviewSection {
     fileprivate var uncoveredNotes: some View {
         let calendar = Calendar.current
         let notes = feedback.uncoveredWeekNotes(
-            month: month, weeks: weeks.map { ($0.startDate, $0.endDate) }, calendar: calendar
+            month: month, weeks: (coveredWeeks + weeks).map { ($0.startDate, $0.endDate) }, calendar: calendar
         )
         if !notes.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
+            // Lazy, and each note marks itself read only when it comes on screen.
+            LazyVStack(alignment: .leading, spacing: 10) {
                 ForEach(notes) { note in
-                    if let start = note.weekStartDate(calendar: calendar) {
-                        Text("Week of \(AthleteFeedbackFormat.shortDate(start))")
-                            .font(.labelSM)
-                            .foregroundStyle(Color.textSecondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let start = note.weekStartDate(calendar: calendar) {
+                            Text("Week of \(AthleteFeedbackFormat.shortDate(start))")
+                                .font(.labelSM)
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                        AthleteFeedbackCard(note: note)
                     }
-                    AthleteFeedbackCard(note: note)
+                    .task(id: note.id) { await feedback.markRead([note]) }
                 }
             }
-            .task(id: notes.map(\.id)) { await feedback.markRead(notes) }
         }
     }
 }

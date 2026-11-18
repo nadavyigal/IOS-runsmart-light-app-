@@ -138,6 +138,8 @@ enum ActivityConsolidationService {
     private static func mergedCanonicalRun(from runs: [RecordedRun], groupID: String) -> RecordedRun {
         var canonical = runs.max { richnessScore($0) < richnessScore($1) } ?? runs[0]
         canonical.consolidatedActivityID = groupID
+        canonical.mergedSourceKeys = Array(Set(runs.flatMap { [$0.runSourceKey] + ($0.mergedSourceKeys ?? []) }))
+            .sorted { ($0.sourceProvider, $0.sourceActivityID) < ($1.sourceProvider, $1.sourceActivityID) }
         let planIDs = Set(runs.compactMap(\.plannedWorkoutID))
         if planIDs.count == 1 { canonical.plannedWorkoutID = planIDs.first }
         if runs.contains(where: { $0.healthPlanLookupFailed == true }) { canonical.healthPlanLookupFailed = true }

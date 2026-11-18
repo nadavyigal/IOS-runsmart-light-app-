@@ -134,10 +134,12 @@ struct MyCoachView: View {
     private func resolveRun(_ note: AthleteFeedbackNote) async -> RecordedRun? {
         if let id = note.runSourceActivityID,
            let stored = await services.recordedRun(forReportRunID: id),
-           note.matches(stored.runSourceKey) {
+           note.matches(stored) {
+            // May be the merged run for this activity (for example its Apple Health copy);
+            // it carries the note's key in `mergedSourceKeys`, so the report shows the note.
             return stored
         }
-        return await services.recentRuns().first { note.matches($0.runSourceKey) }
+        return await services.recentRuns().first { note.matches($0) }
     }
 
     private func coach(_ link: CoachLink) -> some View {
