@@ -63,6 +63,9 @@ struct PostRunSummaryView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     heroCard
 
+                    // Story 3.2 (A9): "{Coach} will review this run" while linked.
+                    AthleteRunFeedbackSection(run: displayRun)
+
                     RPESelector(value: $rpe)
 
                     if displayRun != nil {

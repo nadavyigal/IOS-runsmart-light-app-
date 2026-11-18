@@ -925,6 +925,10 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var id: UUID
     var providerActivityID: String?
     var consolidatedActivityID: String? = nil
+    /// When this run stands for several copies of one activity (for example a RunSmart
+    /// recording and its Apple Health copy), the `runs` keys of all of them. A coach's note
+    /// on any copy then shows on this run (Story 3.2).
+    var mergedSourceKeys: [RunSourceKey]? = nil
     var source: RunSmartDataSource
     var startedAt: Date
     var endedAt: Date

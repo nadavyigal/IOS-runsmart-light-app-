@@ -95,6 +95,12 @@ Last Updated: 2026-11-11
 - Next Recommended Story: 6.3 athlete hides one run's map, after 6.2 merges
 - Blockers: migration 20261118140000 not applied; founder applies after review
 - Last Validation: full suite 1049 passed, 0 failed; coach_run_route SQL suite runs in CI
+## 2026-11-18 Story 3.2 athlete sees coach feedback
+- Current Phase: Coach Mode Phase 3, athlete feedback (3.2) in review
+- Active Story: 3.2 notes pinned on runs and weeks, Today badge, pending review line, My coach list
+- Next Recommended Story: 3.3 Today card and Coached-by header, after 3.2 merges
+- Blockers: migrations 20261118100000 and 20261118120000 not applied; founder applies after review
+- Last Validation: full suite 1063 passed, 0 failed; athlete_feedback_read SQL suite runs in CI
 - Last Updated: 2026-11-18
 
 ## 2026-11-18 Story 3.1 coach feedback write
