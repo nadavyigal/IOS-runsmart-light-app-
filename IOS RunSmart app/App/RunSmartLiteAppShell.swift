@@ -31,6 +31,8 @@ final class AppRouter: ObservableObject {
     @Published var plannedWorkout: WorkoutSummary?
     @Published var plannedRoute: RouteSuggestion?
     @Published var isTabBarHidden = false
+    /// Set to open Plan on the week that contains this date (Story 3.2: a week note from My coach).
+    @Published var planFocusDate: Date?
 
     private static func initialTab() -> RunSmartTab {
 #if DEBUG
@@ -161,6 +163,7 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var coachMode = CoachModeStore()
     @StateObject private var coachAthletes = CoachAthleteListModel()
     @StateObject private var coachLinks = CoachLinkStore(publishesAssistantContext: true)
+    @StateObject private var athleteFeedback = AthleteFeedbackStore()
     @State private var didPresentMorningCheckin = false
     @State private var isShowingLaunch = !RunSmartDemoMode.isEnabled
     @State private var planNotice: RunSmartPlanNotice?
@@ -231,6 +234,7 @@ struct RunSmartLiteAppShell: View {
         .environmentObject(planGeneration)
         .environmentObject(coachMode)
         .environmentObject(coachLinks)
+        .environmentObject(athleteFeedback)
         .environment(\.coachAssistantActive, assistantContext.linkActive)
         .environment(\.coachAssistantName, assistantContext.coachDisplayName)
         .environment(\.runSmartServices, services)
@@ -289,10 +293,15 @@ struct RunSmartLiteAppShell: View {
             guard !RunSmartDemoMode.isEnabled else { return }
             if let userID = coachRoleCheckUserID {
                 coachLinks.beginSession(userID: userID)
+                athleteFeedback.beginSession(userID: userID)
+                // Feedback loads alongside the link refresh, never behind a slow route upload.
+                async let feedbackLoad: Void = athleteFeedback.load()
                 await coachLinks.refresh(userID: userID)
                 await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
+                await feedbackLoad
             } else {
                 coachLinks.clear()
+                athleteFeedback.beginSession(userID: nil)
             }
         }
         .onChange(of: coachRoleCheckUserID) { _, userID in
@@ -312,6 +321,7 @@ struct RunSmartLiteAppShell: View {
                 Task { await coachMode.refresh(userID: coachRoleCheckUserID) }
             }
             if let userID = coachRoleCheckUserID {
+                Task { await athleteFeedback.load() }
                 Task {
                     await coachLinks.refresh(userID: userID)
                     await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
@@ -399,6 +409,7 @@ struct RunSmartLiteAppShell: View {
                     .environmentObject(router)
                     .environmentObject(session)
                     .environmentObject(coachLinks)
+                    .environmentObject(athleteFeedback)
                     .environmentObject(recorder)
                     .environment(\.coachAssistantActive, assistantContext.linkActive)
                     .environment(\.coachAssistantName, assistantContext.coachDisplayName)
@@ -554,7 +565,9 @@ struct RunSmartLiteAppShell: View {
                         tabs: RunSmartTab.visibleTabs(
                             isCoach: coachMode.isCoach,
                             coachModeEnabled: RunSmartFeatures.coachModeEnabled
-                        )
+                        ),
+                        // Unread coach feedback, only while linked. It clears by reading, never by a timer.
+                        badges: [.today: athleteFeedback.unreadCount(link: coachLinks.currentLink)]
                     )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }

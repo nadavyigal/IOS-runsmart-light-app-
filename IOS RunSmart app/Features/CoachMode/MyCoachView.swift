@@ -6,11 +6,16 @@ struct MyCoachView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var session: SupabaseSession
     @EnvironmentObject private var coachLinks: CoachLinkStore
+    @EnvironmentObject private var feedback: AthleteFeedbackStore
+    @EnvironmentObject private var router: AppRouter
+    @Environment(\.runSmartServices) private var services
 
     @ObservedObject private var routes = CoachRouteOutbox.shared
     @StateObject private var model = LeaveCoachModel()
     @State private var showLeaveSheet = false
     @State private var pathMonitor: NWPathMonitor?
+    @State private var openTask: Task<Void, Never>?
+    @State private var unavailableNoteID: UUID?
 
     var body: some View {
         Group {
@@ -22,7 +27,12 @@ struct MyCoachView: View {
             }
         }
         .onAppear(perform: startReachability)
-        .onDisappear(perform: stopReachability)
+        .onDisappear {
+            stopReachability()
+            // A report must not open after My coach is closed.
+            openTask?.cancel()
+            openTask = nil
+        }
         .sheet(isPresented: $showLeaveSheet) {
             if let link = coachLinks.currentLink {
                 LeaveCoachSheet(coachName: link.coachName, model: model) {
@@ -40,6 +50,96 @@ struct MyCoachView: View {
                 }
             }
         }
+    }
+
+    /// A11 Feedback row: every note from this coach since joining, newest first. Each opens
+    /// its run (run detail) or its week (Plan). Shown only while linked.
+    private func feedbackList(_ link: CoachLink) -> some View {
+        let notes = feedback.currentNotes(link: link)
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(AthleteFeedbackCopy.feedbackRow)
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+            if notes.isEmpty {
+                switch feedback.loadState {
+                case .failed:
+                    AthleteFeedbackError(coachName: link.coachName) { Task { await feedback.load() } }
+                case .idle, .loading:
+                    AthleteFeedbackSkeleton()
+                case .loaded:
+                    Text("No notes from \(link.coachName) yet.")
+                        .font(.body)
+                        .foregroundStyle(Color.textSecondary)
+                }
+            }
+            ForEach(notes) { note in
+                Button { open(note) } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Text(verbatim: AthleteFeedbackFormat.header(note))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.textSecondary)
+                            if note.readAt == nil {
+                                Circle().fill(Color.accentPrimary).frame(width: 8, height: 8)
+                                    .accessibilityLabel("Unread")
+                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.forward").foregroundStyle(Color.textSecondary)
+                        }
+                        Text(verbatim: note.text)
+                            .font(.body)
+                            .foregroundStyle(Color.textPrimary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .environment(\.layoutDirection,
+                                         CoachFeedbackText.isRightToLeft(note.text) ? .rightToLeft : .leftToRight)
+                    }
+                    .padding(12)
+                    .frame(minHeight: 44)
+                    .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(note.isRunNote ? "Opens the run" : "Opens the week in your plan")
+                if unavailableNoteID == note.id {
+                    Text("This run isn't on this phone.")
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                }
+            }
+        }
+    }
+
+    private func open(_ note: AthleteFeedbackNote) {
+        unavailableNoteID = nil
+        guard note.isRunNote else {
+            router.planFocusDate = note.weekStartDate(calendar: .current)
+            router.activeSheet = nil
+            router.selectedTab = .plan
+            return
+        }
+        openTask?.cancel()
+        openTask = Task {
+            guard let run = await resolveRun(note) else {
+                if !Task.isCancelled { unavailableNoteID = note.id }
+                return
+            }
+            let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
+            guard !Task.isCancelled else { return }
+            router.open(.runReportDetail(report, run: run))
+        }
+    }
+
+    /// Looks the run up in every stored run first (no recent-runs limit), then in recent runs.
+    private func resolveRun(_ note: AthleteFeedbackNote) async -> RecordedRun? {
+        if let id = note.runSourceActivityID,
+           let stored = await services.recordedRun(forReportRunID: id),
+           note.matches(stored) {
+            // May be the merged run for this activity (for example its Apple Health copy);
+            // it carries the note's key in `mergedSourceKeys`, so the report shows the note.
+            return stored
+        }
+        return await services.recentRuns().first { note.matches($0) }
     }
 
     private func coach(_ link: CoachLink) -> some View {
@@ -80,7 +180,7 @@ struct MyCoachView: View {
                         .foregroundStyle(Color.textSecondary)
                 }
             }
-            // Story 3.2 adds the Feedback list here.
+            feedbackList(link)
 
             Button("Leave coach") {
                 model.cancel()

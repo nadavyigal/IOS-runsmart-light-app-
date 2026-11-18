@@ -1354,6 +1354,8 @@ private struct RunReportDetailScaffold: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            // Story 3.2 (A10): the coach's note is pinned above the stats and the map.
+            AthleteRunFeedbackSection(run: reportRun)
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Run Summary", trailing: report.dateLabel)
