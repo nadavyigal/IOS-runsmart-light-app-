@@ -1,3 +1,12 @@
+# 2026-11-18: Group race date written as Gregorian (follow-up to #197)
+
+Current Phase: Coach Mode pilot foundation, follow-up fix to story 1.7.
+Active Story: Group Plan race date now serializes and parses with a Gregorian calendar, whatever calendar the coach's phone uses.
+Next Recommended Story: Founder merges this and #204, then 2.4 athlete detail.
+Blockers: None. No migration.
+Last Validation: iPhone 17 simulator, CoachPlanSetupTests and GroupPlanJoinTests 25 passed; the new test fails on the old code.
+Last Updated: 2026-11-18
+
 # 2026-11-17: Coach Mode story 1.8, group plan on join
 
 Current Phase: Coach Mode pilot foundation.
