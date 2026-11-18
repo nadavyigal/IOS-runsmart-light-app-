@@ -2,8 +2,17 @@
 
 Current Phase: Review workflow simplification requested by the founder.
 Active Story: Keep path classification and PR checks; remove the manual Sensitive gate. Sensitive PRs use two independent distinct-model reviews and passing checks.
-Blockers: Independent review and merge of the workflow/policy PRs.
+Blockers: None. Two-model reviews are recorded on the PR; Agentic OS policy is merged and the Steward automation is updated.
 Last Validation: Workflow syntax and hosted checks are recorded on the PR.
+Last Updated: 2026-11-18
+
+# 2026-11-18: CI, Supabase matrix port clash
+
+Current Phase: Coach Mode pilot; CI fix on `ci/sql-port-clash`, workflow only, no SQL.
+Active Story: Preserve existing reserved ports and reserve Supabase CLI ports 54320-54329 so outbound connections never take 54322 before Postgres binds; log port owners on failure.
+Next Recommended Story: Founder merges this, then re-runs SQL checks on #212 and #213.
+Blockers: None.
+Last Validation: Two consecutive PR runs with every Supabase migrations matrix job green (see PR).
 Last Updated: 2026-11-18
 
 # 2026-11-18: Coach Mode story 3.3, coach visible on Today and the Plan
