@@ -20,9 +20,7 @@ struct CoachTabView: View {
             NavigationStack {
                 coachScreen
                     .navigationDestination(for: CoachAthleteDestination.self) { athlete in
-                        Text(athlete.name)
-                            .navigationTitle("Athlete")
-                            .toolbar(.visible, for: .navigationBar)
+                        CoachAthleteDetailView(destination: athlete)
                     }
                     .toolbar(.hidden, for: .navigationBar)
             }
