@@ -84,6 +84,8 @@ struct PlanTabView: View {
                             )
                             openWorkoutDetail(workout)
                         }
+                        // Scroll target for a current-week coach note opened from Today.
+                        .id(current.id)
                         .runSmartStaggeredAppear(index: 0)
 
                         FlexWeekAdjustPill {
