@@ -84,8 +84,10 @@ struct PlanTabView: View {
                             )
                             openWorkoutDetail(workout)
                         }
-                        // Scroll target for a current-week coach note opened from Today.
-                        .id(current.id)
+                        // Scroll target for a current-week coach note opened from Today. When
+                        // Weekly Review falls back to every week, its card for this week is the
+                        // target instead, so the id is never used twice.
+                        .id(reviewWeeks.isEmpty ? AnyHashable("plan-this-week") : AnyHashable(current.id))
                         .runSmartStaggeredAppear(index: 0)
 
                         FlexWeekAdjustPill {
