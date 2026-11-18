@@ -89,6 +89,14 @@ Blockers: none. PR #179 Tier 1, code-reviewer APPROVED, awaiting founder merge.
 Last Validation: 2026-11-11 iPhone 17 iOS 26.5 full suite 862 passed, 1 skipped, 0 failed before and after.
 Last Updated: 2026-11-11
 
+## 2026-11-18 Story 6.2 coach sees route map
+- Current Phase: Coach Mode Phase 6, coach route map (6.2) in review
+- Active Story: 6.2 coach_get_run_route RPC and C6 map block with four states
+- Next Recommended Story: 6.3 athlete hides one run's map, after 6.2 merges
+- Blockers: migration 20261118140000 not applied; founder applies after review
+- Last Validation: full suite 1049 passed, 0 failed; coach_run_route SQL suite runs in CI
+- Last Updated: 2026-11-18
+
 ## 2026-11-18 Story 3.1 coach feedback write
 - Current Phase: Coach Mode Phase 3, coach feedback (3.1) in review
 - Active Story: 3.1 coach writes feedback on a run or a week, with drafts and offline queue
