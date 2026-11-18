@@ -115,7 +115,7 @@ final class CoachRouteUploadTests: XCTestCase {
         XCTAssertNil(AthleteMapControl.key(run: run, owner: nil, link: link, enabled: true))
         XCTAssertNil(AthleteMapControl.key(run: run, owner: owner, link: link, enabled: false))
         XCTAssertEqual(AthleteMapControl.key(run: run, owner: owner, link: link, enabled: true),
-                       CoachMapKey(ownerID: owner, linkID: link.id, runID: run.id))
+                       CoachMapKey(ownerID: owner, runID: run.id))
         run.providerActivityID = "import"
         XCTAssertNil(AthleteMapControl.key(run: run, owner: owner, link: link, enabled: true))
         run.providerActivityID = nil
@@ -131,7 +131,7 @@ final class CoachRouteUploadTests: XCTestCase {
         outbox.stage(makeRun(), ownerID: owner, link: link, coachModeEnabled: true)
         let key = try XCTUnwrap(outbox.pending.first?.mapKey)
         await outbox.retry(ownerID: owner, coachModeEnabled: true, canSend: { _ in true }) { item in
-            outbox.setHidden(true, for: item.mapKey)
+            outbox.setHidden(true, for: item.mapKey, linkID: link.id)
             return .saved
         }
         XCTAssertTrue(outbox.pending.isEmpty)
@@ -145,11 +145,11 @@ final class CoachRouteUploadTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let outbox = CoachRouteOutbox(defaults: defaults, enabled: true, preparer: TestPreparer())
         let run = makeRun()
-        let key = CoachMapKey(ownerID: owner, linkID: link.id, runID: run.id)
+        let key = CoachMapKey(ownerID: owner, runID: run.id)
         XCTAssertNil(outbox.choice(for: key))
         outbox.stage(run, ownerID: owner, link: link, coachModeEnabled: true)
         XCTAssertEqual(outbox.choice(for: key)?.hidden, false)
-        outbox.setHidden(true, for: key)
+        outbox.setHidden(true, for: key, linkID: link.id)
         let reopened = CoachRouteOutbox(defaults: defaults, enabled: true)
         XCTAssertEqual(reopened.choice(for: key)?.needsSync, true)
         await reopened.retry(ownerID: owner, coachModeEnabled: true, canSend: { _ in true }) { _ in
@@ -157,12 +157,16 @@ final class CoachRouteUploadTests: XCTestCase {
             return .saved
         }
         let hidden = try XCTUnwrap(reopened.choice(for: key))
+        XCTAssertTrue(hidden.canSync(activeLinkID: nil))
+        XCTAssertTrue(hidden.canSync(activeLinkID: UUID()))
         reopened.acknowledge(hidden, for: key)
         reopened.recordServerState(nil, for: key, expected: reopened.choices[key])
         XCTAssertEqual(reopened.choice(for: key)?.hidden, true, "Detail refresh must preserve a withheld route")
-        reopened.setHidden(false, for: key)
+        reopened.setHidden(false, for: key, linkID: link.id)
         reopened.acknowledge(hidden, for: key)
         XCTAssertEqual(reopened.choice(for: key)?.needsSync, true)
+        XCTAssertFalse(try XCTUnwrap(reopened.choice(for: key)).canSync(activeLinkID: UUID()))
+        XCTAssertTrue(try XCTUnwrap(reopened.choice(for: key)).canSync(activeLinkID: link.id))
         var sends = 0
         for _ in 0..<2 {
             await reopened.retry(ownerID: owner, coachModeEnabled: true, canSend: { _ in true }) { _ in

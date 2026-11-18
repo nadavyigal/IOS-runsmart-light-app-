@@ -2013,14 +2013,22 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func refreshMapChoice(_ key: CoachMapKey, coachLinks: CoachLinkStore) async {
         let outbox = CoachRouteOutbox.shared
+        guard currentUserID == key.ownerID, let link = coachLinks.activeLink(for: key.ownerID) else { return }
         let expected = outbox.choices[key]
-        guard currentUserID == key.ownerID, expected?.needsSync != true else { return }
+        guard expected?.canSync(activeLinkID: link.id) != true else { return }
         do {
             let status = try await mapRow(key)?.route_status
-            guard coachLinks.activeLink(for: key.ownerID)?.id == key.linkID,
+            guard coachLinks.activeLink(for: key.ownerID)?.id == link.id,
                   currentUserID == key.ownerID else { return }
             let hidden: Bool? = status == "shared" ? false : status == "hidden_by_athlete" ? true : nil
-            outbox.recordServerState(hidden, for: key, expected: expected)
+            // A new confirmed link supersedes an undelivered unhide for an earlier coach.
+            if let expected, expected.needsSync, !expected.hidden, expected.unhideLinkID != link.id {
+                guard outbox.choices[key] == expected else { return }
+                outbox.acknowledge(expected, for: key)
+                outbox.recordServerState(hidden, for: key, expected: outbox.choices[key])
+            } else {
+                outbox.recordServerState(hidden, for: key, expected: expected)
+            }
         } catch { /* Keep the cached visibility offline. */ }
     }
 
@@ -2047,7 +2055,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     private func flushCoachRoutes(coachLinks: CoachLinkStore) async {
         guard RouteUploadPolicy.isEnabled, RunSmartFeatures.coachModeEnabled,
-              let ownerID = currentUserID, coachLinks.activeLink(for: ownerID) != nil else { return }
+              let ownerID = currentUserID else { return }
 
         let outbox = CoachRouteOutbox.shared
         func localRun(for item: PendingCoachRoute) -> RecordedRun? {
@@ -2077,10 +2085,10 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
         // Serialize visibility after uploads, including a hide tapped during an upload.
         for (key, choice) in outbox.choices where key.ownerID == ownerID && choice.needsSync {
-            guard currentUserID == ownerID, coachLinks.activeLink(for: ownerID)?.id == key.linkID else { continue }
+            guard currentUserID == ownerID, choice.canSync(activeLinkID: coachLinks.activeLink(for: ownerID)?.id) else { continue }
             do {
                 let row = try await mapRow(key)
-                guard currentUserID == ownerID, coachLinks.activeLink(for: ownerID)?.id == key.linkID,
+                guard currentUserID == ownerID, choice.canSync(activeLinkID: coachLinks.activeLink(for: ownerID)?.id),
                       outbox.choices[key] == choice else { continue }
                 if let row, ["shared", "hidden_by_athlete"].contains(row.route_status ?? "") {
                     try await supabase.rpc("set_run_route_hidden",

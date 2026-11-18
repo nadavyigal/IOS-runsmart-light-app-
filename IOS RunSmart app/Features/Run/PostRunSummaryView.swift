@@ -945,14 +945,14 @@ struct AthleteMapControl: ViewModifier {
 
     static func key(run: RecordedRun?, owner: UUID?, link: CoachLink?, enabled: Bool) -> CoachMapKey? {
         guard enabled, let run, run.source == .runSmart, run.providerActivityID == nil,
-              let owner, let link else { return nil }
-        return CoachMapKey(ownerID: owner, linkID: link.id, runID: run.id)
+              let owner, link != nil else { return nil }
+        return CoachMapKey(ownerID: owner, runID: run.id)
     }
 
     func body(content: Content) -> some View {
         let key = Self.key(run: run, owner: session.currentUserID,
                            link: coachLinks.activeLink(for: session.currentUserID), enabled: RunSmartFeatures.coachModeEnabled)
-        content.task(id: key) {
+        content.task(id: [key?.ownerID, key?.runID, coachLinks.currentLink?.id]) {
             if let key {
                 await (services as? SupabaseRunSmartServices)?.refreshMapChoice(key, coachLinks: coachLinks)
             }
@@ -964,10 +964,10 @@ struct AthleteMapControl: ViewModifier {
                     HStack {
                         Text(label)
                         Spacer()
-                        Button("Unhide") { change(false, key: key) }
+                        Button("Unhide") { change(false, key: key, linkID: link.id) }
                     }
                 } else {
-                    Toggle(label, isOn: Binding(get: { choice.hidden }, set: { change($0, key: key) }))
+                    Toggle(label, isOn: Binding(get: { choice.hidden }, set: { change($0, key: key, linkID: link.id) }))
                 }
                 if choice.needsSync {
                     Text("Will update when you’re online")
@@ -977,8 +977,8 @@ struct AthleteMapControl: ViewModifier {
         }
     }
 
-    private func change(_ hidden: Bool, key: CoachMapKey) {
-        outbox.setHidden(hidden, for: key)
+    private func change(_ hidden: Bool, key: CoachMapKey, linkID: UUID) {
+        outbox.setHidden(hidden, for: key, linkID: linkID)
         Task { await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks) }
     }
 }

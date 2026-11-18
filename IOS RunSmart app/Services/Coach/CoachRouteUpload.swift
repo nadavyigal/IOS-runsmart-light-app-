@@ -133,17 +133,21 @@ enum CoachRouteWriteResult: String, Decodable {
 
 struct CoachMapKey: Codable, Hashable {
     let ownerID: UUID
-    let linkID: UUID
     let runID: UUID
 }
 
 struct CoachMapChoice: Codable, Equatable {
     var hidden = false
     var needsSync = false
+    var unhideLinkID: UUID?
+
+    func canSync(activeLinkID: UUID?) -> Bool {
+        needsSync && (hidden || (activeLinkID != nil && unhideLinkID == activeLinkID))
+    }
 }
 
 extension PendingCoachRoute {
-    var mapKey: CoachMapKey { .init(ownerID: ownerID, linkID: linkID, runID: runID) }
+    var mapKey: CoachMapKey { .init(ownerID: ownerID, runID: runID) }
 }
 
 @MainActor
@@ -168,9 +172,9 @@ final class CoachRouteOutbox: ObservableObject {
         return pending.contains { $0.mapKey == key && $0.status == .shared } ? CoachMapChoice() : nil
     }
 
-    func setHidden(_ hidden: Bool, for key: CoachMapKey) {
+    func setHidden(_ hidden: Bool, for key: CoachMapKey, linkID: UUID) {
         guard let choice = choice(for: key), choice.hidden != hidden else { return }
-        choices[key] = CoachMapChoice(hidden: hidden, needsSync: true)
+        choices[key] = CoachMapChoice(hidden: hidden, needsSync: true, unhideLinkID: hidden ? nil : linkID)
     }
 
     func recordServerState(_ hidden: Bool?, for key: CoachMapKey, expected: CoachMapChoice?) {
@@ -182,7 +186,7 @@ final class CoachRouteOutbox: ObservableObject {
 
     func acknowledge(_ choice: CoachMapChoice, for key: CoachMapKey) {
         guard choices[key] == choice else { return }
-        choices[key]?.needsSync = false
+        choices[key] = CoachMapChoice(hidden: choice.hidden)
     }
 
     init(defaults: UserDefaults = .standard, enabled: Bool? = nil,

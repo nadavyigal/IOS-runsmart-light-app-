@@ -315,6 +315,9 @@ struct RunSmartLiteAppShell: View {
             for await path in NWPathMonitor() where path.status == .satisfied {
                 guard !Task.isCancelled else { return }
                 if CoachRouteOutbox.shared.choices.contains(where: { $0.key.ownerID == userID && $0.value.needsSync }) {
+                    if coachLinks.activeLink(for: userID) == nil {
+                        await coachLinks.refresh(userID: userID)
+                    }
                     await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
                 }
             }
