@@ -57,18 +57,22 @@ final class CoachPresence: ObservableObject {
     /// Bumped on every link change, so an older Plan Mode read never applies.
     private var generation = 0
     private var modeTask: Task<Void, Never>?
+    /// True once `get_my_coach()` answered for the current coach. A failed read stays
+    /// false, so the next link refresh (for example on foregrounding) asks again.
+    private var modeResolved = false
+    private var modeInFlight = false
 
     init(fetcher: any MyCoachFetching = SupabaseMyCoachService()) {
         self.fetcher = fetcher
     }
 
-    /// The app binds the gate to its link store once.
+    /// The app binds the gate to its link store once. Every refresh is passed on, even an
+    /// unchanged link, so an unresolved Plan Mode is retried.
     func bind(to links: CoachLinkStore) {
         guard cancellable == nil else { return }
         // The store is main-actor bound and publishes on the main thread, so a leave
         // clears the gate in the same update.
         cancellable = links.$currentLink
-            .removeDuplicates()
             .sink { [weak self] link in
                 MainActor.assumeIsolated { self?.apply(link) }
             }
@@ -78,21 +82,36 @@ final class CoachPresence: ObservableObject {
     var coachName: String? { coach?.coachName }
 
     /// Applies a link change. Leaving clears everything at once, before any network call.
+    /// The same link again only retries a Plan Mode read that hasn't succeeded yet.
     func apply(_ link: CoachLink?) {
-        guard link != coach else { return }
+        if link == coach {
+            if let link, !modeResolved, !modeInFlight { fetchPlanMode(for: link) }
+            return
+        }
         generation += 1
         modeTask?.cancel()
+        modeInFlight = false
         let sameCoach = link?.coachID == coach?.coachID
         coach = link
-        if !sameCoach { planMode = nil }
+        if !sameCoach {
+            planMode = nil
+            modeResolved = false
+        }
         guard let link else { return }
+        fetchPlanMode(for: link)
+    }
+
+    private func fetchPlanMode(for link: CoachLink) {
         let request = generation
+        modeInFlight = true
         modeTask = Task { [fetcher] in
             let fetched = try? await fetcher.myCoach()
             guard !Task.isCancelled, request == self.generation, self.coach?.id == link.id else { return }
+            self.modeInFlight = false
             // Only trust the answer for this same coach.
             if let fetched, fetched.coachID == link.coachID {
                 self.planMode = fetched.planMode
+                self.modeResolved = true
             }
         }
     }

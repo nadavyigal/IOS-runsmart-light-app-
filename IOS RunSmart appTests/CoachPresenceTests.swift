@@ -156,6 +156,30 @@ final class CoachPresenceTests: XCTestCase {
         XCTAssertNil(gate.planMode)
     }
 
+    func testFailedPlanModeReadRetriesOnTheNextRefreshOfTheSameLink() async {
+        let repository = StubLinks(link: link)
+        let store = CoachLinkStore(repository: repository)
+        store.beginSession(userID: athlete)
+        await store.refresh(userID: athlete)
+        let stub = StubMyCoach(.failure(URLError(.notConnectedToInternet)))
+        let gate = CoachPresence(fetcher: stub)
+        gate.bind(to: store)
+        await gate.waitForPlanMode()
+        XCTAssertNil(gate.planMode)
+
+        // Back online: the foreground refresh returns the same link.
+        stub.result = .success(MyCoach(coachID: coachID, displayName: "Dana", planMode: .individual))
+        await store.refresh(userID: athlete)
+        await gate.waitForPlanMode()
+        XCTAssertEqual(gate.planMode, .individual)
+        XCTAssertEqual(stub.calls, 2)
+
+        // Resolved: a further refresh of the same link doesn't ask again.
+        await store.refresh(userID: athlete)
+        await gate.waitForPlanMode()
+        XCTAssertEqual(stub.calls, 2)
+    }
+
     // MARK: Cards
 
     func testCardsNewestFirstCappedAtTwoWithMoreRow() {
