@@ -1,3 +1,11 @@
+# 2026-11-18: Coach Mode story 6.3, athlete hides one run's map
+
+Current Phase: Coach Mode pilot, story 6.3 on `feat/hide-run-map` (#212); migration `20261118170000_set_run_route_hidden.sql` waits for founder apply.
+Active Story: Per-run "Hide map from {Coach}" on post-run and run detail; hide before upload withholds the route; owner RPC flips shared and hidden.
+Next Recommended Story: Founder merges #212, applies the migration and mirrors it to the web repo; then 3.4 (#213).
+Blockers: Migration not applied; until it is, hiding an uploaded map fails and stays queued.
+Last Validation: iPhone 17 simulator, full unit suite 1089 passed, 0 failed; code-reviewer approved; SQL suite runs in CI.
+
 # 2026-11-18: Two-model sensitive PR review
 
 Current Phase: Review workflow simplification requested by the founder.
