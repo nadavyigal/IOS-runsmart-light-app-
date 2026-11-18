@@ -205,7 +205,18 @@ jobs:
           cd "$(mktemp -d)"
           supabase init
           trap 'supabase stop --no-backup' EXIT
-          supabase start -x studio,imgproxy,vector,logflare,edge-runtime,mailpit,postgres-meta,supavisor
+          # Each matrix job has its own VM, so jobs never share ports. The clash is
+          # local: the CLI's fixed ports (54320-54329) sit inside Linux's ephemeral
+          # range, and an outbound connection during the image pulls can take 54322
+          # before Postgres binds it. Reserving them keeps them free for explicit binds.
+          reserved_ports="$(sysctl -n net.ipv4.ip_local_reserved_ports)"
+          sudo sysctl -w "net.ipv4.ip_local_reserved_ports=${reserved_ports:+$reserved_ports,}54320-54329"
+          if ! supabase start -x studio,imgproxy,vector,logflare,edge-runtime,mailpit,postgres-meta,supavisor; then
+            echo "::group::Sockets on Supabase ports"
+            sudo ss -tanp | grep -E ':5432[0-9]\b' || echo "none"
+            echo "::endgroup::"
+            exit 1
+          fi
           db_url="$(supabase status -o json | jq -er '.DB_URL | select(test("^postgres(ql)?://[^@]+@(127[.]0[.]0[.]1|localhost):"))')"
           sql() {
             if [[ "$SUITE" == rls_leaks ]]; then

@@ -5,6 +5,22 @@ Active Story: Plan scrolls to a week note whose week has no workouts; cancellati
 Next Recommended Story: Founder merges #210; then #212 (6.3) and #213 (3.4).
 Blockers: None.
 Last Validation: iPhone 17 simulator, full unit suite 1086 passed, 0 failed, including testACancelledViewTaskThenReopenStillRetriesTheRead.
+
+# 2026-11-18: Two-model sensitive PR review
+
+Current Phase: Review workflow simplification requested by the founder.
+Active Story: Keep path classification and PR checks; remove the manual Sensitive gate. Sensitive PRs use two independent distinct-model reviews and passing checks.
+Blockers: None. Two-model reviews are recorded on the PR; Agentic OS policy is merged and the Steward automation is updated.
+Last Validation: Workflow syntax and hosted checks are recorded on the PR.
+Last Updated: 2026-11-18
+
+# 2026-11-18: CI, Supabase matrix port clash
+
+Current Phase: Coach Mode pilot; CI fix on `ci/sql-port-clash`, workflow only, no SQL.
+Active Story: Preserve existing reserved ports and reserve Supabase CLI ports 54320-54329 so outbound connections never take 54322 before Postgres binds; log port owners on failure.
+Next Recommended Story: Founder merges this, then re-runs SQL checks on #212 and #213.
+Blockers: None.
+Last Validation: Two consecutive PR runs with every Supabase migrations matrix job green (see PR).
 Last Updated: 2026-11-18
 
 # 2026-11-18: Coach Mode story 3.3, coach visible on Today and the Plan
