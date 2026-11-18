@@ -211,7 +211,10 @@ final class CoachFeedbackComposerModel: ObservableObject {
             if let editing {
                 note = try await service.edit(id: editing.id, text: value)
             } else {
-                note = try await service.add(id: id, athleteID: athleteID, target: target, text: value)
+                let stored = try await service.add(id: id, athleteID: athleteID, target: target, text: value)
+                // The id was already stored (a background retry or a send that timed out after
+                // reaching the server) with older text. Save the revised text instead of dropping it.
+                note = stored.text == value ? stored : try await service.edit(id: id, text: value)
             }
             outbox.remove(id: id)
             drafts.clear(athleteID: athleteID, scope: draftScope)

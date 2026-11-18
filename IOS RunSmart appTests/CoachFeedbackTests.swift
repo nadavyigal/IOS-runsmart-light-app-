@@ -161,6 +161,41 @@ final class CoachFeedbackTests: XCTestCase {
         XCTAssertTrue(outbox.pending.isEmpty)
     }
 
+    func testRevisedTextAfterABackgroundSendIsSavedNotDropped() async {
+        let service = MockCoachFeedbackService()
+        service.failure = .notSent
+        let outbox = CoachFeedbackOutbox(defaults: defaults)
+        let model = composer(service: service, outbox: outbox)
+        model.text = "Strong finish."
+        _ = await model.send()
+
+        // Reconnect: the queue sends the first text while the composer is still open.
+        service.failure = nil
+        await outbox.flush(using: service, coachID: coach)
+        XCTAssertEqual(service.stored.map(\.text), ["Strong finish."])
+
+        model.text = "Strong finish, and a smart even pace."
+        let note = await model.send()
+        XCTAssertEqual(note?.text, "Strong finish, and a smart even pace.")
+        XCTAssertEqual(service.stored.map(\.text), ["Strong finish, and a smart even pace."],
+                       "one note, carrying the revised text")
+        XCTAssertNotNil(note?.editedAt, "it went out already, so it shows Edited")
+    }
+
+    func testSameTextAfterABackgroundSendIsNotMarkedEdited() async {
+        let service = MockCoachFeedbackService()
+        service.failure = .notSent
+        let outbox = CoachFeedbackOutbox(defaults: defaults)
+        let model = composer(service: service, outbox: outbox)
+        model.text = "Nice steady effort."
+        _ = await model.send()
+        service.failure = nil
+        await outbox.flush(using: service, coachID: coach)
+        let note = await model.send()
+        XCTAssertNil(note?.editedAt)
+        XCTAssertEqual(service.stored.count, 1)
+    }
+
     func testBackgroundFlushRetiresTheDraft() async {
         let service = MockCoachFeedbackService()
         service.failure = .notSent

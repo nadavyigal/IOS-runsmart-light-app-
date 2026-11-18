@@ -318,6 +318,9 @@ final class CoachFeedbackOutbox {
         let drafts = CoachFeedbackDraftStore(defaults: defaults)
         var stored: [CoachFeedback] = []
         for item in pending where item.coachID == coachID {
+            // Skip an item the composer sent or replaced while this loop was running,
+            // so an older queued text never overwrites a newer save.
+            guard pending.contains(item) else { continue }
             do {
                 let row: CoachFeedback
                 if item.kind == .add {
