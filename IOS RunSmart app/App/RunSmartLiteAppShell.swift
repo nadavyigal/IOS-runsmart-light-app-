@@ -31,6 +31,8 @@ final class AppRouter: ObservableObject {
     @Published var plannedWorkout: WorkoutSummary?
     @Published var plannedRoute: RouteSuggestion?
     @Published var isTabBarHidden = false
+    /// Set to open Plan on the week that contains this date (Story 3.2: a week note from My coach).
+    @Published var planFocusDate: Date?
 
     private static func initialTab() -> RunSmartTab {
 #if DEBUG
@@ -292,9 +294,11 @@ struct RunSmartLiteAppShell: View {
             if let userID = coachRoleCheckUserID {
                 coachLinks.beginSession(userID: userID)
                 athleteFeedback.beginSession(userID: userID)
+                // Feedback loads alongside the link refresh, never behind a slow route upload.
+                async let feedbackLoad: Void = athleteFeedback.load()
                 await coachLinks.refresh(userID: userID)
                 await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
-                await athleteFeedback.load()
+                await feedbackLoad
             } else {
                 coachLinks.clear()
                 athleteFeedback.beginSession(userID: nil)
@@ -317,10 +321,10 @@ struct RunSmartLiteAppShell: View {
                 Task { await coachMode.refresh(userID: coachRoleCheckUserID) }
             }
             if let userID = coachRoleCheckUserID {
+                Task { await athleteFeedback.load() }
                 Task {
                     await coachLinks.refresh(userID: userID)
                     await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
-                    await athleteFeedback.load()
                 }
             }
             Task { await StravaUploadCoordinator.shared.retryPending() }

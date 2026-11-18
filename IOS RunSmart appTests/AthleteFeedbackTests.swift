@@ -193,4 +193,143 @@ final class AthleteFeedbackTests: XCTestCase {
         XCTAssertNil(decoded.readAt)
         XCTAssertEqual(decoded.text, "כל הכבוד")
     }
+
+    // MARK: - Review fixes
+
+    func testWeekDatesReadAsGregorianOnABuddhistDevice() async {
+        var buddhist = Calendar(identifier: .buddhist)
+        buddhist.timeZone = TimeZone(identifier: "UTC")!
+        let store = store(MockAthleteFeedbackService(rows: [note(week: "2026-11-16", created: linkedAt)]))
+        await store.load()
+        let start = ISO8601DateFormatter().date(from: "2026-11-16T00:00:00Z")!
+        let end = ISO8601DateFormatter().date(from: "2026-11-22T00:00:00Z")!
+        XCTAssertEqual(store.notes(weekFrom: start, to: end, calendar: buddhist).count, 1)
+    }
+
+    func testANewerLoadWinsOverAnOlderOneThatAnswersLate() async {
+        let service = GatedFeedbackService()
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults))
+        store.beginSession(userID: athlete)
+        let old = note(week: "2026-11-09", created: linkedAt)
+        let new = note(week: "2026-11-16", created: linkedAt.addingTimeInterval(60))
+        let first = Task { await store.load() }
+        await service.waitForLists(1)
+        let second = Task { await store.load() }
+        await service.waitForLists(2)
+        service.resumeList(1, with: [old, new])
+        await second.value
+        service.resumeList(0, with: [old])
+        await first.value
+        XCTAssertEqual(Set(store.notes.map(\.id)), [old.id, new.id], "the late older answer is dropped")
+        XCTAssertEqual(store.loadState, .loaded)
+    }
+
+    func testAListFetchedBeforeAConfirmedReadKeepsTheRead() async {
+        let service = GatedFeedbackService()
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults))
+        store.beginSession(userID: athlete)
+        let unread = note(week: "2026-11-16", created: linkedAt.addingTimeInterval(60))
+        let firstLoad = Task { await store.load() }
+        await service.waitForLists(1)
+        service.resumeList(0, with: [unread])
+        await firstLoad.value
+
+        let staleLoad = Task { await store.load() }
+        await service.waitForLists(2)
+        let read = Task { await store.markRead([unread]) }
+        await service.waitForReads(1)
+        service.resumeRead(0, with: .success(linkedAt.addingTimeInterval(120)))
+        await read.value
+        service.resumeList(1, with: [unread])  // captured before the read
+        await staleLoad.value
+        XCTAssertEqual(store.unreadCount(link: link), 0, "the badge does not come back")
+    }
+
+    func testOnlyServerConfirmedReadsAreCached() async {
+        let service = GatedFeedbackService()
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults))
+        store.beginSession(userID: athlete)
+        let unread = note(week: "2026-11-16", created: linkedAt.addingTimeInterval(60))
+        let load = Task { await store.load() }
+        await service.waitForLists(1)
+        service.resumeList(0, with: [unread])
+        await load.value
+
+        let read = Task { await store.markRead([unread]) }
+        await service.waitForReads(1)
+        XCTAssertEqual(store.unreadCount(link: link), 0, "shown as read right away")
+        XCTAssertNil(AthleteFeedbackCache(defaults: defaults).load(userID: athlete)?.first?.readAt,
+                     "an unconfirmed read is not saved to the phone")
+        service.resumeRead(0, with: .success(linkedAt.addingTimeInterval(120)))
+        await read.value
+        XCTAssertNotNil(AthleteFeedbackCache(defaults: defaults).load(userID: athlete)?.first?.readAt)
+    }
+
+    func testReopeningWhileAReadIsPendingRetriesOnceIfItFails() async {
+        let service = GatedFeedbackService()
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults))
+        store.beginSession(userID: athlete)
+        let unread = note(week: "2026-11-16", created: linkedAt.addingTimeInterval(60))
+        let load = Task { await store.load() }
+        await service.waitForLists(1)
+        service.resumeList(0, with: [unread])
+        await load.value
+
+        let firstOpen = Task { await store.markRead([unread]) }
+        await service.waitForReads(1)
+        await store.markRead([unread])  // reopened while the first read is pending
+        service.resumeRead(0, with: .failure(URLError(.timedOut)))
+        await service.waitForReads(2)
+        service.resumeRead(1, with: .success(linkedAt.addingTimeInterval(120)))
+        await firstOpen.value
+        XCTAssertEqual(store.unreadCount(link: link), 0)
+        XCTAssertEqual(service.readCount, 2, "exactly one retry")
+    }
+
+    func testWeekNotesWithNoPlanCardStayReadable() async {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let covered = note(week: "2026-11-16", created: linkedAt)
+        let orphan = note(week: "2026-11-02", created: linkedAt)
+        let store = store(MockAthleteFeedbackService(rows: [covered, orphan]))
+        await store.load()
+        let month = calendar.date(from: DateComponents(year: 2026, month: 11, day: 1))!
+        let weeks = [(start: calendar.date(from: DateComponents(year: 2026, month: 11, day: 16))!,
+                      end: calendar.date(from: DateComponents(year: 2026, month: 11, day: 22))!)]
+        XCTAssertEqual(store.uncoveredWeekNotes(month: month, weeks: weeks, calendar: calendar).map(\.id), [orphan.id])
+    }
+}
+
+/// Answers each call only when the test says so, to control the order of server replies.
+nonisolated final class GatedFeedbackService: AthleteFeedbackFetching, @unchecked Sendable {
+    private let lock = NSLock()
+    private var lists: [CheckedContinuation<[AthleteFeedbackNote], Never>] = []
+    private var reads: [CheckedContinuation<Result<Date?, Error>, Never>] = []
+
+    var listCount: Int { lock.withLock { lists.count } }
+    var readCount: Int { lock.withLock { reads.count } }
+
+    func list() async throws -> [AthleteFeedbackNote] {
+        await withCheckedContinuation { continuation in lock.withLock { lists.append(continuation) } }
+    }
+
+    func markRead(id: UUID) async throws -> Date? {
+        try await withCheckedContinuation { continuation in lock.withLock { reads.append(continuation) } }.get()
+    }
+
+    func resumeList(_ index: Int, with rows: [AthleteFeedbackNote]) {
+        lock.withLock { lists[index] }.resume(returning: rows)
+    }
+
+    func resumeRead(_ index: Int, with result: Result<Date?, Error>) {
+        lock.withLock { reads[index] }.resume(returning: result)
+    }
+
+    func waitForLists(_ count: Int) async {
+        while listCount < count { await Task.yield() }
+    }
+
+    func waitForReads(_ count: Int) async {
+        while readCount < count { await Task.yield() }
+    }
 }

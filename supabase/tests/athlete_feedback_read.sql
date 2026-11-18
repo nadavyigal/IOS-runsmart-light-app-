@@ -82,9 +82,10 @@ begin
     raise exception 'FAIL: rows are not newest first';
   end if;
   select json_agg(f) into rows_json from public.my_coach_feedback() f where f.run_id = 101;
-  if (rows_json->0->>'coach_name') <> 'Dana'
-     or (rows_json->0->>'run_source_provider') <> 'runsmart_ios'
-     or (rows_json->0->>'run_source_activity_id') <> '11111111-2222-4333-8444-555555555555'
+  -- `is distinct from`, so a missing (null) field fails instead of passing silently.
+  if (rows_json->0->>'coach_name') is distinct from 'Dana'
+     or (rows_json->0->>'run_source_provider') is distinct from 'runsmart_ios'
+     or (rows_json->0->>'run_source_activity_id') is distinct from '11111111-2222-4333-8444-555555555555'
      or (rows_json->0->>'read_at') is not null then
     raise exception 'FAIL: run note fields wrong: %', rows_json;
   end if;
@@ -104,13 +105,31 @@ end $$;
 do $$
 declare
   first_read timestamptz;
-  second_read timestamptz;
 begin
   first_read := public.mark_feedback_read('40000000-0000-4000-8000-000000000001');
   if first_read is null then raise exception 'FAIL: mark read returned null'; end if;
-  second_read := public.mark_feedback_read('40000000-0000-4000-8000-000000000001');
-  if second_read <> first_read then raise exception 'FAIL: read_at changed on the second call'; end if;
-  if (select text from public.my_coach_feedback() where id = '40000000-0000-4000-8000-000000000001') <> 'Strong finish.' then
+  if (select read_at from public.my_coach_feedback() where id = '40000000-0000-4000-8000-000000000001')
+     is distinct from first_read then
+    raise exception 'FAIL: read_at not stored';
+  end if;
+end $$;
+
+-- now() is the same inside one transaction, so pin the stored time to a known past value
+-- and check that a second call keeps it instead of writing a new one.
+reset role;
+update public.coach_feedback set read_at = '2026-01-01T00:00:00Z'
+where id = '40000000-0000-4000-8000-000000000001';
+set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+do $$
+begin
+  if public.mark_feedback_read('40000000-0000-4000-8000-000000000001') is distinct from '2026-01-01T00:00:00Z'::timestamptz
+     or (select read_at from public.my_coach_feedback() where id = '40000000-0000-4000-8000-000000000001')
+        is distinct from '2026-01-01T00:00:00Z'::timestamptz then
+    raise exception 'FAIL: a second mark read overwrote the first read_at';
+  end if;
+  if (select text from public.my_coach_feedback() where id = '40000000-0000-4000-8000-000000000001')
+     is distinct from 'Strong finish.' then
     raise exception 'FAIL: marking read changed the text';
   end if;
 end $$;
@@ -146,7 +165,7 @@ begin
   if (select count(*) from public.my_coach_feedback()) <> 2 then
     raise exception 'FAIL: after leaving the athlete sees % rows, expected 2', (select count(*) from public.my_coach_feedback());
   end if;
-  if (select coach_name from public.my_coach_feedback() limit 1) <> 'Dana' then
+  if (select coach_name from public.my_coach_feedback() limit 1) is distinct from 'Dana' then
     raise exception 'FAIL: coach name missing after leaving';
   end if;
 end $$;

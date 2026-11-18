@@ -116,8 +116,13 @@ struct AthleteRunFeedbackSection: View {
             AthleteFeedbackSkeleton()
         } else if feedback.loadState == .failed, let link, run.endedAt > link.consentedAt {
             AthleteFeedbackError(coachName: link.coachName) { Task { await feedback.load() } }
-        } else if let link, let line = feedback.reviewLine(for: run, link: link) {
-            CoachReviewLineView(line: line, coachName: link.coachName)
+        } else if let link, feedback.reviewLine(for: run, link: link) != nil {
+            // Redraws once at the 72-hour mark, so a screen left open switches lines. No countdown.
+            TimelineView(.explicit([run.endedAt.addingTimeInterval(AthleteFeedbackRPC.reviewWindow)])) { context in
+                if let line = feedback.reviewLine(for: run, link: link, now: max(context.date, .now)) {
+                    CoachReviewLineView(line: line, coachName: link.coachName)
+                }
+            }
         }
     }
 }

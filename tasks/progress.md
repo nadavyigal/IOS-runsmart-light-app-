@@ -94,7 +94,7 @@ Last Updated: 2026-11-11
 - Active Story: 3.2 notes pinned on runs and weeks, Today badge, pending review line, My coach list
 - Next Recommended Story: 3.3 Today card and Coached-by header, after 3.2 merges
 - Blockers: migrations 20261118100000 and 20261118120000 not applied; founder applies after review
-- Last Validation: full suite 1054 passed, 0 failed; athlete_feedback_read SQL suite runs in CI
+- Last Validation: full suite 1060 passed, 0 failed; athlete_feedback_read SQL suite runs in CI
 - Last Updated: 2026-11-18
 
 ## 2026-11-18 Story 3.1 coach feedback write

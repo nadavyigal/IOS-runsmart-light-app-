@@ -95,12 +95,15 @@ nonisolated struct AthleteFeedbackNote: Codable, Identifiable, Equatable, Sendab
         runSourceProvider == key.sourceProvider && runSourceActivityID == key.sourceActivityID
     }
 
-    /// The week's first day, read as a calendar date in `calendar`.
+    /// The week's first day. The server sends a Gregorian SQL date, so it is read with a
+    /// Gregorian calendar in `calendar`'s time zone, whatever calendar the device uses.
     func weekStartDate(calendar: Calendar) -> Date? {
         guard let weekStart else { return nil }
         let parts = weekStart.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3 else { return nil }
-        return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        return gregorian.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
     }
 }
 
@@ -233,7 +236,17 @@ final class AthleteFeedbackStore: ObservableObject {
     private let service: any AthleteFeedbackFetching
     private let cache: AthleteFeedbackCache
     private var userID: UUID?
+    /// Bumped when the athlete changes. Work from an older session never applies.
     private var generation = 0
+    /// Bumped on each load. Only the newest load's answer applies.
+    private var loadRequest = 0
+    /// Reads the server confirmed this session. A list fetched before a read was confirmed
+    /// must not bring the badge back.
+    private var confirmedReads: [UUID: Date] = [:]
+    /// Reads shown on screen but not yet confirmed. Never written to the phone's cache.
+    private var pendingReads: Set<UUID> = []
+    /// Notes opened again while their first read was still pending: one retry if it fails.
+    private var reopenedWhilePending: Set<UUID> = []
 
     init(service: any AthleteFeedbackFetching = SupabaseAthleteFeedbackService(),
          cache: AthleteFeedbackCache = AthleteFeedbackCache()) {
@@ -246,24 +259,41 @@ final class AthleteFeedbackStore: ObservableObject {
         guard self.userID != userID else { return }
         generation += 1
         self.userID = userID
+        confirmedReads = [:]
+        pendingReads = []
+        reopenedWhilePending = []
         notes = userID.flatMap { cache.load(userID: $0) } ?? []
         loadState = .idle
     }
 
     func load() async {
         guard let userID else { return }
-        let started = generation
+        let session = generation
+        loadRequest += 1
+        let request = loadRequest
         loadState = .loading
         do {
             let rows = try await service.list()
-            guard started == generation else { return }
-            notes = rows.sorted { $0.createdAt > $1.createdAt }
-            cache.save(notes, userID: userID)
+            guard session == generation, request == loadRequest else { return }
+            notes = rows.map(reconciled).sorted { $0.createdAt > $1.createdAt }
+            persist(userID: userID)
             loadState = .loaded
         } catch {
-            guard started == generation else { return }
+            guard session == generation, request == loadRequest else { return }
             loadState = .failed
         }
+    }
+
+    /// Keeps a read the server already confirmed, or one still pending, over an older list.
+    private func reconciled(_ note: AthleteFeedbackNote) -> AthleteFeedbackNote {
+        guard note.readAt == nil else { return note }
+        var copy = note
+        if let confirmed = confirmedReads[note.id] {
+            copy.readAt = confirmed
+        } else if pendingReads.contains(note.id) {
+            copy.readAt = notes.first { $0.id == note.id }?.readAt
+        }
+        return copy
     }
 
     func notes(for run: RecordedRun) -> [AthleteFeedbackNote] {
@@ -278,6 +308,16 @@ final class AthleteFeedbackStore: ObservableObject {
         return notes.filter { note in
             guard let day = note.weekStartDate(calendar: calendar) else { return false }
             return day >= first && day <= last
+        }.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    /// Week notes in `month` that no plan week card covers (for example, every workout of
+    /// that week was removed). Plan shows them on their own so they stay readable.
+    func uncoveredWeekNotes(month: Date, weeks: [(start: Date, end: Date)], calendar: Calendar) -> [AthleteFeedbackNote] {
+        notes.filter { note in
+            guard let day = note.weekStartDate(calendar: calendar),
+                  calendar.isDate(day, equalTo: month, toGranularity: .month) else { return false }
+            return !weeks.contains { day >= calendar.startOfDay(for: $0.start) && day <= calendar.startOfDay(for: $0.end) }
         }.sorted { $0.createdAt < $1.createdAt }
     }
 
@@ -298,26 +338,58 @@ final class AthleteFeedbackStore: ObservableObject {
     }
 
     /// Records that the athlete opened these notes. Shown as read at once; the server sets
-    /// `read_at` (SM-3/SM-7). A failed call is retried the next time the note opens.
+    /// `read_at` (SM-3/SM-7). A failed read shows as unread again and is retried the next time
+    /// the note opens, or once right away if it was reopened while pending.
     func markRead(_ opened: [AthleteFeedbackNote], now: Date = .now) async {
-        let unread = opened.filter { note in notes.first { $0.id == note.id }?.readAt == nil }
+        let session = generation
+        for note in opened where pendingReads.contains(note.id) { reopenedWhilePending.insert(note.id) }
+        let unread = opened.filter { note in
+            !pendingReads.contains(note.id) && notes.first { $0.id == note.id }?.readAt == nil
+        }
         guard !unread.isEmpty else { return }
         for note in unread {
-            if let index = notes.firstIndex(where: { $0.id == note.id }) { notes[index].readAt = now }
+            pendingReads.insert(note.id)
+            setReadAt(now, for: note.id)
         }
-        persist()
         for note in unread {
-            do {
-                let stored = try await service.markRead(id: note.id)
-                if let stored, let index = notes.firstIndex(where: { $0.id == note.id }) { notes[index].readAt = stored }
-            } catch {
-                if let index = notes.firstIndex(where: { $0.id == note.id }) { notes[index].readAt = nil }
-            }
+            await confirmRead(note.id, session: session)
         }
-        persist()
     }
 
-    private func persist() {
-        if let userID { cache.save(notes, userID: userID) }
+    private func confirmRead(_ id: UUID, session: Int) async {
+        do {
+            let stored = try await service.markRead(id: id)
+            guard session == generation else { return }
+            pendingReads.remove(id)
+            reopenedWhilePending.remove(id)
+            let readAt = stored ?? notes.first { $0.id == id }?.readAt ?? .now
+            confirmedReads[id] = readAt
+            setReadAt(readAt, for: id)
+            if let userID { persist(userID: userID) }
+        } catch {
+            guard session == generation else { return }
+            if reopenedWhilePending.remove(id) != nil {
+                await confirmRead(id, session: session)
+                return
+            }
+            pendingReads.remove(id)
+            setReadAt(nil, for: id)
+        }
+    }
+
+    private func setReadAt(_ date: Date?, for id: UUID) {
+        if let index = notes.firstIndex(where: { $0.id == id }) { notes[index].readAt = date }
+    }
+
+    /// Saves the list with only server-confirmed reads, so an offline relaunch never shows a
+    /// read the server didn't record.
+    private func persist(userID: UUID) {
+        let confirmedOnly = notes.map { note -> AthleteFeedbackNote in
+            guard pendingReads.contains(note.id) else { return note }
+            var copy = note
+            copy.readAt = nil
+            return copy
+        }
+        cache.save(confirmedOnly, userID: userID)
     }
 }

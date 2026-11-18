@@ -130,7 +130,7 @@ struct PlanTabView: View {
                             onNextMonth: showNextMonth
                         )
                     case .weekly:
-                        PlanWeeklyReviewSection(weeks: weeksForReview, onWorkout: openWorkoutDetail)
+                        PlanWeeklyReviewSection(weeks: weeksForReview, month: displayedMonth, onWorkout: openWorkoutDetail)
                     case .progress:
                         PlanProgressSection(
                             goal: goal,
@@ -184,6 +184,8 @@ struct PlanTabView: View {
         .task(id: displayedMonth) {
             await loadMonthData()
         }
+        .onAppear(perform: openFocusedWeek)
+        .onChange(of: router.planFocusDate) { _, _ in openFocusedWeek() }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanDidChange)) { _ in
             refreshPlanAndMonth()
         }
@@ -279,6 +281,14 @@ struct PlanTabView: View {
     }
 
     private func showWeeklyReview() {
+        viewMode = .weekly
+    }
+
+    /// Opens the weekly view on the month of a week note picked in My coach.
+    private func openFocusedWeek() {
+        guard let date = router.planFocusDate else { return }
+        router.planFocusDate = nil
+        displayedMonth = date
         viewMode = .weekly
     }
 
@@ -402,10 +412,13 @@ private struct PlanCurrentWeekSection: View {
 
 private struct PlanWeeklyReviewSection: View {
     var weeks: [PlanWeekSummary]
+    var month: Date = Date()
     var onWorkout: (WorkoutSummary) -> Void
+    @EnvironmentObject private var feedback: AthleteFeedbackStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            uncoveredNotes
             HStack {
                 Text("Weekly Review")
                     .font(.headingMD)
@@ -430,6 +443,31 @@ private struct PlanWeeklyReviewSection: View {
                     }
                 }
             }
+        }
+    }
+}
+
+extension PlanWeeklyReviewSection {
+    /// Week notes whose week has no card here (all its workouts were removed). They stay
+    /// readable on their own, under the week they were written for.
+    @ViewBuilder
+    fileprivate var uncoveredNotes: some View {
+        let calendar = Calendar.current
+        let notes = feedback.uncoveredWeekNotes(
+            month: month, weeks: weeks.map { ($0.startDate, $0.endDate) }, calendar: calendar
+        )
+        if !notes.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(notes) { note in
+                    if let start = note.weekStartDate(calendar: calendar) {
+                        Text("Week of \(AthleteFeedbackFormat.shortDate(start))")
+                            .font(.labelSM)
+                            .foregroundStyle(Color.textSecondary)
+                    }
+                    AthleteFeedbackCard(note: note)
+                }
+            }
+            .task(id: notes.map(\.id)) { await feedback.markRead(notes) }
         }
     }
 }

@@ -14,6 +14,8 @@ struct MyCoachView: View {
     @StateObject private var model = LeaveCoachModel()
     @State private var showLeaveSheet = false
     @State private var pathMonitor: NWPathMonitor?
+    @State private var openTask: Task<Void, Never>?
+    @State private var unavailableNoteID: UUID?
 
     var body: some View {
         Group {
@@ -25,7 +27,12 @@ struct MyCoachView: View {
             }
         }
         .onAppear(perform: startReachability)
-        .onDisappear(perform: stopReachability)
+        .onDisappear {
+            stopReachability()
+            // A report must not open after My coach is closed.
+            openTask?.cancel()
+            openTask = nil
+        }
         .sheet(isPresented: $showLeaveSheet) {
             if let link = coachLinks.currentLink {
                 LeaveCoachSheet(coachName: link.coachName, model: model) {
@@ -54,9 +61,16 @@ struct MyCoachView: View {
                 .font(.headline)
                 .accessibilityAddTraits(.isHeader)
             if notes.isEmpty {
-                Text("No notes from \(link.coachName) yet.")
-                    .font(.body)
-                    .foregroundStyle(Color.textSecondary)
+                switch feedback.loadState {
+                case .failed:
+                    AthleteFeedbackError(coachName: link.coachName) { Task { await feedback.load() } }
+                case .idle, .loading:
+                    AthleteFeedbackSkeleton()
+                case .loaded:
+                    Text("No notes from \(link.coachName) yet.")
+                        .font(.body)
+                        .foregroundStyle(Color.textSecondary)
+                }
             }
             ForEach(notes) { note in
                 Button { open(note) } label: {
@@ -87,22 +101,43 @@ struct MyCoachView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint(note.isRunNote ? "Opens the run" : "Opens the week in your plan")
+                if unavailableNoteID == note.id {
+                    Text("This run isn't on this phone.")
+                        .font(.caption)
+                        .foregroundStyle(Color.textSecondary)
+                }
             }
         }
     }
 
     private func open(_ note: AthleteFeedbackNote) {
+        unavailableNoteID = nil
         guard note.isRunNote else {
+            router.planFocusDate = note.weekStartDate(calendar: .current)
             router.activeSheet = nil
             router.selectedTab = .plan
             return
         }
-        Task {
-            let runs = await services.recentRuns()
-            guard let run = runs.first(where: { note.matches($0.runSourceKey) }) else { return }
+        openTask?.cancel()
+        openTask = Task {
+            guard let run = await resolveRun(note) else {
+                if !Task.isCancelled { unavailableNoteID = note.id }
+                return
+            }
             let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
+            guard !Task.isCancelled else { return }
             router.open(.runReportDetail(report, run: run))
         }
+    }
+
+    /// Looks the run up in every stored run first (no recent-runs limit), then in recent runs.
+    private func resolveRun(_ note: AthleteFeedbackNote) async -> RecordedRun? {
+        if let id = note.runSourceActivityID,
+           let stored = await services.recordedRun(forReportRunID: id),
+           note.matches(stored.runSourceKey) {
+            return stored
+        }
+        return await services.recentRuns().first { note.matches($0.runSourceKey) }
     }
 
     private func coach(_ link: CoachLink) -> some View {
