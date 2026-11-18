@@ -209,7 +209,8 @@ jobs:
           # local: the CLI's fixed ports (54320-54329) sit inside Linux's ephemeral
           # range, and an outbound connection during the image pulls can take 54322
           # before Postgres binds it. Reserving them keeps them free for explicit binds.
-          sudo sysctl -w net.ipv4.ip_local_reserved_ports=54320-54329
+          reserved_ports="$(sysctl -n net.ipv4.ip_local_reserved_ports)"
+          sudo sysctl -w "net.ipv4.ip_local_reserved_ports=${reserved_ports:+$reserved_ports,}54320-54329"
           if ! supabase start -x studio,imgproxy,vector,logflare,edge-runtime,mailpit,postgres-meta,supavisor; then
             echo "::group::Sockets on Supabase ports"
             sudo ss -tanp | grep -E ':5432[0-9]\b' || echo "none"

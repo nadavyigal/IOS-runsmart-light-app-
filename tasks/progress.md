@@ -1,7 +1,7 @@
 # 2026-11-18: CI, Supabase matrix port clash
 
 Current Phase: Coach Mode pilot; CI fix on `ci/sql-port-clash`, workflow only, no SQL.
-Active Story: Reserve Supabase CLI ports 54320-54329 so outbound connections never take 54322 before Postgres binds; log port owners on failure.
+Active Story: Preserve existing reserved ports and reserve Supabase CLI ports 54320-54329 so outbound connections never take 54322 before Postgres binds; log port owners on failure.
 Next Recommended Story: Founder merges this, then re-runs SQL checks on #212 and #213.
 Blockers: None.
 Last Validation: Two consecutive PR runs with every Supabase migrations matrix job green (see PR).
