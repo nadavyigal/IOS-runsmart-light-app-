@@ -7,9 +7,9 @@ final class WorkoutAdherenceTests: XCTestCase {
     private let workoutID = UUID()
     private let now = ISO8601DateFormatter().date(from: "2026-11-18T12:00:00Z")!
 
-    private func workout(date: String = "2026-11-17", distance: Double = 10) throws -> CoachWorkoutSummary {
+    private func workout(date: String = "2026-11-17", distance: Double = 10, owner: UUID? = nil) throws -> CoachWorkoutSummary {
         try JSONDecoder().decode(CoachWorkoutSummary.self, from: Data("""
-        {"id":"\(workoutID)","athlete_id":"\(athlete)","plan_id":"\(UUID())",
+        {"id":"\(workoutID)","athlete_id":"\(owner ?? athlete)","plan_id":"\(UUID())",
         "scheduled_date":"\(date)","type":"easy","planned_distance":\(distance),
         "planned_duration_minutes":50,"completed":true}
         """.utf8))
@@ -57,5 +57,31 @@ final class WorkoutAdherenceTests: XCTestCase {
         XCTAssertEqual(rows.map(\.status), [.onTrack, .joining])
         XCTAssertEqual(rows.first?.done, 1)
         XCTAssertEqual(rows.first?.planned, 1)
+    }
+
+    func testNeedsAttentionSortsByMissesThenLastRunDayThenName() throws {
+        let week = CoachAthleteWeek(now: now, locale: Locale(identifier: "en_US"), timeZone: .gmt)
+        let a = CoachAthleteSummary(athleteID: athlete, displayName: "Ari", linkedAt: .distantPast, hasActivePlan: true)
+        let b = CoachAthleteSummary(athleteID: UUID(), displayName: "Ben", linkedAt: .distantPast, hasActivePlan: true)
+        let c = CoachAthleteSummary(athleteID: UUID(), displayName: "Chen", linkedAt: .distantPast, hasActivePlan: true)
+        let d = CoachAthleteSummary(athleteID: UUID(), displayName: "Dan", linkedAt: .distantPast, hasActivePlan: true)
+        let e = CoachAthleteSummary(athleteID: UUID(), displayName: "Eli", linkedAt: .distantPast, hasActivePlan: false)
+        let workouts = try [
+            workout(owner: a.athleteID), workout(owner: b.athleteID),
+            workout(owner: c.athleteID), workout(owner: d.athleteID),
+            workout(date: "2026-11-16", owner: d.athleteID)
+        ]
+        let old = now.addingTimeInterval(-172_800)
+        let rows = CoachAthleteRow.make(
+            athletes: [d, c, e, b, a], workouts: workouts, runs: [],
+            latest: [a.athleteID: old.addingTimeInterval(60), b.athleteID: old, d.athleteID: now],
+            now: now, week: week
+        )
+        XCTAssertEqual(rows.filter { $0.status == .behind }.map(\.id),
+                       [d.athleteID, c.athleteID, a.athleteID, b.athleteID])
+        XCTAssertEqual(rows.first { $0.id == e.athleteID }?.status, .noPlan)
+        XCTAssertTrue(CoachAthleteRow.make(
+            athletes: [], workouts: workouts, runs: [], latest: [:], now: now, week: week
+        ).isEmpty)
     }
 }
