@@ -2,17 +2,30 @@ import SwiftUI
 import UIKit
 
 /// Coach tab root. Plan Mode (C2) is a hard gate in front of the invite (C4).
-/// The athlete list arrives in Story 2.3.
 struct CoachTabView: View {
     @StateObject private var model: CoachPlanSetupModel
 
-    init(repository: any CoachPlanRepository = SupabaseCoachPlanRepository()) {
+    let ownerID: UUID
+    @ObservedObject var athletes: CoachAthleteListModel
+
+    init(ownerID: UUID, athletes: CoachAthleteListModel,
+         repository: any CoachPlanRepository = SupabaseCoachPlanRepository()) {
+        self.ownerID = ownerID
+        self.athletes = athletes
         _model = StateObject(wrappedValue: CoachPlanSetupModel(repository: repository))
     }
 
     var body: some View {
         if RunSmartFeatures.coachModeEnabled {
-            coachScreen
+            NavigationStack {
+                coachScreen
+                    .navigationDestination(for: CoachAthleteDestination.self) { athlete in
+                        Text(athlete.name)
+                            .navigationTitle("Athlete")
+                            .toolbar(.visible, for: .navigationBar)
+                    }
+                    .toolbar(.hidden, for: .navigationBar)
+            }
         }
     }
 
@@ -23,6 +36,11 @@ struct CoachTabView: View {
 
                 if model.loadFailed {
                     loadFailure
+                    if athletes.ownerID == ownerID, athletes.updatedAt != nil {
+                        CoachAthleteList(model: athletes, ownerID: ownerID, planSetupUnavailable: true) {
+                            await athletes.refresh(owner: ownerID)
+                        }
+                    }
                 } else if !model.didLoad {
                     ProgressView()
                         .tint(Color.accentPrimary)
@@ -61,7 +79,9 @@ struct CoachTabView: View {
                     }
 
                     if model.showsInvite {
-                        emptyAthletes
+                        CoachAthleteList(model: athletes, ownerID: ownerID) {
+                            await athletes.refresh(owner: ownerID)
+                        }
                         CoachInviteSection()
                     }
 
@@ -78,6 +98,12 @@ struct CoachTabView: View {
             .padding(.bottom, 140)
         }
         .task { await model.load() }
+        .task(id: model.showsInvite) {
+            if model.showsInvite { await athletes.refresh(owner: ownerID) }
+        }
+        .refreshable {
+            if model.showsInvite { await athletes.refresh(owner: ownerID) }
+        }
     }
 
     private var header: some View {
@@ -95,21 +121,6 @@ struct CoachTabView: View {
                 .accessibilityLabel("Coach menu")
                 .accessibilityIdentifier("coach-tab-menu")
             }
-        }
-    }
-
-    private var emptyAthletes: some View {
-        ContentCard {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("No athletes yet.")
-                    .font(.headingMD)
-                    .foregroundStyle(Color.textPrimary)
-                Text("Share your invite code to get started.")
-                    .font(.bodyMD)
-                    .foregroundStyle(Color.textSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
         }
     }
 

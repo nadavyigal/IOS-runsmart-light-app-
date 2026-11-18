@@ -1,3 +1,7 @@
+## 2026-11-18 — Keep coach date conversion callable from the read service
+
+The roster build failed because the read-service protocol is nonisolated and the new date locals called main-actor helpers. Mark pure date conversion and query payloads nonisolated and compile the actual app target before considering the RPC client ready.
+
 ## 2026-11-17 — Simulator signing fails on a file-provider path
 
 `codesign` rejects a bundle that carries `com.apple.FinderInfo` with "resource fork, Finder information, or similar detritus not allowed". DerivedData under Documents picked up that attribute from the file provider. Put DerivedData on a local path such as `/tmp` and set `COPYFILE_DISABLE=1`. Do not disable simulator signing: an unsigned test host does not load the XCTest bundle.

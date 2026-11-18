@@ -1,3 +1,12 @@
+# 2026-11-18: Coach Mode story 2.3, athlete list review fixes
+
+Current Phase: Coach Mode pilot foundation, story 2.3 (PR #204) review fixes.
+Active Story: Rest days no longer count as planned or missed; roster sorts by status group first, so Needs attention ordering is stable.
+Next Recommended Story: Founder merges #204, then 2.4 athlete detail. Race-date Gregorian fix is merged in #205.
+Blockers: Current-head review and CI are being refreshed after merging #205 into this branch.
+Last Validation: iPhone 17 simulator, WorkoutAdherenceTests and CoachReadServiceTests, 14 passed / 0 failed, including two new tests.
+Last Updated: 2026-11-18
+
 # 2026-11-18: Group race date written as Gregorian (follow-up to #197)
 
 Current Phase: Coach Mode pilot foundation, follow-up fix to story 1.7.

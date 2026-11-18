@@ -15,7 +15,7 @@ enum CoachReadRPC {
     static let runs = "coach_get_athletes_runs"
 }
 
-enum CoachReadDay {
+nonisolated enum CoachReadDay {
     /// `yyyy-MM-dd` in `calendar`'s time zone. The server treats a run's date as
     /// the UTC date of `runs.completed_at`, and a workout's date as `scheduled_date`.
     static func iso(_ date: Date, calendar: Calendar) -> String {
@@ -231,10 +231,12 @@ struct CoachWorkoutQuery: Encodable, Equatable {
     }
 }
 
-struct CoachRunQuery: Encodable, Equatable {
+nonisolated struct CoachRunQuery: Encodable, Equatable, Sendable {
     var from: String
     var to: String
     var athleteIDs: [UUID]?
+
+    var latestThrough: Date? = nil
 
     enum CodingKeys: String, CodingKey {
         case from = "p_from"
@@ -263,6 +265,7 @@ nonisolated protocol CoachReadServing: Sendable {
     func plan(for athleteID: UUID) async throws -> [CoachPlanSummary]
     func workouts(from: Date, to: Date, athleteIDs: [UUID]?, calendar: Calendar) async throws -> [CoachWorkoutSummary]
     func runs(from: Date, to: Date, athleteIDs: [UUID]?, calendar: Calendar) async throws -> [CoachRunSummary]
+    func latestRun(for athleteID: UUID, through: Date) async throws -> CoachRunSummary?
 }
 
 nonisolated protocol CoachReadFetching: Sendable {
@@ -302,6 +305,13 @@ struct CoachReadService: CoachReadServing {
             athleteIDs: athleteIDs
         ))
     }
+
+    func latestRun(for athleteID: UUID, through: Date) async throws -> CoachRunSummary? {
+        let day = CoachReadDay.iso(through, calendar: .coachRunUTC)
+        return try await client.runs(CoachRunQuery(
+            from: "1900-01-01", to: day, athleteIDs: [athleteID], latestThrough: through
+        )).first
+    }
 }
 
 struct SupabaseCoachReadClient: CoachReadFetching {
@@ -327,10 +337,13 @@ struct SupabaseCoachReadClient: CoachReadFetching {
     }
 
     func runs(_ query: CoachRunQuery) async throws -> [CoachRunSummary] {
-        try await SupabaseManager.client
-            .rpc(CoachReadRPC.runs, params: query)
-            .execute()
-            .value
+        let request = try await SupabaseManager.client.rpc(CoachReadRPC.runs, params: query)
+        if let through = query.latestThrough {
+            return try await request.lte("completed_at", value: CoachReadTimestamp.iso(through))
+                .order("completed_at", ascending: false)
+                .order("id", ascending: false).limit(1).execute().value
+        }
+        return try await request.execute().value
     }
 }
 
@@ -340,6 +353,11 @@ struct MockCoachReadService: CoachReadServing {
     var plans: [UUID: [CoachPlanSummary]] = [:]
     var workoutResults: [CoachWorkoutSummary] = []
     var runResults: [CoachRunSummary] = []
+
+    func latestRun(for athleteID: UUID, through: Date) async throws -> CoachRunSummary? {
+        runResults.filter { $0.athleteID == athleteID && $0.completedAt <= through }
+            .max { $0.completedAt < $1.completedAt }
+    }
 
     func listAthletes() async throws -> [CoachAthleteSummary] { athletes }
 
@@ -358,7 +376,7 @@ struct MockCoachReadService: CoachReadServing {
     }
 }
 
-private enum CoachReadTimestamp {
+private nonisolated enum CoachReadTimestamp {
     static func date<K: CodingKey>(from raw: String, key: K, container: KeyedDecodingContainer<K>) throws -> Date {
         if let date = parsed(raw) { return date }
         throw DecodingError.dataCorruptedError(forKey: key, in: container, debugDescription: raw)
@@ -384,5 +402,14 @@ private enum CoachReadTimestamp {
             if let date = fallback.date(from: raw) { return date }
         }
         return nil
+    }
+}
+
+
+extension Calendar {
+    nonisolated static var coachRunUTC: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
     }
 }

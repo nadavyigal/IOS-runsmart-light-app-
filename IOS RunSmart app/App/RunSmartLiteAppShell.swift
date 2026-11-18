@@ -159,6 +159,7 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var planGeneration = PlanGenerationStore()
     @StateObject private var guestJourney = GuestJourneyStore()
     @StateObject private var coachMode = CoachModeStore()
+    @StateObject private var coachAthletes = CoachAthleteListModel()
     @StateObject private var coachLinks = CoachLinkStore(publishesAssistantContext: true)
     @State private var didPresentMorningCheckin = false
     @State private var isShowingLaunch = !RunSmartDemoMode.isEnabled
@@ -294,7 +295,11 @@ struct RunSmartLiteAppShell: View {
                 coachLinks.clear()
             }
         }
+        .onChange(of: coachRoleCheckUserID) { _, userID in
+            coachAthletes.reset(for: userID)
+        }
         .onChange(of: coachMode.isCoach) { _, isCoach in
+            if !isCoach { coachAthletes.reset(for: nil) }
             // A tab that stops existing (sign-out, unflagged coach) must not stay selected.
             if (!isCoach || !RunSmartFeatures.coachModeEnabled), router.selectedTab == .coach {
                 router.selectedTab = .today
@@ -565,8 +570,9 @@ struct RunSmartLiteAppShell: View {
         case .run:     RunTabView()
         case .report:  ReportTabView()
         case .coach:
-            if RunSmartFeatures.coachModeEnabled && coachMode.isCoach {
-                CoachTabView()
+            if coachMode.isCoach, let ownerID = coachRoleCheckUserID {
+                CoachTabView(ownerID: ownerID, athletes: coachAthletes)
+                    .id(ownerID)
             } else {
                 TodayTabView()
             }
