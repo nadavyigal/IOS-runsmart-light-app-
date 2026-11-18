@@ -6,7 +6,7 @@ import Supabase
 //
 // CoachPresence is the one gate every coach element on Today and the Plan reads. It is
 // active only while CoachLinkStore holds an active link. Unlinked, revoked or left:
-// inactive, and nothing coach-related renders. Later stories (3.4, 4.3, 5.2, 5.4) read
+// inactive, and nothing coach-related renders. Later stories (4.3, 5.2, 5.4) read
 // the same gate through `CoachLayerHooks`.
 
 /// The caller's active coach as `get_my_coach()` returns it.
@@ -133,6 +133,7 @@ enum CoachPresenceCopy {
     static func pastWeekCard(_ coach: String, weekOf: String) -> String { "\(coach)'s note for the week of \(weekOf)" }
     static func more(_ count: Int, coach: String) -> String { "\(count) more from \(coach)" }
     static func refreshFailed(_ coach: String) -> String { "Couldn't refresh \(coach)'s updates" }
+    static func welcomeCard(_ coach: String) -> String { "Welcome from \(coach)" }
     static let read = "Read"
     static let retry = "Retry"
     static func groupTitle(_ coach: String, goal: String) -> String { "\(coach)'s plan: \(goal)" }
@@ -144,7 +145,7 @@ enum CoachPresenceCopy {
 
 // MARK: - Today (A5)
 
-/// One coach card on Today. Unread notes only, newest first.
+/// One unread coach card on Today.
 struct TodayCoachCard: Equatable, Identifiable {
     let note: AthleteFeedbackNote
     let title: String
@@ -158,7 +159,7 @@ struct TodayCoachLayer: Equatable {
     static let maxCards = 2
 
     let coachName: String
-    /// At most two, newest first.
+    /// At most two. Welcome first, then newest first.
     let cards: [TodayCoachCard]
     /// Unread notes past the first two. Shown as one "N more from {Coach}" row.
     let moreCount: Int
@@ -178,7 +179,10 @@ struct TodayCoachLayer: Equatable {
         guard let coach else { return nil }
         let unread = notes
             .filter { $0.coachID == coach.coachID && $0.createdAt >= coach.consentedAt && $0.readAt == nil }
-            .sorted { $0.createdAt > $1.createdAt }
+            .sorted { first, second in
+                if first.kind != second.kind { return first.kind == .welcome }
+                return first.createdAt > second.createdAt
+            }
         let cards = unread.prefix(maxCards).map { note in
             TodayCoachCard(note: note, title: title(for: note, coach: coach.coachName, runs: runs,
                                                     calendar: calendar, locale: locale, now: now))
@@ -196,6 +200,7 @@ struct TodayCoachLayer: Equatable {
 
     static func title(for note: AthleteFeedbackNote, coach: String, runs: [RecordedRun],
                       calendar: Calendar, locale: Locale, now: Date = .now) -> String {
+        if note.kind == .welcome { return CoachPresenceCopy.welcomeCard(note.coachName) }
         guard note.isRunNote else {
             // "This week" only while the note's week contains today; otherwise name its date.
             guard let start = note.weekStartDate(calendar: calendar),
@@ -224,13 +229,15 @@ struct TodayCoachLayer: Equatable {
     }
 }
 
-/// Where Read on a Today card goes: the run's detail, or the note's week in the Plan.
+/// What opens after Read on a Today card.
 enum CoachNoteDestination: Equatable {
+    case welcome
     case run
     case week(Date?)
 
     static func of(_ note: AthleteFeedbackNote, calendar: Calendar = .current) -> CoachNoteDestination {
-        note.isRunNote ? .run : .week(note.weekStartDate(calendar: calendar))
+        if note.kind == .welcome { return .welcome }
+        return note.isRunNote ? .run : .week(note.weekStartDate(calendar: calendar))
     }
 }
 
@@ -281,13 +288,6 @@ struct PlanCoachHeader: Equatable {
 /// Places later stories add to the coach layer. Each reads `CoachPresence`, so all of it
 /// disappears when the athlete leaves. None of them shows anything yet.
 enum CoachLayerHooks {
-    /// Story 3.4: the coach's welcome note, the top Today card on the first Today.
-    /// Arrives as a `kind = 'welcome'` feedback row and joins `TodayCoachLayer.cards`.
-    static func showsWelcomeCard(_ presence: CoachPresence) -> Bool {
-        guard presence.isActive else { return false }
-        return false
-    }
-
     /// Stories 4.3 and 5.2: the "{Coach} updated your plan" card on Today, and the
     /// "Edited by {Coach}" label on Plan rows and workout detail.
     static func showsPlanUpdateCard(_ presence: CoachPresence) -> Bool {

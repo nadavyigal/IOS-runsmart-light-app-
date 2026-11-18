@@ -89,6 +89,7 @@ struct CoachAthleteDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showsPreviousWeek = false
     @State private var composer: CoachFeedbackRequest?
+    @State private var showsWelcomeEditor = false
 
     init(destination: CoachAthleteDestination, service: any CoachReadServing = CoachReadService(),
          feedbackService: any CoachFeedbackServing = SupabaseCoachFeedbackService()) {
@@ -113,6 +114,22 @@ struct CoachAthleteDetailView: View {
         .navigationTitle(destination.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            if !model.revoked, !feedback.revoked {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Welcome note for \(destination.name)") { showsWelcomeEditor = true }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Athlete menu")
+                }
+            }
+        }
+        .sheet(isPresented: $showsWelcomeEditor) {
+            CoachWelcomeEditor(athlete: destination)
+        }
         .task { await model.load() }
         .task { await feedback.load() }
         .refreshable {

@@ -128,6 +128,10 @@ jobs:
             migration: 20261118140000_coach_run_route
             fixture: coach_read_fixture
             prerequisite: 20261114210000_coach_role_and_invites 20261115091000_coach_athlete_links 20261115194500_leave_coach 20261117164500_coach_read_rpcs 20261117100000_coach_route_upload
+          - suite: set_run_route_hidden
+            migration: 20261118170000_set_run_route_hidden
+            fixture: coach_read_fixture
+            prerequisite: 20261114210000_coach_role_and_invites 20261115091000_coach_athlete_links 20261115194500_leave_coach 20261117164500_coach_read_rpcs 20261117100000_coach_route_upload 20261118140000_coach_run_route
           - suite: coach_feedback
             migration: 20261118100000_coach_feedback
             fixture: coach_read_fixture
@@ -140,6 +144,10 @@ jobs:
             migration: 20261118160000_get_my_coach
             fixture: coach_read_fixture
             prerequisite: 20261114210000_coach_role_and_invites 20261115091000_coach_athlete_links 20261115194500_leave_coach 20261117130000_coach_plan_mode_group_settings
+          - suite: coach_welcome_note
+            migration: 20261118180000_coach_welcome_note
+            fixture: coach_read_fixture
+            prerequisite: 20261114210000_coach_role_and_invites 20261115091000_coach_athlete_links 20261115194500_leave_coach 20261117130000_coach_plan_mode_group_settings 20261117164500_coach_read_rpcs 20261118100000_coach_feedback 20261118120000_athlete_feedback_read 20261118160000_get_my_coach
           - suite: rls_leaks
             migration: 20261114120000_close_cross_user_rls_leaks
             fixture: rls_leaks_fixture

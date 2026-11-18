@@ -53,7 +53,7 @@ struct MyCoachView: View {
     }
 
     /// A11 Feedback row: every note from this coach since joining, newest first. Each opens
-    /// its run (run detail) or its week (Plan). Shown only while linked.
+    /// its run or week. The welcome remains readable here while linked.
     private func feedbackList(_ link: CoachLink) -> some View {
         let notes = feedback.currentNotes(link: link)
         return VStack(alignment: .leading, spacing: 8) {
@@ -73,38 +73,49 @@ struct MyCoachView: View {
                 }
             }
             ForEach(notes) { note in
-                Button { open(note) } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Text(verbatim: AthleteFeedbackFormat.header(note))
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.textSecondary)
-                            if note.readAt == nil {
-                                Circle().fill(Color.accentPrimary).frame(width: 8, height: 8)
-                                    .accessibilityLabel("Unread")
-                            }
-                            Spacer(minLength: 0)
-                            Image(systemName: "chevron.forward").foregroundStyle(Color.textSecondary)
+                if note.kind == .welcome {
+                    CoachSignedCard(title: CoachPresenceCopy.welcomeCard(note.coachName), text: note.text,
+                                    coachName: note.coachName) {
+                        if note.readAt == nil {
+                            Button(CoachPresenceCopy.read) { Task { await feedback.markRead([note]) } }
+                                .frame(minWidth: 44, minHeight: 44)
+                                .accessibilityHint("Marks the welcome as read")
                         }
-                        Text(verbatim: note.text)
-                            .font(.body)
-                            .foregroundStyle(Color.textPrimary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .environment(\.layoutDirection,
-                                         CoachFeedbackText.isRightToLeft(note.text) ? .rightToLeft : .leftToRight)
                     }
-                    .padding(12)
-                    .frame(minHeight: 44)
-                    .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint(note.isRunNote ? "Opens the run" : "Opens the week in your plan")
-                if unavailableNoteID == note.id {
-                    Text("This run isn't on this phone.")
-                        .font(.caption)
-                        .foregroundStyle(Color.textSecondary)
+                } else {
+                    Button { open(note) } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text(verbatim: AthleteFeedbackFormat.header(note))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.textSecondary)
+                                if note.readAt == nil {
+                                    Circle().fill(Color.accentPrimary).frame(width: 8, height: 8)
+                                        .accessibilityLabel("Unread")
+                                }
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.forward").foregroundStyle(Color.textSecondary)
+                            }
+                            Text(verbatim: note.text)
+                                .font(.body)
+                                .foregroundStyle(Color.textPrimary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .environment(\.layoutDirection,
+                                             CoachFeedbackText.isRightToLeft(note.text) ? .rightToLeft : .leftToRight)
+                        }
+                        .padding(12)
+                        .frame(minHeight: 44)
+                        .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint(note.isRunNote ? "Opens the run" : "Opens the week in your plan")
+                    if unavailableNoteID == note.id {
+                        Text("This run isn't on this phone.")
+                            .font(.caption)
+                            .foregroundStyle(Color.textSecondary)
+                    }
                 }
             }
         }

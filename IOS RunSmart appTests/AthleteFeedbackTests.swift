@@ -248,6 +248,30 @@ final class AthleteFeedbackTests: XCTestCase {
         XCTAssertEqual(store.unreadCount(link: link), 0, "the badge does not come back")
     }
 
+    func testARewrittenWelcomeIsUnreadAgainAfterRejoining() async {
+        let service = GatedFeedbackService()
+        let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults), currentUserID: { [unowned self] in self.signedIn })
+        store.beginSession(userID: athlete)
+        let first = note(created: linkedAt.addingTimeInterval(60), text: "Welcome")
+        let load = Task { await store.load() }
+        await service.waitForLists(1)
+        service.resumeList(0, with: [first])
+        await load.value
+        let read = Task { await store.markRead([first]) }
+        await service.waitForReads(1)
+        service.resumeRead(0, with: .success(linkedAt.addingTimeInterval(120)))
+        await read.value
+
+        // Same row id, rewritten by the server for a new link a day later.
+        let rejoined = AthleteFeedbackNote(id: first.id, coachID: coach, coachName: "Dana", text: "Welcome back",
+                                           createdAt: linkedAt.addingTimeInterval(86_400), kind: .welcome)
+        let reload = Task { await store.load() }
+        await service.waitForLists(2)
+        service.resumeList(1, with: [rejoined])
+        await reload.value
+        XCTAssertNil(store.notes.first?.readAt, "an old read must not hide the new welcome")
+    }
+
     func testOnlyServerConfirmedReadsAreCached() async {
         let service = GatedFeedbackService()
         let store = AthleteFeedbackStore(service: service, cache: AthleteFeedbackCache(defaults: defaults), currentUserID: { [unowned self] in self.signedIn })

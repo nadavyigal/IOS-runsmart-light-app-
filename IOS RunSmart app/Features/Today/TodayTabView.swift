@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct TodayTabView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
@@ -61,11 +62,9 @@ struct TodayTabView: View {
                         layer: coachLayer,
                         onRead: readCoachNote,
                         onMore: { router.open(.myCoach) },
-                        onRetry: { Task { await athleteFeedback.load() } }
+                        onRetry: { Task { await refreshCoachWelcome(reload: true) } }
                     )
                 }
-                // Hooks, no UI yet: welcome (3.4), plan update (4.3/5.2) and praise (5.4)
-                // cards join this layer through CoachLayerHooks, which reads coachPresence.
 
                 if RunSmartFeatureFlags.adaptiveCoachEnabled, let prompt = adaptiveCoachPrompt {
                     AdaptiveCoachCard(
@@ -219,6 +218,12 @@ struct TodayTabView: View {
         .task {
             await loadData()
         }
+        .task(id: coachPresence.coach?.id) {
+            await refreshCoachWelcome()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await refreshCoachWelcome() } }
+        }
         .onDisappear {
             // A report must not open over another tab after Today is gone.
             coachNoteOpenTask?.cancel()
@@ -334,6 +339,11 @@ struct TodayTabView: View {
         }
     }
 
+    private func refreshCoachWelcome(reload: Bool = false) async {
+        guard let link = coachPresence.coach else { return }
+        await athleteFeedback.claimWelcome(for: link, refreshIfClaimed: reload)
+    }
+
     private var coachLayer: TodayCoachLayer? {
         TodayCoachLayer.make(
             coach: coachPresence.coach,
@@ -349,10 +359,15 @@ struct TodayTabView: View {
         Task { await athleteFeedback.markRead([note]) }
         coachNoteOpenTask?.cancel()
         coachNoteOpenTask = nil
-        if case .week(let start) = CoachNoteDestination.of(note) {
+        switch CoachNoteDestination.of(note) {
+        case .welcome:
+            return
+        case .week(let start):
             router.planFocusDate = start
             router.selectedTab = .plan
             return
+        case .run:
+            break
         }
         coachNoteOpenTask = Task {
             guard let run = await AthleteFeedbackOpening.resolveRun(note, services: services) else {

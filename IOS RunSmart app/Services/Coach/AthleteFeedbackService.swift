@@ -15,7 +15,10 @@ nonisolated enum AthleteFeedbackRPC {
 /// One note as the athlete receives it. `coachName` is stored with the note, so it still
 /// shows correctly after the athlete leaves that coach.
 nonisolated struct AthleteFeedbackNote: Codable, Identifiable, Equatable, Sendable {
+    enum Kind: String, Codable, Sendable { case note, welcome }
+
     let id: UUID
+    let kind: Kind
     let coachID: UUID
     let coachName: String
     let runID: Int64?
@@ -29,7 +32,7 @@ nonisolated struct AthleteFeedbackNote: Codable, Identifiable, Equatable, Sendab
     var readAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id
+        case id, kind
         case coachID = "coach_id"
         case coachName = "coach_name"
         case runID = "run_id"
@@ -44,8 +47,9 @@ nonisolated struct AthleteFeedbackNote: Codable, Identifiable, Equatable, Sendab
 
     init(id: UUID, coachID: UUID, coachName: String, runID: Int64? = nil, runSourceProvider: String? = nil,
          runSourceActivityID: String? = nil, weekStart: String? = nil, text: String, createdAt: Date,
-         editedAt: Date? = nil, readAt: Date? = nil) {
+         editedAt: Date? = nil, readAt: Date? = nil, kind: Kind = .note) {
         self.id = id
+        self.kind = kind
         self.coachID = coachID
         self.coachName = coachName
         self.runID = runID
@@ -61,6 +65,7 @@ nonisolated struct AthleteFeedbackNote: Codable, Identifiable, Equatable, Sendab
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
+        kind = try c.decodeIfPresent(Kind.self, forKey: .kind) ?? .note
         coachID = try c.decode(UUID.self, forKey: .coachID)
         coachName = try c.decode(String.self, forKey: .coachName)
         runID = try c.decodeIfPresent(Int64.self, forKey: .runID)
@@ -76,6 +81,7 @@ nonisolated struct AthleteFeedbackNote: Codable, Identifiable, Equatable, Sendab
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
+        try c.encode(kind, forKey: .kind)
         try c.encode(coachID, forKey: .coachID)
         try c.encode(coachName, forKey: .coachName)
         try c.encodeIfPresent(runID, forKey: .runID)
@@ -197,6 +203,14 @@ nonisolated struct AthleteFeedbackCache: @unchecked Sendable {
     func save(_ notes: [AthleteFeedbackNote], userID: UUID) {
         if let data = try? JSONEncoder().encode(notes) { defaults.set(data, forKey: key(userID)) }
     }
+
+    func hasClaimedWelcome(userID: UUID, linkID: UUID) -> Bool {
+        defaults.bool(forKey: "\(key(userID)).welcome.\(linkID)")
+    }
+
+    func recordWelcomeClaim(userID: UUID, linkID: UUID) {
+        defaults.set(true, forKey: "\(key(userID)).welcome.\(linkID)")
+    }
 }
 
 extension RecordedRun {
@@ -247,6 +261,8 @@ final class AthleteFeedbackStore: ObservableObject {
 
     private let service: any AthleteFeedbackFetching
     private let cache: AthleteFeedbackCache
+    private let welcomeService: any CoachWelcomeServing
+    private var claimsInFlight: Set<UUID> = []
     /// The signed-in account. A list is fetched and saved only while it matches the session.
     private let currentUserID: () -> UUID?
     private var userID: UUID?
@@ -264,9 +280,11 @@ final class AthleteFeedbackStore: ObservableObject {
 
     init(service: any AthleteFeedbackFetching = SupabaseAthleteFeedbackService(),
          cache: AthleteFeedbackCache = AthleteFeedbackCache(),
+         welcomeService: any CoachWelcomeServing = SupabaseCoachWelcomeService(),
          currentUserID: @escaping () -> UUID? = CoachFeedbackSession.currentCoachID) {
         self.service = service
         self.cache = cache
+        self.welcomeService = welcomeService
         self.currentUserID = currentUserID
     }
 
@@ -274,12 +292,42 @@ final class AthleteFeedbackStore: ObservableObject {
     func beginSession(userID: UUID?) {
         guard self.userID != userID else { return }
         generation += 1
+        claimsInFlight = []
         self.userID = userID
         confirmedReads = [:]
         pendingReads = []
         reopenedWhilePending = []
         notes = userID.flatMap { cache.load(userID: $0) } ?? []
         loadState = .idle
+    }
+
+    /// Called from Today. A successful empty claim also counts, but transport failures can retry.
+    func claimWelcome(for link: CoachLink, refreshIfClaimed: Bool = false) async {
+        guard let userID, currentUserID() == userID else { return }
+        if cache.hasClaimedWelcome(userID: userID, linkID: link.id) {
+            if refreshIfClaimed { await load() }
+            return
+        }
+        guard claimsInFlight.insert(link.id).inserted else { return }
+        let session = generation
+        // Claiming changes the link on the server. Let the refresh finish if Today disappears.
+        await Task { await performWelcomeClaim(for: link, userID: userID, session: session) }.value
+    }
+
+    private func performWelcomeClaim(for link: CoachLink, userID: UUID, session: Int) async {
+        defer {
+            if session == generation { claimsInFlight.remove(link.id) }
+        }
+        guard session == generation, currentUserID() == userID else { return }
+        do {
+            try await welcomeService.claim()
+            guard session == generation, currentUserID() == userID else { return }
+            cache.recordWelcomeClaim(userID: userID, linkID: link.id)
+            await load()
+        } catch {
+            guard session == generation, currentUserID() == userID, !Task.isCancelled else { return }
+            loadState = .failed
+        }
     }
 
     func load() async {
@@ -306,7 +354,8 @@ final class AthleteFeedbackStore: ObservableObject {
     private func reconciled(_ note: AthleteFeedbackNote) -> AthleteFeedbackNote {
         guard note.readAt == nil else { return note }
         var copy = note
-        if let confirmed = confirmedReads[note.id] {
+        // A welcome row is reused when an athlete rejoins; a read from before it was rewritten no longer counts.
+        if let confirmed = confirmedReads[note.id], confirmed >= note.createdAt {
             copy.readAt = confirmed
         } else if pendingReads.contains(note.id) {
             copy.readAt = notes.first { $0.id == note.id }?.readAt
