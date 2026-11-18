@@ -164,6 +164,8 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var coachAthletes = CoachAthleteListModel()
     @StateObject private var coachLinks = CoachLinkStore(publishesAssistantContext: true)
     @StateObject private var athleteFeedback = AthleteFeedbackStore()
+    /// Story 3.3: the one gate every coach element on Today and the Plan reads.
+    @StateObject private var coachPresence = CoachPresence()
     @State private var didPresentMorningCheckin = false
     @State private var isShowingLaunch = !RunSmartDemoMode.isEnabled
     @State private var planNotice: RunSmartPlanNotice?
@@ -235,6 +237,7 @@ struct RunSmartLiteAppShell: View {
         .environmentObject(coachMode)
         .environmentObject(coachLinks)
         .environmentObject(athleteFeedback)
+        .environmentObject(coachPresence)
         .environment(\.coachAssistantActive, assistantContext.linkActive)
         .environment(\.coachAssistantName, assistantContext.coachDisplayName)
         .environment(\.runSmartServices, services)
@@ -252,6 +255,7 @@ struct RunSmartLiteAppShell: View {
             showPlanGenerationNotice(status)
         }
         .task {
+            coachPresence.bind(to: coachLinks)
             guard !RunSmartDemoMode.isEnabled else { return }
             // An unfinished run from a killed session is answered on the Run tab, so
             // land there on launch or the prompt would wait for a manual tab switch.
@@ -410,6 +414,7 @@ struct RunSmartLiteAppShell: View {
                     .environmentObject(session)
                     .environmentObject(coachLinks)
                     .environmentObject(athleteFeedback)
+                    .environmentObject(coachPresence)
                     .environmentObject(recorder)
                     .environment(\.coachAssistantActive, assistantContext.linkActive)
                     .environment(\.coachAssistantName, assistantContext.coachDisplayName)
