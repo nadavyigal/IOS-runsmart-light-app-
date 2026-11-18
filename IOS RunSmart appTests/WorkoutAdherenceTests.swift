@@ -7,10 +7,12 @@ final class WorkoutAdherenceTests: XCTestCase {
     private let workoutID = UUID()
     private let now = ISO8601DateFormatter().date(from: "2026-11-18T12:00:00Z")!
 
-    private func workout(date: String = "2026-11-17", distance: Double = 10, owner: UUID? = nil) throws -> CoachWorkoutSummary {
+    private func workout(
+        date: String = "2026-11-17", distance: Double = 10, owner: UUID? = nil, type: String = "easy"
+    ) throws -> CoachWorkoutSummary {
         try JSONDecoder().decode(CoachWorkoutSummary.self, from: Data("""
         {"id":"\(workoutID)","athlete_id":"\(owner ?? athlete)","plan_id":"\(UUID())",
-        "scheduled_date":"\(date)","type":"easy","planned_distance":\(distance),
+        "scheduled_date":"\(date)","type":"\(type)","planned_distance":\(distance),
         "planned_duration_minutes":50,"completed":true}
         """.utf8))
     }
@@ -83,5 +85,40 @@ final class WorkoutAdherenceTests: XCTestCase {
         XCTAssertTrue(CoachAthleteRow.make(
             athletes: [], workouts: workouts, runs: [], latest: [:], now: now, week: week
         ).isEmpty)
+    }
+
+    func testRestDaysAreNeverPlannedOrMissed() throws {
+        let week = CoachAthleteWeek(now: now, locale: Locale(identifier: "en_US"), timeZone: .gmt)
+        let runner = CoachAthleteSummary(athleteID: athlete, displayName: "Dana", linkedAt: .distantPast, hasActivePlan: true)
+        XCTAssertFalse(try WorkoutAdherence.counts(workout(distance: 0, type: "rest")))
+        XCTAssertFalse(try WorkoutAdherence.counts(workout(distance: 0, type: "Rest")))
+        XCTAssertTrue(try WorkoutAdherence.counts(workout(type: "recovery")))
+        let rows = try CoachAthleteRow.make(
+            athletes: [runner], workouts: [workout(date: "2026-11-16", distance: 0, type: "rest")],
+            runs: [], latest: [:], now: now, week: week
+        )
+        XCTAssertEqual(rows.first?.status, .onTrack)
+        XCTAssertEqual(rows.first?.planned, 0)
+        XCTAssertEqual(rows.first?.missed, 0)
+    }
+
+    func testMixedStatusOrderIsStableForEveryInputOrder() throws {
+        let week = CoachAthleteWeek(now: now, locale: Locale(identifier: "en_US"), timeZone: .gmt)
+        let zoe = CoachAthleteSummary(athleteID: UUID(), displayName: "Zoe", linkedAt: .distantPast, hasActivePlan: true)
+        let amy = CoachAthleteSummary(athleteID: UUID(), displayName: "Amy", linkedAt: .distantPast, hasActivePlan: true)
+        let max = CoachAthleteSummary(athleteID: UUID(), displayName: "Max", linkedAt: .distantPast, hasActivePlan: true)
+        let bea = CoachAthleteSummary(athleteID: UUID(), displayName: "Bea", linkedAt: .distantPast, hasActivePlan: false)
+        let workouts = try [
+            workout(date: "2026-11-16", owner: zoe.athleteID), workout(date: "2026-11-17", owner: zoe.athleteID),
+            workout(date: "2026-11-17", owner: amy.athleteID), workout(date: "2026-11-19", owner: max.athleteID)
+        ]
+        let expected = [zoe.athleteID, amy.athleteID, max.athleteID, bea.athleteID]
+        let inputs = [[zoe, amy, max, bea], [max, zoe, bea, amy], [amy, max, zoe, bea], [bea, max, amy, zoe]]
+        for athletes in inputs {
+            let rows = CoachAthleteRow.make(
+                athletes: athletes, workouts: workouts, runs: [], latest: [:], now: now, week: week
+            )
+            XCTAssertEqual(rows.map(\.id), expected)
+        }
     }
 }

@@ -20,6 +20,12 @@ enum WorkoutAdherence: Equatable {
         run.workoutID == nil ? .extra : nil
     }
 
+    /// Rest days are stored as workout rows with `type = "rest"`. They are not workouts to complete,
+    /// so they never count as planned, done or missed.
+    static func counts(_ workout: CoachWorkoutSummary) -> Bool {
+        workout.type.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare("rest") != .orderedSame
+    }
+
     static func isBehind(_ results: [(date: String, state: Self)], today: String) -> Bool {
         let past = results.filter { $0.date < today }
         return !past.isEmpty && !past.contains { $0.state == .done || $0.state == .partial }
@@ -51,6 +57,15 @@ struct CoachAthleteRow: Identifiable, Equatable {
         case onTrack = "On track"
         case noPlan = "No plan yet"
         case joining = "Joining"
+
+        var sortRank: Int {
+            switch self {
+            case .behind: 0
+            case .onTrack: 1
+            case .joining: 2
+            case .noPlan: 3
+            }
+        }
     }
 
     let athlete: CoachAthleteSummary
@@ -66,7 +81,7 @@ struct CoachAthleteRow: Identifiable, Equatable {
         runs: [CoachRunSummary], latest: [UUID: Date], now: Date, week: CoachAthleteWeek
     ) -> [Self] {
         let today = CoachReadDay.iso(now, calendar: week.calendar)
-        let workoutsByAthlete = Dictionary(grouping: workouts, by: \.athleteID)
+        let workoutsByAthlete = Dictionary(grouping: workouts.filter(WorkoutAdherence.counts), by: \.athleteID)
         let runsByAthlete = Dictionary(grouping: runs, by: \.athleteID)
         return athletes.map { athlete in
             let athleteRuns = runsByAthlete[athlete.athleteID, default: []]
@@ -92,7 +107,9 @@ struct CoachAthleteRow: Identifiable, Equatable {
                 lastRun: latest[athlete.athleteID] ?? athleteRuns.map(\.completedAt).max()
             )
         }.sorted { lhs, rhs in
-            if lhs.status == .behind, rhs.status == .behind {
+            // Status group first, so the order is consistent across groups.
+            if lhs.status.sortRank != rhs.status.sortRank { return lhs.status.sortRank < rhs.status.sortRank }
+            if lhs.status == .behind {
                 if lhs.missed != rhs.missed { return lhs.missed > rhs.missed }
                 let lhsDay = lhs.lastRun.map { week.calendar.startOfDay(for: $0) } ?? .distantPast
                 let rhsDay = rhs.lastRun.map { week.calendar.startOfDay(for: $0) } ?? .distantPast
