@@ -23,6 +23,15 @@ struct RunTabView: View {
 #if DEBUG
     /// Simulator QA: `-RUNSMART_DEMO_MODE -AUTO_START_RUN -DEMO_GUIDE_INTERVALS` starts a run with a
     /// short warm-up and 6 x 400 m reps so the live guide card shows a rep without a 10 minute wait.
+    /// Simulator QA: `-RUNSMART_DEMO_MODE -AUTO_START_RUN -DEMO_TARGET_PACE` starts a planned 3 km
+    /// run at a 5:30 /km target, so the Live Activity shows its pace-vs-target layout.
+    private static let demoTargetPaceWorkout = WorkoutSummary(
+        id: UUID(), scheduledDate: Date(), planID: nil, weekday: "Thu", date: "22", kind: .tempo,
+        title: "Tempo run", distance: "3 km", detail: "", isToday: true, isComplete: false,
+        durationMinutes: nil, targetPaceSecondsPerKm: 330, intensity: nil, trainingPhase: nil,
+        workoutStructure: nil
+    )
+
     private static let demoIntervalWorkout = WorkoutSummary(
         id: UUID(), scheduledDate: Date(), planID: nil, weekday: "Thu", date: "22", kind: .intervals,
         title: "6 x 400 m", distance: "6 x 400m", detail: "", isToday: true, isComplete: false,
@@ -89,6 +98,9 @@ struct RunTabView: View {
                   recorder.phase == .ready else { return }
             if ProcessInfo.processInfo.arguments.contains("-DEMO_GUIDE_INTERVALS"), router.plannedWorkout == nil {
                 router.plannedWorkout = Self.demoIntervalWorkout
+            }
+            if ProcessInfo.processInfo.arguments.contains("-DEMO_TARGET_PACE"), router.plannedWorkout == nil {
+                router.plannedWorkout = Self.demoTargetPaceWorkout
             }
             recorder.activeWorkoutTitle = router.plannedWorkout?.title
             recorder.activeGuideSteps = router.plannedWorkout.flatMap { StructuredWorkoutFactory.makeGuideSteps(for: $0) }

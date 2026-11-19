@@ -306,6 +306,60 @@ final class RunLiveActivityCoordinatorTests: XCTestCase {
         XCTAssertEqual(client.requestCount, 1)
     }
 
+    // MARK: Hybrid layout helpers (PR 3)
+
+    func testSplitPopsOnceForThirtySecondsThenHides() {
+        let client = FakeLiveActivityClient()
+        let coordinator = RunLiveActivityCoordinator(client: client)
+        let first = KilometerSplit(km: 1, paceSecondsPerKm: 300)
+        coordinator.update(input: input(split: first), context: context, now: start)
+        XCTAssertNil(client.lastState?.splitHighlightUntil, "An existing split never pops on the first request")
+
+        let second = KilometerSplit(km: 2, paceSecondsPerKm: 310)
+        coordinator.update(input: input(split: second), context: context, now: start.addingTimeInterval(20))
+        XCTAssertEqual(client.lastState?.splitHighlightUntil, start.addingTimeInterval(50))
+
+        coordinator.update(input: input(distance: 2_100, split: second), context: context, now: start.addingTimeInterval(36))
+        XCTAssertEqual(client.lastState?.splitHighlightUntil, start.addingTimeInterval(50), "Still showing inside the window")
+
+        coordinator.update(input: input(distance: 2_200, split: second), context: context, now: start.addingTimeInterval(52))
+        XCTAssertNil(client.lastState?.splitHighlightUntil)
+    }
+
+    func testPaceTargetStandingAndLabels() {
+        XCTAssertEqual(RunLiveActivityPaceTarget.standing(pace: 318, target: 330), .fast)
+        XCTAssertEqual(RunLiveActivityPaceTarget.standing(pace: 325, target: 330), .onTarget)
+        XCTAssertEqual(RunLiveActivityPaceTarget.standing(pace: 345, target: 330), .slow)
+        XCTAssertEqual(RunLiveActivityPaceTarget.standing(pace: nil, target: 330), .unknown)
+        XCTAssertEqual(RunLiveActivityPaceTarget.standing(pace: 318, target: nil), .unknown)
+        XCTAssertEqual(RunLiveActivityPaceTarget.deltaLabel(pace: 318, target: 330), "12 s faster than target")
+        XCTAssertEqual(RunLiveActivityPaceTarget.deltaLabel(pace: 338, target: 330), "On target", "Inside the green band, the label agrees with the colour")
+        XCTAssertEqual(RunLiveActivityPaceTarget.deltaLabel(pace: 345, target: 330), "15 s slower than target")
+        XCTAssertEqual(RunLiveActivityPaceTarget.deltaLabel(pace: 331, target: 330), "On target")
+        XCTAssertNil(RunLiveActivityPaceTarget.deltaLabel(pace: nil, target: 330))
+        XCTAssertEqual(RunLiveActivityPaceTarget.rangeLabel(target: 330), "Target 5:20–5:40")
+    }
+
+    func testRunDeepLinks() {
+        XCTAssertTrue(RunSmartRunDeepLink.isRunLink(RunSmartRunDeepLink.live))
+        XCTAssertTrue(RunSmartRunDeepLink.isRunLink(RunSmartRunDeepLink.debrief))
+        XCTAssertTrue(RunSmartRunDeepLink.isRunLink(RunSmartRunDeepLink.start))
+        XCTAssertFalse(RunSmartRunDeepLink.isRunLink(URL(string: "runsmart://strava-callback")!))
+        XCTAssertFalse(RunSmartRunDeepLink.isRunLink(URL(string: "https://runsmart-ai.com/run/live")!))
+    }
+
+    func testOldSchemaTwoActivityIsEndedOnLaunch() {
+        let client = FakeLiveActivityClient()
+        client.existing = [RunLiveActivityHandle(
+            id: "v2",
+            attributes: RunRecordingLiveActivityAttributes(schemaVersion: 2, runStartedAt: start, workoutTitle: "Run"),
+            state: RunLiveActivityMapper.state(from: input(), now: start)
+        )]
+        let coordinator = RunLiveActivityCoordinator(client: client)
+        coordinator.reconcileOnLaunch(pendingRecoveryStartedAt: start)
+        XCTAssertEqual(client.calls, [.end("v2", .immediate)])
+    }
+
     // MARK: Schema
 
     func testDecodesSchemaOneStateAndAttributes() throws {

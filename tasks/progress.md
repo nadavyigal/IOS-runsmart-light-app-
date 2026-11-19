@@ -1,3 +1,12 @@
+# 2026-11-19: Live Activity PR 3, hybrid B/A layout (parallel track)
+
+Current Phase: Live Activity upgrade, stacked draft PRs #220 (fixes) and #221 (App Group); PR 3 layout now. Coach Mode pilot unchanged.
+Active Story: PR 3 hybrid layout: target-pace run shows pace vs target and goal ring; free run shows time and distance.
+Next Recommended Story: PR 4, small home-screen widget with weekly km ring from the App Group snapshot.
+Blockers: Lock Screen buttons and background GPS still need a physical iPhone; simulator checks passed.
+Last Validation: full suite 1129 passed, 0 failed; simulator: island Pause/Resume work, both layouts render.
+Last Updated: 2026-11-19
+
 # 2026-11-19: Live Activity PR 1, App Group and widget snapshot (parallel track)
 
 Current Phase: Live Activity upgrade, stacked draft PRs; PR 2 fixes open as #220. Coach Mode pilot below unchanged.

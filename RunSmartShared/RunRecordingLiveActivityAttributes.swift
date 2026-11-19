@@ -9,7 +9,7 @@ import Foundation
 /// `schemaVersion` tells the app to end it instead of rendering half a state.
 struct RunRecordingLiveActivityAttributes: ActivityAttributes {
     /// Bump whenever `ContentState` or the attributes change shape.
-    static let currentSchemaVersion = 2
+    static let currentSchemaVersion = 3
 
     enum Phase: String, Codable, Hashable {
         /// Recording, but GPS is weak or missing since Start.
@@ -45,6 +45,8 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
         var lastSplitKilometer: Int?
         var lastSplitPaceSecondsPerKm: Int?
         var gpsAccuracyMeters: Int?
+        /// Show the km split chip until this time (one pop, then it hides on the next update).
+        var splitHighlightUntil: Date?
 
         init(
             phase: Phase,
@@ -55,7 +57,8 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
             averagePaceSecondsPerKm: Int? = nil,
             lastSplitKilometer: Int? = nil,
             lastSplitPaceSecondsPerKm: Int? = nil,
-            gpsAccuracyMeters: Int? = nil
+            gpsAccuracyMeters: Int? = nil,
+            splitHighlightUntil: Date? = nil
         ) {
             self.phase = phase
             self.timerStart = timerStart
@@ -66,11 +69,12 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
             self.lastSplitKilometer = lastSplitKilometer
             self.lastSplitPaceSecondsPerKm = lastSplitPaceSecondsPerKm
             self.gpsAccuracyMeters = gpsAccuracyMeters
+            self.splitHighlightUntil = splitHighlightUntil
         }
 
         private enum CodingKeys: String, CodingKey {
             case phase, timerStart, movingSeconds, distanceMeters, currentPaceSecondsPerKm
-            case averagePaceSecondsPerKm, lastSplitKilometer, lastSplitPaceSecondsPerKm, gpsAccuracyMeters
+            case averagePaceSecondsPerKm, lastSplitKilometer, lastSplitPaceSecondsPerKm, gpsAccuracyMeters, splitHighlightUntil
             case isPaused // schema 1
         }
 
@@ -86,6 +90,7 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
             lastSplitKilometer = try c.decodeIfPresent(Int.self, forKey: .lastSplitKilometer)
             lastSplitPaceSecondsPerKm = try c.decodeIfPresent(Int.self, forKey: .lastSplitPaceSecondsPerKm)
             gpsAccuracyMeters = try c.decodeIfPresent(Int.self, forKey: .gpsAccuracyMeters)
+            splitHighlightUntil = try c.decodeIfPresent(Date.self, forKey: .splitHighlightUntil)
         }
 
         nonisolated func encode(to encoder: Encoder) throws {
@@ -99,6 +104,7 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
             try c.encodeIfPresent(lastSplitKilometer, forKey: .lastSplitKilometer)
             try c.encodeIfPresent(lastSplitPaceSecondsPerKm, forKey: .lastSplitPaceSecondsPerKm)
             try c.encodeIfPresent(gpsAccuracyMeters, forKey: .gpsAccuracyMeters)
+            try c.encodeIfPresent(splitHighlightUntil, forKey: .splitHighlightUntil)
         }
 
         /// End of the moving-time range the timer view shows when the clock is stopped.
@@ -160,5 +166,43 @@ enum RunLiveActivityFormat {
     static func pace(_ secondsPerKm: Int?) -> String {
         guard let secondsPerKm, secondsPerKm > 0 else { return "--" }
         return String(format: "%d:%02d", secondsPerKm / 60, secondsPerKm % 60)
+    }
+}
+
+/// Deep links from the Live Activity and the widget into the Run tab.
+enum RunSmartRunDeepLink {
+    static let live = URL(string: "runsmart://run/live")!
+    static let debrief = URL(string: "runsmart://run/debrief")!
+    static let start = URL(string: "runsmart://run/start")!
+
+    static func isRunLink(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == "runsmart" && url.host?.lowercased() == "run"
+    }
+}
+
+/// How the current pace compares with the planned target (Direction B).
+enum RunLiveActivityPaceTarget {
+    /// Seconds either side of the target that still count as on target.
+    static let band = 10
+
+    enum Standing: Equatable { case onTarget, fast, slow, unknown }
+
+    static func standing(pace: Int?, target: Int?) -> Standing {
+        guard let pace, let target, pace > 0, target > 0 else { return .unknown }
+        if pace < target - band { return .fast }
+        if pace > target + band { return .slow }
+        return .onTarget
+    }
+
+    /// "12 s faster than target", "8 s slower than target", "On target".
+    static func deltaLabel(pace: Int?, target: Int?) -> String? {
+        guard let pace, let target, pace > 0, target > 0 else { return nil }
+        let delta = target - pace
+        if abs(delta) <= band { return "On target" }
+        return delta > 0 ? "\(delta) s faster than target" : "\(-delta) s slower than target"
+    }
+
+    static func rangeLabel(target: Int) -> String {
+        "Target \(RunLiveActivityFormat.pace(target - band))–\(RunLiveActivityFormat.pace(target + band))"
     }
 }
