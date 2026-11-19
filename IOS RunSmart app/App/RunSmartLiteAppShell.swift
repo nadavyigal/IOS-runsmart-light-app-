@@ -261,6 +261,7 @@ struct RunSmartLiteAppShell: View {
         .task {
             coachPresence.bind(to: coachLinks)
             runLiveActivity.bind(recorder: recorder, router: router)
+            RunSmartWidgetSnapshotWriter.shared.bind(recorder: recorder)
             guard !RunSmartDemoMode.isEnabled else { return }
             // An unfinished run from a killed session is answered on the Run tab, so
             // land there on launch or the prompt would wait for a manual tab switch.
@@ -337,6 +338,7 @@ struct RunSmartLiteAppShell: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
+            if phase == .background { RunSmartWidgetSnapshotWriter.shared.refresh() }
             // Strava: finish uploads that failed or were still processing. Quiet, no UI.
             guard phase == .active, !RunSmartDemoMode.isEnabled else { return }
             if RunSmartFeatures.coachModeEnabled {

@@ -60,6 +60,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
         let weeklyDone = String(format: "%.1f", Double(activePlan?.completedKmThisWeek ?? 0.0))
         let weeklyTotal = String(format: "%.1f", Double(activePlan?.totalKmThisWeek ?? 0.0))
+        let weekGoalKm = activePlan?.totalKmThisWeek
+        Task { @MainActor in RunSmartWidgetSnapshotWriter.shared.recordWeekGoal(kilometers: weekGoalKm) }
         let streakDays = streak?.currentStreak ?? 0
         let healthSnapshot = store.loadHealthKitDailySnapshot()
         let sleepHours = metrics?.sleepDurationS.map {

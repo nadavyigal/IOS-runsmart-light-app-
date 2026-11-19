@@ -1,3 +1,12 @@
+# 2026-11-19: Live Activity PR 1, App Group and widget snapshot (parallel track)
+
+Current Phase: Live Activity upgrade, stacked draft PRs; PR 2 fixes open as #220. Coach Mode pilot below unchanged.
+Active Story: PR 1 App Group group.com.runsmart.lite and weekly widget snapshot, no UI.
+Next Recommended Story: PR 3, hybrid B/A Live Activity layout (target pace run vs free run).
+Blockers: App Group must be enabled for both bundle IDs in the developer portal before a device build.
+Last Validation: full unit suite on iPhone 17 Pro simulator, 1125 passed, 0 failed.
+Last Updated: 2026-11-19
+
 # 2026-11-19: Live Activity PR 2, fixes with no visual change (parallel track)
 
 Current Phase: Live Activity upgrade; founder chose hybrid B/A; PR 2 (fixes) built first. Coach Mode pilot below unchanged.
