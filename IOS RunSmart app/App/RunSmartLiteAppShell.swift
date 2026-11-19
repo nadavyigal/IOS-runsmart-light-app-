@@ -261,6 +261,7 @@ struct RunSmartLiteAppShell: View {
         .task {
             coachPresence.bind(to: coachLinks)
             runLiveActivity.bind(recorder: recorder, router: router)
+            RunSmartWidgetSnapshotWriter.shared.bind(recorder: recorder)
             guard !RunSmartDemoMode.isEnabled else { return }
             // An unfinished run from a killed session is answered on the Run tab, so
             // land there on launch or the prompt would wait for a manual tab switch.
@@ -360,6 +361,7 @@ struct RunSmartLiteAppShell: View {
             Analytics.trackTabViewed(tabName: newTab.rawValue)
         }
         .onChange(of: session.isAuthenticated) { _, isAuth in
+            if !isAuth { RunSmartWidgetSnapshotWriter.shared.clear() }
             guard !RunSmartDemoMode.isEnabled else { return }
             // Strava tokens belong to one RunSmart user: drop them if a different runner signed in.
             StravaConnectionService.shared.reconcileOwnership()
