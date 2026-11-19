@@ -1,8 +1,8 @@
 import Combine
 import Foundation
 
-/// Story 6.4 turns this on. Release still uploads nothing: staging also requires
-/// `RunSmartFeatures.coachModeEnabled`, which is false outside a debug coach-mode launch.
+/// Story 6.4 turns this on. Staging also requires `RunSmartFeatures.coachModeEnabled`,
+/// an active coach link, and the athlete's route-sharing switch.
 enum RouteUploadPolicy {
     static let isEnabled = true
 
