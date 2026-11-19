@@ -24,6 +24,16 @@ final class CoachAssistantTests: XCTestCase {
         XCTAssertTrue(RunSmartFeatures.coachModeEnabled(processArguments: ["-enable-coach-mode"], isDebugBuild: true))
     }
 
+    func testCoachModeIsOnInTestFlightAndOffInTheAppStore() {
+        XCTAssertTrue(RunSmartFeatures.coachModeEnabled(processArguments: [], isDebugBuild: false, receiptName: "sandboxReceipt"),
+                      "TestFlight installs (the pilot) see Coach Mode")
+        XCTAssertFalse(RunSmartFeatures.coachModeEnabled(processArguments: [], isDebugBuild: false, receiptName: "receipt"),
+                       "App Store installs never do")
+        XCTAssertFalse(RunSmartFeatures.coachModeEnabled(processArguments: [], isDebugBuild: false, receiptName: nil))
+        XCTAssertFalse(RunSmartFeatures.coachModeEnabled(processArguments: ["-enable-coach-mode"], isDebugBuild: false, receiptName: "receipt"),
+                       "the launch argument does nothing outside debug")
+    }
+
     func testSoloContextOmitsTheCoachAndLinkedContextCarriesEmptyLocks() throws {
         let link = CoachLink(id: UUID(), coachID: UUID(), coachName: "Dana", consentedAt: Date())
         XCTAssertEqual(CoachContext.forRequest(link: link, coachModeEnabled: false), .solo)
