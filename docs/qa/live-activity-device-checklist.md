@@ -31,6 +31,7 @@ Simulators cannot prove these: Lock Screen buttons, background GPS, force-quit, 
 
 - [ ] **Planned run with a target pace** (from the plan or your coach): the island and Lock Screen show pace vs target ("12 s faster than target") and a ring/bar toward the planned distance.
 - [ ] **Planned run with a target but no distance** (time-based): pace vs target, no ring, no empty ring.
+- [ ] **Guided intervals:** check the Lock Screen and expanded Island across a work rep, a recovery jog, and the next work rep. Each paced step shows its own target. A recovery step without a target shows neutral pace, and the same Live Activity stays onscreen.
 - [ ] **Free run:** time and distance large, pace small.
 - [ ] **Km split:** a "Km 3 · 5:18 /km" chip pops once, no sound or vibration, gone within about a minute.
 - [ ] **Island fit:** compact island does not touch the status-bar clock or battery; expanded labels are not clipped at the corners.

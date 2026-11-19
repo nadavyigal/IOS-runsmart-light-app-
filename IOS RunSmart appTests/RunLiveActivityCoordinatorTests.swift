@@ -120,6 +120,67 @@ final class RunLiveActivityCoordinatorTests: XCTestCase {
         XCTAssertNil(RunLiveActivityMapper.goalDistanceMeters(from: nil))
     }
 
+    func testGuidedPaceChangesOnTheSameActivityAtStepBoundaries() throws {
+        let steps: [GuideStep] = [
+            .init(kind: .work, target: .duration(seconds: 20), paceBand: .init(center: 280)),
+            .init(kind: .recovery, target: .duration(seconds: 20), paceBand: .init(center: 390)),
+            .init(kind: .recovery, target: .duration(seconds: 20)),
+            .init(kind: .work, target: .duration(seconds: 20), paceBand: .init(center: 285))
+        ]
+        var guide = try XCTUnwrap(WorkoutGuide(steps: steps))
+        let client = FakeLiveActivityClient()
+        let coordinator = RunLiveActivityCoordinator(client: client)
+        let workout = RunLiveActivityCoordinator.RunContext(
+            workoutTitle: "Intervals", goalDistanceMeters: nil, targetPaceSecondsPerKm: 330, hasPacedSteps: true
+        )
+
+        for (elapsed, expectedTarget) in [(0.0, 280), (20, 390), (40, nil), (60, 285), (80, nil)] as [(Double, Int?)] {
+            // Compress delivery times to exercise the update policy without changing other metrics.
+            _ = guide.update(distance: 2_000, movingTime: elapsed)
+            var snapshot = input()
+            snapshot.workoutStepPace = RunLiveActivityMapper.stepPace(for: guide)
+            coordinator.update(input: snapshot, context: workout, now: start.addingTimeInterval(elapsed / 20))
+            let activity = try XCTUnwrap(coordinator.current)
+            XCTAssertEqual(activity.attributes.liveTargetPace(for: activity.state), expectedTarget)
+            let payload = try JSONEncoder().encode(activity.state)
+            let decoded = try JSONDecoder().decode(RunLiveActivityState.self, from: payload)
+            XCTAssertEqual(activity.attributes.liveTargetPace(for: decoded), expectedTarget)
+        }
+
+        XCTAssertEqual(client.calls, [.request("a1"), .update("a1"), .update("a1"), .update("a1"), .update("a1")])
+    }
+
+    func testFinishingAnUnpacedGuideDoesNotReviveTheWorkoutTarget() throws {
+        let guide = try XCTUnwrap(WorkoutGuide(steps: [
+            .init(kind: .recovery, target: .duration(seconds: 20))
+        ]))
+        let client = FakeLiveActivityClient()
+        let coordinator = RunLiveActivityCoordinator(client: client)
+        var snapshot = input()
+        snapshot.workoutStepPace = RunLiveActivityMapper.stepPace(for: guide)
+        coordinator.update(input: snapshot, context: context, now: start)
+        let activity = try XCTUnwrap(coordinator.current)
+        let saved = RunLiveActivityInput.SavedRunSummary(startedAt: start, distanceMeters: 2_000, movingSeconds: 600)
+
+        coordinator.update(input: input(.ready, saved: saved), context: context, now: start.addingTimeInterval(600))
+
+        let finished = try XCTUnwrap(client.lastState)
+        XCTAssertEqual(finished.phase, .finished)
+        XCTAssertNil(activity.attributes.liveTargetPace(for: finished))
+    }
+
+    func testUnguidedRunStillUsesTheWorkoutTarget() throws {
+        let client = FakeLiveActivityClient()
+        let coordinator = RunLiveActivityCoordinator(client: client)
+        coordinator.update(input: input(), context: context, now: start)
+        let activity = try XCTUnwrap(coordinator.current)
+        XCTAssertEqual(activity.attributes.liveTargetPace(for: activity.state), 330)
+
+        let saved = RunLiveActivityInput.SavedRunSummary(startedAt: start, distanceMeters: 2_000, movingSeconds: 600)
+        coordinator.update(input: input(.ready, saved: saved), context: context, now: start.addingTimeInterval(600))
+        XCTAssertEqual(activity.attributes.liveTargetPace(for: try XCTUnwrap(client.lastState)), 330)
+    }
+
     // MARK: Policy
 
     func testPolicyThrottlesSoftChangesAndPassesHardOnes() {

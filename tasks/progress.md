@@ -1,3 +1,11 @@
+# 2026-11-19: Guided workout pace on Live Activities
+
+Current Phase: Live Activity follow-up after PRs #220–#224.
+Active Story: The existing Live Activity compares pace with the current guide step’s target and shows neutral pace when that step has no target.
+Apple Developer: Verified App Group `group.com.runsmart.lite` on team `8VC4R5M425` for both the app and Live Activity extension.
+Last Validation: 29 Live Activity coordinator tests passed on the iPhone 17 Pro simulator, including work, recovery, and guide-completion transitions.
+Next Recommended Story: Regenerate provisioning profiles for both identifiers and run the physical-iPhone checklist on a Dynamic Island device.
+
 # 2026-11-19: Live Activity PRs reviewed and fixed (parallel track)
 
 Current Phase: Live Activity upgrade; stacked draft PRs #220 to #224 reviewed (two models on #221), all findings fixed.

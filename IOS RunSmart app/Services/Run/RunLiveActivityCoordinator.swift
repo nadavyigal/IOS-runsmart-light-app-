@@ -16,6 +16,7 @@ struct RunLiveActivityInput: Equatable {
     var lastSplit: KilometerSplit?
     var pendingRecoveryStartedAt: Date?
     var lastSavedRun: SavedRunSummary?
+    var workoutStepPace: RunRecordingLiveActivityAttributes.WorkoutStepPace? = nil
 
     struct SavedRunSummary: Equatable {
         var startedAt: Date
@@ -52,11 +53,23 @@ enum RunLiveActivityMapper {
             averagePaceSecondsPerKm: averagePace(distanceMeters: input.distanceMeters, movingSeconds: input.movingSeconds),
             lastSplitKilometer: input.lastSplit?.km,
             lastSplitPaceSecondsPerKm: wholeSeconds(input.lastSplit?.paceSecondsPerKm),
-            gpsAccuracyMeters: phase == .acquiring ? input.horizontalAccuracy.flatMap { $0 >= 0 ? Int($0.rounded()) : nil } : nil
+            gpsAccuracyMeters: phase == .acquiring ? input.horizontalAccuracy.flatMap { $0 >= 0 ? Int($0.rounded()) : nil } : nil,
+            workoutStepPace: input.workoutStepPace
         )
     }
 
-    static func finishedState(for run: RunLiveActivityInput.SavedRunSummary, lastSplit: (km: Int?, pace: Int?), now: Date) -> RunLiveActivityState {
+    static func stepPace(for guide: WorkoutGuide?) -> RunRecordingLiveActivityAttributes.WorkoutStepPace? {
+        guard let guide else { return nil }
+        let target = guide.currentStep?.paceBand.map { ($0.fast + $0.slow) / 2 }
+        return .init(targetSecondsPerKm: wholeSeconds(target))
+    }
+
+    static func finishedState(
+        for run: RunLiveActivityInput.SavedRunSummary,
+        lastSplit: (km: Int?, pace: Int?),
+        wasGuided: Bool,
+        now: Date
+    ) -> RunLiveActivityState {
         let moving = max(0, Int(run.movingSeconds.rounded()))
         return RunLiveActivityState(
             phase: .finished,
@@ -65,7 +78,8 @@ enum RunLiveActivityMapper {
             distanceMeters: run.distanceMeters,
             averagePaceSecondsPerKm: averagePace(distanceMeters: run.distanceMeters, movingSeconds: run.movingSeconds),
             lastSplitKilometer: lastSplit.km,
-            lastSplitPaceSecondsPerKm: lastSplit.pace
+            lastSplitPaceSecondsPerKm: lastSplit.pace,
+            workoutStepPace: wasGuided ? .init(targetSecondsPerKm: nil) : nil
         )
     }
 
@@ -110,6 +124,7 @@ enum RunLiveActivityUpdatePolicy {
         guard let last, let lastSentAt else { return true }
         if isHardChange(from: last.phase, to: next.phase) { return true }
         if last.lastSplitKilometer != next.lastSplitKilometer { return true }
+        if last.workoutStepPace != next.workoutStepPace { return true }
         let elapsed = now.timeIntervalSince(lastSentAt)
         if elapsed >= heartbeatInterval { return true }
         guard elapsed >= minimumInterval else { return false }
@@ -159,6 +174,7 @@ final class RunLiveActivityCoordinator: ObservableObject {
         var workoutTitle: String
         var goalDistanceMeters: Double?
         var targetPaceSecondsPerKm: Int?
+        var hasPacedSteps = false
     }
 
     /// In-app switch (Settings, Run preferences). On by default.
@@ -230,7 +246,8 @@ final class RunLiveActivityCoordinator: ObservableObject {
                 runStartedAt: startedAt,
                 workoutTitle: ctx.workoutTitle,
                 goalDistanceMeters: ctx.goalDistanceMeters,
-                targetPaceSecondsPerKm: ctx.targetPaceSecondsPerKm
+                targetPaceSecondsPerKm: ctx.targetPaceSecondsPerKm,
+                hasPacedSteps: ctx.hasPacedSteps
             )
             do {
                 current = try client.request(attributes: attributes, state: state, staleDate: staleDate)
@@ -282,6 +299,7 @@ final class RunLiveActivityCoordinator: ObservableObject {
             let finished = RunLiveActivityMapper.finishedState(
                 for: saved,
                 lastSplit: (current.state.lastSplitKilometer, current.state.lastSplitPaceSecondsPerKm),
+                wasGuided: current.state.workoutStepPace != nil,
                 now: now
             )
             endCurrent(dismissal: .after(now.addingTimeInterval(RunLiveActivityUpdatePolicy.finishedCardLifetime)), state: finished)
@@ -359,7 +377,8 @@ final class RunLiveActivityCoordinator: ObservableObject {
             pendingRecoveryStartedAt: recorder.pendingRecovery?.startedAt,
             lastSavedRun: recorder.lastSavedRun.map {
                 .init(startedAt: $0.startedAt, distanceMeters: $0.distanceMeters, movingSeconds: $0.movingTimeSeconds)
-            }
+            },
+            workoutStepPace: RunLiveActivityMapper.stepPace(for: recorder.workoutGuide)
         )
     }
 
@@ -368,7 +387,8 @@ final class RunLiveActivityCoordinator: ObservableObject {
         return RunContext(
             workoutTitle: planned?.title ?? recorder.activeWorkoutTitle ?? "Free Run",
             goalDistanceMeters: RunLiveActivityMapper.goalDistanceMeters(from: planned?.distance),
-            targetPaceSecondsPerKm: planned?.targetPaceSecondsPerKm
+            targetPaceSecondsPerKm: planned?.targetPaceSecondsPerKm,
+            hasPacedSteps: recorder.workoutGuide?.steps.contains { $0.paceBand != nil } == true
         )
     }
 }
