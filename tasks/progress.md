@@ -1,3 +1,12 @@
+# 2026-11-19: Live Activity, Codex review fixes on main
+
+Current Phase: Live Activity upgrade merged (#220 to #225); this PR fixes three open Codex findings.
+Active Story: Widget weekly km refreshes on run changes and counts merged runs once; debrief link opens the run's report.
+Next Recommended Story: Founder device test of docs/qa/live-activity-device-checklist.md.
+Blockers: App Group portal setup before any device build; physical-iPhone checklist.
+Last Validation: full suite 1145 passed, 0 failed; simulator: finished card after Done opens that run's report.
+Last Updated: 2026-11-19
+
 # 2026-11-19: Guided workout pace on Live Activities
 
 Current Phase: Live Activity follow-up after PRs #220–#224.

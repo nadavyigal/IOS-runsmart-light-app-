@@ -17,7 +17,7 @@ final class RunSmartWidgetSnapshotWriter: ObservableObject {
 
     init(
         snapshotStore: RunSmartWidgetSnapshotStore = .shared,
-        runs: @escaping () -> [RecordedRun] = { RunSmartLocalStore.shared.loadRuns() },
+        runs: @escaping () -> [RecordedRun] = RunSmartWidgetSnapshotWriter.userVisibleRuns,
         reloadWidget: @escaping () -> Void = { WidgetCenter.shared.reloadTimelines(ofKind: RunSmartWidgetSnapshotStore.widgetKind) },
         calendar: Calendar = .autoupdatingCurrent
     ) {
@@ -45,6 +45,24 @@ final class RunSmartWidgetSnapshotWriter: ObservableObject {
                 MainActor.assumeIsolated { self?.refresh() }
             }
             .store(in: &cancellables)
+        // Imports, manual runs, edits and deletes: every save path posts this.
+        NotificationCenter.default.publisher(for: .runSmartRunsDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated { self?.refresh() }
+            }
+            .store(in: &cancellables)
+    }
+
+    /// The runs the app itself shows: hidden runs dropped and copies of one workout from
+    /// several sources (Garmin, Health, Strava) merged, so a 5 km run counts once.
+    static func userVisibleRuns() -> [RecordedRun] {
+        let store = RunSmartLocalStore.shared
+        // Only the recent runs matter for this week; merging duplicates compares runs pairwise,
+        // so trim years of imported history first. Copies of one workout share its day.
+        let cutoff = Date().addingTimeInterval(-15 * 86_400)
+        let recent = store.visibleRuns(store.loadRuns()).filter { $0.startedAt >= cutoff }
+        return ActivityConsolidationService.userVisibleRecentRuns(recent)
     }
 
     func refresh(isRunInProgress: Bool? = nil, now: Date = Date()) {
@@ -71,10 +89,12 @@ final class RunSmartWidgetSnapshotWriter: ObservableObject {
         var next = previous?.weekStart == weekStart ? previous! : RunSmartWidgetSnapshot(
             updatedAt: now,
             weekStart: weekStart,
-            weekDistanceMeters: Self.weekDistanceMeters(runs: runs(), weekStart: weekStart, calendar: calendar),
+            weekDistanceMeters: 0,
             weekGoalMeters: nil,
             isRunInProgress: isRunInProgress
         )
+        // Recompute the distance too, so a Today load also repairs a stale total.
+        next.weekDistanceMeters = Self.weekDistanceMeters(runs: runs(), weekStart: weekStart, calendar: calendar)
         next.weekGoalMeters = kilometers.flatMap { $0 > 0 ? $0 * 1_000 : nil }
         next.updatedAt = now
         write(next, previous: previous)

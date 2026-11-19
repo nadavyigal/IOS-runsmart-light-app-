@@ -424,6 +424,26 @@ final class RunLiveActivityCoordinatorTests: XCTestCase {
         XCTAssertEqual(RunLiveActivityPaceTarget.rangeLabel(target: 330), "Target 5:20–5:40")
     }
 
+    func testDebriefLinkCarriesTheRunAndFindsItsSavedRun() {
+        let started = Date(timeIntervalSince1970: 1_800_000_000.4)
+        let url = RunSmartRunDeepLink.debrief(runStartedAt: started)
+        XCTAssertTrue(RunSmartRunDeepLink.isRunLink(url))
+        let parsed = try! XCTUnwrap(RunSmartRunDeepLink.debriefRunStartedAt(url))
+        XCTAssertEqual(parsed.timeIntervalSince1970, 1_800_000_000, accuracy: 0.001)
+        XCTAssertNil(RunSmartRunDeepLink.debriefRunStartedAt(RunSmartRunDeepLink.live))
+        XCTAssertNil(RunSmartRunDeepLink.debriefRunStartedAt(RunSmartRunDeepLink.debrief))
+
+        func run(_ start: Date) -> RecordedRun {
+            RecordedRun(id: UUID(), providerActivityID: nil, source: .runSmart, startedAt: start, endedAt: start.addingTimeInterval(1_800),
+                        distanceMeters: 5_000, movingTimeSeconds: 1_800, averagePaceSecondsPerKm: 360,
+                        averageHeartRateBPM: nil, routePoints: [], syncedAt: nil)
+        }
+        let mine = run(started)
+        let other = run(started.addingTimeInterval(-3_600))
+        XCTAssertEqual(RunLiveActivityCoordinator.debriefRun(startedAt: parsed, in: [other, mine])?.id, mine.id)
+        XCTAssertNil(RunLiveActivityCoordinator.debriefRun(startedAt: parsed, in: [other]))
+    }
+
     func testRunDeepLinks() {
         XCTAssertTrue(RunSmartRunDeepLink.isRunLink(RunSmartRunDeepLink.live))
         XCTAssertTrue(RunSmartRunDeepLink.isRunLink(RunSmartRunDeepLink.debrief))

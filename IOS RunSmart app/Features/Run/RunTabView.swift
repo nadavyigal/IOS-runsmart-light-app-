@@ -111,6 +111,7 @@ struct RunTabView: View {
             updateTabBarVisibility()
             updateRunSessionSideEffects(for: recorder.phase)
             if router.liveActivityFinishRequested { consumeLiveActivityFinishRequest() }
+            if router.pendingDebriefRunStartedAt != nil { consumeDebriefRequest() }
             recorder.onRecoveredRunAutoSaved = { [services] run in
                 Self.processRecoveredRunSilently(run, services: services)
             }
@@ -155,6 +156,9 @@ struct RunTabView: View {
                 coachingStyle: CoachingToneStore.load().storedStyle
             )
             VoiceCoachService.shared.deliverCue(context: context)
+        }
+        .onChange(of: router.pendingDebriefRunStartedAt) { _, startedAt in
+            if startedAt != nil { consumeDebriefRequest() }
         }
         .onChange(of: router.liveActivityFinishRequested) { _, requested in
             if requested { consumeLiveActivityFinishRequest() }
@@ -404,6 +408,22 @@ struct RunTabView: View {
     private func consumeLiveActivityFinishRequest() {
         router.liveActivityFinishRequested = false
         requestFinishRun()
+    }
+
+    /// "View debrief" on a finished Live Activity: the post-run summary, if still open, is the
+    /// debrief; otherwise open the saved run's full report, the same view the activity list opens.
+    private func consumeDebriefRequest() {
+        guard let startedAt = router.pendingDebriefRunStartedAt else { return }
+        router.pendingDebriefRunStartedAt = nil
+        guard finishedRun == nil,
+              let run = RunLiveActivityCoordinator.debriefRun(startedAt: startedAt, in: RunSmartLocalStore.shared.loadRuns())
+        else { return }
+        Task {
+            let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
+            // The report can take a few seconds: never cover a run started in the meantime.
+            guard !Task.isCancelled, recorder.phase != .recording, recorder.phase != .paused else { return }
+            router.open(.runReportDetail(report, run: run))
+        }
     }
 
     private func reloadMetrics() async {

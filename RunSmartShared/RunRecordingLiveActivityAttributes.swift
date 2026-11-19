@@ -202,6 +202,22 @@ enum RunSmartRunDeepLink {
     static func isRunLink(_ url: URL) -> Bool {
         url.scheme?.lowercased() == "runsmart" && url.host?.lowercased() == "run"
     }
+
+    /// The finished card's link names its run, so the app can open that run's report even
+    /// after the post-run summary was closed.
+    static func debrief(runStartedAt: Date) -> URL {
+        var components = URLComponents(url: debrief, resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "started", value: String(Int(runStartedAt.timeIntervalSince1970.rounded())))]
+        return components.url ?? debrief
+    }
+
+    /// The run start a debrief link names, nil for any other link.
+    static func debriefRunStartedAt(_ url: URL) -> Date? {
+        guard isRunLink(url), url.path == "/debrief",
+              let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "started" })?.value,
+              let seconds = TimeInterval(value) else { return nil }
+        return Date(timeIntervalSince1970: seconds)
+    }
 }
 
 /// How the current pace compares with the planned target (Direction B).

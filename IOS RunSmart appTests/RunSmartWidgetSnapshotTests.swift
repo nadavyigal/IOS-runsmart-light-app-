@@ -77,6 +77,43 @@ final class RunSmartWidgetSnapshotTests: XCTestCase {
         XCTAssertNil(store.load()?.weekGoalMeters)
     }
 
+    func testTodayLoadRepairsAStaleDistance() {
+        let (writer, store) = makeWriter()
+        savedRuns = [run("2026-11-16T07:00:00Z", km: 8)]
+        writer.refresh(now: date("2026-11-17T08:00:00Z"))
+        savedRuns = [run("2026-11-16T07:00:00Z", km: 8), run("2026-11-17T07:00:00Z", km: 5)]
+        writer.recordWeekGoal(kilometers: 30, now: date("2026-11-17T09:00:00Z"))
+        XCTAssertEqual(store.load()?.weekDistanceMeters ?? 0, 13_000, accuracy: 0.001)
+    }
+
+    func testRunChangeNotificationRefreshesTheTotal() {
+        let (writer, store) = makeWriter()
+        let recorder = RunRecorder(store: .shared, checkpointStore: RunCheckpointStore(directoryURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)))
+        writer.bind(recorder: recorder)
+        let now = Date()
+        savedRuns = [RecordedRun(id: UUID(), providerActivityID: nil, source: .runSmart, startedAt: now.addingTimeInterval(-60),
+                                 endedAt: now, distanceMeters: 4_200, movingTimeSeconds: 1_200, averagePaceSecondsPerKm: 286,
+                                 averageHeartRateBPM: nil, routePoints: [], syncedAt: nil)]
+        NotificationCenter.default.post(name: .runSmartRunsDidChange, object: nil)
+        let refreshed = expectation(description: "snapshot refreshed")
+        DispatchQueue.main.async { refreshed.fulfill() }
+        wait(for: [refreshed], timeout: 2)
+        XCTAssertEqual(store.load()?.weekDistanceMeters ?? 0, 4_200, accuracy: 0.001)
+    }
+
+    func testSameWorkoutFromTwoSourcesCountsOnce() {
+        let start = date("2026-11-17T06:00:00Z")
+        func copy(_ source: RunSmartDataSource, _ id: String, offset: TimeInterval, meters: Double) -> RecordedRun {
+            RecordedRun(id: UUID(), providerActivityID: id, source: source, startedAt: start.addingTimeInterval(offset),
+                        endedAt: start.addingTimeInterval(offset + 1_500), distanceMeters: meters, movingTimeSeconds: 1_500,
+                        averagePaceSecondsPerKm: 300, averageHeartRateBPM: 148, routePoints: [], syncedAt: nil)
+        }
+        let runs = [copy(.garmin, "garmin-1", offset: 30, meters: 5_010), copy(.healthKit, "hk-1", offset: 40, meters: 5_000)]
+        let visible = ActivityConsolidationService.userVisibleRecentRuns(runs, now: date("2026-11-17T09:00:00Z"), calendar: calendar)
+        let meters = RunSmartWidgetSnapshotWriter.weekDistanceMeters(runs: visible, weekStart: date("2026-11-16T00:00:00Z"), calendar: calendar)
+        XCTAssertEqual(meters, 5_010, accuracy: 20, "One workout, not two copies")
+    }
+
     func testUnchangedSnapshotDoesNotReloadTheWidget() {
         let (writer, _) = makeWriter()
         writer.refresh(now: date("2026-11-18T08:00:00Z"))
