@@ -86,6 +86,16 @@ final class RunSmartWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(reloads, 2)
     }
 
+    func testClearRemovesTheSnapshotOnSignOut() {
+        let (writer, store) = makeWriter()
+        writer.recordWeekGoal(kilometers: 30, now: date("2026-11-17T08:00:00Z"))
+        writer.clear()
+        XCTAssertNil(store.load())
+        XCTAssertEqual(reloads, 2)
+        writer.clear()
+        XCTAssertEqual(reloads, 2, "Clearing an empty store does not reload the widget")
+    }
+
     func testMissingAppGroupIsANoOp() {
         let writer = RunSmartWidgetSnapshotWriter(
             snapshotStore: RunSmartWidgetSnapshotStore(defaults: nil),

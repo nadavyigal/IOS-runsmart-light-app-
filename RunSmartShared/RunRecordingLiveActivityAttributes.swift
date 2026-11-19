@@ -198,7 +198,7 @@ enum RunLiveActivityPaceTarget {
     static func deltaLabel(pace: Int?, target: Int?) -> String? {
         guard let pace, let target, pace > 0, target > 0 else { return nil }
         let delta = target - pace
-        if abs(delta) <= 2 { return "On target" }
+        if abs(delta) <= band { return "On target" }
         return delta > 0 ? "\(delta) s faster than target" : "\(-delta) s slower than target"
     }
 
