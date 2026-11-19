@@ -1,8 +1,22 @@
 # RunSmart Live Activity, Dynamic Island and Widget: Plan
 
-Date: 2026-11-19. Status: plan only, no app code changed. Waiting on the founder's direction pick.
+Date: 2026-11-19. Status: decisions made, build started (PR 2 first).
 Mockup: `design-mockups/live-activity/index.html` (screenshots in `design-mockups/live-activity/screenshots/`).
 Base: `origin/main` at `b901258`.
+
+## Founder decisions (2026-11-19, these override anything below)
+
+- **Direction: hybrid B/A, one layout that switches by data.**
+  - Run with a target pace (`targetPaceSecondsPerKm` set on a planned or coach-set workout): Direction B, pace vs target, plus a distance-goal ring when the goal distance is known.
+  - Free run, or no target: Direction A, time and distance large, pace secondary.
+  - Missing goal distance: no ring at all. Never an empty ring.
+  - One Live Activity, not two activities.
+- **Drop C.** No week dots or streak in the Live Activity.
+- **Widget v1: small only.** B's weekly km ring ("21.4 of 30 km") from the App Group snapshot, and "Run in progress" while a run is live.
+- **Start at Start, as today.** Not while GPS is searching. If GPS is weak after Start, show an "acquiring GPS" state.
+- **After Finish:** keep the summary card for 30 minutes.
+- **Split alerts off by default.** The short pop on a km split stays.
+- **Order:** PR 2 (fixes, no visual change) first, then PR 1, PR 3, PR 4, PR 5. Draft PRs only, never merged by an agent, no production migrations.
 
 ## 0. Apple rules that constrain the design
 
@@ -52,7 +66,9 @@ Kept as-is (on par with Strava per the 22 Oct audit): Lock Screen layout with ti
 
 ## 2. Direction pick
 
-**Recommended: A, Run-first, plus two borrowed pieces.**
+**Decided 2026-11-19: hybrid B/A (see Founder decisions at the top).** The original recommendation is kept below for the record.
+
+**Original recommendation: A, Run-first, plus two borrowed pieces.**
 
 - A for the island and Lock Screen. During a run the clock and the distance are what change, and A uses only data the recorder already has. It is also the smallest step from today's layout, so the "don't break it" risk is lowest.
 - Borrow B's ring for the minimal view when the run has a planned distance. Free runs fall back to distance.
@@ -126,8 +142,8 @@ Move ownership out of `RunTabView` into a `RunLiveActivityCoordinator` owned by 
 | Event | Action |
 |---|---|
 | App launch | Read `Activity<…>.activities`. If one matches the checkpoint's run, adopt it. If there is no checkpoint, or the schema differs, end it with a stale final state. |
-| `acquiringLocation` | Request the activity in phase `.acquiring` with GPS accuracy. If the runner cancels, end `.immediate`. |
-| `start()` → `.recording` | Update to `.running`, set `timerStart`. |
+| `start()` → `.recording` | Request the activity (decided: at Start, not while searching). Phase `.running`, set `timerStart`. |
+| Weak GPS after Start | Phase `.acquiring` with GPS accuracy while fixes are poor; back to `.running` on a good fix. |
 | Running | Update on: phase change, every 50 m of distance, or 15 s max, whichever is first. The clock never needs an update. Coalesce: never more than one update in flight. |
 | Km split | Update with `lastSplitKm` / pace: one pop transition. Alert only if the runner turns split alerts on (default off: the voice coach already announces splits). |
 | `pause()` / auto-pause | Update to `.paused` / `.autoPaused`, freeze `frozenMovingSeconds`, `timerStart = nil`. |
@@ -144,9 +160,9 @@ Battery: today about 3,600 updates per hour. Planned: about 60 to 240 per hour (
 
 ## 5. Home-screen widget
 
-- Sizes: small first; medium later if asked.
-- Content (from Direction C): header "Next run · Today" or weekday, workout title, distance and target pace, week dots, streak count. During a run: "Running now" + distance, with a `Text(timerInterval:)` clock. After today's run: "Done today" + next workout.
-- No plan: "Start a run" with last run summary. No data yet: a single "Open RunSmart" state, no fake numbers.
+- Decided: small only in v1.
+- Content (Direction B widget): weekly km ring, "21.4 of 30 km", from the App Group snapshot. While a run is live: "Run in progress".
+- No weekly goal: show km done this week without a ring. No data yet: a single "Open RunSmart" state, no fake numbers.
 - Timeline: one entry now, one at local midnight (rolls "Today" to the next day), plus a reload when the app writes the snapshot. No network calls from the widget: it reads only the App Group snapshot.
 - Taps: deep links in §3.5. No interactive buttons in v1.
 
@@ -191,11 +207,8 @@ Real device checklist:
 
 PR 2 alone fixes the worst bugs (dead buttons, lost activity off-tab, duplicates), so it can ship before any redesign.
 
-## 9. Open questions for the founder
+Build order (decided): PR 2 → PR 1 → PR 3 → PR 4 → PR 5. Each branch is stacked on the previous one, so each draft PR's base is the branch before it, and its diff shows only its own change. PR 3 builds the hybrid B/A layout, not Direction A alone.
 
-1. Direction: A with B's ring and C's widget, as recommended? Or a different mix?
-2. Can I confirm finding 1 on your phone first: does tapping Pause on the Lock Screen pause the run today?
-3. Should the Live Activity start at GPS acquiring (new), or stay as today and start at Start?
-4. After Finish: keep the summary card for 30 minutes, or a different time?
-5. Split alerts: off by default (the voice coach already speaks splits), agreed?
-6. Widget scope for v1: small only, or small and medium?
+## 9. Open questions
+
+All answered on 2026-11-19 (see Founder decisions at the top). Still open: finding 1 needs a physical-iPhone check (does Lock Screen Pause work on the current App Store build?).
