@@ -45,5 +45,5 @@ Simulators cannot prove these: Lock Screen buttons, background GPS, force-quit, 
 
 ## PR 5: in-app switch
 
-- [ ] Run tab → Audio → Audio Cues → Run preferences → "Live Activity on Lock Screen" off: starting a run shows no activity. Turning it off mid-run removes it within a second or two.
-- [ ] With Live Activities off in iOS Settings, the in-app switch is greyed out and says why.
+- [ ] Run tab → Audio → Audio Cues → Run preferences → "Live Activity on Lock Screen" off, then start a run: no Live Activity appears, and the run records normally. Turn it back on and start another run: the Live Activity is back. (The switch is only reachable before a run.)
+- [ ] With Live Activities off in iOS Settings, the in-app switch is greyed out and says why. Turn them on in iOS Settings, come back to the same screen: the switch is active again without leaving the screen.

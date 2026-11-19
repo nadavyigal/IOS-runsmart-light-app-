@@ -1709,6 +1709,14 @@ private struct AudioCuesScaffold: View {
             }
             RunnerWeightSettingsView()
         }
+        .task {
+            // Follow the iOS setting while this screen is open (for example after the runner
+            // turns Live Activities on in Settings and comes back).
+            systemAllowsLiveActivities = ActivityAuthorizationInfo().areActivitiesEnabled
+            for await enabled in ActivityAuthorizationInfo().activityEnablementUpdates {
+                systemAllowsLiveActivities = enabled
+            }
+        }
     }
 }
 

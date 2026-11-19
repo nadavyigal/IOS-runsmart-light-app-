@@ -1,3 +1,12 @@
+# 2026-11-19: Live Activity PRs reviewed and fixed (parallel track)
+
+Current Phase: Live Activity upgrade; stacked draft PRs #220 to #224 reviewed (two models on #221), all findings fixed.
+Active Story: Founder device test of docs/qa/live-activity-device-checklist.md, then review #220 first.
+Next Recommended Story: Follow-up: interval workouts should compare pace with the current guide step's target.
+Blockers: App Group portal setup before any device build; physical-iPhone checklist; #220 needs current-head review.
+Last Validation: full suite 1138 passed, 0 failed (iPhone 17 simulator).
+Last Updated: 2026-11-19
+
 # 2026-11-19: Live Activity PR 5, in-app switch (parallel track)
 
 Current Phase: Live Activity upgrade done in code; stacked draft PRs #220 to #224 await founder device test. Coach Mode pilot unchanged.
