@@ -60,6 +60,7 @@ struct RunSmartWidgetSnapshotStore {
 nonisolated struct RunSmartWeeklyWidgetContent: Equatable {
     /// A "run in progress" flag older than this is ignored (the app likely died mid-run).
     static let runFlagMaximumAge: TimeInterval = 12 * 3_600
+    static let sameWeekTolerance: TimeInterval = 36 * 3_600
 
     var hasData: Bool
     var weekDistanceKm: Double
@@ -87,7 +88,9 @@ nonisolated struct RunSmartWeeklyWidgetContent: Equatable {
             return RunSmartWeeklyWidgetContent(hasData: false, weekDistanceKm: 0, weekGoalKm: nil, isRunInProgress: false)
         }
         let currentWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? calendar.startOfDay(for: now)
-        let isCurrentWeek = abs(snapshot.weekStart.timeIntervalSince(currentWeek)) < 1
+        // Within a day and a half counts as the same week: a time zone change moves the week
+        // start by up to 26 h, and a real new week is 7 days later.
+        let isCurrentWeek = abs(snapshot.weekStart.timeIntervalSince(currentWeek)) < sameWeekTolerance
         let runFlagIsFresh = now.timeIntervalSince(snapshot.updatedAt) < runFlagMaximumAge
         return RunSmartWeeklyWidgetContent(
             hasData: true,
@@ -97,9 +100,13 @@ nonisolated struct RunSmartWeeklyWidgetContent: Equatable {
         )
     }
 
-    /// Next timeline refresh: the start of next week, so the totals reset on time.
-    static func nextRefresh(after now: Date, calendar: Calendar) -> Date {
-        guard let week = calendar.dateInterval(of: .weekOfYear, for: now) else { return now.addingTimeInterval(6 * 3_600) }
-        return week.end
+    /// Next timeline refresh: the start of next week, so the totals reset on time, or sooner
+    /// when a live-run flag will go stale, so a crashed run never shows "Run in progress" for days.
+    static func nextRefresh(after now: Date, snapshot: RunSmartWidgetSnapshot?, calendar: Calendar) -> Date {
+        let weekEnd = calendar.dateInterval(of: .weekOfYear, for: now)?.end ?? now.addingTimeInterval(6 * 3_600)
+        guard let snapshot, snapshot.isRunInProgress else { return weekEnd }
+        let flagExpiry = snapshot.updatedAt.addingTimeInterval(runFlagMaximumAge)
+        guard flagExpiry > now else { return weekEnd }
+        return min(weekEnd, flagExpiry)
     }
 }

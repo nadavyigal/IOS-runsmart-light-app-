@@ -139,7 +139,7 @@ final class RunSmartWidgetSnapshotTests: XCTestCase {
             now: date("2026-11-23T07:00:00Z"), calendar: calendar)
         XCTAssertEqual(content.distanceLabel, "0.0")
         XCTAssertNil(content.progress)
-        XCTAssertEqual(RunSmartWeeklyWidgetContent.nextRefresh(after: date("2026-11-18T09:00:00Z"), calendar: calendar), date("2026-11-23T00:00:00Z"))
+        XCTAssertEqual(RunSmartWeeklyWidgetContent.nextRefresh(after: date("2026-11-18T09:00:00Z"), snapshot: nil, calendar: calendar), date("2026-11-23T00:00:00Z"))
     }
 
     func testWidgetRunFlagExpiresAfterTwelveHours() {
@@ -151,6 +151,22 @@ final class RunSmartWidgetSnapshotTests: XCTestCase {
             snapshot: snapshot(weekStart: "2026-11-16T00:00:00Z", km: 3, goalKm: 30, running: true, updated: "2026-11-18T08:00:00Z"),
             now: date("2026-11-18T21:00:00Z"), calendar: calendar)
         XCTAssertFalse(old.isRunInProgress)
+    }
+
+    func testLiveRunFlagRefreshesWhenItGoesStaleNotAtWeekEnd() {
+        let live = snapshot(weekStart: "2026-11-16T00:00:00Z", km: 3, goalKm: 30, running: true, updated: "2026-11-17T09:00:00Z")
+        XCTAssertEqual(RunSmartWeeklyWidgetContent.nextRefresh(after: date("2026-11-17T09:00:05Z"), snapshot: live, calendar: calendar), date("2026-11-17T21:00:00Z"))
+        let idle = snapshot(weekStart: "2026-11-16T00:00:00Z", km: 3, goalKm: 30, running: false, updated: "2026-11-17T09:00:00Z")
+        XCTAssertEqual(RunSmartWeeklyWidgetContent.nextRefresh(after: date("2026-11-17T09:00:05Z"), snapshot: idle, calendar: calendar), date("2026-11-23T00:00:00Z"))
+    }
+
+    func testTimeZoneChangeKeepsTheWeekInsteadOfShowingZero() {
+        // Written in Tel Aviv (week starts 2026-11-15T22:00Z), read in London (2026-11-16T00:00Z).
+        let content = RunSmartWeeklyWidgetContent.make(
+            snapshot: snapshot(weekStart: "2026-11-15T22:00:00Z", km: 21.4, goalKm: 30, running: false, updated: "2026-11-18T08:00:00Z"),
+            now: date("2026-11-18T09:00:00Z"), calendar: calendar)
+        XCTAssertEqual(content.distanceLabel, "21.4")
+        XCTAssertNotNil(content.progress)
     }
 
     func testWidgetWithoutSnapshotShowsNoNumbers() {

@@ -23,7 +23,7 @@ struct RunSmartWeeklyEntry: TimelineEntry {
 
 struct RunSmartWeeklyProvider: TimelineProvider {
     func placeholder(in context: Context) -> RunSmartWeeklyEntry {
-        RunSmartWeeklyEntry(date: Date(), content: .init(hasData: true, weekDistanceKm: 0, weekGoalKm: nil, isRunInProgress: false))
+        RunSmartWeeklyEntry(date: Date(), content: .init(hasData: false, weekDistanceKm: 0, weekGoalKm: nil, isRunInProgress: false))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (RunSmartWeeklyEntry) -> Void) {
@@ -32,13 +32,13 @@ struct RunSmartWeeklyProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<RunSmartWeeklyEntry>) -> Void) {
         let now = Date()
-        let next = RunSmartWeeklyWidgetContent.nextRefresh(after: now, calendar: .current)
-        completion(Timeline(entries: [entry(at: now)], policy: .after(next)))
+        let snapshot = RunSmartWidgetSnapshotStore.shared.load()
+        let next = RunSmartWeeklyWidgetContent.nextRefresh(after: now, snapshot: snapshot, calendar: .current)
+        completion(Timeline(entries: [entry(at: now, snapshot: snapshot)], policy: .after(next)))
     }
 
-    private func entry(at date: Date) -> RunSmartWeeklyEntry {
-        let snapshot = RunSmartWidgetSnapshotStore.shared.load()
-        return RunSmartWeeklyEntry(date: date, content: .make(snapshot: snapshot, now: date, calendar: .current))
+    private func entry(at date: Date, snapshot: RunSmartWidgetSnapshot? = RunSmartWidgetSnapshotStore.shared.load()) -> RunSmartWeeklyEntry {
+        RunSmartWeeklyEntry(date: date, content: .make(snapshot: snapshot, now: date, calendar: .current))
     }
 }
 
@@ -110,6 +110,7 @@ struct RunSmartWeeklyWidgetView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Self.muted)
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
     }
 }
