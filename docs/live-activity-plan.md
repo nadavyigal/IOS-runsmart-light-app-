@@ -1,6 +1,6 @@
 # RunSmart Live Activity, Dynamic Island and Widget: Plan
 
-Date: 2026-11-19. Status: decisions made, build started (PR 2 first).
+Date: 2026-11-19. Status: shipped to main in #220 to #226 (2026-11-19). Device checklist and App Group portal setup still open.
 Mockup: `design-mockups/live-activity/index.html` (screenshots in `design-mockups/live-activity/screenshots/`).
 Base: `origin/main` at `b901258`.
 
