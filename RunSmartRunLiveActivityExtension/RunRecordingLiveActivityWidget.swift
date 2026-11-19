@@ -37,17 +37,17 @@ private enum LAColor {
     }
 }
 
-/// Which layout a run gets, from its attributes only, so it never flips mid-run.
+/// The layout stays fixed while the active pace target follows the workout step.
 private struct LALayout {
     let target: Int?
     let goalMeters: Double?
+    let isPaceFirst: Bool
 
-    init(_ attributes: RunRecordingLiveActivityAttributes) {
-        target = attributes.targetPaceSecondsPerKm.flatMap { $0 > 0 ? $0 : nil }
+    init(_ attributes: RunRecordingLiveActivityAttributes, state: LAState) {
+        target = state.phase == .finished && attributes.hasPacedSteps ? nil : attributes.liveTargetPace(for: state)
+        isPaceFirst = attributes.usesPaceLayout
         goalMeters = attributes.goalDistanceMeters.flatMap { $0 > 0 ? $0 : nil }
     }
-
-    var isPaceFirst: Bool { target != nil }
 
     func progress(_ state: LAState) -> Double? {
         guard let goalMeters else { return nil }
@@ -68,7 +68,7 @@ struct RunRecordingLiveActivityWidget: Widget {
                 .activitySystemActionForegroundColor(LAColor.lime)
                 .widgetURL(context.state.phase == .finished ? RunSmartRunDeepLink.debrief : RunSmartRunDeepLink.live)
         } dynamicIsland: { context in
-            let layout = LALayout(context.attributes)
+            let layout = LALayout(context.attributes, state: context.state)
             let state = context.state
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -295,7 +295,7 @@ private struct RunLiveActivityLockView: View {
     let state: LAState
     let isStale: Bool
 
-    private var layout: LALayout { LALayout(attributes) }
+    private var layout: LALayout { LALayout(attributes, state: state) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -332,9 +332,9 @@ private struct RunLiveActivityLockView: View {
     }
 
     private var title: String {
-        guard let target = layout.target else { return attributes.workoutTitle }
-        let goal = layout.goalMeters.map { " · " + LALayout.goalLabel($0) } ?? ""
-        return attributes.workoutTitle + goal + " @ " + RunLiveActivityFormat.pace(target) + " /km"
+        let goal = layout.isPaceFirst ? layout.goalMeters.map { " · " + LALayout.goalLabel($0) } ?? "" : ""
+        let pace = layout.target.map { " @ " + RunLiveActivityFormat.pace($0) + " /km" } ?? ""
+        return attributes.workoutTitle + goal + pace
     }
 
     /// Direction A: time and distance large, pace secondary.
@@ -409,7 +409,8 @@ private struct RunLiveActivityLockView: View {
                 .frame(height: 6)
             }
             if state.phase == .finished {
-                Text("Avg pace \(RunLiveActivityFormat.pace(state.averagePaceSecondsPerKm)) /km · target \(RunLiveActivityFormat.pace(layout.target))")
+                let target = layout.target.map { " · target " + RunLiveActivityFormat.pace($0) } ?? ""
+                Text("Avg pace \(RunLiveActivityFormat.pace(state.averagePaceSecondsPerKm)) /km" + target)
                     .font(.footnote.weight(.medium).monospacedDigit())
                     .foregroundStyle(LAColor.muted)
             } else if state.phase.isPausedLike {
@@ -422,6 +423,10 @@ private struct RunLiveActivityLockView: View {
                     .foregroundStyle(LAColor.blue)
             } else if let target = layout.target {
                 PaceTargetBar(pace: state.currentPaceSecondsPerKm, target: target)
+            } else {
+                Text("Pace \(RunLiveActivityFormat.pace(state.currentPaceSecondsPerKm)) /km")
+                    .font(.footnote.weight(.medium).monospacedDigit())
+                    .foregroundStyle(LAColor.muted)
             }
             SplitChip(state: state)
         }

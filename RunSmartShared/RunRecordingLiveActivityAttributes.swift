@@ -9,7 +9,7 @@ import Foundation
 /// `schemaVersion` tells the app to end it instead of rendering half a state.
 struct RunRecordingLiveActivityAttributes: ActivityAttributes {
     /// Bump whenever `ContentState` or the attributes change shape.
-    static let currentSchemaVersion = 3
+    static let currentSchemaVersion = 4
 
     enum Phase: String, Codable, Hashable {
         /// Recording, but GPS is weak or missing since Start.
@@ -33,6 +33,11 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
         }
     }
 
+    /// A guided step can have no pace target, even when the workout has an overall target.
+    nonisolated struct WorkoutStepPace: Codable, Hashable {
+        let targetSecondsPerKm: Int?
+    }
+
     struct ContentState: Codable, Hashable {
         var phase: Phase
         /// `now - movingSeconds` when the state was built. With `phase.isClockRunning` the
@@ -47,6 +52,7 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
         var gpsAccuracyMeters: Int?
         /// Show the km split chip until this time (one pop, then it hides on the next update).
         var splitHighlightUntil: Date?
+        var workoutStepPace: WorkoutStepPace?
 
         init(
             phase: Phase,
@@ -58,7 +64,8 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
             lastSplitKilometer: Int? = nil,
             lastSplitPaceSecondsPerKm: Int? = nil,
             gpsAccuracyMeters: Int? = nil,
-            splitHighlightUntil: Date? = nil
+            splitHighlightUntil: Date? = nil,
+            workoutStepPace: WorkoutStepPace? = nil
         ) {
             self.phase = phase
             self.timerStart = timerStart
@@ -70,11 +77,13 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
             self.lastSplitPaceSecondsPerKm = lastSplitPaceSecondsPerKm
             self.gpsAccuracyMeters = gpsAccuracyMeters
             self.splitHighlightUntil = splitHighlightUntil
+            self.workoutStepPace = workoutStepPace
         }
 
         private enum CodingKeys: String, CodingKey {
             case phase, timerStart, movingSeconds, distanceMeters, currentPaceSecondsPerKm
             case averagePaceSecondsPerKm, lastSplitKilometer, lastSplitPaceSecondsPerKm, gpsAccuracyMeters, splitHighlightUntil
+            case workoutStepPace
             case isPaused // schema 1
         }
 
@@ -91,6 +100,7 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
             lastSplitPaceSecondsPerKm = try c.decodeIfPresent(Int.self, forKey: .lastSplitPaceSecondsPerKm)
             gpsAccuracyMeters = try c.decodeIfPresent(Int.self, forKey: .gpsAccuracyMeters)
             splitHighlightUntil = try c.decodeIfPresent(Date.self, forKey: .splitHighlightUntil)
+            workoutStepPace = try c.decodeIfPresent(WorkoutStepPace.self, forKey: .workoutStepPace)
         }
 
         nonisolated func encode(to encoder: Encoder) throws {
@@ -105,6 +115,7 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
             try c.encodeIfPresent(lastSplitPaceSecondsPerKm, forKey: .lastSplitPaceSecondsPerKm)
             try c.encodeIfPresent(gpsAccuracyMeters, forKey: .gpsAccuracyMeters)
             try c.encodeIfPresent(splitHighlightUntil, forKey: .splitHighlightUntil)
+            try c.encodeIfPresent(workoutStepPace, forKey: .workoutStepPace)
         }
 
         /// End of the moving-time range the timer view shows when the clock is stopped.
@@ -119,23 +130,34 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
     var goalDistanceMeters: Double?
     /// Planned target pace, nil for free runs or plans without a target.
     var targetPaceSecondsPerKm: Int?
+    /// Keeps the pace layout across both paced and unpaced steps.
+    var hasPacedSteps: Bool
+
+    var usesPaceLayout: Bool { hasPacedSteps || (targetPaceSecondsPerKm ?? 0) > 0 }
+
+    func liveTargetPace(for state: ContentState) -> Int? {
+        if let step = state.workoutStepPace { return step.targetSecondsPerKm }
+        return targetPaceSecondsPerKm.flatMap { $0 > 0 ? $0 : nil }
+    }
 
     init(
         schemaVersion: Int = Self.currentSchemaVersion,
         runStartedAt: Date,
         workoutTitle: String,
         goalDistanceMeters: Double? = nil,
-        targetPaceSecondsPerKm: Int? = nil
+        targetPaceSecondsPerKm: Int? = nil,
+        hasPacedSteps: Bool = false
     ) {
         self.schemaVersion = schemaVersion
         self.runStartedAt = runStartedAt
         self.workoutTitle = workoutTitle
         self.goalDistanceMeters = goalDistanceMeters
         self.targetPaceSecondsPerKm = targetPaceSecondsPerKm
+        self.hasPacedSteps = hasPacedSteps
     }
 
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, runStartedAt, workoutTitle, goalDistanceMeters, targetPaceSecondsPerKm
+        case schemaVersion, runStartedAt, workoutTitle, goalDistanceMeters, targetPaceSecondsPerKm, hasPacedSteps
     }
 
     nonisolated init(from decoder: Decoder) throws {
@@ -145,6 +167,7 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
         workoutTitle = try c.decodeIfPresent(String.self, forKey: .workoutTitle) ?? "Run"
         goalDistanceMeters = try c.decodeIfPresent(Double.self, forKey: .goalDistanceMeters)
         targetPaceSecondsPerKm = try c.decodeIfPresent(Int.self, forKey: .targetPaceSecondsPerKm)
+        hasPacedSteps = try c.decodeIfPresent(Bool.self, forKey: .hasPacedSteps) ?? false
     }
 
     nonisolated func encode(to encoder: Encoder) throws {
@@ -154,6 +177,7 @@ struct RunRecordingLiveActivityAttributes: ActivityAttributes {
         try c.encode(workoutTitle, forKey: .workoutTitle)
         try c.encodeIfPresent(goalDistanceMeters, forKey: .goalDistanceMeters)
         try c.encodeIfPresent(targetPaceSecondsPerKm, forKey: .targetPaceSecondsPerKm)
+        try c.encode(hasPacedSteps, forKey: .hasPacedSteps)
     }
 }
 
