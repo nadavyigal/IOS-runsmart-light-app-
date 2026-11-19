@@ -361,8 +361,8 @@ struct RunSmartLiteAppShell: View {
             Analytics.trackTabViewed(tabName: newTab.rawValue)
         }
         .onChange(of: session.isAuthenticated) { _, isAuth in
-            guard !RunSmartDemoMode.isEnabled else { return }
             if !isAuth { RunSmartWidgetSnapshotWriter.shared.clear() }
+            guard !RunSmartDemoMode.isEnabled else { return }
             // Strava tokens belong to one RunSmart user: drop them if a different runner signed in.
             StravaConnectionService.shared.reconcileOwnership()
             if isAuth, let userId = session.currentUserID {

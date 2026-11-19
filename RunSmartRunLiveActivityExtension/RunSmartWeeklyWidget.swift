@@ -34,7 +34,12 @@ struct RunSmartWeeklyProvider: TimelineProvider {
         let now = Date()
         let snapshot = RunSmartWidgetSnapshotStore.shared.load()
         let next = RunSmartWeeklyWidgetContent.nextRefresh(after: now, snapshot: snapshot, calendar: .current)
-        completion(Timeline(entries: [entry(at: now, snapshot: snapshot)], policy: .after(next)))
+        var entries = [entry(at: now, snapshot: snapshot)]
+        // Also schedule the moment a live-run flag goes stale, in case WidgetKit delays the reload.
+        if snapshot?.isRunInProgress == true, next > now {
+            entries.append(entry(at: next, snapshot: snapshot))
+        }
+        completion(Timeline(entries: entries, policy: .after(next)))
     }
 
     private func entry(at date: Date, snapshot: RunSmartWidgetSnapshot? = RunSmartWidgetSnapshotStore.shared.load()) -> RunSmartWeeklyEntry {
