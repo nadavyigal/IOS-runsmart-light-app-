@@ -34,6 +34,9 @@ final class AppRouter: ObservableObject {
     @Published var isTabBarHidden = false
     /// Set when Finish is tapped on the Live Activity; the Run tab answers with its finish sheet.
     @Published var liveActivityFinishRequested = false
+    /// Set by the finished Live Activity's "View debrief" link; the Run tab opens that run's
+    /// report unless its post-run summary is still on screen.
+    @Published var pendingDebriefRunStartedAt: Date?
     /// Set to open Plan on the week that contains this date (Story 3.2: a week note from My coach).
     @Published var planFocusDate: Date?
 
@@ -624,6 +627,7 @@ struct RunSmartLiteAppShell: View {
         // Live Activity and widget taps: runsmart://run/live, /debrief, /start.
         if RunSmartRunDeepLink.isRunLink(url) {
             router.selectedTab = .run
+            router.pendingDebriefRunStartedAt = RunSmartRunDeepLink.debriefRunStartedAt(url)
             return
         }
         let canOpenJoinNow = !session.isLoading && session.isAuthenticated && session.hasCompletedOnboarding

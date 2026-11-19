@@ -66,7 +66,7 @@ struct RunRecordingLiveActivityWidget: Widget {
             RunLiveActivityLockView(attributes: context.attributes, state: context.state, isStale: context.isStale)
                 .activityBackgroundTint(Color.black.opacity(0.82))
                 .activitySystemActionForegroundColor(LAColor.lime)
-                .widgetURL(context.state.phase == .finished ? RunSmartRunDeepLink.debrief : RunSmartRunDeepLink.live)
+                .widgetURL(context.state.phase == .finished ? RunSmartRunDeepLink.debrief(runStartedAt: context.attributes.runStartedAt) : RunSmartRunDeepLink.live)
         } dynamicIsland: { context in
             let layout = LALayout(context.attributes, state: context.state)
             let state = context.state
@@ -87,7 +87,7 @@ struct RunRecordingLiveActivityWidget: Widget {
             } minimal: {
                 MinimalView(layout: layout, state: state)
             }
-            .widgetURL(state.phase == .finished ? RunSmartRunDeepLink.debrief : RunSmartRunDeepLink.live)
+            .widgetURL(state.phase == .finished ? RunSmartRunDeepLink.debrief(runStartedAt: context.attributes.runStartedAt) : RunSmartRunDeepLink.live)
             .keylineTint(LAColor.phase(state.phase))
         }
     }

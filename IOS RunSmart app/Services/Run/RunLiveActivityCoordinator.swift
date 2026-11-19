@@ -320,6 +320,13 @@ final class RunLiveActivityCoordinator: ObservableObject {
         abs(a.timeIntervalSince(b)) < sameRunTolerance
     }
 
+    /// The saved run a debrief link names. The link carries whole seconds, so allow rounding.
+    static func debriefRun(startedAt: Date, in runs: [RecordedRun]) -> RecordedRun? {
+        runs
+            .filter { abs($0.startedAt.timeIntervalSince(startedAt)) <= 1 }
+            .min { abs($0.startedAt.timeIntervalSince(startedAt)) < abs($1.startedAt.timeIntervalSince(startedAt)) }
+    }
+
     // MARK: App wiring
 
     /// Binds to the app's single recorder and router once. Recorder changes drive updates
