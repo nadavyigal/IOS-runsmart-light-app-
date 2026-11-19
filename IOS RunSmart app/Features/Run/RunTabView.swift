@@ -98,6 +98,7 @@ struct RunTabView: View {
         .onAppear {
             updateTabBarVisibility()
             updateRunSessionSideEffects(for: recorder.phase)
+            if router.liveActivityFinishRequested { consumeLiveActivityFinishRequest() }
             recorder.onRecoveredRunAutoSaved = { [services] run in
                 Self.processRecoveredRunSilently(run, services: services)
             }
@@ -105,7 +106,6 @@ struct RunTabView: View {
         .onDisappear {
             router.isTabBarHidden = false
             RunScreenAwakePolicy.setRecordingActive(false)
-            RunLiveActivityController.end()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
             refreshMetrics()
@@ -144,20 +144,8 @@ struct RunTabView: View {
             )
             VoiceCoachService.shared.deliverCue(context: context)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .runSmartLiveActivityPauseResume)) { _ in
-            primaryRunAction()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .runSmartLiveActivityFinish)) { _ in
-            requestFinishRun()
-        }
-        .onChange(of: recorder.distanceLabel) { _, _ in
-            syncRunLiveActivity()
-        }
-        .onChange(of: recorder.movingLabel) { _, _ in
-            syncRunLiveActivity()
-        }
-        .onChange(of: recorder.currentPaceLabel) { _, _ in
-            syncRunLiveActivity()
+        .onChange(of: router.liveActivityFinishRequested) { _, requested in
+            if requested { consumeLiveActivityFinishRequest() }
         }
         .sheet(isPresented: $isConfirmingFinish, onDismiss: {
             recorder.isEndDecisionPending = false
@@ -398,22 +386,12 @@ struct RunTabView: View {
     private func updateRunSessionSideEffects(for phase: RunRecordingPhase) {
         let isLiveRun = phase == .recording || phase == .paused
         RunScreenAwakePolicy.setRecordingActive(isLiveRun)
-        syncRunLiveActivity()
-        if !isLiveRun {
-            RunLiveActivityController.end()
-        }
     }
 
-    private func syncRunLiveActivity() {
-        let isLiveRun = recorder.phase == .recording || recorder.phase == .paused
-        RunLiveActivityController.sync(
-            workoutTitle: router.plannedWorkout?.title ?? recorder.activeWorkoutTitle ?? "Free Run",
-            distanceLabel: recorder.distanceLabel,
-            movingTimeLabel: recorder.movingLabel,
-            paceLabel: recorder.currentPaceLabel,
-            isPaused: recorder.phase == .paused,
-            isActive: isLiveRun
-        )
+    /// Finish tapped on the Live Activity: show the same confirmation as the in-app button.
+    private func consumeLiveActivityFinishRequest() {
+        router.liveActivityFinishRequested = false
+        requestFinishRun()
     }
 
     private func reloadMetrics() async {

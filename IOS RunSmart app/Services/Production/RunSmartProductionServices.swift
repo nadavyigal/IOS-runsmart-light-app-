@@ -532,6 +532,9 @@ final class RunRecorder: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// fresh when no fixes arrive (Start anyway, standing still, a GPS outage).
     private var lastCheckpointWriteAt: Date?
     private var startedAt: Date?
+    /// Start of the run in progress (also the recovered run after resume). The Live Activity
+    /// uses it to tie one activity to one run across app launches.
+    var currentRunStartedAt: Date? { startedAt }
     private var pausedAt: Date?
     private var accumulatedPausedSeconds: TimeInterval = 0
     private var pauseIntervals: [RunPauseInterval] = []
