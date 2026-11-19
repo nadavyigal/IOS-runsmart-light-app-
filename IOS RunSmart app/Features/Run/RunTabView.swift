@@ -420,9 +420,9 @@ struct RunTabView: View {
         else { return }
         Task {
             let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
-            await MainActor.run {
-                router.open(.runReportDetail(report, run: run))
-            }
+            // The report can take a few seconds: never cover a run started in the meantime.
+            guard !Task.isCancelled, recorder.phase != .recording, recorder.phase != .paused else { return }
+            router.open(.runReportDetail(report, run: run))
         }
     }
 

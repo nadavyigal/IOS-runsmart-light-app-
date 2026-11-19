@@ -58,7 +58,11 @@ final class RunSmartWidgetSnapshotWriter: ObservableObject {
     /// several sources (Garmin, Health, Strava) merged, so a 5 km run counts once.
     static func userVisibleRuns() -> [RecordedRun] {
         let store = RunSmartLocalStore.shared
-        return ActivityConsolidationService.userVisibleRecentRuns(store.visibleRuns(store.loadRuns()))
+        // Only the recent runs matter for this week; merging duplicates compares runs pairwise,
+        // so trim years of imported history first. Copies of one workout share its day.
+        let cutoff = Date().addingTimeInterval(-15 * 86_400)
+        let recent = store.visibleRuns(store.loadRuns()).filter { $0.startedAt >= cutoff }
+        return ActivityConsolidationService.userVisibleRecentRuns(recent)
     }
 
     func refresh(isRunInProgress: Bool? = nil, now: Date = Date()) {
