@@ -253,7 +253,11 @@ final class RunLiveActivityCoordinator: ObservableObject {
         if let pending = input.pendingRecoveryStartedAt, Self.isSameRun(current.attributes.runStartedAt, pending) {
             return
         }
-        if sawLiveRun, let saved = input.lastSavedRun, Self.isSameRun(saved.startedAt, current.attributes.runStartedAt) {
+        // A saved run gets the summary card: a normal finish, or Save on the recovery prompt.
+        // Not when a new run's Start saved the old recovered run on the way (its card would
+        // sit beside the new run's activity).
+        let isStartingNewRun = !sawLiveRun && input.phase == .acquiringLocation
+        if !isStartingNewRun, let saved = input.lastSavedRun, Self.isSameRun(saved.startedAt, current.attributes.runStartedAt) {
             let finished = RunLiveActivityMapper.finishedState(
                 for: saved,
                 lastSplit: (current.state.lastSplitKilometer, current.state.lastSplitPaceSecondsPerKm),

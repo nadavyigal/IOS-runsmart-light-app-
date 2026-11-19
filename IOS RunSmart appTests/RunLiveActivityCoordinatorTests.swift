@@ -231,6 +231,36 @@ final class RunLiveActivityCoordinatorTests: XCTestCase {
         XCTAssertEqual(client.calls, [.end("old", .immediate)])
     }
 
+    func testRelaunchSaveWithoutResumeShowsTheSummaryCard() {
+        let client = FakeLiveActivityClient()
+        client.existing = [RunLiveActivityHandle(
+            id: "old",
+            attributes: RunRecordingLiveActivityAttributes(runStartedAt: start, workoutTitle: "Run"),
+            state: RunLiveActivityMapper.state(from: input(), now: start)
+        )]
+        let coordinator = RunLiveActivityCoordinator(client: client)
+        coordinator.reconcileOnLaunch(pendingRecoveryStartedAt: start)
+        let saved = RunLiveActivityInput.SavedRunSummary(startedAt: start, distanceMeters: 5_000, movingSeconds: 1_500)
+        let now = start.addingTimeInterval(3_000)
+        coordinator.update(input: input(.ready, saved: saved), context: context, now: now)
+        XCTAssertEqual(client.calls, [.end("old", .after(now.addingTimeInterval(1_800)))])
+        XCTAssertEqual(client.lastState?.phase, .finished)
+    }
+
+    func testStartingANewRunEndsTheRecoveredActivityAtOnce() {
+        let client = FakeLiveActivityClient()
+        client.existing = [RunLiveActivityHandle(
+            id: "old",
+            attributes: RunRecordingLiveActivityAttributes(runStartedAt: start, workoutTitle: "Run"),
+            state: RunLiveActivityMapper.state(from: input(), now: start)
+        )]
+        let coordinator = RunLiveActivityCoordinator(client: client)
+        coordinator.reconcileOnLaunch(pendingRecoveryStartedAt: start)
+        let saved = RunLiveActivityInput.SavedRunSummary(startedAt: start, distanceMeters: 5_000, movingSeconds: 1_500)
+        coordinator.update(input: input(.acquiringLocation, saved: saved), context: context, now: start.addingTimeInterval(3_000))
+        XCTAssertEqual(client.calls, [.end("old", .immediate)])
+    }
+
     func testLaunchEndsOrphansAndOldSchema() {
         let client = FakeLiveActivityClient()
         let state = RunLiveActivityMapper.state(from: input(), now: start)
