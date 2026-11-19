@@ -23,8 +23,27 @@ Simulators cannot prove these: Lock Screen buttons, background GPS, force-quit, 
 - [ ] **Live Activities off.** iOS Settings → RunSmart → Live Activities off. Start a run: no activity, the run records normally.
 - [ ] **Regression.** Lock Screen still shows title, status, Distance / Moving time / Pace, and Pause + Finish, as before.
 
-## Later PRs (add as they land)
+## PR 1: App Group (do this before any device build)
 
-- PR 3: hybrid B/A layout (target run vs free run), split pop, island does not touch the status-bar clock or battery.
-- PR 4: small widget shows weekly km ring and "Run in progress".
-- PR 5: in-app on/off switch.
+- [ ] Apple Developer portal: App Group `group.com.runsmart.lite` exists and is enabled for `com.runsmart.lite` and `com.runsmart.lite.runliveactivity`. Xcode signs both targets without errors.
+
+## PR 3: hybrid layout
+
+- [ ] **Planned run with a target pace** (from the plan or your coach): the island and Lock Screen show pace vs target ("12 s faster than target") and a ring/bar toward the planned distance.
+- [ ] **Planned run with a target but no distance** (time-based): pace vs target, no ring, no empty ring.
+- [ ] **Free run:** time and distance large, pace small.
+- [ ] **Km split:** a "Km 3 · 5:18 /km" chip pops once, no sound or vibration, gone within about a minute.
+- [ ] **Island fit:** compact island does not touch the status-bar clock or battery; expanded labels are not clipped at the corners.
+- [ ] **Two Live Activities** (start a timer too): the minimal view is readable.
+- [ ] **Tap the activity:** opens RunSmart on the Run tab. After Finish, tapping the card opens the Run tab.
+
+## PR 4: weekly widget
+
+- [ ] Add the "Weekly km" small widget. With a plan: ring and "21.4 of 30 km" style. Without a plan: km only, no ring.
+- [ ] Start a run: the widget shows "Run in progress" within a few seconds. Finish: back to the week, km updated.
+- [ ] Monday morning: the week resets to 0.
+
+## PR 5: in-app switch
+
+- [ ] Run tab → Audio → Audio Cues → Run preferences → "Live Activity on Lock Screen" off, then start a run: no Live Activity appears, and the run records normally. Turn it back on and start another run: the Live Activity is back. (The switch is only reachable before a run.)
+- [ ] With Live Activities off in iOS Settings, the in-app switch is greyed out and says why. Turn them on in iOS Settings, come back to the same screen: the switch is active again without leaving the screen.
