@@ -51,7 +51,7 @@ private struct LALayout {
 
     func progress(_ state: LAState) -> Double? {
         guard let goalMeters else { return nil }
-        return state.phase == .finished ? 1 : min(1, max(0, state.distanceMeters / goalMeters))
+        return min(1, max(0, state.distanceMeters / goalMeters))
     }
 
     static func goalLabel(_ meters: Double) -> String {
@@ -301,7 +301,7 @@ private struct RunLiveActivityLockView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
             Group {
-                if layout.isPaceFirst, state.phase != .acquiring {
+                if layout.isPaceFirst {
                     paceFirstBody
                 } else {
                     runFirstBody
@@ -334,7 +334,7 @@ private struct RunLiveActivityLockView: View {
     private var title: String {
         guard let target = layout.target else { return attributes.workoutTitle }
         let goal = layout.goalMeters.map { " · " + LALayout.goalLabel($0) } ?? ""
-        return attributes.workoutTitle + goal + " @ " + RunLiveActivityFormat.pace(target)
+        return attributes.workoutTitle + goal + " @ " + RunLiveActivityFormat.pace(target) + " /km"
     }
 
     /// Direction A: time and distance large, pace secondary.
@@ -416,6 +416,10 @@ private struct RunLiveActivityLockView: View {
                 Text(state.phase.statusLabel)
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(LAColor.orange)
+            } else if state.phase == .acquiring {
+                Text(state.gpsAccuracyMeters.map { "Finding GPS · ±\($0) m" } ?? "Finding GPS")
+                    .font(.footnote.weight(.medium).monospacedDigit())
+                    .foregroundStyle(LAColor.blue)
             } else if let target = layout.target {
                 PaceTargetBar(pace: state.currentPaceSecondsPerKm, target: target)
             }
@@ -476,12 +480,13 @@ private struct MinimalView: View {
     var body: some View {
         if state.phase == .acquiring || state.phase == .finished || state.phase.isPausedLike {
             PhaseSymbol(phase: state.phase)
-        } else if let progress = layout.progress(state) {
-            // B's ring, only when the goal distance is known. Never an empty ring.
+        } else if layout.isPaceFirst, let progress = layout.progress(state) {
+            // B's ring: target-pace runs with a known goal distance only. Never an empty ring.
             ProgressRing(progress: progress, color: LAColor.lime, lineWidth: 2.5)
                 .overlay(
-                    Text("\(Int(state.distanceMeters / 1_000))")
-                        .font(.system(size: 9, weight: .bold).monospacedDigit())
+                    Text(state.distanceMeters < 9_950 ? String(format: "%.1f", state.distanceMeters / 1_000) : String(format: "%.0f", state.distanceMeters / 1_000))
+                        .font(.system(size: 8, weight: .bold).monospacedDigit())
+                        .minimumScaleFactor(0.7)
                 )
                 .frame(width: 22, height: 22)
         } else {
@@ -498,7 +503,7 @@ private struct ExpandedLeading: View {
     let state: LAState
 
     var body: some View {
-        if layout.isPaceFirst, state.phase != .acquiring {
+        if layout.isPaceFirst {
             HStack(spacing: 6) {
                 if let progress = layout.progress(state) {
                     ProgressRing(progress: progress, color: LAColor.phase(state.phase), lineWidth: 4)
