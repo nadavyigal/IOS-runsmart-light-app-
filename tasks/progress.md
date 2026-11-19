@@ -1,3 +1,12 @@
+# 2026-11-19: Live Activity PR 2, fixes with no visual change (parallel track)
+
+Current Phase: Live Activity upgrade; founder chose hybrid B/A; PR 2 (fixes) built first. Coach Mode pilot below unchanged.
+Active Story: PR 2 Live Activity fixes: intents in app target, app-shell coordinator, crash adoption, throttle, stale state.
+Next Recommended Story: PR 1, App Group and shared snapshot store; then PR 3, 4, 5 stacked.
+Blockers: Lock Screen buttons, background GPS, force-quit need a physical iPhone (docs/qa/live-activity-device-checklist.md).
+Last Validation: full unit suite on iPhone 17 Pro simulator, 1117 passed, 0 failed; 19 new Live Activity tests.
+Last Updated: 2026-11-19
+
 # 2026-11-19: Coach Mode pilot TestFlight build 1.2.6 (44)
 
 Current Phase: Coach Mode pilot launch; flag on in TestFlight (#217 merged), migrations on production.

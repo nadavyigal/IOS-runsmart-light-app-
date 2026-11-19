@@ -32,6 +32,8 @@ final class AppRouter: ObservableObject {
     @Published var plannedWorkout: WorkoutSummary?
     @Published var plannedRoute: RouteSuggestion?
     @Published var isTabBarHidden = false
+    /// Set when Finish is tapped on the Live Activity; the Run tab answers with its finish sheet.
+    @Published var liveActivityFinishRequested = false
     /// Set to open Plan on the week that contains this date (Story 3.2: a week note from My coach).
     @Published var planFocusDate: Date?
 
@@ -159,6 +161,7 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var router = AppRouter()
     @StateObject private var session = SupabaseSession()
     @StateObject private var recorder = RunRecorder()
+    @StateObject private var runLiveActivity = RunLiveActivityCoordinator()
     @StateObject private var planGeneration = PlanGenerationStore()
     @StateObject private var guestJourney = GuestJourneyStore()
     @StateObject private var coachMode = CoachModeStore()
@@ -257,6 +260,7 @@ struct RunSmartLiteAppShell: View {
         }
         .task {
             coachPresence.bind(to: coachLinks)
+            runLiveActivity.bind(recorder: recorder, router: router)
             guard !RunSmartDemoMode.isEnabled else { return }
             // An unfinished run from a killed session is answered on the Run tab, so
             // land there on launch or the prompt would wait for a manual tab switch.
