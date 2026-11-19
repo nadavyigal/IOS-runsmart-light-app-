@@ -1,3 +1,7 @@
+## 2026-11-19 — LiveActivityIntent must compile into the app target
+
+The Lock Screen Pause/Finish buttons were defined only in the widget extension target. iOS runs a `LiveActivityIntent` in the app's process, so the app never received the tap. Put Live Activity intents in `RunSmartShared/` (compiled into app and extension) and verify by tapping Pause in the simulator's expanded Dynamic Island, not only by unit tests.
+
 ## 2026-11-18 — Keep coach date conversion callable from the read service
 
 The roster build failed because the read-service protocol is nonisolated and the new date locals called main-actor helpers. Mark pure date conversion and query payloads nonisolated and compile the actual app target before considering the RPC client ready.
