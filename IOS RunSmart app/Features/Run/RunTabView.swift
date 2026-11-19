@@ -23,6 +23,15 @@ struct RunTabView: View {
 #if DEBUG
     /// Simulator QA: `-RUNSMART_DEMO_MODE -AUTO_START_RUN -DEMO_GUIDE_INTERVALS` starts a run with a
     /// short warm-up and 6 x 400 m reps so the live guide card shows a rep without a 10 minute wait.
+    /// Simulator QA: `-RUNSMART_DEMO_MODE -AUTO_START_RUN -DEMO_TARGET_PACE` starts a planned 3 km
+    /// run at a 5:30 /km target, so the Live Activity shows its pace-vs-target layout.
+    private static let demoTargetPaceWorkout = WorkoutSummary(
+        id: UUID(), scheduledDate: Date(), planID: nil, weekday: "Thu", date: "22", kind: .tempo,
+        title: "Tempo run", distance: "3 km", detail: "", isToday: true, isComplete: false,
+        durationMinutes: nil, targetPaceSecondsPerKm: 330, intensity: nil, trainingPhase: nil,
+        workoutStructure: nil
+    )
+
     private static let demoIntervalWorkout = WorkoutSummary(
         id: UUID(), scheduledDate: Date(), planID: nil, weekday: "Thu", date: "22", kind: .intervals,
         title: "6 x 400 m", distance: "6 x 400m", detail: "", isToday: true, isComplete: false,
@@ -90,6 +99,9 @@ struct RunTabView: View {
             if ProcessInfo.processInfo.arguments.contains("-DEMO_GUIDE_INTERVALS"), router.plannedWorkout == nil {
                 router.plannedWorkout = Self.demoIntervalWorkout
             }
+            if ProcessInfo.processInfo.arguments.contains("-DEMO_TARGET_PACE"), router.plannedWorkout == nil {
+                router.plannedWorkout = Self.demoTargetPaceWorkout
+            }
             recorder.activeWorkoutTitle = router.plannedWorkout?.title
             recorder.activeGuideSteps = router.plannedWorkout.flatMap { StructuredWorkoutFactory.makeGuideSteps(for: $0) }
             recorder.start()
@@ -98,6 +110,8 @@ struct RunTabView: View {
         .onAppear {
             updateTabBarVisibility()
             updateRunSessionSideEffects(for: recorder.phase)
+            if router.liveActivityFinishRequested { consumeLiveActivityFinishRequest() }
+            if router.pendingDebriefRunStartedAt != nil { consumeDebriefRequest() }
             recorder.onRecoveredRunAutoSaved = { [services] run in
                 Self.processRecoveredRunSilently(run, services: services)
             }
@@ -105,7 +119,6 @@ struct RunTabView: View {
         .onDisappear {
             router.isTabBarHidden = false
             RunScreenAwakePolicy.setRecordingActive(false)
-            RunLiveActivityController.end()
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartRunsDidChange)) { _ in
             refreshMetrics()
@@ -144,20 +157,11 @@ struct RunTabView: View {
             )
             VoiceCoachService.shared.deliverCue(context: context)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .runSmartLiveActivityPauseResume)) { _ in
-            primaryRunAction()
+        .onChange(of: router.pendingDebriefRunStartedAt) { _, startedAt in
+            if startedAt != nil { consumeDebriefRequest() }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .runSmartLiveActivityFinish)) { _ in
-            requestFinishRun()
-        }
-        .onChange(of: recorder.distanceLabel) { _, _ in
-            syncRunLiveActivity()
-        }
-        .onChange(of: recorder.movingLabel) { _, _ in
-            syncRunLiveActivity()
-        }
-        .onChange(of: recorder.currentPaceLabel) { _, _ in
-            syncRunLiveActivity()
+        .onChange(of: router.liveActivityFinishRequested) { _, requested in
+            if requested { consumeLiveActivityFinishRequest() }
         }
         .sheet(isPresented: $isConfirmingFinish, onDismiss: {
             recorder.isEndDecisionPending = false
@@ -398,22 +402,28 @@ struct RunTabView: View {
     private func updateRunSessionSideEffects(for phase: RunRecordingPhase) {
         let isLiveRun = phase == .recording || phase == .paused
         RunScreenAwakePolicy.setRecordingActive(isLiveRun)
-        syncRunLiveActivity()
-        if !isLiveRun {
-            RunLiveActivityController.end()
-        }
     }
 
-    private func syncRunLiveActivity() {
-        let isLiveRun = recorder.phase == .recording || recorder.phase == .paused
-        RunLiveActivityController.sync(
-            workoutTitle: router.plannedWorkout?.title ?? recorder.activeWorkoutTitle ?? "Free Run",
-            distanceLabel: recorder.distanceLabel,
-            movingTimeLabel: recorder.movingLabel,
-            paceLabel: recorder.currentPaceLabel,
-            isPaused: recorder.phase == .paused,
-            isActive: isLiveRun
-        )
+    /// Finish tapped on the Live Activity: show the same confirmation as the in-app button.
+    private func consumeLiveActivityFinishRequest() {
+        router.liveActivityFinishRequested = false
+        requestFinishRun()
+    }
+
+    /// "View debrief" on a finished Live Activity: the post-run summary, if still open, is the
+    /// debrief; otherwise open the saved run's full report, the same view the activity list opens.
+    private func consumeDebriefRequest() {
+        guard let startedAt = router.pendingDebriefRunStartedAt else { return }
+        router.pendingDebriefRunStartedAt = nil
+        guard finishedRun == nil,
+              let run = RunLiveActivityCoordinator.debriefRun(startedAt: startedAt, in: RunSmartLocalStore.shared.loadRuns())
+        else { return }
+        Task {
+            let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
+            // The report can take a few seconds: never cover a run started in the meantime.
+            guard !Task.isCancelled, recorder.phase != .recording, recorder.phase != .paused else { return }
+            router.open(.runReportDetail(report, run: run))
+        }
     }
 
     private func reloadMetrics() async {

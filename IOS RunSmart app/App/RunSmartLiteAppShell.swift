@@ -32,6 +32,11 @@ final class AppRouter: ObservableObject {
     @Published var plannedWorkout: WorkoutSummary?
     @Published var plannedRoute: RouteSuggestion?
     @Published var isTabBarHidden = false
+    /// Set when Finish is tapped on the Live Activity; the Run tab answers with its finish sheet.
+    @Published var liveActivityFinishRequested = false
+    /// Set by the finished Live Activity's "View debrief" link; the Run tab opens that run's
+    /// report unless its post-run summary is still on screen.
+    @Published var pendingDebriefRunStartedAt: Date?
     /// Set to open Plan on the week that contains this date (Story 3.2: a week note from My coach).
     @Published var planFocusDate: Date?
 
@@ -159,6 +164,7 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var router = AppRouter()
     @StateObject private var session = SupabaseSession()
     @StateObject private var recorder = RunRecorder()
+    @StateObject private var runLiveActivity = RunLiveActivityCoordinator()
     @StateObject private var planGeneration = PlanGenerationStore()
     @StateObject private var guestJourney = GuestJourneyStore()
     @StateObject private var coachMode = CoachModeStore()
@@ -257,6 +263,8 @@ struct RunSmartLiteAppShell: View {
         }
         .task {
             coachPresence.bind(to: coachLinks)
+            runLiveActivity.bind(recorder: recorder, router: router)
+            RunSmartWidgetSnapshotWriter.shared.bind(recorder: recorder)
             guard !RunSmartDemoMode.isEnabled else { return }
             // An unfinished run from a killed session is answered on the Run tab, so
             // land there on launch or the prompt would wait for a manual tab switch.
@@ -356,6 +364,7 @@ struct RunSmartLiteAppShell: View {
             Analytics.trackTabViewed(tabName: newTab.rawValue)
         }
         .onChange(of: session.isAuthenticated) { _, isAuth in
+            if !isAuth { RunSmartWidgetSnapshotWriter.shared.clear() }
             guard !RunSmartDemoMode.isEnabled else { return }
             // Strava tokens belong to one RunSmart user: drop them if a different runner signed in.
             StravaConnectionService.shared.reconcileOwnership()
@@ -615,6 +624,12 @@ struct RunSmartLiteAppShell: View {
     /// Universal links and custom URLs. An invite link never falls through to auth.
     /// Coach Mode off does not open the join screen.
     private func openIncomingURL(_ url: URL) {
+        // Live Activity and widget taps: runsmart://run/live, /debrief, /start.
+        if RunSmartRunDeepLink.isRunLink(url) {
+            router.selectedTab = .run
+            router.pendingDebriefRunStartedAt = RunSmartRunDeepLink.debriefRunStartedAt(url)
+            return
+        }
         let canOpenJoinNow = !session.isLoading && session.isAuthenticated && session.hasCompletedOnboarding
         let consumed = coachLinks.receiveInviteLink(
             url,

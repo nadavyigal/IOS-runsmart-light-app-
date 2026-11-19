@@ -1,3 +1,10 @@
+## 2026-11-19 — Live Activity pace for guided workouts
+
+- [x] Send the current guide step’s target to the existing Live Activity.
+- [x] Hide pace comparison during unpaced steps and after the guide ends. Keep the planned target during unguided runs.
+- [x] Verify target transitions and payload decoding on the simulator.
+- [ ] Run the physical iPhone checklist, including work-to-recovery transitions.
+
 ## 2026-11-18 — Coach Mode Story 2.3
 
 - [x] Add the athlete list, calendar week, shared adherence rules, and a placeholder athlete destination.

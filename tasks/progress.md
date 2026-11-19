@@ -1,10 +1,72 @@
-# 2026-11-19: Live Activity, Dynamic Island and widget plan (parallel track)
+# 2026-11-19: Live Activity, Codex review fixes on main
 
-Current Phase: Live Activity upgrade, study and plan only; Coach Mode pilot (below) unchanged.
-Active Story: Founder picks a direction (A, B or C) from the mockup and docs/live-activity-plan.md.
-Next Recommended Story: PR 2, Live Activity fixes: intents into RunSmartShared, coordinator in app shell, no onDisappear end.
-Blockers: Founder direction pick; confirm on device whether Lock Screen Pause works today.
-Last Validation: mockup checked in 7 states, no overflow, island clears status bar; no app code changed.
+Current Phase: Live Activity upgrade merged (#220 to #225); this PR fixes three open Codex findings.
+Active Story: Widget weekly km refreshes on run changes and counts merged runs once; debrief link opens the run's report.
+Next Recommended Story: Founder device test of docs/qa/live-activity-device-checklist.md.
+Blockers: App Group portal setup before any device build; physical-iPhone checklist.
+Last Validation: full suite 1145 passed, 0 failed; simulator: finished card after Done opens that run's report.
+Last Updated: 2026-11-19
+
+# 2026-11-19: Guided workout pace on Live Activities
+
+Current Phase: Live Activity follow-up after PRs #220–#224.
+Active Story: The existing Live Activity compares pace with the current guide step’s target and shows neutral pace when that step has no target.
+Apple Developer: Verified App Group `group.com.runsmart.lite` on team `8VC4R5M425` for both the app and Live Activity extension.
+Last Validation: 29 Live Activity coordinator tests passed on the iPhone 17 Pro simulator, including work, recovery, and guide-completion transitions.
+Next Recommended Story: Regenerate provisioning profiles for both identifiers and run the physical-iPhone checklist on a Dynamic Island device.
+
+# 2026-11-19: Live Activity PRs reviewed and fixed (parallel track)
+
+Current Phase: Live Activity upgrade; stacked draft PRs #220 to #224 reviewed (two models on #221), all findings fixed.
+Active Story: Founder device test of docs/qa/live-activity-device-checklist.md, then review #220 first.
+Next Recommended Story: Follow-up: interval workouts should compare pace with the current guide step's target.
+Blockers: App Group portal setup before any device build; physical-iPhone checklist; #220 needs current-head review.
+Last Validation: full suite 1138 passed, 0 failed (iPhone 17 simulator).
+Last Updated: 2026-11-19
+
+# 2026-11-19: Live Activity PR 5, in-app switch (parallel track)
+
+Current Phase: Live Activity upgrade done in code; stacked draft PRs #220 to #224 await founder device test. Coach Mode pilot unchanged.
+Active Story: PR 5 in-app Live Activity switch in Run preferences, plus the full device checklist.
+Next Recommended Story: Founder runs docs/qa/live-activity-device-checklist.md on an iPhone, then reviews #220 first.
+Blockers: App Group portal setup; Tier 2 reviews for #221 (entitlements) before merge; physical-iPhone checks.
+Last Validation: full suite 1136 passed, 0 failed (iPhone 17 simulator).
+Last Updated: 2026-11-19
+
+# 2026-11-19: Live Activity PR 4, small weekly widget (parallel track)
+
+Current Phase: Live Activity upgrade, stacked draft PRs #220, #221, #222; PR 4 widget now. Coach Mode pilot unchanged.
+Active Story: PR 4 small home-screen widget: weekly km ring from App Group snapshot, Run in progress while live.
+Next Recommended Story: PR 5, in-app Live Activity on/off switch and polish.
+Blockers: App Group must be enabled in the developer portal before a device build; device checklist pending.
+Last Validation: full suite 1134 passed, 0 failed; simulator: widget reads the App Group snapshot.
+Last Updated: 2026-11-19
+
+# 2026-11-19: Live Activity PR 3, hybrid B/A layout (parallel track)
+
+Current Phase: Live Activity upgrade, stacked draft PRs #220 (fixes) and #221 (App Group); PR 3 layout now. Coach Mode pilot unchanged.
+Active Story: PR 3 hybrid layout: target-pace run shows pace vs target and goal ring; free run shows time and distance.
+Next Recommended Story: PR 4, small home-screen widget with weekly km ring from the App Group snapshot.
+Blockers: Lock Screen buttons and background GPS still need a physical iPhone; simulator checks passed.
+Last Validation: full suite 1129 passed, 0 failed; simulator: island Pause/Resume work, both layouts render.
+Last Updated: 2026-11-19
+
+# 2026-11-19: Live Activity PR 1, App Group and widget snapshot (parallel track)
+
+Current Phase: Live Activity upgrade, stacked draft PRs; PR 2 fixes open as #220. Coach Mode pilot below unchanged.
+Active Story: PR 1 App Group group.com.runsmart.lite and weekly widget snapshot, no UI.
+Next Recommended Story: PR 3, hybrid B/A Live Activity layout (target pace run vs free run).
+Blockers: App Group must be enabled for both bundle IDs in the developer portal before a device build.
+Last Validation: full unit suite on iPhone 17 Pro simulator, 1125 passed, 0 failed.
+Last Updated: 2026-11-19
+
+# 2026-11-19: Live Activity PR 2, fixes with no visual change (parallel track)
+
+Current Phase: Live Activity upgrade; founder chose hybrid B/A; PR 2 (fixes) built first. Coach Mode pilot below unchanged.
+Active Story: PR 2 Live Activity fixes: intents in app target, app-shell coordinator, crash adoption, throttle, stale state.
+Next Recommended Story: PR 1, App Group and shared snapshot store; then PR 3, 4, 5 stacked.
+Blockers: Lock Screen buttons, background GPS, force-quit need a physical iPhone (docs/qa/live-activity-device-checklist.md).
+Last Validation: full unit suite on iPhone 17 Pro simulator, 1120 passed, 0 failed; 21 new Live Activity tests; review fix applied.
 Last Updated: 2026-11-19
 
 # 2026-11-19: Coach Mode pilot TestFlight build 1.2.6 (44)
