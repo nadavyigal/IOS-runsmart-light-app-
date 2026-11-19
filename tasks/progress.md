@@ -1,3 +1,12 @@
+# 2026-11-19: Coach Mode pilot, on in TestFlight builds
+
+Current Phase: Coach Mode pilot launch; all 21 stories merged and all Coach Mode migrations on production (checked 2026-11-19).
+Active Story: Coach Mode turns on in TestFlight builds, stays off in the App Store build; two-phone guide in tasks/coach-pilot-testing.md.
+Next Recommended Story: Upload a TestFlight build, flag the coach account, run the two-phone test script.
+Blockers: TestFlight upload needs founder yes; migrations still to mirror to the web repo.
+Last Validation: full unit suite on iPhone 17 simulator, 1099 passed, 0 failed.
+Last Updated: 2026-11-19
+
 # 2026-11-18: Coach Mode pre-pilot stories all merged
 
 Current Phase: Coach Mode pilot; all 21 pre-pilot stories merged (6.3 #212, 3.4 #213, follow-up #210).
