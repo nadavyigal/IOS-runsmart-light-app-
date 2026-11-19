@@ -64,7 +64,12 @@ enum RunLiveActivityMapper {
         return .init(targetSecondsPerKm: wholeSeconds(target))
     }
 
-    static func finishedState(for run: RunLiveActivityInput.SavedRunSummary, lastSplit: (km: Int?, pace: Int?), now: Date) -> RunLiveActivityState {
+    static func finishedState(
+        for run: RunLiveActivityInput.SavedRunSummary,
+        lastSplit: (km: Int?, pace: Int?),
+        wasGuided: Bool,
+        now: Date
+    ) -> RunLiveActivityState {
         let moving = max(0, Int(run.movingSeconds.rounded()))
         return RunLiveActivityState(
             phase: .finished,
@@ -73,7 +78,8 @@ enum RunLiveActivityMapper {
             distanceMeters: run.distanceMeters,
             averagePaceSecondsPerKm: averagePace(distanceMeters: run.distanceMeters, movingSeconds: run.movingSeconds),
             lastSplitKilometer: lastSplit.km,
-            lastSplitPaceSecondsPerKm: lastSplit.pace
+            lastSplitPaceSecondsPerKm: lastSplit.pace,
+            workoutStepPace: wasGuided ? .init(targetSecondsPerKm: nil) : nil
         )
     }
 
@@ -293,6 +299,7 @@ final class RunLiveActivityCoordinator: ObservableObject {
             let finished = RunLiveActivityMapper.finishedState(
                 for: saved,
                 lastSplit: (current.state.lastSplitKilometer, current.state.lastSplitPaceSecondsPerKm),
+                wasGuided: current.state.workoutStepPace != nil,
                 now: now
             )
             endCurrent(dismissal: .after(now.addingTimeInterval(RunLiveActivityUpdatePolicy.finishedCardLifetime)), state: finished)

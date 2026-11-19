@@ -150,11 +150,35 @@ final class RunLiveActivityCoordinatorTests: XCTestCase {
         XCTAssertEqual(client.calls, [.request("a1"), .update("a1"), .update("a1"), .update("a1"), .update("a1")])
     }
 
+    func testFinishingAnUnpacedGuideDoesNotReviveTheWorkoutTarget() throws {
+        let guide = try XCTUnwrap(WorkoutGuide(steps: [
+            .init(kind: .recovery, target: .duration(seconds: 20))
+        ]))
+        let client = FakeLiveActivityClient()
+        let coordinator = RunLiveActivityCoordinator(client: client)
+        var snapshot = input()
+        snapshot.workoutStepPace = RunLiveActivityMapper.stepPace(for: guide)
+        coordinator.update(input: snapshot, context: context, now: start)
+        let activity = try XCTUnwrap(coordinator.current)
+        let saved = RunLiveActivityInput.SavedRunSummary(startedAt: start, distanceMeters: 2_000, movingSeconds: 600)
+
+        coordinator.update(input: input(.ready, saved: saved), context: context, now: start.addingTimeInterval(600))
+
+        let finished = try XCTUnwrap(client.lastState)
+        XCTAssertEqual(finished.phase, .finished)
+        XCTAssertNil(activity.attributes.liveTargetPace(for: finished))
+    }
+
     func testUnguidedRunStillUsesTheWorkoutTarget() throws {
-        let coordinator = RunLiveActivityCoordinator(client: FakeLiveActivityClient())
+        let client = FakeLiveActivityClient()
+        let coordinator = RunLiveActivityCoordinator(client: client)
         coordinator.update(input: input(), context: context, now: start)
         let activity = try XCTUnwrap(coordinator.current)
         XCTAssertEqual(activity.attributes.liveTargetPace(for: activity.state), 330)
+
+        let saved = RunLiveActivityInput.SavedRunSummary(startedAt: start, distanceMeters: 2_000, movingSeconds: 600)
+        coordinator.update(input: input(.ready, saved: saved), context: context, now: start.addingTimeInterval(600))
+        XCTAssertEqual(activity.attributes.liveTargetPace(for: try XCTUnwrap(client.lastState)), 330)
     }
 
     // MARK: Policy

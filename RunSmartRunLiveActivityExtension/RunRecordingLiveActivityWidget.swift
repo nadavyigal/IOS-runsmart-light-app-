@@ -44,7 +44,7 @@ private struct LALayout {
     let isPaceFirst: Bool
 
     init(_ attributes: RunRecordingLiveActivityAttributes, state: LAState) {
-        target = state.phase == .finished && attributes.hasPacedSteps ? nil : attributes.liveTargetPace(for: state)
+        target = attributes.liveTargetPace(for: state)
         isPaceFirst = attributes.usesPaceLayout
         goalMeters = attributes.goalDistanceMeters.flatMap { $0 > 0 ? $0 : nil }
     }
