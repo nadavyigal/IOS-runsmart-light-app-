@@ -411,13 +411,18 @@ struct RunTabView: View {
     }
 
     /// "View debrief" on a finished Live Activity: the post-run summary, if still open, is the
-    /// debrief; otherwise open the saved run's report.
+    /// debrief; otherwise open the saved run's full report, the same view the activity list opens.
     private func consumeDebriefRequest() {
         guard let startedAt = router.pendingDebriefRunStartedAt else { return }
         router.pendingDebriefRunStartedAt = nil
-        guard finishedRun == nil else { return }
-        if let run = RunLiveActivityCoordinator.debriefRun(startedAt: startedAt, in: RunSmartLocalStore.shared.loadRuns()) {
-            router.open(.postRunSummary(run))
+        guard finishedRun == nil,
+              let run = RunLiveActivityCoordinator.debriefRun(startedAt: startedAt, in: RunSmartLocalStore.shared.loadRuns())
+        else { return }
+        Task {
+            let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
+            await MainActor.run {
+                router.open(.runReportDetail(report, run: run))
+            }
         }
     }
 
