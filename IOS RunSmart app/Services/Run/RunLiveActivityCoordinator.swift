@@ -161,8 +161,15 @@ final class RunLiveActivityCoordinator: ObservableObject {
         var targetPaceSecondsPerKm: Int?
     }
 
+    /// In-app switch (Settings, Run preferences). On by default.
+    nonisolated static let enabledKey = "runLiveActivityEnabled"
+
+    static func isUserEnabled(_ defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: enabledKey) as? Bool ?? true
+    }
+
     private let client: RunLiveActivityClient
-    var isEnabled: () -> Bool = { true }
+    var isEnabled: () -> Bool = { RunLiveActivityCoordinator.isUserEnabled() }
     private(set) var current: RunLiveActivityHandle?
     private var lastSentAt: Date?
     private var sawLiveRun = false

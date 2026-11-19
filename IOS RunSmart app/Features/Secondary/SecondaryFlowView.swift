@@ -1,4 +1,5 @@
 import CoreLocation
+import ActivityKit
 import SwiftUI
 
 enum SecondaryDestination: Hashable, Identifiable {
@@ -1666,6 +1667,8 @@ private struct AudioCuesScaffold: View {
     @ObservedObject private var coach = VoiceCoachService.shared
     @Environment(\.coachAssistantActive) private var coachAssistantActive
     @AppStorage("runAutoPauseEnabled") private var autoPause = true
+    @AppStorage(RunLiveActivityCoordinator.enabledKey) private var liveActivity = true
+    @State private var systemAllowsLiveActivities = ActivityAuthorizationInfo().areActivitiesEnabled
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -1692,6 +1695,12 @@ private struct AudioCuesScaffold: View {
                     SectionLabel(title: "Run preferences")
                     Toggle("Auto-pause at stops", isOn: $autoPause)
                     Text("Pauses after 8 seconds below 0.5 m/s. Manual pauses resume only when you tap Resume.")
+                        .font(.caption).foregroundStyle(Color.mutedText)
+                    Toggle("Live Activity on Lock Screen", isOn: $liveActivity)
+                        .disabled(!systemAllowsLiveActivities)
+                    Text(systemAllowsLiveActivities
+                         ? "Shows time, distance and pace on the Lock Screen and Dynamic Island while you run, with Pause and Finish."
+                         : "Turned off in iOS Settings. Open Settings, then RunSmart, then Live Activities.")
                         .font(.caption).foregroundStyle(Color.mutedText)
                     Toggle(CoachAssistantCopy.apply("Extra AI coach cues", assistant: coachAssistantActive), isOn: Binding(get: { coach.isEnabled }, set: { coach.setEnabled($0) }))
                     Text("AI cues need a signed-in account and an internet connection.")

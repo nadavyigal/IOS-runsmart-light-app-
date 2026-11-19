@@ -292,6 +292,29 @@ final class RunLiveActivityCoordinatorTests: XCTestCase {
         XCTAssertEqual(client.calls, [.request("a1"), .end("a1", .immediate)])
     }
 
+    func testInAppSwitchOffEndsTheActivityAndOnStartsItAgain() {
+        let client = FakeLiveActivityClient()
+        let coordinator = RunLiveActivityCoordinator(client: client)
+        var switchOn = true
+        coordinator.isEnabled = { switchOn }
+        coordinator.update(input: input(), context: context, now: start)
+        switchOn = false
+        coordinator.update(input: input(), context: context, now: start.addingTimeInterval(1))
+        coordinator.update(input: input(), context: context, now: start.addingTimeInterval(2))
+        switchOn = true
+        coordinator.update(input: input(), context: context, now: start.addingTimeInterval(3))
+        XCTAssertEqual(client.calls, [.request("a1"), .end("a1", .immediate), .request("a2")])
+    }
+
+    func testInAppSwitchDefaultsToOn() {
+        let suite = "live-activity-switch-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertTrue(RunLiveActivityCoordinator.isUserEnabled(defaults))
+        defaults.set(false, forKey: RunLiveActivityCoordinator.enabledKey)
+        XCTAssertFalse(RunLiveActivityCoordinator.isUserEnabled(defaults))
+    }
+
     func testFailedRequestRetriesAfterAMinuteNotEveryTick() {
         let client = FakeLiveActivityClient()
         client.failRequests = true

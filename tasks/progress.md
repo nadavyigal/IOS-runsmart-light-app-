@@ -1,3 +1,12 @@
+# 2026-11-19: Live Activity PR 5, in-app switch (parallel track)
+
+Current Phase: Live Activity upgrade done in code; stacked draft PRs #220 to #224 await founder device test. Coach Mode pilot unchanged.
+Active Story: PR 5 in-app Live Activity switch in Run preferences, plus the full device checklist.
+Next Recommended Story: Founder runs docs/qa/live-activity-device-checklist.md on an iPhone, then reviews #220 first.
+Blockers: App Group portal setup; Tier 2 reviews for #221 (entitlements) before merge; physical-iPhone checks.
+Last Validation: full suite 1136 passed, 0 failed (iPhone 17 simulator).
+Last Updated: 2026-11-19
+
 # 2026-11-19: Live Activity PR 4, small weekly widget (parallel track)
 
 Current Phase: Live Activity upgrade, stacked draft PRs #220, #221, #222; PR 4 widget now. Coach Mode pilot unchanged.
