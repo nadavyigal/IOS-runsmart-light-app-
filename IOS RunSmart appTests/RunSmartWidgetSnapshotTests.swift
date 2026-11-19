@@ -107,4 +107,71 @@ final class RunSmartWidgetSnapshotTests: XCTestCase {
         writer.recordWeekGoal(kilometers: 30)
         XCTAssertEqual(reloads, 0)
     }
+
+    // MARK: Widget content (PR 4)
+
+    private func snapshot(weekStart: String, km: Double, goalKm: Double?, running: Bool, updated: String) -> RunSmartWidgetSnapshot {
+        RunSmartWidgetSnapshot(updatedAt: date(updated), weekStart: date(weekStart), weekDistanceMeters: km * 1_000,
+                               weekGoalMeters: goalKm.map { $0 * 1_000 }, isRunInProgress: running)
+    }
+
+    func testWidgetShowsRingWithGoal() {
+        let content = RunSmartWeeklyWidgetContent.make(
+            snapshot: snapshot(weekStart: "2026-11-16T00:00:00Z", km: 21.4, goalKm: 30, running: false, updated: "2026-11-18T08:00:00Z"),
+            now: date("2026-11-18T09:00:00Z"), calendar: calendar)
+        XCTAssertEqual(content.distanceLabel, "21.4")
+        XCTAssertEqual(content.goalLabel, "of 30 km")
+        XCTAssertEqual(content.progress ?? 0, 21.4 / 30, accuracy: 0.0001)
+        XCTAssertFalse(content.isRunInProgress)
+    }
+
+    func testWidgetWithoutGoalHasNoRing() {
+        let content = RunSmartWeeklyWidgetContent.make(
+            snapshot: snapshot(weekStart: "2026-11-16T00:00:00Z", km: 8.2, goalKm: nil, running: false, updated: "2026-11-18T08:00:00Z"),
+            now: date("2026-11-18T09:00:00Z"), calendar: calendar)
+        XCTAssertNil(content.progress)
+        XCTAssertEqual(content.goalLabel, "km this week")
+    }
+
+    func testWidgetResetsInANewWeek() {
+        let content = RunSmartWeeklyWidgetContent.make(
+            snapshot: snapshot(weekStart: "2026-11-16T00:00:00Z", km: 21.4, goalKm: 30, running: false, updated: "2026-11-22T20:00:00Z"),
+            now: date("2026-11-23T07:00:00Z"), calendar: calendar)
+        XCTAssertEqual(content.distanceLabel, "0.0")
+        XCTAssertNil(content.progress)
+        XCTAssertEqual(RunSmartWeeklyWidgetContent.nextRefresh(after: date("2026-11-18T09:00:00Z"), snapshot: nil, calendar: calendar), date("2026-11-23T00:00:00Z"))
+    }
+
+    func testWidgetRunFlagExpiresAfterTwelveHours() {
+        let fresh = RunSmartWeeklyWidgetContent.make(
+            snapshot: snapshot(weekStart: "2026-11-16T00:00:00Z", km: 3, goalKm: 30, running: true, updated: "2026-11-18T08:00:00Z"),
+            now: date("2026-11-18T09:00:00Z"), calendar: calendar)
+        XCTAssertTrue(fresh.isRunInProgress)
+        let old = RunSmartWeeklyWidgetContent.make(
+            snapshot: snapshot(weekStart: "2026-11-16T00:00:00Z", km: 3, goalKm: 30, running: true, updated: "2026-11-18T08:00:00Z"),
+            now: date("2026-11-18T21:00:00Z"), calendar: calendar)
+        XCTAssertFalse(old.isRunInProgress)
+    }
+
+    func testLiveRunFlagRefreshesWhenItGoesStaleNotAtWeekEnd() {
+        let live = snapshot(weekStart: "2026-11-16T00:00:00Z", km: 3, goalKm: 30, running: true, updated: "2026-11-17T09:00:00Z")
+        XCTAssertEqual(RunSmartWeeklyWidgetContent.nextRefresh(after: date("2026-11-17T09:00:05Z"), snapshot: live, calendar: calendar), date("2026-11-17T21:00:00Z"))
+        let idle = snapshot(weekStart: "2026-11-16T00:00:00Z", km: 3, goalKm: 30, running: false, updated: "2026-11-17T09:00:00Z")
+        XCTAssertEqual(RunSmartWeeklyWidgetContent.nextRefresh(after: date("2026-11-17T09:00:05Z"), snapshot: idle, calendar: calendar), date("2026-11-23T00:00:00Z"))
+    }
+
+    func testTimeZoneChangeKeepsTheWeekInsteadOfShowingZero() {
+        // Written in Tel Aviv (week starts 2026-11-15T22:00Z), read in London (2026-11-16T00:00Z).
+        let content = RunSmartWeeklyWidgetContent.make(
+            snapshot: snapshot(weekStart: "2026-11-15T22:00:00Z", km: 21.4, goalKm: 30, running: false, updated: "2026-11-18T08:00:00Z"),
+            now: date("2026-11-18T09:00:00Z"), calendar: calendar)
+        XCTAssertEqual(content.distanceLabel, "21.4")
+        XCTAssertNotNil(content.progress)
+    }
+
+    func testWidgetWithoutSnapshotShowsNoNumbers() {
+        let content = RunSmartWeeklyWidgetContent.make(snapshot: nil, now: Date(), calendar: calendar)
+        XCTAssertFalse(content.hasData)
+        XCTAssertNil(content.progress)
+    }
 }

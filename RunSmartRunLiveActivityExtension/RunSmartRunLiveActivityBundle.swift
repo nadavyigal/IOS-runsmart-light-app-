@@ -5,5 +5,6 @@ import WidgetKit
 struct RunSmartRunLiveActivityBundle: WidgetBundle {
     var body: some Widget {
         RunRecordingLiveActivityWidget()
+        RunSmartWeeklyWidget()
     }
 }
