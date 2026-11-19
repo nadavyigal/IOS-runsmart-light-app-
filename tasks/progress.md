@@ -1,3 +1,12 @@
+# 2026-11-19: Coach Mode pilot TestFlight build 1.2.6 (44)
+
+Current Phase: Coach Mode pilot launch; flag on in TestFlight (#217 merged), migrations on production.
+Active Story: Upload 1.2.6 (44) to TestFlight for the two-phone pilot test.
+Next Recommended Story: Flag the coach account, install on two phones, run tasks/coach-pilot-testing.md.
+Blockers: None in code; web-repo migration mirror still open.
+Last Validation: archive 1.2.6 (44) verified against production backend; full unit suite 1099 passed.
+Last Updated: 2026-11-19
+
 # 2026-11-19: Coach Mode pilot, on in TestFlight builds
 
 Current Phase: Coach Mode pilot launch; all 21 stories merged and all Coach Mode migrations on production (checked 2026-11-19).
