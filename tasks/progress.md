@@ -1,3 +1,12 @@
+# 2026-11-19: Live Activity, Dynamic Island and widget plan (parallel track)
+
+Current Phase: Live Activity upgrade, study and plan only; Coach Mode pilot (below) unchanged.
+Active Story: Founder picks a direction (A, B or C) from the mockup and docs/live-activity-plan.md.
+Next Recommended Story: PR 2, Live Activity fixes: intents into RunSmartShared, coordinator in app shell, no onDisappear end.
+Blockers: Founder direction pick; confirm on device whether Lock Screen Pause works today.
+Last Validation: mockup checked in 7 states, no overflow, island clears status bar; no app code changed.
+Last Updated: 2026-11-19
+
 # 2026-11-19: Coach Mode pilot TestFlight build 1.2.6 (44)
 
 Current Phase: Coach Mode pilot launch; flag on in TestFlight (#217 merged), migrations on production.

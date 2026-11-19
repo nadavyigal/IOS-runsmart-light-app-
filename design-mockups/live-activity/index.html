@@ -1,0 +1,364 @@
+<meta charset="utf-8">
+<title>RunSmart Live Activity Directions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: three direction columns side by side, each = Lock Screen phone + island sizes + home widget. Shared state bar on top. */
+:root {
+  --bg: #eef0ea; --panel: #ffffff; --fg: #15170f; --muted: #5d6253; --line: #d7dbcd;
+  --chip: #e3e7d6; --btn: #15170f; --btn-fg: #f4f7ea;
+  --lime: #CCFF00; --orange: #FB923C; --green: #2DDC82; --blue: #60A5FA;
+  --display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --ios: -apple-system, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  --s: .7;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e100b; --panel: #181b13; --fg: #eef2e2; --muted: #9aa08b; --line: #2b3022; --chip: #252a1c; --btn: #eef2e2; --btn-fg: #15170f; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #0e100b; --panel: #181b13; --fg: #eef2e2; --muted: #9aa08b; --line: #2b3022; --chip: #252a1c; --btn: #eef2e2; --btn-fg: #15170f; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--ios); }
+.page { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px; max-width: 1240px; margin: 0 auto; display: grid; gap: 18px; }
+h1 { font-family: var(--display); font-size: 26px; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); margin: 4px 0 0; max-width: 75ch; line-height: 1.45; }
+.controls { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border-bottom: 1px solid var(--line); }
+.controls span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.controls button { font: 600 13px var(--ios); border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+.controls button[aria-pressed="true"] { background: var(--btn); color: var(--btn-fg); border-color: var(--btn); }
+.controls button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.ph { font-size: 10px; font-weight: 600; color: var(--orange); margin-left: 3px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 22px; align-items: start; }
+.dir { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.dir h2 { font-family: var(--display); font-size: 19px; margin: 0; }
+.dir .thesis { margin: 2px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.label { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.tag { font-size: 11px; padding: 3px 7px; border-radius: 6px; background: var(--chip); }
+.tag.need { background: transparent; border: 1px dashed var(--orange); color: var(--fg); }
+.pick { font-size: 11px; font-weight: 700; background: var(--lime); color: #15170f; padding: 2px 7px; border-radius: 6px; margin-left: 6px; vertical-align: 3px; }
+
+/* ---------- device rendering (iOS points, scaled by zoom) ---------- */
+.zoom { zoom: var(--s); }
+.phone { width: 393px; height: 852px; border-radius: 56px; position: relative; overflow: hidden; margin: 10px auto; font-family: var(--ios); color: #fff;
+  background: radial-gradient(120% 70% at 20% 10%, #3a4a2a 0%, #1b2414 45%, #0b0f08 100%);
+  box-shadow: 0 0 0 11px #1a1c18, 0 0 0 12px #44483e; }
+.sb { position: absolute; top: 0; left: 0; right: 0; height: 54px; }
+.sb .time { position: absolute; left: 0; width: 112px; top: 17px; text-align: center; font: 600 17px var(--ios); }
+.sb .icons { position: absolute; right: 30px; top: 19px; display: flex; justify-content: flex-end; gap: 6px; align-items: center; }
+.bars { display: flex; gap: 2px; align-items: flex-end; height: 12px; } .bars i { width: 3px; background: #fff; border-radius: 1px; display: block; }
+.batt { width: 25px; height: 12px; border: 1.5px solid rgba(255,255,255,.5); border-radius: 4px; padding: 1px; } .batt i { display: block; height: 100%; width: 70%; background: #fff; border-radius: 2px; }
+.island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); height: 37px; background: #000; border-radius: 19px; display: flex; align-items: center; justify-content: space-between; }
+.island.compact { width: 214px; }
+.island .lead, .island .trail { width: 44px; display: flex; align-items: center; gap: 3px; font: 600 12.5px var(--ios); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.island .lead { padding-left: 6px; box-sizing: border-box; }
+.island .trail { padding-right: 6px; box-sizing: border-box; justify-content: flex-end; }
+.lockdate { position: absolute; top: 72px; width: 100%; text-align: center; font: 600 19px var(--ios); opacity: .85; }
+.lockclock { position: absolute; top: 92px; width: 100%; text-align: center; font: 700 96px/1 var(--ios); letter-spacing: -2px; opacity: .92; }
+.la { position: absolute; left: 16px; width: 361px; bottom: 132px; background: rgba(12,14,9,.86); border-radius: 22px; padding: 14px 16px; box-sizing: border-box; backdrop-filter: blur(20px); display: grid; gap: 10px; }
+.lockbtns { position: absolute; bottom: 44px; left: 46px; right: 46px; display: flex; justify-content: space-between; }
+.lockbtns i { width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.16); display: block; }
+.homebar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 134px; height: 5px; border-radius: 3px; background: #fff; }
+
+.sizes { display: grid; gap: 10px; justify-items: center; background: #0b0d09; border-radius: 16px; padding: 14px 10px; color: #fff; font-family: var(--ios); }
+.sizes .cap { font: 600 10px var(--ios); letter-spacing: .08em; text-transform: uppercase; color: #8d927f; align-self: start; justify-self: start; padding-left: 4px; }
+.minrow { display: flex; gap: 8px; align-items: center; }
+.pill { width: 126px; height: 37px; background: #000; border-radius: 19px; box-shadow: inset 0 0 0 1px #222; }
+.minimal { width: 37px; height: 37px; border-radius: 50%; background: #000; box-shadow: inset 0 0 0 1px #222; display: grid; place-items: center; font: 700 13px var(--ios); font-variant-numeric: tabular-nums; }
+.compact-solo { position: relative; transform: none; left: auto; top: auto; box-shadow: inset 0 0 0 1px #222; }
+.expanded { width: 371px; min-height: 160px; background: #000; border-radius: 44px; box-shadow: inset 0 0 0 1px #222; padding: 14px 20px 18px; box-sizing: border-box; display: grid; gap: 10px; position: relative; }
+.expanded .top { display: grid; grid-template-columns: 1fr 126px 1fr; align-items: start; min-height: 40px; }
+.expanded .top > :last-child { text-align: right; justify-self: end; }
+.cam { width: 126px; height: 37px; border-radius: 19px; background: #000; box-shadow: inset 0 0 0 1px #1c1c1c; margin-top: -3px; }
+
+.home { background: radial-gradient(100% 100% at 80% 0%, #2c3a52 0%, #141a24 60%, #0c1016 100%); border-radius: 22px; padding: 18px; display: flex; gap: 18px; justify-content: center; }
+.widget { width: 158px; height: 158px; border-radius: 22px; background: #10120d; color: #fff; padding: 14px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; font-family: var(--ios); overflow: hidden; }
+.appicon { width: 60px; display: grid; gap: 6px; justify-items: center; font: 500 11px var(--ios); color: #fff; }
+.appicon i { width: 60px; height: 60px; border-radius: 14px; display: block; background: #CCFF00; }
+.appicon i.b { background: #3b82f6; } .appicon i.c { background: #f43f5e; } .appicon i.d { background: #a3a3a3; }
+.icol { display: grid; gap: 18px; grid-template-columns: 60px 60px; align-content: start; }
+
+/* shared device type */
+.k { font: 600 11px var(--ios); letter-spacing: .04em; text-transform: uppercase; color: #9aa08b; }
+.big { font: 700 34px/1 var(--ios); font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+.mid { font: 600 22px/1.05 var(--ios); font-variant-numeric: tabular-nums; }
+.sm { font: 500 13px/1.25 var(--ios); color: #c9cdbd; font-variant-numeric: tabular-nums; }
+.unit { font-size: .5em; font-weight: 600; color: #9aa08b; margin-left: 2px; letter-spacing: 0; }
+.row { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; }
+.hdr { display: flex; align-items: center; gap: 7px; font: 600 15px var(--ios); }
+.hdr .st { margin-left: auto; font: 700 11px var(--ios); text-transform: uppercase; letter-spacing: .06em; padding: 3px 7px; border-radius: 6px; background: rgba(255,255,255,.08); }
+.btns { display: flex; gap: 8px; }
+.b { flex: 1; height: 40px; border-radius: 20px; display: flex; align-items: center; justify-content: center; gap: 6px; font: 600 15px var(--ios); background: rgba(255,255,255,.12); color: #fff; }
+.b.pri { background: #CCFF00; color: #11140a; }
+.b.go { background: #2DDC82; color: #08140d; }
+.b.res { background: #FB923C; color: #1a0d03; }
+svg.ic { width: 1em; height: 1em; flex: none; }
+.bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; } .bar i { display: block; height: 100%; border-radius: 3px; }
+.chipn { display: inline-flex; align-items: center; gap: 5px; font: 700 12px var(--ios); padding: 4px 8px; border-radius: 8px; background: rgba(204,255,0,.14); color: #CCFF00; }
+.chipn.cue { background: rgba(96,165,250,.16); color: #93c5fd; }
+.phtag { font: 600 9px var(--ios); color: #FB923C; border: 1px dashed #FB923C; border-radius: 4px; padding: 0 3px; margin-left: 4px; letter-spacing: .03em; text-transform: uppercase; }
+.dots { display: flex; gap: 5px; } .dots span { width: 20px; text-align: center; font: 600 10px var(--ios); color: #8d927f; display: grid; gap: 3px; justify-items: center; }
+.dots span i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.18); display: block; }
+.dots span.done i { background: #CCFF00; } .dots span.now i { background: transparent; box-shadow: 0 0 0 2px #CCFF00; }
+.pop { animation: pop .45s cubic-bezier(.3,1.6,.5,1) 1; }
+@keyframes pop { 0% { transform: scale(.6); opacity: .2 } 100% { transform: scale(1); opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .pop { animation: none; } }
+.stale { opacity: .55; }
+.note { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0; }
+</style>
+
+<div class="page">
+  <header>
+    <h1>RunSmart Live Activity Directions</h1>
+    <p class="sub">Three directions for the Dynamic Island, Lock Screen Live Activity and small home-screen widget. All numbers are a sample run (tempo, 8 km plan, 5:30 /km target). Dashed orange tags mark data or states the Live Activity does not receive today.</p>
+  </header>
+
+  <nav class="controls" aria-label="Preview state">
+    <span>State</span>
+    <button id="st-acquiring" data-s="acquiring">GPS acquiring</button>
+    <button id="st-running" data-s="running">Running</button>
+    <button id="st-paused" data-s="paused">Paused</button>
+    <button id="st-autopaused" data-s="autopaused">Auto-paused</button>
+    <button id="st-split" data-s="split">Km split</button>
+    <button id="st-cue" data-s="cue">Coach cue<span class="ph">placeholder</span></button>
+    <button id="st-finished" data-s="finished">Finished</button>
+    <button id="st-reset" data-s="reset">Reset</button>
+  </nav>
+
+  <main class="grid" id="grid"></main>
+  <p class="note">Rules respected: Live Activities never loop; the only motion is a single pop under 2 s on a km split. Island backgrounds stay black (Apple does not allow custom colors there). Minimal fits a 28 pt circle. Compact is capped at 214 pt so it clears the status-bar clock and battery.</p>
+</div>
+
+<script>
+(function () {
+  const S = { lime: '#CCFF00', orange: '#FB923C', green: '#2DDC82', blue: '#60A5FA', grey: '#9aa08b' };
+  const GOAL_KM = 8, TARGET = 330, WEEK_DONE = 18.4, WEEK_GOAL = 30;
+  const st = { phase: 'running', t: 1453, d: 4.57, acc: 18, splitKm: 3, splitPace: 318, pop: 0 };
+
+  const I = {
+    run: '<svg class="ic" viewBox="0 0 24 24"><circle cx="15.5" cy="4" r="2.3" fill="currentColor"/><path d="M13.5 8 9.5 10.5l1.8 3.2-3 6.3M13.5 8l2.6 3.8 3.9 1M11.3 13.7l4 2 .9 5.3M9.5 10.5 5 11.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    pause: '<svg class="ic" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1.2" fill="currentColor"/><rect x="14" y="4.5" width="4" height="15" rx="1.2" fill="currentColor"/></svg>',
+    play: '<svg class="ic" viewBox="0 0 24 24"><path d="M7 4.8v14.4a1 1 0 0 0 1.5.9l11.3-7.2a1 1 0 0 0 0-1.7L8.5 3.9A1 1 0 0 0 7 4.8Z" fill="currentColor"/></svg>',
+    stop: '<svg class="ic" viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="2.5" fill="currentColor"/></svg>',
+    check: '<svg class="ic" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    loc: '<svg class="ic" viewBox="0 0 24 24"><path d="M20.5 3.5 3.8 10.6c-.8.4-.7 1.6.2 1.8l6.6 1.3 1.3 6.6c.2.9 1.4 1 1.8.2Z" fill="currentColor"/></svg>',
+    spk: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    flame: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 2.5c.6 3.2-1.4 4.8-3 6.6-1.4 1.6-2.5 3.3-2.5 5.6a5.5 5.5 0 0 0 11 0c0-2.4-1.2-4-2.2-5.2-.3 1.4-1 2.3-2 2.6.6-3.6-.4-7-1.3-9.6Z" fill="currentColor"/></svg>'
+  };
+
+  const pad = n => String(n).padStart(2, '0');
+  const tm = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return h ? `${h}:${pad(m)}:${pad(x)}` : `${m}:${pad(x)}`; };
+  const pc = s => !isFinite(s) || s <= 0 ? '--' : `${Math.floor(s / 60)}:${pad(Math.round(s % 60))}`;
+  const km = d => d.toFixed(2);
+  const live = () => ['running', 'split', 'cue'].includes(st.phase);
+  const paused = () => st.phase === 'paused' || st.phase === 'autopaused';
+  const tone = () => st.phase === 'finished' ? S.green : paused() ? S.orange : st.phase === 'acquiring' ? S.blue : S.lime;
+  const curPace = () => st.phase === 'acquiring' ? NaN : paused() ? NaN : 318 + (st.t % 7) - 3;
+  const avgPace = () => st.d > 0.02 ? st.t / st.d : NaN;
+  const stateWord = () => ({ acquiring: 'Finding GPS', running: 'Running', split: 'Running', cue: 'Running', paused: 'Paused', autopaused: 'Auto-paused', finished: 'Finished' })[st.phase];
+
+  function ring(size, frac, color, inner) {
+    const r = size / 2 - 3, c = 2 * Math.PI * r, f = Math.max(0, Math.min(1, frac));
+    return `<span style="position:relative;display:inline-grid;place-items:center;width:${size}px;height:${size}px;flex:none">
+      <svg width="${size}" height="${size}" style="position:absolute;inset:0;transform:rotate(-90deg)"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="${size > 30 ? 5 : 3.2}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${size > 30 ? 5 : 3.2}" stroke-linecap="round" stroke-dasharray="${c * f} ${c}"/></svg>${inner || ''}</span>`;
+  }
+  const splitChip = () => st.phase === 'split' ? `<span class="chipn ${st.pop ? 'pop' : ''}">Km ${st.splitKm} · ${pc(st.splitPace)} /km</span>` : '';
+  const cueChip = () => st.phase === 'cue' ? `<span class="chipn cue">${I.spk} Coach cue<span class="phtag">placeholder</span></span>` : '';
+  const autoTag = () => st.phase === 'autopaused' ? '<span class="phtag">not sent today</span>' : '';
+  const controls = (finishSmall) => {
+    if (st.phase === 'finished') return `<div class="btns"><div class="b go">View debrief</div></div>`;
+    if (st.phase === 'acquiring') return `<div class="btns"><div class="b">${I.stop} Cancel</div></div>`;
+    const pr = paused() ? `<div class="b res">${I.play} Resume</div>` : `<div class="b pri">${I.pause} Pause</div>`;
+    return `<div class="btns">${pr}<div class="b" ${finishSmall ? 'style="flex:.55"' : ''}>${I.stop} Finish</div></div>`;
+  };
+
+  /* ---------- Direction A: Run-first ---------- */
+  const A = {
+    minimal() {
+      if (st.phase === 'finished') return `<span style="color:${S.green}">${I.check}</span>`;
+      if (st.phase === 'acquiring') return `<span style="color:${S.blue}">${I.loc}</span>`;
+      if (paused()) return `<span style="color:${S.orange}">${I.pause}</span>`;
+      return `<span style="color:${S.lime};font-size:12px">${st.d.toFixed(1)}</span>`;
+    },
+    lead() {
+      if (st.phase === 'acquiring') return `<span style="color:${S.blue}">${I.loc}</span>`;
+      if (st.phase === 'finished') return `<span style="color:${S.green}">${I.check}</span>`;
+      return `<span style="color:${tone()};font-size:12px;letter-spacing:-.4px">${tm(st.t)}</span>`;
+    },
+    trail() {
+      if (st.phase === 'acquiring') return `<span style="color:#c9cdbd;font-size:12px">GPS</span>`;
+      return `<span>${st.d.toFixed(2)}</span>`;
+    },
+    expanded() {
+      if (st.phase === 'acquiring') return `<div class="top"><div><div class="k">Time</div><div class="mid">0:00</div></div><div class="cam"></div><div><div class="k">GPS</div><div class="mid" style="color:${S.blue}">±${st.acc} m</div></div></div><div class="sm">Finding GPS. Start when the signal is ready.</div>${controls()}`;
+      if (st.phase === 'finished') return `<div class="top"><div><div class="k">Time</div><div class="mid">${tm(st.t)}</div></div><div class="cam"></div><div><div class="k">Distance</div><div class="mid">${km(st.d)}<span class="unit">km</span></div></div></div><div class="sm">Run finished · avg ${pc(avgPace())} /km</div>${controls()}`;
+      return `<div class="top"><div><div class="k">Time</div><div class="mid" style="color:${tone()}">${tm(st.t)}</div></div><div class="cam"></div><div><div class="k">Distance</div><div class="mid">${km(st.d)}<span class="unit">km</span></div></div></div>
+        <div class="row"><div class="sm">${paused() ? stateWord() + autoTag() : `Pace ${pc(curPace())} /km · avg ${pc(avgPace())}`}</div>${splitChip()}${cueChip()}</div>${controls()}`;
+    },
+    lock() {
+      const hdr = `<div class="hdr"><span style="color:${tone()}">${I.run}</span>Tempo run<span class="st" style="color:${tone()}">${stateWord()}</span></div>`;
+      if (st.phase === 'acquiring') return `${hdr}<div class="row"><div><div class="k">GPS signal</div><div class="big" style="color:${S.blue}">±${st.acc}<span class="unit">m</span></div></div><div class="sm" style="max-width:150px;text-align:right">Start when the signal is ready</div></div>${controls()}`;
+      if (st.phase === 'finished') return `${hdr}<div class="row"><div><div class="k">Distance</div><div class="big">${km(st.d)}<span class="unit">km</span></div></div><div><div class="k">Time</div><div class="big">${tm(st.t)}</div></div></div><div class="sm">Avg pace ${pc(avgPace())} /km</div>${controls()}`;
+      return `${hdr}<div class="row"><div><div class="k">Time</div><div class="big" style="color:${tone()}">${tm(st.t)}</div></div><div style="text-align:right"><div class="k">Distance</div><div class="big">${km(st.d)}<span class="unit">km</span></div></div></div>
+        <div class="row"><div class="sm">${paused() ? 'Paused at ' + km(st.d) + ' km' + autoTag() : `Pace ${pc(curPace())} · Avg ${pc(avgPace())} /km`}</div>${splitChip()}${cueChip()}</div>${controls()}`;
+    },
+    widget() {
+      if (live() || paused()) return `<div class="k" style="color:${S.lime}">Run in progress</div><div><div class="mid">${km(st.d)}<span class="unit">km</span></div><div class="sm">${tm(st.t)}</div></div><div class="sm">Tap to open</div>`;
+      if (st.phase === 'finished') return `<div class="k" style="color:${S.green}">Today ${I.check}</div><div><div class="mid">${km(st.d)}<span class="unit">km</span></div><div class="sm">${tm(st.t)} · ${pc(avgPace())} /km</div></div><div class="sm">View debrief</div>`;
+      return `<div class="k">Today</div><div><div class="mid" style="font-size:19px">Tempo run</div><div class="sm">8 km · 5:30 /km</div></div><div class="b pri" style="height:34px;font-size:14px">${I.run} Start run</div>`;
+    }
+  };
+
+  /* ---------- Direction B: Pace and goal ---------- */
+  const B = {
+    frac() { return st.d / GOAL_KM; },
+    paceColor() { const p = curPace(); if (!isFinite(p)) return S.grey; return p <= TARGET + 10 ? S.green : S.orange; },
+    minimal() {
+      if (st.phase === 'finished') return ring(28, 1, S.green, `<span style="color:${S.green};font-size:12px">${I.check}</span>`);
+      if (st.phase === 'acquiring') return `<span style="color:${S.blue}">${I.loc}</span>`;
+      return ring(28, this.frac(), paused() ? S.orange : S.lime, `<span style="font-size:10px">${Math.floor(st.d)}</span>`);
+    },
+    lead() {
+      if (st.phase === 'acquiring') return `<span style="color:${S.blue}">${I.loc}</span>`;
+      return ring(22, st.phase === 'finished' ? 1 : this.frac(), tone());
+    },
+    trail() {
+      if (st.phase === 'acquiring') return `<span style="color:#c9cdbd;font-size:12px">GPS</span>`;
+      if (paused()) return `<span style="color:${S.orange}">${I.pause}</span>`;
+      if (st.phase === 'finished') return `<span style="color:${S.green}">${pc(avgPace())}</span>`;
+      return `<span style="color:${this.paceColor()}">${pc(curPace())}</span>`;
+    },
+    paceScale() {
+      const p = curPace(), lo = TARGET - 40, hi = TARGET + 40;
+      const pos = isFinite(p) ? Math.max(0, Math.min(1, (p - lo) / (hi - lo))) : .5;
+      const delta = isFinite(p) ? Math.round(TARGET - p) : 0;
+      const txt = !isFinite(p) ? 'Pace resumes when you move' : delta >= 0 ? `${delta} s faster than target` : `${-delta} s slower than target`;
+      return `<div style="display:grid;gap:5px"><div style="position:relative;height:8px;border-radius:4px;background:linear-gradient(90deg,rgba(255,255,255,.12) 0 37.5%,rgba(45,220,130,.45) 37.5% 62.5%,rgba(255,255,255,.12) 62.5%)">
+        <i style="position:absolute;top:-3px;left:calc(${pos * 100}% - 2px);width:4px;height:14px;border-radius:2px;background:#fff;display:block"></i></div>
+        <div class="row"><span class="sm">Target 5:20–5:40</span><span class="sm" style="color:${this.paceColor()}">${txt}</span></div></div>`;
+    },
+    expanded() {
+      if (st.phase === 'acquiring') return A.expanded();
+      const leftRing = ring(46, st.phase === 'finished' ? 1 : this.frac(), tone(), `<span style="font:700 12px var(--ios)">${st.d.toFixed(1)}</span>`);
+      const top = `<div class="top"><div style="display:flex;gap:8px;align-items:center">${leftRing}<div class="sm">of ${GOAL_KM} km</div></div><div class="cam"></div><div><div class="k">Pace</div><div class="mid" style="color:${st.phase === 'finished' ? S.green : this.paceColor()}">${st.phase === 'finished' ? pc(avgPace()) : pc(curPace())}</div></div></div>`;
+      if (st.phase === 'finished') return `${top}<div class="sm">Goal reached · ${tm(st.t)} · avg ${pc(avgPace())} /km</div>${controls()}`;
+      return `${top}${paused() ? `<div class="sm">${stateWord()} · ${tm(st.t)}${autoTag()}</div>` : this.paceScale()}<div class="row" style="min-height:0">${splitChip()}${cueChip()}</div>${controls(true)}`;
+    },
+    lock() {
+      const hdr = `<div class="hdr"><span style="color:${tone()}">${I.run}</span>Tempo · ${GOAL_KM} km @ 5:30<span class="st" style="color:${tone()}">${stateWord()}</span></div>`;
+      if (st.phase === 'acquiring') return A.lock();
+      const prog = `<div style="display:grid;gap:5px"><div class="row"><span class="mid">${km(st.d)}<span class="unit">of ${GOAL_KM} km</span></span><span class="mid" style="color:${tone()}">${tm(st.t)}</span></div><div class="bar"><i style="width:${Math.min(100, this.frac() * 100)}%;background:${tone()}"></i></div></div>`;
+      if (st.phase === 'finished') return `${hdr}${prog}<div class="sm">Avg ${pc(avgPace())} /km · target 5:30</div>${controls()}`;
+      return `${hdr}${prog}${paused() ? `<div class="sm">${stateWord()}${autoTag()}</div>` : this.paceScale()}${splitChip() || cueChip() ? `<div class="row">${splitChip()}${cueChip()}</div>` : ''}${controls(true)}`;
+    },
+    widget() {
+      const wk = WEEK_DONE + (st.phase === 'finished' || live() || paused() ? st.d : 0);
+      return `<div class="k">This week</div><div style="display:flex;align-items:center;gap:10px">${ring(58, wk / WEEK_GOAL, S.lime, `<span style="font:700 14px var(--ios)">${Math.round(wk / WEEK_GOAL * 100)}%</span>`)}<div><div class="mid" style="font-size:18px">${wk.toFixed(1)}</div><div class="sm">of ${WEEK_GOAL} km</div></div></div><div class="sm">${live() || paused() ? 'Run in progress' : st.phase === 'finished' ? 'Tempo done' : 'Next: Tempo 8 km'}</div>`;
+    }
+  };
+
+  /* ---------- Direction C: Plan and streak ---------- */
+  const steps = [{ n: 'Warm-up', km: 1.5 }, { n: 'Tempo', km: 5 }, { n: 'Cool-down', km: 1.5 }];
+  const C = {
+    step() { let acc = 0; for (let i = 0; i < steps.length; i++) { if (st.d < acc + steps[i].km || i === steps.length - 1) return { i, s: steps[i], into: st.d - acc }; acc += steps[i].km; } },
+    week(extraToday) {
+      const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'], done = [1, 0, 1, 0, 0, 0, 0];
+      return `<div class="dots">${days.map((d, i) => `<span class="${done[i] || (i === 3 && extraToday) ? 'done' : i === 3 ? 'now' : ''}"><i></i>${d}</span>`).join('')}</div>`;
+    },
+    minimal() {
+      if (st.phase === 'finished') return `<span style="color:${S.green}">${I.check}</span>`;
+      if (st.phase === 'acquiring') return `<span style="color:${S.blue}">${I.loc}</span>`;
+      const k = this.step();
+      return `<span style="color:${paused() ? S.orange : S.lime};font-size:11px">${k.i + 1}/${steps.length}</span>`;
+    },
+    lead() {
+      if (st.phase === 'acquiring') return `<span style="color:${S.blue}">${I.loc}</span>`;
+      if (st.phase === 'finished') return `<span style="color:${S.green}">${I.check}</span>`;
+      return `<span style="color:${tone()};font-size:12px">${this.step().s.n.slice(0, 5)}</span>`;
+    },
+    trail() {
+      if (st.phase === 'acquiring') return `<span style="color:#c9cdbd;font-size:12px">GPS</span>`;
+      if (st.phase === 'finished') return `<span>${st.d.toFixed(1)}</span>`;
+      const k = this.step();
+      return `<span>${Math.max(0, k.s.km - k.into).toFixed(1)}</span>`;
+    },
+    stepBlock() {
+      const k = this.step();
+      return `<div style="display:grid;gap:5px"><div class="row"><span class="sm">Step ${k.i + 1} of ${steps.length} · <b style="color:#fff">${k.s.n}</b></span><span class="sm">${Math.max(0, k.s.km - k.into).toFixed(1)} km left</span></div>
+        <div style="display:flex;gap:4px">${steps.map((s, i) => `<div class="bar" style="flex:${s.km}"><i style="width:${i < k.i ? 100 : i === k.i ? Math.min(100, k.into / s.km * 100) : 0}%;background:${tone()}"></i></div>`).join('')}</div></div>`;
+    },
+    expanded() {
+      if (st.phase === 'acquiring') return A.expanded();
+      const top = `<div class="top"><div><div class="k">Tempo run</div><div class="mid" style="color:${tone()}">${tm(st.t)}</div></div><div class="cam"></div><div><div class="k">Week</div><div class="mid">${(WEEK_DONE + st.d).toFixed(1)}<span class="unit">km</span></div></div></div>`;
+      if (st.phase === 'finished') return `${top}<div class="row"><span class="sm">Plan workout done · ${km(st.d)} km</span>${this.week(true)}</div>${controls()}`;
+      return `${top}${paused() ? `<div class="sm">${stateWord()}${autoTag()}</div>` : this.stepBlock()}${splitChip() || cueChip() ? `<div class="row">${splitChip()}${cueChip()}</div>` : ''}${controls(true)}`;
+    },
+    lock() {
+      if (st.phase === 'acquiring') return A.lock();
+      const hdr = `<div class="hdr"><span style="color:${tone()}">${I.run}</span>Week 6 · Tempo run<span class="st" style="color:${tone()}">${stateWord()}</span></div>`;
+      if (st.phase === 'finished') return `${hdr}<div class="row"><div><div class="k">Done</div><div class="big">${km(st.d)}<span class="unit">km</span></div></div>${this.week(true)}</div><div class="sm">${(WEEK_DONE + st.d).toFixed(1)} of ${WEEK_GOAL} km this week · ${I.flame} 4-day streak</div>${controls()}`;
+      return `${hdr}<div class="row"><div class="big" style="color:${tone()}">${tm(st.t)}</div>${this.week(false)}</div>${paused() ? `<div class="sm">${stateWord()} at ${km(st.d)} km${autoTag()}</div>` : this.stepBlock()}${splitChip() || cueChip() ? `<div class="row">${splitChip()}${cueChip()}</div>` : ''}${controls(true)}`;
+    },
+    widget() {
+      if (st.phase === 'finished') return `<div class="row"><span class="k" style="color:${S.green}">Done today</span><span class="sm" style="color:${S.orange}">${I.flame} 4</span></div><div><div class="mid" style="font-size:18px">Next: Long run</div><div class="sm">Sat · 12 km easy</div></div>${this.week(true).replace('class="dots"', 'class="dots" style="gap:1px"')}`;
+      if (live() || paused()) return `<div class="row"><span class="k" style="color:${S.lime}">Running now</span><span class="sm" style="color:${S.orange}">${I.flame} 4</span></div><div><div class="mid" style="font-size:18px">Tempo run</div><div class="sm">${km(st.d)} of 8 km</div></div>${this.week(false).replace('class="dots"', 'class="dots" style="gap:1px"')}`;
+      return `<div class="row"><span class="k">Next run · Today</span><span class="sm" style="color:${S.orange}">${I.flame} 4</span></div><div><div class="mid" style="font-size:18px">Tempo run</div><div class="sm">8 km · 5:30 /km</div></div>${this.week(false).replace('class="dots"', 'class="dots" style="gap:1px"')}`;
+    }
+  };
+
+  const DIRS = [
+    { id: 'A', name: 'A · Run-first', pick: true, thesis: 'Time and distance lead, pace is secondary. Pause sits one tap away in the expanded view.', R: A,
+      have: ['Moving time', 'Distance', 'Current pace (≈30 s window)', 'Avg pace', 'Paused state', 'Workout title'],
+      need: ['Auto-paused flag (exists in RunRecorder, not in LA state)', 'Km split event (exists, not in LA state)', 'GPS accuracy in LA (exists in app)', 'Debrief deep link'] },
+    { id: 'B', name: 'B · Pace and goal', thesis: 'Current pace against the planned target, with a ring filling toward the distance goal. The ring is the minimal view.', R: B,
+      have: ['Current pace', 'Distance', 'Moving time', 'targetPaceSecondsPerKm (optional)'],
+      need: ['Goal distance as a number (plan stores a string)', 'Free runs have no goal or target: needs a fallback', 'Weekly km for widget (App Group snapshot)'] },
+    { id: 'C', name: 'C · Plan and streak', thesis: "Today's planned workout step and the week lead. The widget is about the next run and the streak.", R: C,
+      have: ['Workout title', 'Moving time', 'Distance', 'Weekly progress and streak strings (Today screen)'],
+      need: ['Workout steps in LA state (workoutGuide exists in RunRecorder)', 'Week dots and streak via App Group', 'Plan week number', 'Next workout for widget'] }
+  ];
+
+  function render() {
+    document.querySelectorAll('.controls button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.s === st.phase)));
+    document.getElementById('grid').innerHTML = DIRS.map(D => {
+      const R = D.R;
+      return `<section class="dir" aria-label="${D.name}">
+        <div><h2>${D.name}${D.pick ? '<span class="pick">Recommended</span>' : ''}</h2><p class="thesis">${D.thesis}</p></div>
+        <div class="label">Lock Screen + compact island</div>
+        <div class="zoom"><div class="phone">
+          <div class="sb"><div class="time">9:41</div><div class="icons"><span class="bars"><i style="height:4px"></i><i style="height:6px"></i><i style="height:9px"></i><i style="height:12px"></i></span><span class="batt"><i></i></span></div></div>
+          <div class="island compact"><div class="lead">${R.lead()}</div><div class="trail">${R.trail()}</div></div>
+          <div class="lockdate">Thursday 19 November</div><div class="lockclock">9:41</div>
+          <div class="la">${R.lock()}</div>
+          <div class="lockbtns"><i></i><i></i></div><div class="homebar"></div>
+        </div></div>
+        <div class="label">Dynamic Island sizes</div>
+        <div class="zoom"><div class="sizes">
+          <div class="cap">Minimal (with another app's activity)</div>
+          <div class="minrow"><div class="pill"></div><div class="minimal">${R.minimal()}</div></div>
+          <div class="cap">Compact</div>
+          <div class="island compact compact-solo"><div class="lead">${R.lead()}</div><div class="trail">${R.trail()}</div></div>
+          <div class="cap">Expanded (touch and hold)</div>
+          <div class="expanded">${R.expanded()}</div>
+        </div></div>
+        <div class="label">Home screen widget (small)</div>
+        <div class="zoom"><div class="home"><div class="widget">${R.widget()}</div><div class="icol"><div class="appicon"><i></i>RunSmart</div><div class="appicon"><i class="b"></i>Maps</div><div class="appicon"><i class="c"></i>Music</div><div class="appicon"><i class="d"></i>Settings</div></div></div></div>
+        <div><div class="label" style="margin-bottom:6px">Data</div><div class="tags">${D.have.map(h => `<span class="tag">${h}</span>`).join('')}${D.need.map(h => `<span class="tag need">${h}</span>`).join('')}</div></div>
+      </section>`;
+    }).join('');
+    st.pop = 0;
+  }
+
+  function set(s) {
+    if (s === 'reset') Object.assign(st, { phase: 'running', t: 1453, d: 4.57, pop: 0 });
+    else if (s === 'acquiring') Object.assign(st, { phase: s, t: 0, d: 0 });
+    else if (s === 'split') Object.assign(st, { phase: s, t: 954, d: 3.0, splitKm: 3, splitPace: 318, pop: 1 });
+    else if (s === 'finished') Object.assign(st, { phase: s, t: 2544, d: 8.0 });
+    else { if (st.phase === 'acquiring' || st.phase === 'finished') Object.assign(st, { t: 1453, d: 4.57 }); st.phase = s; }
+    render();
+  }
+  document.querySelectorAll('.controls button').forEach(b => b.addEventListener('click', () => set(b.dataset.s)));
+  const q = (location.hash || '').slice(1);
+  if (['acquiring', 'running', 'paused', 'autopaused', 'split', 'cue', 'finished'].includes(q)) set(q); else render();
+  window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h) set(h); });
+  setInterval(() => { if (live()) { st.t += 1; st.d += 1 / 318; render(); } }, 1000);
+})();
+</script>
