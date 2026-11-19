@@ -1,3 +1,12 @@
+# 2026-11-19: Live Activity PR 4, small weekly widget (parallel track)
+
+Current Phase: Live Activity upgrade, stacked draft PRs #220, #221, #222; PR 4 widget now. Coach Mode pilot unchanged.
+Active Story: PR 4 small home-screen widget: weekly km ring from App Group snapshot, Run in progress while live.
+Next Recommended Story: PR 5, in-app Live Activity on/off switch and polish.
+Blockers: App Group must be enabled in the developer portal before a device build; device checklist pending.
+Last Validation: full suite 1134 passed, 0 failed; simulator: widget reads the App Group snapshot.
+Last Updated: 2026-11-19
+
 # 2026-11-19: Live Activity PR 3, hybrid B/A layout (parallel track)
 
 Current Phase: Live Activity upgrade, stacked draft PRs #220 (fixes) and #221 (App Group); PR 3 layout now. Coach Mode pilot unchanged.

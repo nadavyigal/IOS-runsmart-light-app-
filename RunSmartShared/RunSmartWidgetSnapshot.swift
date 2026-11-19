@@ -46,3 +46,51 @@ struct RunSmartWidgetSnapshotStore {
         defaults.set(data, forKey: Self.key)
     }
 }
+
+/// What the small weekly widget should draw, decided from the snapshot alone.
+nonisolated struct RunSmartWeeklyWidgetContent: Equatable {
+    /// A "run in progress" flag older than this is ignored (the app likely died mid-run).
+    static let runFlagMaximumAge: TimeInterval = 12 * 3_600
+
+    var hasData: Bool
+    var weekDistanceKm: Double
+    var weekGoalKm: Double?
+    var isRunInProgress: Bool
+
+    /// Ring fill 0...1, nil without a goal (no empty ring).
+    var progress: Double? {
+        guard let weekGoalKm, weekGoalKm > 0 else { return nil }
+        return min(1, max(0, weekDistanceKm / weekGoalKm))
+    }
+
+    /// "21.4" for the big number.
+    var distanceLabel: String { String(format: "%.1f", weekDistanceKm) }
+
+    /// "of 30 km", or "km this week" without a goal.
+    var goalLabel: String {
+        guard let weekGoalKm, weekGoalKm > 0 else { return "km this week" }
+        let rounded = weekGoalKm.rounded()
+        return abs(rounded - weekGoalKm) < 0.05 ? String(format: "of %.0f km", rounded) : String(format: "of %.1f km", weekGoalKm)
+    }
+
+    static func make(snapshot: RunSmartWidgetSnapshot?, now: Date, calendar: Calendar) -> RunSmartWeeklyWidgetContent {
+        guard let snapshot else {
+            return RunSmartWeeklyWidgetContent(hasData: false, weekDistanceKm: 0, weekGoalKm: nil, isRunInProgress: false)
+        }
+        let currentWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? calendar.startOfDay(for: now)
+        let isCurrentWeek = abs(snapshot.weekStart.timeIntervalSince(currentWeek)) < 1
+        let runFlagIsFresh = now.timeIntervalSince(snapshot.updatedAt) < runFlagMaximumAge
+        return RunSmartWeeklyWidgetContent(
+            hasData: true,
+            weekDistanceKm: isCurrentWeek ? max(0, snapshot.weekDistanceMeters) / 1_000 : 0,
+            weekGoalKm: isCurrentWeek ? snapshot.weekGoalMeters.map { $0 / 1_000 } : nil,
+            isRunInProgress: snapshot.isRunInProgress && runFlagIsFresh
+        )
+    }
+
+    /// Next timeline refresh: the start of next week, so the totals reset on time.
+    static func nextRefresh(after now: Date, calendar: Calendar) -> Date {
+        guard let week = calendar.dateInterval(of: .weekOfYear, for: now) else { return now.addingTimeInterval(6 * 3_600) }
+        return week.end
+    }
+}
