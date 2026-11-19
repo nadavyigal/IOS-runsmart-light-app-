@@ -338,7 +338,6 @@ struct RunSmartLiteAppShell: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background { RunSmartWidgetSnapshotWriter.shared.refresh() }
             // Strava: finish uploads that failed or were still processing. Quiet, no UI.
             guard phase == .active, !RunSmartDemoMode.isEnabled else { return }
             if RunSmartFeatures.coachModeEnabled {
@@ -363,6 +362,7 @@ struct RunSmartLiteAppShell: View {
         }
         .onChange(of: session.isAuthenticated) { _, isAuth in
             guard !RunSmartDemoMode.isEnabled else { return }
+            if !isAuth { RunSmartWidgetSnapshotWriter.shared.clear() }
             // Strava tokens belong to one RunSmart user: drop them if a different runner signed in.
             StravaConnectionService.shared.reconcileOwnership()
             if isAuth, let userId = session.currentUserID {

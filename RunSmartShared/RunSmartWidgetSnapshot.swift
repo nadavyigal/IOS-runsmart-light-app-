@@ -30,7 +30,12 @@ struct RunSmartWidgetSnapshotStore {
         self.defaults = defaults
     }
 
-    nonisolated static var shared: RunSmartWidgetSnapshotStore { RunSmartWidgetSnapshotStore() }
+    /// The real store. `UserDefaults(suiteName:)` returns an object even when the build lacks
+    /// the App Group entitlement, so availability is decided by the group container itself.
+    nonisolated static var shared: RunSmartWidgetSnapshotStore {
+        let hasContainer = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID) != nil
+        return RunSmartWidgetSnapshotStore(defaults: hasContainer ? UserDefaults(suiteName: appGroupID) : nil)
+    }
 
     nonisolated var isAvailable: Bool { defaults != nil }
 
@@ -44,5 +49,9 @@ struct RunSmartWidgetSnapshotStore {
     nonisolated func save(_ snapshot: RunSmartWidgetSnapshot) {
         guard let defaults, let data = try? JSONEncoder().encode(snapshot) else { return }
         defaults.set(data, forKey: Self.key)
+    }
+
+    nonisolated func clear() {
+        defaults?.removeObject(forKey: Self.key)
     }
 }
