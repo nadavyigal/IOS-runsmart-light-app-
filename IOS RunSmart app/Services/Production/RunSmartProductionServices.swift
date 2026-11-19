@@ -174,6 +174,12 @@ final class RunSmartLocalStore {
         Set(loadHiddenRunKeys()).contains(runVisibilityKey(for: run))
     }
 
+    /// Provider tombstones survive removal of the local run itself.
+    func isRunHidden(sourceKey: RunSourceKey) -> Bool {
+        guard let source = sourceKey.dataSource else { return false }
+        return Set(loadHiddenRunKeys()).contains("\(source.rawValue)|\(sourceKey.sourceActivityID)")
+    }
+
     func saveRunReport(_ report: RunReportDetail) {
         var reports = loadRunReports()
         reports.removeAll { $0.runID == report.runID || $0.id == report.id }

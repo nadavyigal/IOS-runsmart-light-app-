@@ -31,7 +31,11 @@ enum SecondaryDestination: Hashable, Identifiable {
     case badgeCabinet
     case shareRun(RecordedRun?)
     case routeDetail(SavedRoute)
+    case joinCoach
+    case myCoach
     case account
+
+    var requiresCoachMode: Bool { self == .joinCoach || self == .myCoach }
 
     var id: String {
         switch self {
@@ -64,6 +68,8 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .badgeCabinet: "badgeCabinet"
         case .shareRun(let run): "shareRun-\(run?.id.uuidString ?? "nil")"
         case .routeDetail(let route): "routeDetail-\(route.id)"
+        case .joinCoach: "joinCoach"
+        case .myCoach: "myCoach"
         case .account: "account"
         }
     }
@@ -98,6 +104,8 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .badgeCabinet: "Badge Cabinet"
         case .shareRun: "Share Run"
         case .routeDetail(let route): route.name
+        case .joinCoach: "Join a coach"
+        case .myCoach: "My coach"
         case .account: "Account"
         }
     }
@@ -160,6 +168,10 @@ enum SecondaryDestination: Hashable, Identifiable {
             "Prepare a polished run share card."
         case .routeDetail:
             "Route details, benchmark stats, and actions."
+        case .joinCoach:
+            "Enter your coach's code."
+        case .myCoach:
+            "Your coach, what they can see, and leaving."
         case .account:
             "Manage your sign-in and profile data."
         }
@@ -195,6 +207,8 @@ enum SecondaryDestination: Hashable, Identifiable {
         case .badgeCabinet: "seal.fill"
         case .shareRun: "square.and.arrow.up"
         case .routeDetail: "map.fill"
+        case .joinCoach: "person.2.fill"
+        case .myCoach: "person.crop.circle"
         case .account: "person.crop.circle.fill"
         }
     }
@@ -213,11 +227,26 @@ struct SecondaryFlowView: View {
 }
 
 private struct SecondaryContentView: View {
+    @EnvironmentObject private var session: SupabaseSession
     var destination: SecondaryDestination
 
     var body: some View {
         if destination == .goalWizard {
             GoalWizardView()
+        } else if destination.requiresCoachMode && !RunSmartFeatures.coachModeEnabled {
+            EmptyView()
+        } else if destination == .joinCoach {
+            ScrollView {
+                JoinCoachView()
+                    .id(session.currentUserID)
+                    .padding(20)
+            }
+        } else if destination == .myCoach {
+            ScrollView {
+                MyCoachView()
+                    .id(session.currentUserID)
+                    .padding(20)
+            }
         } else {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -294,6 +323,8 @@ private struct SecondaryContentView: View {
             ShareRunView(run: run)
         case .routeDetail(let route):
             RouteDetailScaffold(route: route)
+        case .joinCoach, .myCoach:
+            EmptyView()
         case .account:
             AccountScaffold()
         }
@@ -302,6 +333,7 @@ private struct SecondaryContentView: View {
 
 private struct FlowHeader: View {
     var destination: SecondaryDestination
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -311,7 +343,7 @@ private struct FlowHeader: View {
                 Text(destination.title)
                     .font(.displayMD)
                     .foregroundStyle(Color.textPrimary)
-                Text(destination.subtitle)
+                Text(CoachAssistantCopy.apply(destination.subtitle, assistant: coachAssistantActive))
                     .font(.callout)
                     .foregroundStyle(Color.textSecondary)
             }
@@ -359,6 +391,7 @@ private struct FlowHeader: View {
 
 private struct WorkoutDetailScaffold: View {
     @Environment(\.runSmartServices) private var services
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     @EnvironmentObject private var router: AppRouter
     @Environment(\.dismiss) private var dismiss
 
@@ -503,7 +536,7 @@ private struct WorkoutDetailScaffold: View {
 
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(title: "Coach Actions")
+                    SectionLabel(title: CoachAssistantCopy.apply("Coach Actions", assistant: coachAssistantActive))
                     ActionRow(title: "Reschedule Workout", detail: "Move this session and preserve weekly balance.", symbol: "calendar.badge.clock") {
                         router.open(.reschedule(workout))
                     }
@@ -513,7 +546,7 @@ private struct WorkoutDetailScaffold: View {
                     ActionRow(title: "Choose Route", detail: "Pick a route that matches the target effort.", symbol: "map") {
                         router.open(.routeSelector)
                     }
-                    ActionRow(title: "Adjust Plan", detail: "Ask the coach to reshuffle the week.", symbol: "slider.horizontal.3") {
+                    ActionRow(title: "Adjust Plan", detail: CoachAssistantCopy.apply("Ask the coach to reshuffle the week.", assistant: coachAssistantActive), symbol: "slider.horizontal.3") {
                         router.open(.planAdjustment)
                     }
                 }
@@ -1321,6 +1354,8 @@ private struct RunReportDetailScaffold: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            // Story 3.2 (A10): the coach's note is pinned above the stats and the map.
+            AthleteRunFeedbackSection(run: reportRun)
             GlassCard(glow: Color.lime) {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: "Run Summary", trailing: report.dateLabel)
@@ -1344,6 +1379,7 @@ private struct RunReportDetailScaffold: View {
                         .clipShape(Capsule(style: .continuous))
                 }
             }
+            .modifier(AthleteMapControl(run: reportRun, detail: true))
             if let reportRun, !reportRun.routePoints.isEmpty {
                 GlassCard(padding: 8, glow: Color.lime) {
                     RouteMapView(points: reportRun.routePoints, title: "Run Route")
@@ -1467,17 +1503,24 @@ private struct RunReportDetailScaffold: View {
 
 private struct RunReportCoachNotesCard: View {
     var report: RunReportDetail
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
 
     var body: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 12) {
-                SectionLabel(title: report.hasGeneratedReport ? "Coach Notes" : "Coach Report", trailing: scoreLabel)
+                SectionLabel(
+                    title: CoachAssistantCopy.apply(
+                        report.hasGeneratedReport ? "Coach Notes" : "Coach Report",
+                        assistant: coachAssistantActive
+                    ),
+                    trailing: scoreLabel
+                )
                 DetailLine(label: "Insight", value: report.notes.summary)
                 if report.hasGeneratedReport {
                     DetailLine(label: "Effort", value: report.notes.effort)
                     DetailLine(label: "Recovery", value: report.notes.recovery)
                 } else {
-                    Text("This is a real activity, but no generated coach report has been saved yet.")
+                    Text(CoachAssistantCopy.apply("This is a real activity, but no generated coach report has been saved yet.", assistant: coachAssistantActive))
                         .font(.callout)
                         .foregroundStyle(Color.mutedText)
                 }
@@ -1621,6 +1664,7 @@ private struct RunReportNextWorkoutCard: View {
 private struct AudioCuesScaffold: View {
     @ObservedObject private var cues = LocalRunCueService.shared
     @ObservedObject private var coach = VoiceCoachService.shared
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     @AppStorage("runAutoPauseEnabled") private var autoPause = true
 
     var body: some View {
@@ -1649,7 +1693,7 @@ private struct AudioCuesScaffold: View {
                     Toggle("Auto-pause at stops", isOn: $autoPause)
                     Text("Pauses after 8 seconds below 0.5 m/s. Manual pauses resume only when you tap Resume.")
                         .font(.caption).foregroundStyle(Color.mutedText)
-                    Toggle("Extra AI coach cues", isOn: Binding(get: { coach.isEnabled }, set: { coach.setEnabled($0) }))
+                    Toggle(CoachAssistantCopy.apply("Extra AI coach cues", assistant: coachAssistantActive), isOn: Binding(get: { coach.isEnabled }, set: { coach.setEnabled($0) }))
                     Text("AI cues need a signed-in account and an internet connection.")
                         .font(.caption).foregroundStyle(Color.mutedText)
                 }
@@ -1690,6 +1734,7 @@ private struct LapMarkerScaffold: View {
 
 private struct PostRunSummaryScaffold: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     var run: RecordedRun?
 
     private var distanceLabel: String {
@@ -1742,7 +1787,7 @@ private struct PostRunSummaryScaffold: View {
         if run == nil {
             return "RunSmart could not find completed run metrics for this summary. Return to the Run tab and try finishing again."
         }
-        return "Run saved. Great work - your coach will factor this into the plan."
+        return CoachAssistantCopy.apply("Run saved. Great work - your coach will factor this into the plan.", assistant: coachAssistantActive)
     }
 }
 
@@ -2492,6 +2537,7 @@ private struct ConnectedServiceDetailScaffold: View {
 }
 
 private struct FirstSyncReviewCard: View {
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     var review: FirstSyncReview
     var onNextAction: () -> Void
     var onDismiss: () -> Void
@@ -2533,7 +2579,7 @@ private struct FirstSyncReviewCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Coach can now use")
+                    Text(CoachAssistantCopy.apply("Coach can now use", assistant: coachAssistantActive))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.textSecondary)
                     ForEach(review.coachCanUse, id: \.self) { item in
@@ -2973,6 +3019,7 @@ private struct PermissionRow: View {
 
 private struct AccountScaffold: View {
     @EnvironmentObject private var session: SupabaseSession
+    @EnvironmentObject private var coachLinks: CoachLinkStore
     @State private var isSigningOut = false
     @State private var showDeleteAccountConfirmation = false
     @State private var isDeletingAccount = false
@@ -2995,6 +3042,65 @@ private struct AccountScaffold: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
+            if RunSmartFeatures.coachModeEnabled, let notice = coachLinks.leaveNotice {
+                Text(notice)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .accessibilityLabel(notice)
+                    .onAppear {
+                        Task {
+                            try? await Task.sleep(for: .seconds(4))
+                            if coachLinks.leaveNotice == notice {
+                                coachLinks.leaveNotice = nil
+                            }
+                        }
+                    }
+            }
+
+            if RunSmartFeatures.coachModeEnabled, let link = coachLinks.currentLink {
+                NavigationLink(value: SecondaryDestination.myCoach) {
+                    HStack {
+                        Text(LeaveCoachCopy.monogram(for: link.coachName))
+                            .font(.caption.weight(.bold))
+                            .frame(width: 28, height: 28)
+                            .background(Color.white.opacity(0.08), in: Circle())
+                        Text("My coach")
+                            .font(.body.weight(.semibold))
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.mutedText)
+                    }
+                    .foregroundStyle(Color.textPrimary)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("My coach")
+            } else if RunSmartFeatures.coachModeEnabled && coachLinks.showsJoinCoach {
+                NavigationLink(value: SecondaryDestination.joinCoach) {
+                    HStack {
+                        Label("Join a coach", systemImage: "person.2.fill")
+                            .font(.body.weight(.semibold))
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.mutedText)
+                    }
+                    .foregroundStyle(Color.textPrimary)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Join a coach")
+            }
+
             if isDemoMode {
                 GlassCard(glow: Color.accentAmber) {
                     Label(

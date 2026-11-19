@@ -4,6 +4,7 @@ import SwiftUI
 struct WeeklyProgressCard: View {
     let summary: WeeklyProgressSummary
     var onTapCoach: (() -> Void)? = nil
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
 
     var body: some View {
         RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
@@ -49,7 +50,7 @@ struct WeeklyProgressCard: View {
 
                 if let onTapCoach {
                     Button(action: onTapCoach) {
-                        Label("Ask Coach", systemImage: "bubble.left")
+                        Label(CoachAssistantCopy.apply("Ask Coach", assistant: coachAssistantActive), systemImage: "bubble.left")
                             .font(.buttonLabel)
                             .foregroundStyle(Color.accentPrimary)
                     }

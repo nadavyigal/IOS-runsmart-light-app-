@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import Network
 
 enum RunSmartSheet: Identifiable {
     case coach(CoachEntryPoint)
@@ -16,11 +17,23 @@ enum RunSmartSheet: Identifiable {
 @MainActor
 final class AppRouter: ObservableObject {
     @Published var selectedTab: RunSmartTab = AppRouter.initialTab()
+    private let coachModeEnabled: Bool
+
+    init(coachModeEnabled: Bool = RunSmartFeatures.coachModeEnabled) {
+        self.coachModeEnabled = coachModeEnabled
+        if !coachModeEnabled, selectedTab == .coach { selectedTab = .today }
+    }
+
+    func shouldHandleAuthCallback(_ url: URL) -> Bool {
+        !RunSmartFeatures.isCoachInviteURL(url)
+    }
     @Published var activeSheet: RunSmartSheet?
     @Published var flexWeekLaunch: FlexWeekLaunchContext?
     @Published var plannedWorkout: WorkoutSummary?
     @Published var plannedRoute: RouteSuggestion?
     @Published var isTabBarHidden = false
+    /// Set to open Plan on the week that contains this date (Story 3.2: a week note from My coach).
+    @Published var planFocusDate: Date?
 
     private static func initialTab() -> RunSmartTab {
 #if DEBUG
@@ -52,6 +65,7 @@ final class AppRouter: ObservableObject {
     }
 
     func open(_ destination: SecondaryDestination) {
+        guard coachModeEnabled || !destination.requiresCoachMode else { return }
         activeSheet = .secondary(destination)
     }
 
@@ -147,6 +161,12 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var recorder = RunRecorder()
     @StateObject private var planGeneration = PlanGenerationStore()
     @StateObject private var guestJourney = GuestJourneyStore()
+    @StateObject private var coachMode = CoachModeStore()
+    @StateObject private var coachAthletes = CoachAthleteListModel()
+    @StateObject private var coachLinks = CoachLinkStore(publishesAssistantContext: true)
+    @StateObject private var athleteFeedback = AthleteFeedbackStore()
+    /// Story 3.3: the one gate every coach element on Today and the Plan reads.
+    @StateObject private var coachPresence = CoachPresence()
     @State private var didPresentMorningCheckin = false
     @State private var isShowingLaunch = !RunSmartDemoMode.isEnabled
     @State private var planNotice: RunSmartPlanNotice?
@@ -215,17 +235,28 @@ struct RunSmartLiteAppShell: View {
         .environmentObject(session)
         .environmentObject(recorder)
         .environmentObject(planGeneration)
+        .environmentObject(coachMode)
+        .environmentObject(coachLinks)
+        .environmentObject(athleteFeedback)
+        .environmentObject(coachPresence)
+        .environment(\.coachAssistantActive, assistantContext.linkActive)
+        .environment(\.coachAssistantName, assistantContext.coachDisplayName)
         .environment(\.runSmartServices, services)
         .environment(\.runRecorder, recorder)
         .preferredColorScheme(.dark)
         .onOpenURL { url in
-            Task { await session.handleAuthCallback(url) }
+            openIncomingURL(url)
+        }
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            guard let url = activity.webpageURL else { return }
+            openIncomingURL(url)
         }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanGenerationStatusDidChange)) { notification in
             guard let status = notification.object as? RunSmartPlanGenerationStatus else { return }
             showPlanGenerationNotice(status)
         }
         .task {
+            coachPresence.bind(to: coachLinks)
             guard !RunSmartDemoMode.isEnabled else { return }
             // An unfinished run from a killed session is answered on the Run tab, so
             // land there on launch or the prompt would wait for a manual tab switch.
@@ -234,6 +265,7 @@ struct RunSmartLiteAppShell: View {
             }
             isAnalyticsReady = setupAnalyticsIfNeeded()
             Task { await StravaUploadCoordinator.shared.retryPending() }
+            Task { await (services as? SupabaseRunSmartServices)?.retryPendingWorkoutCompletions() }
             PushService.shared.configureNavigation { destination in
                 router.openNotificationDestination(destination)
             }
@@ -258,10 +290,63 @@ struct RunSmartLiteAppShell: View {
             else { return }
             activationFirstFrameTracker.screenRendered(screen)
         }
+        .task(id: coachRoleCheckUserID) {
+            guard !RunSmartDemoMode.isEnabled else { return }
+            await coachMode.refresh(userID: coachRoleCheckUserID)
+        }
+        .task(id: coachRoleCheckUserID) {
+            guard !RunSmartDemoMode.isEnabled else { return }
+            if let userID = coachRoleCheckUserID {
+                coachLinks.beginSession(userID: userID)
+                athleteFeedback.beginSession(userID: userID)
+                // Feedback loads alongside the link refresh, never behind a slow route upload.
+                async let feedbackLoad: Void = athleteFeedback.load()
+                await coachLinks.refresh(userID: userID)
+                await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
+                await feedbackLoad
+            } else {
+                coachLinks.clear()
+                athleteFeedback.beginSession(userID: nil)
+            }
+        }
+        .task(id: coachRoleCheckUserID) {
+            guard RunSmartFeatures.coachModeEnabled, let userID = coachRoleCheckUserID,
+                  !RunSmartDemoMode.isEnabled else { return }
+            for await path in NWPathMonitor() where path.status == .satisfied {
+                guard !Task.isCancelled else { return }
+                if CoachRouteOutbox.shared.choices.contains(where: { $0.key.ownerID == userID && $0.value.needsSync }) {
+                    if coachLinks.activeLink(for: userID) == nil {
+                        await coachLinks.refresh(userID: userID)
+                    }
+                    await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
+                }
+            }
+        }
+        .onChange(of: coachRoleCheckUserID) { _, userID in
+            coachAthletes.reset(for: userID)
+        }
+        .onChange(of: coachMode.isCoach) { _, isCoach in
+            if !isCoach { coachAthletes.reset(for: nil) }
+            // A tab that stops existing (sign-out, unflagged coach) must not stay selected.
+            if (!isCoach || !RunSmartFeatures.coachModeEnabled), router.selectedTab == .coach {
+                router.selectedTab = .today
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             // Strava: finish uploads that failed or were still processing. Quiet, no UI.
             guard phase == .active, !RunSmartDemoMode.isEnabled else { return }
+            if RunSmartFeatures.coachModeEnabled {
+                Task { await coachMode.refresh(userID: coachRoleCheckUserID) }
+            }
+            if let userID = coachRoleCheckUserID {
+                Task { await athleteFeedback.load() }
+                Task {
+                    await coachLinks.refresh(userID: userID)
+                    await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks)
+                }
+            }
             Task { await StravaUploadCoordinator.shared.retryPending() }
+            Task { await (services as? SupabaseRunSmartServices)?.retryPendingWorkoutCompletions() }
         }
         .onChange(of: router.selectedTab) { _, newTab in
             guard !RunSmartDemoMode.isEnabled else { return }
@@ -284,6 +369,7 @@ struct RunSmartLiteAppShell: View {
                 isShowingGuestAuthentication = false
                 if session.hasCompletedOnboarding {
                     guestJourney.clear()
+                    resumeCoachJoinIfReady()
                 }
             } else if !isAuth {
                 Analytics.resetUser()
@@ -291,8 +377,13 @@ struct RunSmartLiteAppShell: View {
             }
         }
         .onChange(of: session.hasCompletedOnboarding) { _, isComplete in
-            guard session.isAuthenticated, isComplete, guestJourney.state.isActive else { return }
-            guestJourney.clear()
+            guard session.isAuthenticated, isComplete else { return }
+            if guestJourney.state.isActive { guestJourney.clear() }
+            resumeCoachJoinIfReady()
+        }
+        .onChange(of: session.isLoading) { _, isLoading in
+            guard !isLoading else { return }
+            resumeCoachJoinIfReady()
         }
         .task(id: session.hasCompletedOnboarding) {
             guard !RunSmartDemoMode.isEnabled else { return }
@@ -325,6 +416,8 @@ struct RunSmartLiteAppShell: View {
                     .environmentObject(router)
                     .environmentObject(session)
                     .environmentObject(recorder)
+                    .environment(\.coachAssistantActive, assistantContext.linkActive)
+                    .environment(\.coachAssistantName, assistantContext.coachDisplayName)
                     .environment(\.runSmartServices, services)
                     .environment(\.runRecorder, recorder)
             case .secondary(let destination):
@@ -333,7 +426,12 @@ struct RunSmartLiteAppShell: View {
                     .presentationDragIndicator(.visible)
                     .environmentObject(router)
                     .environmentObject(session)
+                    .environmentObject(coachLinks)
+                    .environmentObject(athleteFeedback)
+                    .environmentObject(coachPresence)
                     .environmentObject(recorder)
+                    .environment(\.coachAssistantActive, assistantContext.linkActive)
+                    .environment(\.coachAssistantName, assistantContext.coachDisplayName)
                     .environment(\.runSmartServices, services)
                     .environment(\.runRecorder, recorder)
             }
@@ -345,6 +443,8 @@ struct RunSmartLiteAppShell: View {
             .environmentObject(router)
             .environmentObject(session)
             .environmentObject(recorder)
+            .environment(\.coachAssistantActive, assistantContext.linkActive)
+            .environment(\.coachAssistantName, assistantContext.coachDisplayName)
             .environment(\.runSmartServices, services)
             .environment(\.runRecorder, recorder)
         }
@@ -393,7 +493,11 @@ struct RunSmartLiteAppShell: View {
                     : "Back to guest setup",
                 guestReturnMessage: SignInView.guestReturnMessage(
                     hasSeenPreview: guestJourney.state.hasSeenPreview
-                )
+                ),
+                onJoinCoach: RunSmartFeatures.coachModeEnabled ? {
+                    coachLinks.draftCode = ""
+                    coachLinks.resumeJoinAfterSignIn = true
+                } : nil
             )
             .environmentObject(session)
         }
@@ -475,7 +579,15 @@ struct RunSmartLiteAppShell: View {
             .safeAreaPadding(.bottom, router.isTabBarHidden ? 0 : CustomTabBar.contentAvoidancePadding)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !router.isTabBarHidden {
-                    CustomTabBar(selectedTab: $router.selectedTab)
+                    CustomTabBar(
+                        selectedTab: $router.selectedTab,
+                        tabs: RunSmartTab.visibleTabs(
+                            isCoach: coachMode.isCoach,
+                            coachModeEnabled: RunSmartFeatures.coachModeEnabled
+                        ),
+                        // Unread coach feedback, only while linked. It clears by reading, never by a timer.
+                        badges: [.today: athleteFeedback.unreadCount(link: coachLinks.currentLink)]
+                    )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -489,8 +601,51 @@ struct RunSmartLiteAppShell: View {
         case .plan:    PlanTabView()
         case .run:     RunTabView()
         case .report:  ReportTabView()
+        case .coach:
+            if coachMode.isCoach, let ownerID = coachRoleCheckUserID {
+                CoachTabView(ownerID: ownerID, athletes: coachAthletes)
+                    .id(ownerID)
+            } else {
+                TodayTabView()
+            }
         case .profile: ProfileTabView()
         }
+    }
+
+    /// Universal links and custom URLs. An invite link never falls through to auth.
+    /// Coach Mode off does not open the join screen.
+    private func openIncomingURL(_ url: URL) {
+        let canOpenJoinNow = !session.isLoading && session.isAuthenticated && session.hasCompletedOnboarding
+        let consumed = coachLinks.receiveInviteLink(
+            url,
+            coachModeEnabled: RunSmartFeatures.coachModeEnabled,
+            canOpenJoinNow: canOpenJoinNow
+        )
+        if consumed {
+            if canOpenJoinNow, coachLinks.pendingInvite != nil {
+                router.open(.joinCoach)
+            }
+            return
+        }
+        guard router.shouldHandleAuthCallback(url) else { return }
+        Task { await session.handleAuthCallback(url) }
+    }
+
+    /// The signed-in user whose coach role to check; nil when signed out or guest.
+    private func resumeCoachJoinIfReady() {
+        guard RunSmartFeatures.coachModeEnabled else { return }
+        if coachLinks.consumeJoinIntent(isAuthenticated: session.isAuthenticated,
+                                        onboardingComplete: session.hasCompletedOnboarding) {
+            router.open(.joinCoach)
+        }
+    }
+
+    private var assistantContext: CoachContext {
+        CoachContextSource.shared.context(for: coachRoleCheckUserID)
+    }
+
+    private var coachRoleCheckUserID: UUID? {
+        RunSmartFeatures.coachModeEnabled && session.isAuthenticated ? session.currentUserID : nil
     }
 
     private func showPlanGenerationNotice(_ status: RunSmartPlanGenerationStatus) {
@@ -586,7 +741,7 @@ struct RunSmartLiteAppShell: View {
     /// flow, and the route screens, whose map-card lists sat below the fold at
     /// the medium detent (route-feature QA, 2026-07-23).
     private var fullHeightSecondaryDestinations: Set<SecondaryDestination> {
-        [.goalWizard, .routeCreator, .routeSelector]
+        [.goalWizard, .routeCreator, .routeSelector, .joinCoach]
     }
 
 #if DEBUG

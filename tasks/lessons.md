@@ -1,3 +1,27 @@
+## 2026-11-18 — Keep coach date conversion callable from the read service
+
+The roster build failed because the read-service protocol is nonisolated and the new date locals called main-actor helpers. Mark pure date conversion and query payloads nonisolated and compile the actual app target before considering the RPC client ready.
+
+## 2026-11-17 — Simulator signing fails on a file-provider path
+
+`codesign` rejects a bundle that carries `com.apple.FinderInfo` with "resource fork, Finder information, or similar detritus not allowed". DerivedData under Documents picked up that attribute from the file provider. Put DerivedData on a local path such as `/tmp` and set `COPYFILE_DISABLE=1`. Do not disable simulator signing: an unsigned test host does not load the XCTest bundle.
+
+## 2026-11-16 — Recover partial writes from persisted associations on upgrade
+
+Replacing two legacy writes with one transaction does not by itself repair records that only received the first write. Exercise the upgrade from both possible partial states. When the run link persisted, use that exact owned association to recover actuals. A detached completion payload cannot identify the winning run.
+
+## 2026-11-15 — Store adherence actuals with their run link in one transaction
+
+Separate requests for workout completion and its run link let network failures or competing imports persist mismatched actuals. Future rule: when a UI requires an association to identify the source of stored metrics, write both in one owner-checked transaction and retry the exact pair and payload together.
+
+## 2026-11-15 — Serialize local Xcode builds when storage is low
+
+Two simultaneous worktree builds filled the data volume before tests ran. Check free space first. On a constrained host, run one build at a time with `COMPILATION_CACHE_ENABLE_CACHING=NO` and `INDEX_ENABLE_DATA_STORE=NO` for throwaway validation. Keep logs and test results when clearing generated build files.
+
+## 2026-11-15 — Carry consent through auth and onboarding
+
+An invite preview could outlive its signed-in account, and a new non-guest athlete lost the join intent at onboarding completion. Bind consent writes to the displayed invite and the originating authenticated user in the transaction. Verify the post-sign-in destination for both returning and first-time users. Use the database consent time for subsequent sharing rules.
+
 ## 2026-10-26 — Release gates must stop dependent commands
 
 Run package verification and upload as separate tool calls, or use an explicit fail-fast shell. A failed assertion must prevent later upload commands from starting. Use `codesign -dvv` when checking Authority; `-dv` omits that field and can falsely reject valid distribution signing. Interrupted the premature upload preparation, corrected the check, verified the full IPA, then restarted the authorized upload.
@@ -720,3 +744,7 @@ Build 35 passed key-presence checks but live Auth rejected its packaged publisha
 ## 2026-10-29 — Default maps need an offline export path
 
 Removing the share-map toggle made the old mapUnavailable advice impossible to follow. Image and video exports now share one map-failure fallback to stats-only artwork; cancellation still throws and invalid routes remain errors. Keep captions accurate even when no map renders. Regression tests inject map failure into the actual PNG/MP4 exporters.
+
+## 2026-11-17 — Use fresh DerivedData after a handoff
+
+An inherited Cursor build still held its Xcode database. Use fresh DerivedData after a handoff unless the inherited build process has been confirmed stopped.

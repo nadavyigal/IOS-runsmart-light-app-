@@ -67,6 +67,8 @@ enum RunSmartBackgroundContext {
             self = .run(isRecording: false)
         case .report:
             self = .report
+        case .coach:
+            self = .neutral
         case .profile:
             self = .profile
         }
@@ -715,11 +717,14 @@ struct CustomTabBar: View {
     static let contentAvoidancePadding: CGFloat = 96
 
     @Binding var selectedTab: RunSmartTab
+    var tabs: [RunSmartTab] = RunSmartTab.visibleTabs(isCoach: false)
+    /// Unread counts shown on a tab (Story 3.2: coach feedback on Today). Zero shows nothing.
+    var badges: [RunSmartTab: Int] = [:]
     @Namespace private var indicator
 
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
-            ForEach(RunSmartTab.allCases) { tab in
+            ForEach(tabs) { tab in
                 Button {
                     guard selectedTab != tab else { return }
                     RunSmartHaptics.light()
@@ -755,6 +760,18 @@ struct CustomTabBar: View {
         VStack(spacing: 4) {
             RunSmartIconMark(size: 32, tint: isSelected ? .accentPrimary : .textSecondary, selected: isSelected)
                 .frame(width: 44, height: 32)
+                .overlay(alignment: .topTrailing) {
+                    if let count = badges[tab], count > 0 {
+                        Text(count > 9 ? "9+" : "\(count)")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(Color.black)
+                            .padding(.horizontal, 5)
+                            .frame(minWidth: 18, minHeight: 18)
+                            .background(Color.accentPrimary, in: Capsule())
+                            .offset(x: 6, y: -4)
+                            .accessibilityHidden(true)
+                    }
+                }
             Text(tab.rawValue)
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
@@ -763,6 +780,7 @@ struct CustomTabBar: View {
         .foregroundStyle(isSelected ? Color.accentPrimary : Color.textSecondary)
         .frame(height: 52)
         .accessibilityLabel(tab.rawValue)
+        .accessibilityValue(badges[tab].map { $0 > 0 ? "\($0) unread from your coach" : "" } ?? "")
     }
 
     private func runButton(isSelected: Bool) -> some View {

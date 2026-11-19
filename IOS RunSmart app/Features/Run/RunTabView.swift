@@ -4,6 +4,8 @@ struct RunTabView: View {
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var recorder: RunRecorder
+    @EnvironmentObject private var session: SupabaseSession
+    @EnvironmentObject private var coachLinks: CoachLinkStore
 
     @State private var metrics: [MetricTile] = []
     @State private var finishedRun: RecordedRun?
@@ -16,6 +18,7 @@ struct RunTabView: View {
     @State private var resumeAfterEndSheet = false
     @State private var isConfirmingFinish = false
     @State private var isConfirmingDiscard = false
+    @State private var coachRouteConsent: (ownerID: UUID, linkID: UUID)?
 
 #if DEBUG
     /// Simulator QA: `-RUNSMART_DEMO_MODE -AUTO_START_RUN -DEMO_GUIDE_INTERVALS` starts a run with a
@@ -217,6 +220,7 @@ struct RunTabView: View {
         ) {
             if recorder.canResumeRecoveredRun {
                 Button("Resume Run") {
+                    coachRouteConsent = nil
                     recorder.resumeRecoveredRun()
                 }
             }
@@ -347,6 +351,12 @@ struct RunTabView: View {
         RunSmartHaptics.medium()
         let source = router.plannedWorkout != nil ? "planned" : "free"
         Analytics.trackRunStarted(source: source)
+        coachRouteConsent = nil
+        if RouteUploadPolicy.isEnabled, RunSmartFeatures.coachModeEnabled, session.isAuthenticated,
+           let ownerID = session.currentUserID, let link = coachLinks.activeLink(for: ownerID),
+           CoachRouteOutbox.shared.sharing(ownerID: ownerID, linkID: link.id) {
+            coachRouteConsent = (ownerID, link.id)
+        }
         recorder.activeWorkoutTitle = router.plannedWorkout?.title
         recorder.activeGuideSteps = router.plannedWorkout.flatMap { StructuredWorkoutFactory.makeGuideSteps(for: $0) }
         recorder.start()
@@ -354,6 +364,7 @@ struct RunTabView: View {
 
     private func cancelGPSWait() {
         RunSmartHaptics.light()
+        coachRouteConsent = nil
         recorder.cancelAcquiring()
     }
 
@@ -417,8 +428,15 @@ struct RunTabView: View {
         RunSmartHaptics.medium()
         isConfirmingFinish = false
         VoiceCoachService.shared.stopSession()
+        let consent = coachRouteConsent
+        coachRouteConsent = nil
         let run = recorder.finish()
         if let run {
+            if let consent, session.isAuthenticated, session.currentUserID == consent.ownerID,
+               let link = coachLinks.activeLink(for: consent.ownerID), link.id == consent.linkID {
+                CoachRouteOutbox.shared.stage(run, ownerID: consent.ownerID, link: link,
+                                              coachModeEnabled: RunSmartFeatures.coachModeEnabled)
+            }
             presentFinishedRun(run)
         } else {
             releaseHeldStravaUpload()
@@ -447,6 +465,7 @@ struct RunTabView: View {
         heldStravaRunID = StravaUploadCoordinator.shared.isHeld(run.id) ? run.id : nil
         Task {
             let outcome = await services.processCompletedActivity(run)
+            Task { await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks) }
             await MainActor.run {
                 postActivityOutcome = outcome
                 isProcessingFinishedRun = false
@@ -490,6 +509,7 @@ struct RunTabView: View {
             durationSeconds: Int(recorder.movingSeconds),
             distanceKm: recorder.distanceMeters / 1000
         )
+        coachRouteConsent = nil
         recorder.discard()
         releaseHeldStravaUpload()
         finishedRun = nil

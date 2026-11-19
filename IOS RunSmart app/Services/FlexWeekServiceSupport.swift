@@ -17,7 +17,8 @@ enum FlexWeekServiceSupport {
 
     static func deterministicOutcome(
         for request: FlexWeekRequest,
-        source: FlexWeekOutcomeSource = .deterministicFallback
+        source: FlexWeekOutcomeSource = .deterministicFallback,
+        assistant: Bool = false
     ) -> FlexWeekOutcome {
         let (week, changes) = DeterministicFlexWeekBuilder.restructure(
             week: request.currentWeek,
@@ -27,7 +28,7 @@ enum FlexWeekServiceSupport {
             restructuredWeek: week,
             changes: changes,
             safetyWarnings: source == .deterministicFallback
-                ? ["Coach is taking a careful path — here's a safe adjustment based on standard recovery rules."]
+                ? [CoachAssistantCopy.flexCarefulPath(assistant: assistant)]
                 : [],
             source: source
         )

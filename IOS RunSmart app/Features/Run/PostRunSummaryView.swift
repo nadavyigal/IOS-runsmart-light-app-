@@ -29,6 +29,7 @@ enum SplitPaceChart {
 
 struct PostRunSummaryView: View {
     @Environment(\.runSmartServices) private var services
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
     @ObservedObject private var strava = StravaConnectionService.shared
@@ -60,7 +61,10 @@ struct PostRunSummaryView: View {
         ZStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
-                    heroCard
+                    heroCard.modifier(AthleteMapControl(run: displayRun, detail: false))
+
+                    // Story 3.2 (A9): "{Coach} will review this run" while linked.
+                    AthleteRunFeedbackSection(run: displayRun)
 
                     RPESelector(value: $rpe)
 
@@ -344,7 +348,7 @@ struct PostRunSummaryView: View {
                 report: outcome?.report,
                 isProcessing: isProcessing,
                 debrief: outcome?.debrief,        // E6: AI debrief from processCompletedActivity
-                title: "COACH",
+                title: CoachAssistantCopy.apply("COACH", assistant: coachAssistantActive),
                 showsSaveAction: false
             ) {
                 PostActivityPlanCard(outcome: outcome, isShortActivity: isShortActivity, hasDebrief: outcome?.debrief != nil)
@@ -356,7 +360,7 @@ struct PostRunSummaryView: View {
                 report: outcome?.report,
                 isProcessing: isProcessing,
                 debrief: outcome?.debrief,
-                title: "COACH"
+                title: CoachAssistantCopy.apply("COACH", assistant: coachAssistantActive)
             )
         }
     }
@@ -924,4 +928,59 @@ private struct SplitRow: Identifiable {
     var paceSeconds: Double = 0
     /// Set only for the partial final split, e.g. "0.43 km". Pace is still per km.
     var partialDistanceLabel: String? = nil
+}
+
+/// A9 and A10 share the same durable choice, scoped to the athlete and consent.
+struct AthleteMapControl: ViewModifier {
+    @Environment(\.runSmartServices) private var services
+    @EnvironmentObject private var session: SupabaseSession
+    @EnvironmentObject private var coachLinks: CoachLinkStore
+    @ObservedObject private var outbox = CoachRouteOutbox.shared
+    let run: RecordedRun?
+    let detail: Bool
+
+    static func label(coach: String, detail: Bool, hidden: Bool) -> String {
+        detail && hidden ? "You hid this map from \(coach)" : "Hide map from \(coach)"
+    }
+
+    static func key(run: RecordedRun?, owner: UUID?, link: CoachLink?, enabled: Bool) -> CoachMapKey? {
+        guard enabled, let run, run.source == .runSmart, run.providerActivityID == nil,
+              let owner, link != nil else { return nil }
+        return CoachMapKey(ownerID: owner, runID: run.id)
+    }
+
+    func body(content: Content) -> some View {
+        let key = Self.key(run: run, owner: session.currentUserID,
+                           link: coachLinks.activeLink(for: session.currentUserID), enabled: RunSmartFeatures.coachModeEnabled)
+        content.task(id: [key?.ownerID, key?.runID, coachLinks.currentLink?.id]) {
+            if let key {
+                await (services as? SupabaseRunSmartServices)?.refreshMapChoice(key, coachLinks: coachLinks)
+            }
+        }
+        if let key, let link = coachLinks.activeLink(for: key.ownerID), let choice = outbox.choice(for: key) {
+            VStack(alignment: .leading) {
+                let label = Self.label(coach: link.coachName, detail: detail, hidden: choice.hidden)
+                if detail && choice.hidden {
+                    HStack {
+                        Text(label)
+                        Spacer()
+                        Button("Unhide") { change(false, key: key, linkID: link.id) }
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                } else {
+                    Toggle(label, isOn: Binding(get: { choice.hidden }, set: { change($0, key: key, linkID: link.id) }))
+                        .frame(minHeight: 44)
+                }
+                if choice.needsSync {
+                    Text("Will update when you’re online")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func change(_ hidden: Bool, key: CoachMapKey, linkID: UUID) {
+        outbox.setHidden(hidden, for: key, linkID: linkID)
+        Task { await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks) }
+    }
 }

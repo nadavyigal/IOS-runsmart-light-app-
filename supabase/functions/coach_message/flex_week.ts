@@ -1,3 +1,10 @@
+import {
+  carefulPathWarning,
+  FLEX_WEEK_SYSTEM_PROMPT,
+  instructionsFor,
+  type CoachPromptContext,
+} from "./coach_prompts.ts";
+
 export type FlexWeekReasonKind = "tired" | "traveling" | "missed_workout" | "sick";
 
 export type FlexWeekWorkoutDTO = {
@@ -150,7 +157,10 @@ export function validateFlexWeekResponse(
   };
 }
 
-export function fallbackFlexWeek(request: FlexWeekRequestPayload): FlexWeekResponsePayload {
+export function fallbackFlexWeek(
+  request: FlexWeekRequestPayload,
+  coach: CoachPromptContext | null = null,
+): FlexWeekResponsePayload {
   const sortedWeek = [...request.current_week].sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date));
 
   if (isTaperWeek(sortedWeek)) {
@@ -196,7 +206,7 @@ export function fallbackFlexWeek(request: FlexWeekRequestPayload): FlexWeekRespo
   return {
     restructured_week: week,
     changes: changes.slice(0, MAX_CHANGES),
-    safety_warnings: ["Coach is taking a careful path — here's a safe adjustment based on standard recovery rules."],
+    safety_warnings: [carefulPathWarning(coach)],
     source: "fallback",
   };
 }
@@ -204,15 +214,16 @@ export function fallbackFlexWeek(request: FlexWeekRequestPayload): FlexWeekRespo
 export async function generateFlexWeek(
   request: FlexWeekRequestPayload,
   fetchImpl: typeof fetch = fetch,
+  coach: CoachPromptContext | null = null,
 ): Promise<FlexWeekResponsePayload> {
   if (isTaperWeek(request.current_week)) {
-    return fallbackFlexWeek(request);
+    return fallbackFlexWeek(request, coach);
   }
 
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
   if (!apiKey) {
-    return fallbackFlexWeek(request);
+    return fallbackFlexWeek(request, coach);
   }
 
   const controller = new AbortController();
@@ -224,7 +235,7 @@ export async function generateFlexWeek(
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
-        instructions: FLEX_WEEK_SYSTEM_PROMPT,
+        instructions: instructionsFor(FLEX_WEEK_SYSTEM_PROMPT, coach),
         input: [{
           role: "user",
           content: [{ type: "input_text", text: `Flex week request:\n${JSON.stringify(request)}` }],
@@ -242,35 +253,11 @@ export async function generateFlexWeek(
     return { ...validated, source: "live_ai" };
   } catch (error) {
     console.error("flex_week AI fallback", error);
-    return fallbackFlexWeek(request);
+    return fallbackFlexWeek(request, coach);
   } finally {
     clearTimeout(timeout);
   }
 }
-
-const FLEX_WEEK_SYSTEM_PROMPT = `You are RunSmart Coach. Restructure the runner's current ISO week based on their life disruption.
-
-Return ONLY valid JSON — no markdown — in exactly this shape:
-{
-  "restructured_week": [ /* same array length and workout_id values as current_week; update fields in place */ ],
-  "changes": [
-    { "workout_id": "uuid", "change_type": "moved|downgraded|rest|dropped|added", "rationale": "one sentence", "original_workout_id": "uuid or null" }
-  ],
-  "safety_warnings": ["optional strings"],
-  "source": "live_ai"
-}
-
-Safety rules (mandatory):
-- Never remove or drop a Long Run session; downgrade or move it instead.
-- If any workout has training_phase containing "taper", return the original week unchanged with one change rationale "Taper week — locking the schedule."
-- Weekly mileage must not increase more than 10% versus the original week.
-- Never create back-to-back hard sessions (tempo, intervals, hills, long, race).
-- Limit to at most 6 changes.
-- Never replace rest with a hard effort.
-- For sick: no hard sessions within 48 hours after the last sick-rest day.
-- Always include at least one change with a plain-language rationale per changed workout.
-- Do not diagnose illness or injury; stay conservative.
-- If readiness_context.acwr is present it is the runner's acute:chronic workload ratio. Above 1.5 (load_status "highRisk") means elevated injury risk: bias toward easing volume, protect rest days, and mention the load spike in one rationale. Below 0.8 means detraining: avoid cutting further volume unless another rule requires it.`;
 
 function applyTiredRule(week: FlexWeekWorkoutDTO[], changes: FlexWeekChangeDTO[]) {
   const todayIndex = week.findIndex((w) => w.is_today);

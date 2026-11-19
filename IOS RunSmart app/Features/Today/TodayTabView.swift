@@ -1,10 +1,14 @@
 import SwiftUI
 
 struct TodayTabView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.runSmartServices) private var services
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
     @EnvironmentObject private var planGeneration: PlanGenerationStore
+    /// Story 3.3: the coach layer renders only while this gate is active.
+    @EnvironmentObject private var coachPresence: CoachPresence
+    @EnvironmentObject private var athleteFeedback: AthleteFeedbackStore
 
     @State private var recommendation = TodayRecommendation.placeholder
     @State private var routes: [RouteSuggestion] = []
@@ -24,6 +28,8 @@ struct TodayTabView: View {
     @State private var weeklySummary: WeeklyProgressSummary? = nil
     @State private var weeklySummaryFetchedKey: String = ""    // ISO week key of last fetch attempt
     @State private var pendingLoadTask: Task<Void, Never>?
+    /// Opening a coach note's run. Cancelled by a newer Read or by leaving Today.
+    @State private var coachNoteOpenTask: Task<Void, Never>?
     // Adaptive Coach: dismissal persists 24h (policy-enforced); shown-event
     // dedupes per prompt so a scroll away and back doesn't double-count.
     @AppStorage("runsmart.adaptiveCoach.lastDismissedAt") private var adaptiveCoachDismissedAt: Double = 0
@@ -48,6 +54,17 @@ struct TodayTabView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 14) {
                 header
+
+                // A5 reading order: "Coached by" strip, coach cards, then the AI message
+                // and today's workout below. Nothing here without an active link.
+                if let coachLayer {
+                    TodayCoachSection(
+                        layer: coachLayer,
+                        onRead: readCoachNote,
+                        onMore: { router.open(.myCoach) },
+                        onRetry: { Task { await refreshCoachWelcome(reload: true) } }
+                    )
+                }
 
                 if RunSmartFeatureFlags.adaptiveCoachEnabled, let prompt = adaptiveCoachPrompt {
                     AdaptiveCoachCard(
@@ -201,6 +218,17 @@ struct TodayTabView: View {
         .task {
             await loadData()
         }
+        .task(id: coachPresence.coach?.id) {
+            await refreshCoachWelcome()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await refreshCoachWelcome() } }
+        }
+        .onDisappear {
+            // A report must not open over another tab after Today is gone.
+            coachNoteOpenTask?.cancel()
+            coachNoteOpenTask = nil
+        }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanDidChange)) { _ in
             scheduleLoad()
         }
@@ -308,6 +336,47 @@ struct TodayTabView: View {
                     .background(Color.accentPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    private func refreshCoachWelcome(reload: Bool = false) async {
+        guard let link = coachPresence.coach else { return }
+        await athleteFeedback.claimWelcome(for: link, refreshIfClaimed: reload)
+    }
+
+    private var coachLayer: TodayCoachLayer? {
+        TodayCoachLayer.make(
+            coach: coachPresence.coach,
+            notes: athleteFeedback.notes,
+            loadState: athleteFeedback.loadState,
+            runs: recentRuns
+        )
+    }
+
+    /// Read: records `read_at` (the card leaves Today), then opens the note's run or week.
+    /// A run that isn't on this phone opens My coach, where the note stays listed.
+    private func readCoachNote(_ note: AthleteFeedbackNote) {
+        Task { await athleteFeedback.markRead([note]) }
+        coachNoteOpenTask?.cancel()
+        coachNoteOpenTask = nil
+        switch CoachNoteDestination.of(note) {
+        case .welcome:
+            return
+        case .week(let start):
+            router.planFocusDate = start
+            router.selectedTab = .plan
+            return
+        case .run:
+            break
+        }
+        coachNoteOpenTask = Task {
+            guard let run = await AthleteFeedbackOpening.resolveRun(note, services: services) else {
+                if !Task.isCancelled { router.open(.myCoach) }
+                return
+            }
+            let report = await services.runReport(for: run) ?? SupabaseRunSmartServices.reportSkeleton(for: run)
+            guard !Task.isCancelled else { return }
+            router.open(.runReportDetail(report, run: run))
         }
     }
 

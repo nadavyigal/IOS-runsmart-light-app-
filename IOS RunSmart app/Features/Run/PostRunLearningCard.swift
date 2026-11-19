@@ -211,6 +211,7 @@ struct PostRunLearningCardModel: Hashable {
 
 struct PostRunLearningCard<Footer: View>: View {
     @Environment(\.runSmartServices) private var services
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     var run: RecordedRun?
     var outcome: PostActivityOutcome?
     var report: RunReportDetail?
@@ -281,7 +282,7 @@ struct PostRunLearningCard<Footer: View>: View {
         RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top, spacing: 10) {
-                    Label(title ?? "COACH LEARNED", systemImage: "sparkles")
+                    Label(CoachAssistantCopy.apply(title ?? "COACH LEARNED", assistant: coachAssistantActive), systemImage: "sparkles")
                         .font(.labelLG)
                         .foregroundStyle(Color.accentPrimary)
                     Spacer()
@@ -318,7 +319,7 @@ struct PostRunLearningCard<Footer: View>: View {
         RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Label(title ?? "COACH REACTION", systemImage: "sparkles")
+                    Label(CoachAssistantCopy.apply(title ?? "COACH REACTION", assistant: coachAssistantActive), systemImage: "sparkles")
                         .font(.labelLG)
                         .foregroundStyle(Color.accentPrimary)
                     Spacer()
@@ -340,14 +341,20 @@ struct PostRunLearningCard<Footer: View>: View {
         RunSmartPanel(cornerRadius: 22, padding: 16, accent: .accentPrimary) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top, spacing: 10) {
-                    Label(title ?? "COACH REACTION", systemImage: "sparkles")
+                    Label(CoachAssistantCopy.apply(title ?? "COACH REACTION", assistant: coachAssistantActive), systemImage: "sparkles")
                         .font(.labelLG)
                         .foregroundStyle(Color.accentPrimary)
                     Spacer()
                     StatusChip(
-                        text: debrief.source == .ai ? "AI" : "Coach",
+                        text: coachAssistantActive ? "RunSmart" : (debrief.source == .ai ? "AI" : "Coach"),
                         tint: debrief.source == .ai ? .accentPrimary : .textSecondary
                     )
+                }
+
+                if coachAssistantActive {
+                    Text(CoachAssistantCopy.debriefPrivacy)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.textSecondary)
                 }
 
                 Text(debrief.headline)
@@ -389,7 +396,7 @@ struct PostRunLearningCard<Footer: View>: View {
     private var learningContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             PostRunLearningLine(label: "What happened", value: model.happened)
-            PostRunLearningLine(label: "What Coach learned", value: model.learned)
+            PostRunLearningLine(label: CoachAssistantCopy.apply("What Coach learned", assistant: coachAssistantActive), value: model.learned)
 
             HStack(spacing: 10) {
                 Text("PLAN IMPACT")

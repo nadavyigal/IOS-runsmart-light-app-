@@ -202,6 +202,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     /// Builds and saves a plan. Returns nil on success, otherwise why it failed.
     private func generateTrainingPlan(_ request: TrainingGoalRequest) async -> PlanGenerationFailureReason? {
         guard let userID = currentUserID,
+              request.groupPlanAthleteID == nil || request.groupPlanAthleteID == userID,
               let token = try? await supabase.auth.session.accessToken else {
             return .noSession
         }
@@ -262,8 +263,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                         promise: $0.promise
                     )
                 },
-                targetDistance: targetDistanceSlug(for: request.goal),
-                totalWeeks: planWeeks(until: request.targetDate),
+                targetDistance: request.resolvedTargetDistance,
+                totalWeeks: request.planWeekCount ?? planWeeks(until: request.targetDate),
                 planPreferences: .init(
                     trainingDays: request.preferredDays,
                     availableDays: request.preferredDays,
@@ -285,7 +286,13 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 return PlanGenerationFailureReason.classify(response)
             }
 
-            let persisted = await planRepo.persistGeneratedPlan(authUserID: userID, request: request, generated: generated)
+            guard request.groupPlanAthleteID == nil || currentUserID == userID else { return .noSession }
+            let persisted = await planRepo.persistGeneratedPlan(
+                authUserID: userID,
+                request: request,
+                generated: generated,
+                startDate: request.planStartDate ?? Date()
+            )
             if persisted {
                 await refreshAppleWorkoutExports()
                 Analytics.trackPlanGenerated(
@@ -444,7 +451,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         let fallback = TrainingContextCoachResponder.response(to: message, context: context)
         let clientMessageID = UUID().uuidString
         guard let userID = currentUserID,
-              let token = try? await supabase.auth.session.accessToken else {
+              let authSession = try? await supabase.auth.session, authSession.user.id == userID else {
             return fallback
         }
 
@@ -453,7 +460,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 message,
                 context: context,
                 clientMessageID: clientMessageID,
-                accessToken: token
+                accessToken: authSession.accessToken,
+                athleteID: authSession.user.id
             )
             return live
         } catch {
@@ -486,7 +494,8 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         _ message: String,
         context: TrainingContextSnapshot,
         clientMessageID: String,
-        accessToken: String
+        accessToken: String,
+        athleteID: UUID
     ) async throws -> CoachMessage {
         let request = RunSmartDTO.SendCoachMessageRequest(
             clientMessageId: clientMessageID,
@@ -494,7 +503,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             message: message,
             context: context
         )
-        let body = try JSONEncoder().encode(request)
+        let body = try CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context(for: athleteID))
         let client = URLSessionRunSmartAPIClient(
             baseURL: SupabaseManager.functionsBaseURL,
             accessToken: accessToken,
@@ -1109,7 +1118,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         let syncedCount = await HealthKitImportProcessor.process(result,
             upload: {
                 guard self.currentUserID == syncingUserID else { return 0 }
-                return await self.upsertHealthKitRuns($0)
+                let uploaded = await self.upsertHealthKitRuns($0)
+                // Rows that just reached the server can take the links that were waiting on them.
+                if uploaded > 0, let syncingUserID {
+                    await self.retryPendingRunLinks(authUserID: syncingUserID)
+                }
+                return uploaded
             },
             complete: { run in
                 guard self.currentUserID == syncingUserID else { return false }
@@ -1147,9 +1161,21 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 await MainActor.run { PushService.shared.cancelWorkoutReminder(workoutID: completed.id) }
                 return true
             },
-            processNewest: {
+            completeNewRuns: { runs in
+                guard let syncingUserID, self.currentUserID == syncingUserID else { return [:] }
+                let visible = runs.filter { !self.store.isRunHidden($0) }
+                let matches = await self.planRepo.completeMatchingWorkouts(authUserID: syncingUserID, for: visible)
+                guard self.currentUserID == syncingUserID else { return [:] }
+                await MainActor.run {
+                    for match in matches.values {
+                        PushService.shared.cancelWorkoutReminder(workoutID: match.id)
+                    }
+                }
+                return matches
+            },
+            processNewest: { run, match in
                 guard self.currentUserID == syncingUserID else { return }
-                _ = await self.processCompletedActivity($0)
+                _ = await self.processCompletedActivity(run) { _ in match }
             },
             refreshRuns: {
                 guard self.currentUserID == syncingUserID else { return }
@@ -1268,16 +1294,15 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         let fallback = Self
             .fallbackRunReport(for: run, recentRuns: recent, upcomingWorkouts: upcoming)
             .withGarminDeviceFallback(for: run, fallbackGarminDeviceName: fallbackGarminDeviceName)
-        guard let token = try? await supabase.auth.session.accessToken else {
+        guard let authSession = try? await supabase.auth.session else {
             await cacheRunReport(fallback)
             return fallback
         }
 
         do {
             let request = Self.reportRequest(for: run, recentRuns: recent, upcomingWorkouts: upcoming)
-            let encoder = JSONEncoder()
-            let body = try encoder.encode(request)
-            let client = URLSessionRunSmartAPIClient(accessToken: token)
+            let body = try CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context(for: authSession.user.id))
+            let client = URLSessionRunSmartAPIClient(accessToken: authSession.accessToken)
             let payload = try await client.send(
                 RunSmartAPI.Endpoint(path: "api/run-report", method: .post, body: body),
                 as: RunSmartDTO.RunReportResponse.self
@@ -1307,7 +1332,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     private func fetchRunDebrief(for run: RecordedRun) async -> PostRunDebriefModel {
-        guard let token = try? await supabase.auth.session.accessToken else {
+        guard let authSession = try? await supabase.auth.session else {
             return .fallback(for: run)
         }
 
@@ -1342,12 +1367,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             recentLoadDays: recentCount,
             limitations: []
         )
-        guard let body = try? JSONEncoder().encode(request) else {
+        guard let body = try? CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context(for: authSession.user.id)) else {
             return .fallback(for: run)
         }
         let client = URLSessionRunSmartAPIClient(
             baseURL: SupabaseManager.functionsBaseURL,
-            accessToken: token,
+            accessToken: authSession.accessToken,
             additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
         )
         do {
@@ -1432,7 +1457,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             prevWeekRuns.reduce(0.0) { $0 + $1.distanceMeters / 1_000.0 }
 
         // Fetch from AI
-        guard let token = try? await supabase.auth.session.accessToken else {
+        guard let authSession = try? await supabase.auth.session else {
             let fallback = WeeklyProgressSummary.fallback(
                 runsCompleted: weekRuns.count,
                 totalDistanceKm: totalDistanceKm
@@ -1456,7 +1481,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             readinessAverage: nil,
             limitations: []
         )
-        guard let body = try? JSONEncoder().encode(request) else {
+        guard let body = try? CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context(for: authSession.user.id)) else {
             print("[SupabaseServices] weekly_summary: failed to encode request, using fallback")
             let fallback = WeeklyProgressSummary.fallback(
                 runsCompleted: weekRuns.count,
@@ -1468,7 +1493,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
         let client = URLSessionRunSmartAPIClient(
             baseURL: SupabaseManager.functionsBaseURL,
-            accessToken: token,
+            accessToken: authSession.accessToken,
             additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
         )
 
@@ -1541,21 +1566,23 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome {
-        guard let token = try? await supabase.auth.session.accessToken else {
+        guard let authSession = try? await supabase.auth.session else {
+            let coach = CoachContextSource.shared.context(for: currentUserID)
             if let cached = FlexWeekServiceSupport.cachedOutcome(for: request, userID: currentUserID) {
                 return cached
             }
-            return FlexWeekServiceSupport.deterministicOutcome(for: request, source: .offlineQueued)
+            return FlexWeekServiceSupport.deterministicOutcome(for: request, source: .offlineQueued, assistant: coach.linkActive)
         }
 
+        let coach = CoachContextSource.shared.context(for: authSession.user.id)
         let requestDTO = FlexWeekServiceSupport.buildRequestDTO(from: request)
-        guard let body = try? JSONEncoder().encode(requestDTO) else {
-            return FlexWeekServiceSupport.deterministicOutcome(for: request)
+        guard let body = try? CoachRequestJSON.encode(requestDTO, coach: coach) else {
+            return FlexWeekServiceSupport.deterministicOutcome(for: request, assistant: coach.linkActive)
         }
 
         let client = URLSessionRunSmartAPIClient(
             baseURL: SupabaseManager.functionsBaseURL,
-            accessToken: token,
+            accessToken: authSession.accessToken,
             additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
         )
 
@@ -1587,17 +1614,17 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             }
 
             print("[SupabaseServices] flex_week: AI response failed validation, using fallback")
-            return FlexWeekServiceSupport.deterministicOutcome(for: request)
+            return FlexWeekServiceSupport.deterministicOutcome(for: request, assistant: coach.linkActive)
         } catch {
             switch error {
             case is FlexWeekTimeoutError:
                 print("[SupabaseServices] flex_week timed out after 4s, using fallback")
             case is CancellationError:
-                return FlexWeekServiceSupport.deterministicOutcome(for: request)
+                return FlexWeekServiceSupport.deterministicOutcome(for: request, assistant: coach.linkActive)
             default:
                 print("[SupabaseServices] flex_week fallback:", error)
             }
-            return FlexWeekServiceSupport.deterministicOutcome(for: request)
+            return FlexWeekServiceSupport.deterministicOutcome(for: request, assistant: coach.linkActive)
         }
     }
 
@@ -1627,11 +1654,18 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
+        await processCompletedActivity(run, complete: completeMatchingWorkout)
+    }
+
+    private func processCompletedActivity(
+        _ run: RecordedRun,
+        complete: (RecordedRun) async -> WorkoutSummary?
+    ) async -> PostActivityOutcome {
         let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: await recentRuns(limit: 100)))
         await upsertCompletedRunIfPossible(canonical)
         store.refreshBenchmarkStats()
         async let reportTask = generateRunReportIfMissing(for: canonical)
-        async let completedTask = completeMatchingWorkout(for: canonical)
+        async let completedTask = complete(canonical)
         async let debriefTask = fetchRunDebrief(for: canonical)          // E6
         let (report, completed, debrief) = await (reportTask, completedTask, debriefTask)
 
@@ -1950,25 +1984,229 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         await postReportsChanged()
     }
 
+    func retryPendingWorkoutCompletions() async {
+        guard let userID = currentUserID else { return }
+        await retryPendingRunLinks(authUserID: userID)
+        guard currentUserID == userID else { return }
+        // Finish queued matches before considering unlinked runs for backfill.
+        await planRepo.backfillRunWorkoutLinks(
+            authUserID: userID,
+            localRuns: store.loadRuns(),
+            isHidden: { self.store.isRunHidden($0) },
+            dryRun: RunWorkoutBackfill.isDryRunRequested
+        )
+    }
+
+    private struct MapRow: Decodable {
+        let id: Int64
+        let route_status: String?
+    }
+
+    private func mapRow(_ key: CoachMapKey) async throws -> MapRow? {
+        let rows: [MapRow] = try await supabase.from("runs").select("id,route_status")
+            .eq("auth_user_id", value: key.ownerID.uuidString)
+            .eq("source_provider", value: "runsmart_ios")
+            .in("source_activity_id", values: [key.runID.uuidString, key.runID.uuidString.lowercased()])
+            .limit(1).execute().value
+        return rows.first
+    }
+
+    func refreshMapChoice(_ key: CoachMapKey, coachLinks: CoachLinkStore) async {
+        let outbox = CoachRouteOutbox.shared
+        guard currentUserID == key.ownerID, let link = coachLinks.activeLink(for: key.ownerID) else { return }
+        let expected = outbox.choices[key]
+        guard expected?.canSync(activeLinkID: link.id) != true else { return }
+        do {
+            let status = try await mapRow(key)?.route_status
+            guard coachLinks.activeLink(for: key.ownerID)?.id == link.id,
+                  currentUserID == key.ownerID else { return }
+            let hidden: Bool? = status == "shared" ? false : status == "hidden_by_athlete" ? true : nil
+            // A new confirmed link supersedes an undelivered unhide for an earlier coach.
+            if let expected, expected.needsSync, !expected.hidden, expected.unhideLinkID != link.id {
+                guard outbox.choices[key] == expected else { return }
+                outbox.acknowledge(expected, for: key)
+                outbox.recordServerState(hidden, for: key, expected: outbox.choices[key])
+            } else {
+                outbox.recordServerState(hidden, for: key, expected: expected)
+            }
+        } catch { /* Keep the cached visibility offline. */ }
+    }
+
+    private struct MapParams: Encodable {
+        let p_run: Int64
+        let p_hidden: Bool
+    }
+
+    private var retryingMaps = false
+    private var retryMapsAgain = false
+
+    func retryCoachRoutes(coachLinks: CoachLinkStore) async {
+        if retryingMaps {
+            retryMapsAgain = true
+            return
+        }
+        retryingMaps = true
+        defer { retryingMaps = false }
+        repeat {
+            retryMapsAgain = false
+            await flushCoachRoutes(coachLinks: coachLinks)
+        } while retryMapsAgain
+    }
+
+    private func flushCoachRoutes(coachLinks: CoachLinkStore) async {
+        guard RouteUploadPolicy.isEnabled, RunSmartFeatures.coachModeEnabled,
+              let ownerID = currentUserID else { return }
+
+        let outbox = CoachRouteOutbox.shared
+        func localRun(for item: PendingCoachRoute) -> RecordedRun? {
+            guard currentUserID == ownerID,
+                  let link = coachLinks.activeLink(for: ownerID), link.id == item.linkID,
+                  let run = store.loadRuns().first(where: { $0.id == item.runID }),
+                  !store.isRunHidden(run),
+                  RouteUploadPolicy.isEligible(run: run, link: link,
+                                               sharing: outbox.sharing(ownerID: ownerID, linkID: item.linkID))
+            else { return nil }
+            return run
+        }
+
+        await outbox.retry(ownerID: ownerID, coachModeEnabled: true, canSend: { localRun(for: $0) != nil }) { item in
+            let result = try await self.writePreparedCoachRoute(item)
+            guard result == .missing else { return result }
+            guard let run = localRun(for: item) else { return .stopped }
+            // The summary may have failed offline. A consolidated import can also
+            // account for the missing row. Never create a second summary in that case.
+            let recent = await self.recentRuns(limit: 100)
+            let canonical = ActivityConsolidationService.canonicalRun(for: run, in: recent)
+            guard canonical.id == run.id, localRun(for: item) != nil else { return .stopped }
+            await self.upsertCompletedRunIfPossible(canonical, expectedOwnerID: ownerID, ignoreDuplicates: true)
+            guard localRun(for: item) != nil else { return .stopped }
+            guard outbox.choice(for: item.mapKey)?.hidden != true else { return .missing }
+            return try await self.writePreparedCoachRoute(item)
+        }
+        // Serialize visibility after uploads, including a hide tapped during an upload.
+        for (key, choice) in outbox.choices where key.ownerID == ownerID && choice.needsSync {
+            guard currentUserID == ownerID, choice.canSync(activeLinkID: coachLinks.activeLink(for: ownerID)?.id) else { continue }
+            do {
+                let row = try await mapRow(key)
+                guard currentUserID == ownerID, choice.canSync(activeLinkID: coachLinks.activeLink(for: ownerID)?.id),
+                      outbox.choices[key] == choice else { continue }
+                if let row, ["shared", "hidden_by_athlete"].contains(row.route_status ?? "") {
+                    try await supabase.rpc("set_run_route_hidden",
+                        params: MapParams(p_run: row.id, p_hidden: choice.hidden)).execute()
+                } else if outbox.pending.contains(where: { $0.mapKey == key }) {
+                    // An unhide is still outstanding until its prepared route is actually uploaded.
+                    guard choice.hidden else { continue }
+                } else {
+                    outbox.acknowledge(choice, for: key)
+                    outbox.recordServerState(nil, for: key, expected: outbox.choices[key])
+                    continue
+                }
+                outbox.acknowledge(choice, for: key)
+            } catch { /* Retry the persisted choice on the next sync. */ }
+        }
+    }
+
+    /// Shared routes go through the 6.1 RPC. A withheld route only marks `too_short` and leaves `route` null.
+    private func writePreparedCoachRoute(_ item: PendingCoachRoute) async throws -> CoachRouteWriteResult {
+        if item.status == .tooShort { return try await markCoachRouteTooShort(item) }
+        return try await writeCoachRoute(item)
+    }
+
+    private func writeCoachRoute(_ item: PendingCoachRoute) async throws -> CoachRouteWriteResult {
+        guard item.status == .shared, (2...CoachRouteCoordinate.maxPoints).contains(item.points.count) else {
+            return .stopped
+        }
+        return try await supabase.rpc("save_coach_run_route", params: CoachRunRouteParams(item: item)).execute().value
+    }
+
+    /// Sets `route_status = too_short` and `route` null on the athlete's own in-app row.
+    /// A row that already has a route or a status is left alone (returns stopped).
+    private func markCoachRouteTooShort(_ item: PendingCoachRoute) async throws -> CoachRouteWriteResult {
+        guard item.status == .tooShort, item.points.isEmpty else { return .stopped }
+        let activityIDs = [item.runID.uuidString, item.runID.uuidString.lowercased()]
+        let updated: [CoachRunRowID] = try await supabase
+            .from("runs")
+            .update(CoachRouteTooShortUpdate())
+            .eq("auth_user_id", value: item.ownerID.uuidString)
+            .eq("source_provider", value: "runsmart_ios")
+            .in("source_activity_id", values: activityIDs)
+            .is("route", value: nil)
+            .is("route_status", value: nil)
+            .select("id")
+            .execute()
+            .value
+        if !updated.isEmpty { return .saved }
+        let existing: [CoachRunRowID] = try await supabase
+            .from("runs")
+            .select("id")
+            .eq("auth_user_id", value: item.ownerID.uuidString)
+            .eq("source_provider", value: "runsmart_ios")
+            .in("source_activity_id", values: activityIDs)
+            .limit(1)
+            .execute()
+            .value
+        return existing.isEmpty ? .missing : .stopped
+    }
+
+    private func retryPendingRunLinks(authUserID: UUID) async {
+        guard currentUserID == authUserID else { return }
+        let completed = await planRepo.retryPendingRunLinks(authUserID: authUserID, isHidden: store.isRunHidden(sourceKey:)) { key in
+            await self.restoreRunForPendingCompletion(key, authUserID: authUserID)
+        }
+        guard !completed.isEmpty, currentUserID == authUserID else { return }
+        await refreshAppleWorkoutExports()
+        guard currentUserID == authUserID else { return }
+        await MainActor.run {
+            for workoutID in completed {
+                PushService.shared.cancelWorkoutReminder(workoutID: workoutID)
+            }
+            NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
+        }
+    }
+
+    private func restoreRunForPendingCompletion(_ key: RunSourceKey, authUserID: UUID) async -> Bool {
+        guard currentUserID == authUserID,
+              let run = store.loadRuns().first(where: { $0.runSourceKey == key }),
+              !store.isRunHidden(run) else { return false }
+        let identity = await planRepo.identity(authUserID: authUserID)
+        guard currentUserID == authUserID, !store.isRunHidden(run) else { return false }
+
+        do {
+            // Recreate a missing row only. A row uploaded concurrently may already
+            // have a workout link or edited details, which retries must preserve.
+            try await supabase.from("runs")
+                .upsert(DBRunInsert(run: run, identity: identity, kind: .easy, notes: nil),
+                        onConflict: "source_provider,source_activity_id", returning: .minimal, ignoreDuplicates: true)
+                .execute()
+            return currentUserID == authUserID
+        } catch {
+            return false
+        }
+    }
+
     private func completeMatchingWorkout(for run: RecordedRun) async -> WorkoutSummary? {
         guard let userID = currentUserID else { return nil }
         return await planRepo.completeBestMatchingWorkout(authUserID: userID, for: run)
     }
 
-    private func upsertCompletedRunIfPossible(_ run: RecordedRun) async {
-        guard let userID = currentUserID else { return }
+    private func upsertCompletedRunIfPossible(_ run: RecordedRun, expectedOwnerID: UUID? = nil,
+                                             ignoreDuplicates: Bool = false) async {
+        guard let userID = currentUserID, expectedOwnerID == nil || userID == expectedOwnerID else { return }
         let identity = await planRepo.identity(authUserID: userID)
+        guard currentUserID == userID else { return }
 
         do {
             try await supabase
                 .from("runs")
                 .upsert(
                     DBRunInsert(run: run, identity: identity, kind: .easy, notes: "Completed activity from \(run.source.rawValue)"),
-                    onConflict: "source_provider,source_activity_id"
+                    onConflict: "source_provider,source_activity_id",
+                    ignoreDuplicates: ignoreDuplicates
                 )
                 .execute()
             // The runner may have set effort, title or notes while the upsert ran: change only the sync time.
             store.markRunSynced(run)
+            await retryPendingRunLinks(authUserID: userID)
         } catch {
             if !(error is CancellationError) {
                 print("[SupabaseServices] completed run upsert error:", error)
@@ -2313,15 +2551,6 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return runs.filter { $0.startedAt >= start }.reduce(0.0) { $0 + $1.distanceMeters } / 1_000
     }
 
-    private func targetDistanceSlug(for goal: String) -> String? {
-        let lower = goal.lowercased()
-        if lower.contains("5k") { return "5k" }
-        if lower.contains("10k") { return "10k" }
-        if lower.contains("half") { return "half-marathon" }
-        if lower.contains("marathon") { return "marathon" }
-        return nil
-    }
-
     private func hasMorningCheckinToday(userID: UUID) async -> Bool {
         do {
             let rows: [DBWellnessCheckin] = try await supabase
@@ -2548,19 +2777,6 @@ struct DBRunInsert: Encodable {
         try container.encode(sourceProvider, forKey: .sourceProvider)
         try container.encode(sourceActivityID, forKey: .sourceActivityID)
         try container.encode(lastSyncedAt, forKey: .lastSyncedAt)
-    }
-}
-
-private extension RecordedRun {
-    var supabaseSourceProvider: String {
-        switch source {
-        case .runSmart:
-            return "runsmart_ios"
-        case .garmin:
-            return "garmin"
-        case .healthKit:
-            return "healthkit"
-        }
     }
 }
 

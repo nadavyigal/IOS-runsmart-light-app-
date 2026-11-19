@@ -7,9 +7,16 @@ enum RunSmartTab: String, CaseIterable, Identifiable {
     case plan = "Plan"
     case run = "Run"
     case report = "Report"
+    /// Human-coach tab (Coach Mode). Only shown to users with a `coach_profiles` row.
+    case coach = "Coach"
     case profile = "Profile"
 
     var id: String { rawValue }
+
+    /// Tabs shown in the tab bar. The Coach tab exists only for coaches.
+    static func visibleTabs(isCoach: Bool, coachModeEnabled: Bool = RunSmartFeatures.coachModeEnabled) -> [RunSmartTab] {
+        allCases.filter { $0 != .coach || (coachModeEnabled && isCoach) }
+    }
 
     var symbol: String {
         switch self {
@@ -17,6 +24,7 @@ enum RunSmartTab: String, CaseIterable, Identifiable {
         case .plan: "calendar"
         case .run: "figure.run"
         case .report: "chart.xyaxis.line"
+        case .coach: "person.2"
         case .profile: "person"
         }
     }
@@ -27,6 +35,7 @@ enum RunSmartTab: String, CaseIterable, Identifiable {
         case .plan: "calendar.badge.clock"
         case .run: "figure.run.circle.fill"
         case .report: "chart.xyaxis.line"
+        case .coach: "person.2.fill"
         case .profile: "person.fill"
         }
     }
@@ -96,6 +105,14 @@ struct TrainingGoalRequest: Hashable {
     var coachingTone: String
     var targetDate: Date
     var challenge: TrainingChallengeContext? = nil
+    /// Group-plan joins set the coach's distance slug. Nil keeps the goal-text inference.
+    var explicitTargetDistance: String? = nil
+    /// Nil starts the plan today. Set only when a group race is more than 16 weeks out.
+    var planStartDate: Date? = nil
+    /// Nil asks the generator for weeks-until-race, capped at 16, as Build my plan does.
+    var planWeekCount: Int? = nil
+    /// Pins group-plan replacement to the athlete who confirmed it.
+    var groupPlanAthleteID: UUID? = nil
 
     /// Builds the post-onboarding plan request from a profile, applying the same
     /// safe fallbacks everywhere. Shared by onboarding completion and the
@@ -908,6 +925,10 @@ struct RecordedRun: Identifiable, Codable, Hashable {
     var id: UUID
     var providerActivityID: String?
     var consolidatedActivityID: String? = nil
+    /// When this run stands for several copies of one activity (for example a RunSmart
+    /// recording and its Apple Health copy), the `runs` keys of all of them. A coach's note
+    /// on any copy then shows on this run (Story 3.2).
+    var mergedSourceKeys: [RunSourceKey]? = nil
     var source: RunSmartDataSource
     var startedAt: Date
     var endedAt: Date

@@ -5,6 +5,9 @@ struct PlanTabView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
     @EnvironmentObject private var planGeneration: PlanGenerationStore
+    @EnvironmentObject private var athleteFeedback: AthleteFeedbackStore
+    /// Story 3.3: the coach header renders only while this gate is active.
+    @EnvironmentObject private var coachPresence: CoachPresence
 
     @State private var weekWorkouts: [WorkoutSummary] = []
     @State private var nextWorkouts: [WorkoutSummary] = []
@@ -20,6 +23,8 @@ struct PlanTabView: View {
     @State private var recovery: RecoverySnapshot = .loading
     @State private var trainingLoad: TrainingLoadSnapshot = .loading
     @State private var viewMode: PlanViewMode = .month
+    /// A week note's week to scroll to once its month's cards exist (Story 3.2).
+    @State private var pendingFocusDate: Date?
     @State private var navPath: [SecondaryDestination] = []
 
     private var weekRangeLabel: String {
@@ -57,6 +62,7 @@ struct PlanTabView: View {
         let weeksForReview = reviewWeeks.isEmpty ? planWeeks : reviewWeeks
 
         NavigationStack(path: $navPath) {
+            ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     header
@@ -79,6 +85,10 @@ struct PlanTabView: View {
                             )
                             openWorkoutDetail(workout)
                         }
+                        // Scroll target for a current-week coach note opened from Today. When
+                        // Weekly Review falls back to every week, its card for this week is the
+                        // target instead, so the id is never used twice.
+                        .id(reviewWeeks.isEmpty ? AnyHashable("plan-this-week") : AnyHashable(current.id))
                         .runSmartStaggeredAppear(index: 0)
 
                         FlexWeekAdjustPill {
@@ -130,7 +140,8 @@ struct PlanTabView: View {
                             onNextMonth: showNextMonth
                         )
                     case .weekly:
-                        PlanWeeklyReviewSection(weeks: weeksForReview, onWorkout: openWorkoutDetail)
+                        PlanWeeklyReviewSection(weeks: weeksForReview, coveredWeeks: planWeeks,
+                                                month: displayedMonth, onWorkout: openWorkoutDetail)
                     case .progress:
                         PlanProgressSection(
                             goal: goal,
@@ -167,6 +178,9 @@ struct PlanTabView: View {
                 .padding(.top, 18)
                 .padding(.bottom, 140)
             }
+            .onChange(of: planWeeks.map(\.id)) { _, _ in scrollToFocusedWeek(proxy) }
+            .onChange(of: pendingFocusDate) { _, _ in scrollToFocusedWeek(proxy) }
+            }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: SecondaryDestination.self) { destination in
                 SecondaryFlowView(destination: destination)
@@ -184,6 +198,8 @@ struct PlanTabView: View {
         .task(id: displayedMonth) {
             await loadMonthData()
         }
+        .onAppear(perform: openFocusedWeek)
+        .onChange(of: router.planFocusDate) { _, _ in openFocusedWeek() }
         .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanDidChange)) { _ in
             refreshPlanAndMonth()
         }
@@ -282,9 +298,53 @@ struct PlanTabView: View {
         viewMode = .weekly
     }
 
-    private var header: some View {
-        RunSmartTopBar(title: "Plan")
+    /// Opens the weekly view on the month of a week note picked in My coach.
+    private func openFocusedWeek() {
+        guard let date = router.planFocusDate else { return }
+        router.planFocusDate = nil
+        displayedMonth = date
+        viewMode = .weekly
+        pendingFocusDate = date
     }
+
+    /// Scrolls to the card for the focused week once it exists, so its note comes on screen
+    /// (and is marked read by the card). Waits if the month's weeks haven't loaded yet.
+    private func scrollToFocusedWeek(_ proxy: ScrollViewProxy) {
+        guard let date = pendingFocusDate else { return }
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: date)
+        if let week = planWeeks.first(where: {
+            day >= calendar.startOfDay(for: $0.startDate) && day <= calendar.startOfDay(for: $0.endDate)
+        }) {
+            pendingFocusDate = nil
+            withAnimation { proxy.scrollTo(week.id, anchor: .top) }
+            return
+        }
+        // No card covers that week (its workouts were removed): scroll to its standalone note.
+        let anchor = PlanWeekNoteAnchor.id(for: date, calendar: calendar)
+        if athleteFeedback.notes.contains(where: { PlanWeekNoteAnchor.id(for: $0) == anchor }) {
+            pendingFocusDate = nil
+            withAnimation { proxy.scrollTo(anchor, anchor: .top) }
+        }
+    }
+
+    /// A6 while linked; the solo "Plan" title otherwise (A14).
+    @ViewBuilder
+    private var header: some View {
+        if let coachHeader = PlanCoachHeader.make(
+            coach: coachPresence.coach,
+            planMode: coachPresence.planMode,
+            goal: activePlan?.title
+        ) {
+            PlanCoachHeaderView(header: coachHeader, soloTitle: Self.soloTitle) {
+                router.open(.myCoach)
+            }
+        } else {
+            RunSmartTopBar(title: Self.soloTitle)
+        }
+    }
+
+    static let soloTitle = "Plan"
 
     private var plannedTodayWorkout: WorkoutSummary? {
         nextWorkouts.first(where: { $0.isToday }) ?? weekWorkouts.first(where: { Calendar.current.isDateInToday($0.scheduledDate) })
@@ -334,6 +394,7 @@ private enum PlanViewMode: String, CaseIterable, Hashable, Identifiable {
 }
 
 private struct PlanCoachNotesCard: View {
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     var workouts: [WorkoutSummary]
     var goal: GoalSummary
     var onWorkout: (WorkoutSummary) -> Void
@@ -343,7 +404,7 @@ private struct PlanCoachNotesCard: View {
         RunSmartPanel(cornerRadius: 20, padding: 14) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("Upcoming from Your Coach")
+                    Text(CoachAssistantCopy.apply("Upcoming from Your Coach", assistant: coachAssistantActive))
                         .font(.bodyLG.weight(.semibold))
                     Spacer()
                     Button("View all", action: onAll)
@@ -399,12 +460,30 @@ private struct PlanCurrentWeekSection: View {
     }
 }
 
+/// Scroll ids for standalone week notes (weeks with no plan card), keyed by `week_start`.
+enum PlanWeekNoteAnchor {
+    static func id(for note: AthleteFeedbackNote) -> String? {
+        note.weekStart.map { "week-note-\($0)" }
+    }
+
+    static func id(for date: Date, calendar: Calendar) -> String {
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        return "week-note-\(CoachReadDay.iso(date, calendar: gregorian))"
+    }
+}
+
 private struct PlanWeeklyReviewSection: View {
     var weeks: [PlanWeekSummary]
+    /// Every week card on screen (including This Week), so no note shows twice.
+    var coveredWeeks: [PlanWeekSummary] = []
+    var month: Date = Date()
     var onWorkout: (WorkoutSummary) -> Void
+    @EnvironmentObject private var feedback: AthleteFeedbackStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            uncoveredNotes
             HStack {
                 Text("Weekly Review")
                     .font(.headingMD)
@@ -422,10 +501,41 @@ private struct PlanWeeklyReviewSection: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
-                VStack(spacing: 14) {
+                // Lazy, so a past week's coach note is marked read only when its card comes on screen.
+                LazyVStack(spacing: 14) {
                     ForEach(weeks) { week in
                         PlanWeekSummaryCard(week: week, onWorkout: onWorkout)
+                            .id(week.id)
                     }
+                }
+            }
+        }
+    }
+}
+
+extension PlanWeeklyReviewSection {
+    /// Week notes whose week has no card here (all its workouts were removed). They stay
+    /// readable on their own, under the week they were written for.
+    @ViewBuilder
+    fileprivate var uncoveredNotes: some View {
+        let calendar = Calendar.current
+        let notes = feedback.uncoveredWeekNotes(
+            month: month, weeks: (coveredWeeks + weeks).map { ($0.startDate, $0.endDate) }, calendar: calendar
+        )
+        if !notes.isEmpty {
+            // Lazy, and each note marks itself read only when it comes on screen.
+            LazyVStack(alignment: .leading, spacing: 10) {
+                ForEach(notes) { note in
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let start = note.weekStartDate(calendar: calendar) {
+                            Text("Week of \(AthleteFeedbackFormat.shortDate(start))")
+                                .font(.labelSM)
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                        AthleteFeedbackCard(note: note)
+                    }
+                    .id(PlanWeekNoteAnchor.id(for: note))
+                    .task(id: note.id) { await feedback.markRead([note]) }
                 }
             }
         }
@@ -456,6 +566,9 @@ private struct PlanWeekSummaryCard: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
                 }
+
+                // Story 3.2: the coach's week note, pinned at the top of its week.
+                AthleteWeekFeedbackSection(start: week.startDate, end: week.endDate, calendar: week.calendar)
 
                 HStack(spacing: 7) {
                     ForEach(0..<progressCount, id: \.self) { _ in

@@ -105,6 +105,20 @@ Deno.serve(async (req) => {
     await wipe(table, column, authUserId);
   }
 
+  // runs rows above are deleted (auth_user_id, and legacy profile_id below).
+  // Uploaded routes stored on runs.route are removed with those rows.
+  // purge_coach_data_for_deleted_account also nulls runs.route on any run row
+  // that is still present, and removes coach links, the coach profile, and
+  // coach_feedback / coach_plan_drafts when those tables exist.
+  // This Edge Function remains the only account-deletion entry point.
+  const { error: coachPurgeError } = await admin.rpc(
+    "purge_coach_data_for_deleted_account",
+    { p_user_id: authUserId },
+  );
+  if (coachPurgeError && coachPurgeError.code !== "PGRST202" && coachPurgeError.code !== "42883") {
+    warnings.push(`purge_coach_data_for_deleted_account: ${coachPurgeError.message}`);
+  }
+
   // Some tables also use auth.uid() as a uuid profile_id.
   await wipe("plans", "profile_id", authUserId);
   await wipe("conversations", "profile_id", authUserId);

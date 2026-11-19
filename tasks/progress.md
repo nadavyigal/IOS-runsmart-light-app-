@@ -1,3 +1,153 @@
+# 2026-11-19: Coach Mode pilot TestFlight build 1.2.6 (44)
+
+Current Phase: Coach Mode pilot launch; flag on in TestFlight (#217 merged), migrations on production.
+Active Story: Upload 1.2.6 (44) to TestFlight for the two-phone pilot test.
+Next Recommended Story: Flag the coach account, install on two phones, run tasks/coach-pilot-testing.md.
+Blockers: None in code; web-repo migration mirror still open.
+Last Validation: archive 1.2.6 (44) verified against production backend; full unit suite 1099 passed.
+Last Updated: 2026-11-19
+
+# 2026-11-19: Coach Mode pilot, on in TestFlight builds
+
+Current Phase: Coach Mode pilot launch; all 21 stories merged and all Coach Mode migrations on production (checked 2026-11-19).
+Active Story: Coach Mode turns on in TestFlight builds, stays off in the App Store build; two-phone guide in tasks/coach-pilot-testing.md.
+Next Recommended Story: Upload a TestFlight build, flag the coach account, run the two-phone test script.
+Blockers: TestFlight upload needs founder yes; migrations still to mirror to the web repo.
+Last Validation: full unit suite on iPhone 17 simulator, 1099 passed, 0 failed.
+Last Updated: 2026-11-19
+
+# 2026-11-18: Coach Mode pre-pilot stories all merged
+
+Current Phase: Coach Mode pilot; all 21 pre-pilot stories merged (6.3 #212, 3.4 #213, follow-up #210).
+Active Story: None. Six migrations wait for founder apply and web-repo mirror, listed in tasks/coach-mode-status.md.
+Next Recommended Story: Founder applies migrations 20261118100000 to 20261118180000 in order, then pilot QA on device.
+Blockers: Migrations not applied.
+Last Validation: Full unit suite 1097 passed, 0 failed on #210 after merging main with 6.3 and 3.4.
+Last Updated: 2026-11-18
+
+# 2026-11-18: 3.2 follow-up, Plan scrolls to standalone week notes (#210)
+
+Current Phase: Coach Mode pilot; #210 merged with main after #211, no migration.
+Active Story: Plan scrolls to a week note whose week has no workouts; cancellation-aware read test. This Week target dropped, #211 owns it.
+Next Recommended Story: Founder merges #210; then #212 (6.3) and #213 (3.4).
+Blockers: None.
+Last Validation: iPhone 17 simulator, full unit suite 1086 passed, 0 failed, including testACancelledViewTaskThenReopenStillRetriesTheRead.
+
+# 2026-11-18: Coach Mode story 3.4, coach welcome note
+
+Current Phase: Coach Mode pilot, story 3.4 on `feat/coach-welcome-note`.
+Active Story: Default welcome editor, unread per-athlete overrides, signed welcome card on Today; rejoining athletes get a fresh welcome.
+Next Recommended Story: Review the PR, mirror the migration to the web repo, and apply it after review.
+Blockers: Founder review and migration application pending.
+Last Validation: iPhone 17 full unit suite, 1,093 passed, 0 failed, after code-reviewer fixes (rejoin, name cap, per-athlete template). SQL suite runs in CI.
+
+# 2026-11-18: Coach Mode story 6.3, athlete hides one run's map
+
+Current Phase: Coach Mode pilot, story 6.3 on `feat/hide-run-map` (#212); migration `20261118170000_set_run_route_hidden.sql` waits for founder apply.
+Active Story: Per-run "Hide map from {Coach}" on post-run and run detail; hide before upload withholds the route; owner RPC flips shared and hidden.
+Next Recommended Story: Founder merges #212, applies the migration and mirrors it to the web repo; then 3.4 (#213).
+Blockers: Migration not applied; until it is, hiding an uploaded map fails and stays queued.
+Last Validation: iPhone 17 simulator, full unit suite 1089 passed, 0 failed; code-reviewer approved; SQL suite runs in CI.
+
+# 2026-11-18: Two-model sensitive PR review
+
+Current Phase: Review workflow simplification requested by the founder.
+Active Story: Keep path classification and PR checks; remove the manual Sensitive gate. Sensitive PRs use two independent distinct-model reviews and passing checks.
+Blockers: None. Two-model reviews are recorded on the PR; Agentic OS policy is merged and the Steward automation is updated.
+Last Validation: Workflow syntax and hosted checks are recorded on the PR.
+Last Updated: 2026-11-18
+
+# 2026-11-18: CI, Supabase matrix port clash
+
+Current Phase: Coach Mode pilot; CI fix on `ci/sql-port-clash`, workflow only, no SQL.
+Active Story: Preserve existing reserved ports and reserve Supabase CLI ports 54320-54329 so outbound connections never take 54322 before Postgres binds; log port owners on failure.
+Next Recommended Story: Founder merges this, then re-runs SQL checks on #212 and #213.
+Blockers: None.
+Last Validation: Two consecutive PR runs with every Supabase migrations matrix job green (see PR).
+Last Updated: 2026-11-18
+
+# 2026-11-18: Coach Mode story 3.3, coach visible on Today and the Plan
+
+Current Phase: Coach Mode pilot, story 3.3 on `feat/coached-by-today-plan`; migration `get_my_coach()` waits for founder apply.
+Active Story: "Coached by" strip and unread coach cards on Today; coach plan title on Plan; one CoachPresence gate; hooks for 3.4/4.3/5.2/5.4.
+Next Recommended Story: Founder merges #210 and this PR, applies get_my_coach.sql and mirrors it to the web repo; then 3.4.
+Blockers: Migration not applied; until it is, the Plan keeps the solo title under the strip.
+Last Validation: iPhone 17 simulator, full unit suite 1086 passed, 0 failed, after Codex and CodeRabbit fixes incl. one Plan scroll target per week.
+Last Updated: 2026-11-18
+
+# 2026-11-18: Coach Mode story 2.4, athlete detail
+
+Current Phase: Coach Mode pilot foundation, story 2.4 on `feat/coach-athlete-detail`, stacked on 2.3 (#204).
+Active Story: Coach opens an athlete: two-week strip, day detail with planned vs actual, matched-by-date, revoked and no-plan states. Read-only.
+Next Recommended Story: Founder merges #204 then this PR; then 3.1 coach feedback.
+Blockers: Stacked on #204; retarget to main after #204 merges.
+Last Validation: iPhone 17 simulator, 29 coach tests passed (detail, adherence, read service, plan setup); screens rendered from sample data.
+Last Updated: 2026-11-18
+
+# 2026-11-18: Coach Mode story 2.3, athlete list review fixes
+
+Current Phase: Coach Mode pilot foundation, story 2.3 (PR #204) review fixes.
+Active Story: Rest days no longer count as planned or missed; roster sorts by status group first, so Needs attention ordering is stable.
+Next Recommended Story: Founder merges #204, then 2.4 athlete detail. Race-date Gregorian fix is merged in #205.
+Blockers: Current-head review and CI are being refreshed after merging #205 into this branch.
+Last Validation: iPhone 17 simulator, WorkoutAdherenceTests and CoachReadServiceTests, 14 passed / 0 failed, including two new tests.
+Last Updated: 2026-11-18
+
+# 2026-11-18: Group race date written as Gregorian (follow-up to #197)
+
+Current Phase: Coach Mode pilot foundation, follow-up fix to story 1.7.
+Active Story: Group Plan race date now serializes and parses with a Gregorian calendar, whatever calendar the coach's phone uses.
+Next Recommended Story: Founder merges this and #204, then 2.4 athlete detail.
+Blockers: None. No migration.
+Last Validation: iPhone 17 simulator, CoachPlanSetupTests and GroupPlanJoinTests 25 passed; the new test fails on the old code.
+Last Updated: 2026-11-18
+
+# 2026-11-17: Coach Mode story 1.8, group plan on join
+
+Current Phase: Coach Mode pilot foundation.
+Active Story: When an athlete taps Share for a Group Plan coach, they confirm the group plan, their phone generates it, and only then does `join_coach` run. Individual Plans still join on Share. Migration `20261117160000_lookup_invite_group_plan.sql` replaces `lookup_invite(text)` so it also returns `plan_mode` and, for a group coach, the group settings. `join_coach` is unchanged. Not applied to production. Nadav applies it. Copy the same file to `Running-coach-/v0/supabase/migrations/`.
+A race more than 16 weeks out asks the generator for 16 weeks and starts the plan on the race date minus 16 weeks (the final 16 weeks). Before that date, Today keeps the existing empty-workout state. If the plan is saved and `join_coach` then fails, Retry joins again and does not generate again. Cancel leaves that new plan in place and the athlete unlinked.
+Next Recommended Story: 2.2 or 6.4, not this branch.
+Blockers: migration not applied. Group confirm stays hidden until it is, because an older `lookup_invite` has no `plan_mode` and the app keeps Story 1.3's immediate join.
+Last Validation: iPhone 17 Pro simulator, GroupPlanJoinTests 15 passed, plus CoachLinkTests and CoachPlanSetupTests, 47 passed / 0 failed. SQL suite is in PR checks. It was not run locally: Docker would not start.
+Last Updated: 2026-11-17
+
+# 2026-11-15: Coach Mode adherence follow-up
+
+Current Phase: Coach Mode pilot foundation.
+Active Story: Make the workout completion and run association atomic, retain only one retry with the matching run and its actuals, and rank new HealthKit runs as a batch.
+Next Recommended Story: Verify a real in-app run and a third-party HealthKit run produce the expected row links before implementing the Coach adherence view.
+Blockers: `20261117120000_complete_run_workout.sql` must be mirrored in the web repo and applied before the updated iOS client is released. The new client uses the owner-scoped RPC for completion writes. Stage the DB migration first, validate the exact pilot build, and keep pilot participants on that build so older clients do not replay split writes. Upgrade recovery completes persisted links to incomplete active workouts using actuals from the linked run, including links older than the normal 30-day heuristic window. Legacy split payloads without a proven run association are never replayed.
+Last Validation: Throwaway Postgres 17.6 passed the original workout-link test and the new atomic completion test. iOS and physical workout checks are tracked in tasks/todo.md.
+
+# 2026-11-15: Coach Mode story 1.3, athlete joins a coach with consent
+
+Current Phase: unchanged; Coach Mode (human coaches) epic 1, branch `feat/join-coach-consent`.
+Active Story: migration `20261115091000_coach_athlete_links.sql` (table `coach_athlete_links`, RPCs `lookup_invite` returning invite id, `join_coach(code, expected_invite_id, expected_coach_id, expected_athlete_id)`, `my_coach_link`). Settings → "Join a coach" (only when not linked) leads to the code field and the consent screen. A signed-out person uses "Join a coach" on the sign-in screen, which stays on sign-in; after sign-in and any required onboarding they get an empty code field. There is no guest code entry. Share joins only the invite and coach on the consent screen for the athlete who saw it. The server returns the persisted link ID and consent timestamp. If the code now names someone else, the app shows "This code now belongs to {name}", drops the previous consent, and waits for a new Share tap. Not now does not join. Not applied to production. Nadav applies this migration himself. Do not apply an older copy. Do not mirror it to the web repo yet.
+Follow-up before any pilot: Story 1.5 MUST ship athlete "Leave coach" plus a revoke RPC before the pilot. Leaving cuts off all coach access. The consent sentence "You can leave anytime in Settings" stays. Join is not held for this.
+Next Recommended Story: After the founder merges 1.3, prioritize 1.5 (Leave coach) before the pilot. 1.4 adds invite links. Coached-by header is 3.3.
+Blockers: migration not applied to production yet.
+Last Validation: 2026-11-15, SQL coach_athlete_links.sql PASS on throwaway Postgres 17.6 after applying the current migration twice. Includes wrong-athlete rejection and equality of the persisted link identity and consent time in both RPCs.
+Last Updated: 2026-11-15
+
+# 2026-11-14: Coach Mode story 1.2, coach role and invite code
+
+Current Phase: unchanged; Coach Mode (human coaches) epic 1, branch `feat/coach-role-invite`.
+Active Story: migration `20261114210000_coach_role_and_invites.sql` (tables `coach_profiles`, `coach_invites`, RPC `get_or_create_my_invite()`), a Coach tab for flagged coaches only, and the invite section (code, link, Copy, Share). Not applied to production; Nadav applies after review. The web repo `Running-coach-` needs the same file in `v0/supabase/migrations/`. Flag a coach with `insert into coach_profiles (user_id, display_name) values ('<uuid>', 'Dana');`. "Coach" here is the human coach, unrelated to the AI coach (`coach_message`, `coaching_style`).
+Next Recommended Story: 1.3 (athlete joins with consent, `coach_athlete_links`), then 1.4 (invite link opens the app).
+Blockers: migration not applied to production yet.
+Last Validation: SQL two-user test `supabase/tests/coach_invites.sql` passes on a throwaway Postgres 17.6 after applying the migration twice; `CoachModeTests` plus `EmailSignInTests` pass on the iPhone 17 Pro simulator.
+Last Updated: 2026-11-14
+
+# 2026-11-14: Workout completion save (story 0.1)
+
+Current Phase: unchanged.
+Active Story: completed runs mark the planned workout done. `actual_pace` is sent as integer seconds/km (no migration). Failed updates are queued and retried on launch and foreground, dropped after 5 attempts.
+Next Recommended Story: Story 0.2 (match logic / `runs.workout_id` / backfill). Not this PR.
+Blockers: none. Post-release check: `select count(*) from workouts where completed = true and completed_at > '<release date>';`
+Last Validation: 2026-11-14, iPhone 17 simulator, the six workout-completion tests passed (`TEST SUCCEEDED`).
+Last Updated: 2026-11-14
+
 # 2026-11-13: Two Swift 6 errors-in-waiting fixed
 
 Current Phase: unchanged; audit item 1 decided by the founder.
@@ -15,6 +165,52 @@ Next Recommended Story: founder review of docs/audits/2026-11-11-repo-audit.md, 
 Blockers: none. PR #179 Tier 1, code-reviewer APPROVED, awaiting founder merge.
 Last Validation: 2026-11-11 iPhone 17 iOS 26.5 full suite 862 passed, 1 skipped, 0 failed before and after.
 Last Updated: 2026-11-11
+
+## 2026-11-18 Story 3.2 follow-up, Plan scroll and read test
+- Current Phase: Coach Mode Phase 3; 3.2 merged (#208), follow-up #210 open
+- Active Story: Plan scrolls to any week note; cancellation-aware read test
+- Next Recommended Story: 3.3 Today card and Coached-by header
+- Blockers: #209 (6.2) waits for founder merge yes; migrations not applied
+- Last Validation: full suite 1065 passed, 0 failed on iPhone 17 simulator
+- Last Updated: 2026-11-18
+
+## 2026-11-18 Story 6.2 coach sees route map
+- Current Phase: Coach Mode Phase 6, coach route map (6.2) in review
+- Active Story: 6.2 coach_get_run_route RPC and C6 map block with four states
+- Next Recommended Story: 6.3 athlete hides one run's map, after 6.2 merges
+- Blockers: migration 20261118140000 not applied; founder applies after review
+- Last Validation: full suite 1049 passed, 0 failed; coach_run_route SQL suite runs in CI
+## 2026-11-18 Story 3.2 athlete sees coach feedback
+- Current Phase: Coach Mode Phase 3, athlete feedback (3.2) in review
+- Active Story: 3.2 notes pinned on runs and weeks, Today badge, pending review line, My coach list
+- Next Recommended Story: 3.3 Today card and Coached-by header, after 3.2 merges
+- Blockers: migrations 20261118100000 and 20261118120000 not applied; founder applies after review
+- Last Validation: full suite 1063 passed, 0 failed; athlete_feedback_read SQL suite runs in CI
+- Last Updated: 2026-11-18
+
+## 2026-11-18 Story 3.1 coach feedback write
+- Current Phase: Coach Mode Phase 3, coach feedback (3.1) in review
+- Active Story: 3.1 coach writes feedback on a run or a week, with drafts and offline queue
+- Next Recommended Story: 3.2 athlete sees coach feedback, after the 3.1 PR merges and the migration is applied
+- Blockers: migration 20261118100000_coach_feedback not applied; founder applies after review
+- Last Validation: full suite 1043 passed, 0 failed; SQL suite with revision checks runs in CI
+- Last Updated: 2026-11-18
+
+## 2026-11-18 Story 2.4 review fix (#206)
+- Current Phase: Coach Mode Phase 2, athlete detail (2.4) in review
+- Active Story: 2.4 fix, no-plan athletes keep their recorded runs visible as extra runs
+- Next Recommended Story: 3.1 coach feedback, after #206 merges
+- Blockers: none; founder merges #206
+- Last Validation: full suite 1043 passed, 0 failed; SQL suite with revision checks runs in CI
+- Last Updated: 2026-11-18
+
+## 2026-11-14 — Story 0.2: runs link to their workout (PR open, not merged)
+
+**Status:** In review on `feat/run-workout-link`. **Active Story:** coach-mode 0.2. **Next:** Nadav applies `supabase/migrations/20261114130000_runs_workout_link.sql` after review (and copies it to the web repo `Running-coach-/v0/supabase/migrations/`), then merge.
+Live schema check (production `dxqglotcyirxzyqaxqln`, read-only): `runs.workout_id` did not exist, so the migration adds it (uuid, nullable, FK to `workouts.id` ON DELETE SET NULL, guarded and idempotent) and a partial unique index `runs_workout_id_unique`. After a match, `completeBestMatchingWorkout` sets `runs.workout_id` by `(auth_user_id, source_provider, source_activity_id)` only while the run has none; a queued or not-yet-synced link retries from `RunWorkoutLinkOutbox`. Health, Garmin and in-app runs share that path. A per-account, once-per-install 30-day backfill logs matched/unmatched first (debug dry-run: `-runsmart.debug.runWorkoutBackfillDryRun YES`). Match thresholds unchanged.
+**Review fixes (2026-11-15):** migration now has a `runs_enforce_workout_owner` trigger (a run may only link a workout its owner owns), tested in a throwaway Postgres (`supabase/tests/runs_workout_link*.sql`); the link retry queue has a one-pass gate; the backfill skips hidden runs.
+**Last Validation:** full suite, iPhone 17 Pro simulator: 888 passed / 0 failed / 1 skipped (21 new tests in `RunWorkoutLinkTests`); SQL test PASS. The link write itself is not covered by a unit test (needs the migrated database).
+**Last Updated:** 2026-11-14
 
 ## 2026-11-07 — Build 41 Watch round trip passed; PR165 review findings fixed
 
@@ -39,8 +235,8 @@ Owner reports the external tester completed beta38 tests and all looked good; ac
 **Last Completed Story:** T7 coaching tones merged (PR #176).
 **Next Recommended Story:** After approval: merge PR #177, record the live version, and listen to the three tones on a real run. Coach voice clips (open-source TTS, VoxCPM2 candidate) continue in their own session for a later version.
 **Blockers:** No device listening evidence (founder chose to check in production). Founder must approve the keychain prompt during export and may need to sign in to ASC.
-**Last Validation:** 2026-11-14, release branch merged with `main` 4612fa2 (PRs #179, #180, #181): only `tasks/progress.md` conflicted, version stays 1.2.4 (42), full suite 862 passed, 0 failed, 1 skipped, TEST SUCCEEDED. 2026-11-07, release branch merged with `main` after PR #165 (Watch) landed: version conflict kept 1.2.4 (42), full suite 862 passed, 0 failed, 1 skipped, TEST SUCCEEDED. The submitted build 42 does not contain the Watch code. 2026-11-05, full `xcodebuild test` at 1.2.4 (42) on `main` a624885, iPhone 17 Pro simulator, iOS 26.5: TEST SUCCEEDED, 825 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`).
-**Last Updated:** 2026-11-14
+**Last Validation:** 2026-11-19, release branch merged with `main` b901258 (Coach Mode, PR #218 at 1.2.6 (44)): the project file now takes main's 1.2.6 (44), since build 42 already shipped and main must not go back. PR #177 now carries only the 1.2.4 release docs. Full suite 1099 passed, 0 failed, 1 skipped, TEST SUCCEEDED. 2026-11-14, release branch merged with `main` 4612fa2 (PRs #179, #180, #181): only `tasks/progress.md` conflicted, version stays 1.2.4 (42), full suite 862 passed, 0 failed, 1 skipped, TEST SUCCEEDED. 2026-11-07, release branch merged with `main` after PR #165 (Watch) landed: version conflict kept 1.2.4 (42), full suite 862 passed, 0 failed, 1 skipped, TEST SUCCEEDED. The submitted build 42 does not contain the Watch code. 2026-11-05, full `xcodebuild test` at 1.2.4 (42) on `main` a624885, iPhone 17 Pro simulator, iOS 26.5: TEST SUCCEEDED, 825 passed, 0 failed, 1 skipped (`RunSharePosterRenderTests.testMapPostersRenderAtExportSize`).
+**Last Updated:** 2026-11-19
 
 ## 2026-11-05 — T7 coach tones merged (PR #176); PR #174 merged
 
@@ -65,3 +261,12 @@ Owner reports the external tester completed beta38 tests and all looked good; ac
 **Last Updated:** 2026-11-04
 
 Older entries: [tasks/archive/progress-to-2026-10-29.md](archive/progress-to-2026-10-29.md).
+
+# 2026-11-17: Coach Mode story 2.2, coach reads linked athletes
+
+Current Phase: Coach Mode. Branch `feat/coach-read-rpcs`.
+Active Story: migration `20261117164500_coach_read_rpcs.sql` (`is_active_coach_of`, `athlete_display_name`, `coach_list_athletes`, `coach_get_athlete_plan`, `coach_get_athletes_workouts`, `coach_get_athletes_runs`) and `CoachReadService`. No UI. RLS on existing tables is unchanged. Not applied to production. The web repo needs the same migration file.
+Next Recommended Story: 2.3, the athlete list, after this migration is applied.
+Blockers: migration not applied. Run dates are the UTC date of `runs.completed_at`.
+Last Validation: `CoachReadServiceTests` 7 passed on the iPhone 17 Pro simulator. SQL suite is `supabase/tests/coach_read.sql`; local Docker did not start, so that suite is left to CI.
+Last Updated: 2026-11-17

@@ -1,3 +1,69 @@
+## 2026-11-18 — Coach Mode Story 2.3
+
+- [x] Add the athlete list, calendar week, shared adherence rules, and a placeholder athlete destination.
+- [ ] Review the athlete list and verify it against a local Supabase instance before pilot use.
+
+## 2026-11-17 — Coach Mode Story 1.8
+
+- [x] Athlete confirms a Group Plan, their phone generates it, then `join_coach` runs.
+- [x] Migration `20261117160000_lookup_invite_group_plan.sql` is in the PR and not applied.
+- [x] Replace the active plan and insert its workouts in one athlete-scoped transaction. Verify rollback in throwaway Postgres.
+- [ ] Mirror `20261117163000_replace_group_training_plan.sql` before enabling the group join flow.
+- [ ] Nadav reviews, mirrors the migration to the web repo, and applies it. Until then a Group Plan coach still joins like Story 1.3.
+
+## 2026-11-17 — Coach Mode Story 3.5 follow-up
+
+- [x] Reconcile #198 with main so the module has one Coach Mode flag. Tie AI context to the authenticated request account and add Plan and run-share copy for linked athletes.
+- [ ] Re-review the new head and verify voice/report prompt handling in the web service before pilot.
+- [ ] 6.1: My coach toggle depends on #193. Keep the upload policy off until 6.4.
+
+## 2026-11-17 — Coach Mode Story 6.1
+
+- [x] Implement route preparation, device-local sharing preference and retry, and an athlete-only write to `runs.route` and `runs.route_status`.
+- [x] Verify the migration applies twice and the new SQL suite passes in throwaway embedded Postgres.
+- [ ] Review Story 6.1 in #199, based on main after #193 landed.
+- [ ] Mirror `20261117100000_coach_route_upload.sql` to the web migration tree at rollout. Production stays frozen.
+- [ ] Keep `RouteUploadPolicy.isEnabled` false and the default preparer disabled until Story 6.4 implements privacy-zone trimming. Hold pilot invites until then.
+- [ ] Story 6.2 must gate coach reads on an active link and `route_status = 'shared'`.
+
+## 2026-11-17 — Coach Mode Story 6.4
+
+- [x] Carry forward Cursor's endpoint trimming, stable per-run radius, and short-run status.
+- [x] Decode the runs table's bigint ID when acknowledging a short-route write.
+- [ ] Verify the full local app-to-Supabase flow before pilot invites. Keep Release Coach Mode off.
+
+## 2026-11-15 — Coach Mode: make plan adherence consistent
+
+- [x] Reproduce the missing atomic-write contract with a failing SQL test.
+- [x] Add one owner-scoped transaction for run link plus workout actuals and one account-scoped retry record.
+- [x] Rank candidates across a HealthKit import before any new run claims a workout.
+- [x] Verify ownership, active-plan filtering, retry, and rollback on isolated Postgres.
+- [x] Recover persisted links to incomplete active workouts during upgrade. A hidden or invalid incumbent still reserves the workout.
+- [ ] Verify the focused iOS suite and the full signed-in device-to-database path before pilot invites.
+- [ ] Add a bounded retry for cold, unpinned HealthKit imports when the active plan cannot be loaded. If an install already ran backfill, a duplicate upload-only sync does not reattempt matching after the initial plan read failed.
+- [ ] Mirror the SQL migration to the web tree and coordinate its deployment ahead of the updated iOS client.
+
+## 2026-11-16 — Coach Mode rollout
+
+- Human Coach Mode is OFF by default. In an Xcode **Debug** run, add `-enable-coach-mode` under Scheme → Run → Arguments. Release builds (including current TestFlight archives) ignore the argument. There is no remote switch.
+- Prior run completion/linking remains enabled because it is ordinary plan adherence. Existing database ownership rules and applied migrations remain in place. The flag stops coach role/link reads and user entry points.
+- Production migrations are frozen. Never replay an already applied file. Read-only production migration history verified these equivalents:
+
+| Repo file prefix | Production version | Migration |
+| --- | --- | --- |
+| 20261114120000 | 20261114191102 | close_cross_user_rls_leaks |
+| 20261114130000 | 20261115065606 | runs_workout_link |
+| 20261114210000 | 20261115065607 | coach_role_and_invites |
+| 20261115091000 | 20261115173534 | coach_athlete_links |
+
+## 2026-11-15 — Coach Mode pilot consent
+
+- [x] Preserve the join intent through new-account onboarding.
+- [x] Bind consent to the invite, coach and signed-in athlete. Return the stored link ID and consent time.
+- [x] Verify the join migration twice on isolated Postgres and add its two-user tests to PR checks.
+- [ ] Verify a new athlete reaches consent in the signed-in pilot app, including large Dynamic Type.
+- [ ] Finish founder review of Story 1.3, then implement Story 1.5 before enabling the pilot.
+
 ## 2026-11-02 — Integrated Watch candidate
 
 - [x] Owner reports the external tester completed beta38 testing successfully; retain as tester-reported evidence.
@@ -13,3 +79,10 @@
 - [ ] Separate public release decision after final candidate validation.
 
 Older entries: [tasks/archive/todo-to-2026-10-29.md](archive/todo-to-2026-10-29.md).
+
+## 2026-11-17 — Coach Mode Story 2.2
+
+- [x] Add security-definer read RPCs for a linked athlete's plan, workouts, and run summaries. No table RLS change.
+- [x] Add `CoachReadService` and `MockCoachReadService`. No coach UI.
+- [ ] Nadav applies `20261117164500_coach_read_rpcs.sql` after review and mirrors it to the web repo. Do not apply it from this PR.
+- [ ] Run date filter uses the UTC date of `runs.completed_at`. Confirm that before Story 2.3.

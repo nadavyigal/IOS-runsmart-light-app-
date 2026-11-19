@@ -1,5 +1,25 @@
+## 2026-11-17 — Group plan join
+
+Story 1.8. Share on a Group Plan coach opens the confirm screen and does not link. Use builds the plan on the athlete's phone through the existing generator, then calls `join_coach`. A failed build creates no link. A failed join retries only the link. A race past 16 weeks starts 16 weeks before the race. Individual Plans skip the confirm. Migration not applied. Docker did not start, so the SQL suite was not run on this machine.
+
+## 2026-11-16 — Recover known legacy adherence links on upgrade
+
+The old client could link a run after its separate completion write failed. The versioned upgrade reads the signed-in athlete's persisted run links to incomplete active workouts, repairs usable links through the same transactional RPC, and keeps those workout slots out of heuristic matching. A hidden run reserves its existing slot without being uploaded or completed. A failed link read leaves the upgrade pending.
+
+## 2026-11-15 — Transactional Coach Mode adherence
+
+The prior client made separate completion and link writes. The replacement RPC commits both under the athlete's existing row policies, and the outbox persists one account-scoped match and its actuals. A failed run upload can restore the exact local summary without overwriting a row that already exists. HealthKit ranks its newly imported candidates together before generating a report for the newest. The versioned backfill rechecks eligible unlinked synced runs once. The old split records cannot establish which actuals belong to which run and are not replayed. Verified SQL rollback and ownership on throwaway Postgres 17.6. No production migration or release ran.
+
+## 2026-11-15 — Coach Mode consent follow-up
+
+Story 1.3 now carries the server link ID and consent timestamp, binds Share to the originating athlete across session changes, and resumes on the empty join form after required onboarding. Added the join database suite to PR checks. Isolated Postgres verified the migration twice and passed the authorization and consent payload regressions. The pilot still requires Story 1.5 and an authenticated device smoke.
+
 ## 2026-11-02 — Watch beta accepted by tester; integrated candidate 1.2.3 (41)
 
 Owner reports the external tester completed beta38 tests and all looked good; accepted as tester-reported paired-device evidence. Correct tester the external tester installed on iPhone15ProMax/iOS27.0.1. Reconciled PR165 with main3c2d679 without rewriting history; retained both records and current iPhone features. Reproduced failed→successful unassociated Health lookup losing completion. Deferred recovery persists owner/target, survives transient failure/relaunch, yields to exact Health identity and cannot rematch replacements or replay reports. Independent QA's account-switch/new-exact-ID races fixed with regressions. Final simulator suite: **841 passed /0failed /1existing opt-in map-render skip**,33Watch tests pass. Version1.2.3(41) allocated after live ASC latest40 complete. Source4f20bc0 pushed to PR165; main now mergeable. Signed archive/signatures/versions/HealthKit/privacy/dSYMs and actual-artifact backend HTTP200 pass. Owner approved signing; exported IPA distribution signatures/debugging disabled/dSYMs and actual IPA backend HTTP200 pass. Upload/processing succeeded; build UUIDc554c551-d5d0-4b50-8ffd-6da19b4ea9da attached to Apple Watch Beta. What to Test saved; automatic notification enabled; beta review submitted and live group table verifies Waiting for Review. No public submission/release; final candidate Watch round trip remains pending. See docs/qa/releases/1.2.3-watch-candidate/ and docs/plans/2026-11-02-watch-release-candidate.md. Clean temporary clone protects original worktrees: /private/tmp/runsmart-watch-release-20261102.
 
 Older entries: [tasks/archive/session-log-to-2026-10-29.md](archive/session-log-to-2026-10-29.md).
+
+## 2026-11-17 — Coach read RPCs
+
+Story 2.2 adds security-definer RPCs so a coach reads a linked athlete's plan, workouts, and run summaries only while `coach_athlete_links.status` is active. Table policies are unchanged. `runs.route` and run notes are not in the run RPC. `CoachReadService` is the Swift client; there is no new screen. Migration `20261117164500_coach_read_rpcs.sql` is not applied. Simulator: CoachReadServiceTests 7 passed.

@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 
 struct ShareRunView: View {
+    @Environment(\.coachAssistantActive) private var coachAssistantActive
     @Environment(\.dismiss) private var dismiss
     var run: RecordedRun?
     var insight: String
@@ -63,7 +64,7 @@ struct ShareRunView: View {
                         .font(.caption)
                         .foregroundStyle(Color.textSecondary)
                     if !insight.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Toggle("Include coach insight", isOn: $includeInsight)
+                        Toggle(CoachAssistantCopy.apply("Include coach insight", assistant: coachAssistantActive), isOn: $includeInsight)
                             .tint(Color.accentPrimary)
                             .disabled(isCreatingVideo)
                     }

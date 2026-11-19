@@ -4,6 +4,14 @@ import {
   sanitizeFlexWeekRequest,
 } from "./flex_week.ts";
 import { corsHeaders, isOriginAllowed } from "../_shared/cors.ts";
+import {
+  instructionsFor,
+  resolveCoachContext,
+  RUN_DEBRIEF_SYSTEM_PROMPT,
+  SYSTEM_PROMPT,
+  WEEKLY_SUMMARY_SYSTEM_PROMPT,
+  type CoachPromptContext,
+} from "./coach_prompts.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -23,59 +31,6 @@ type MessageRow = {
 
 const MAX_CHAT_MESSAGE_LENGTH = 2000;
 
-const SYSTEM_PROMPT = `You are RunSmart Coach, a calm AI running coach for beginner and intermediate runners.
-
-Your job is to turn the runner's current context into one clear next action.
-
-Rules:
-- Be concise: 3-6 sentences unless the user asks for detail.
-- Use only the provided training context.
-- If data is missing, say so honestly.
-- Do not diagnose injuries or give medical advice.
-- If the user mentions pain, dizziness, chest pain, fainting, or severe symptoms, advise stopping activity and consulting a qualified professional.
-- Do not shame missed workouts.
-- Prefer conservative training guidance under uncertainty.
-- Do not claim you changed the training plan unless an action was actually applied.
-- Do not expose raw GPS data or private route details.
-- Use supportive language: adjust, recover, next best step, still on track.
-- Give one practical next action.`;
-
-const RUN_DEBRIEF_SYSTEM_PROMPT = `You are RunSmart Coach. Given a completed run's data, write a short post-run debrief.
-
-Return ONLY valid JSON — no markdown, no explanation — in exactly this shape:
-{
-  "headline": "One short coach reaction (max 40 characters)",
-  "debrief": "1-2 sentences referencing at least one real signal from the run (pace, HR, distance, effort)",
-  "tomorrow": "One sentence: what this run means for tomorrow",
-  "planImpact": "Short phrase or null"
-}
-
-Rules:
-- Be specific: reference actual numbers from the context.
-- Be warm and direct. No filler.
-- Do not diagnose injuries or give medical advice.
-- If injurySignal is true in context, set headline to "Rest up — listen to your body", debrief to "Any pain or discomfort after a run needs rest first. Check in with a professional before your next session.", tomorrow to "Take a full rest day tomorrow.", planImpact to null.
-- Do not shame any result.
-- Conservative guidance under uncertainty.`;
-
-const WEEKLY_SUMMARY_SYSTEM_PROMPT = `You are RunSmart Coach. Given a runner's week summary data, write a short weekly progress narrative.
-
-Return ONLY valid JSON — no markdown, no explanation — in exactly this shape:
-{
-  "headline": "Key stat that proves something changed (max 50 characters, e.g. '3 runs · 18 km · 4th week in a row')",
-  "narrative": "2-3 sentences in coach voice: what was built this week, what the data shows, why it matters",
-  "forwardLook": "One sentence: what next week is building toward",
-  "weekLabel": "Context label, e.g. 'Week 4 of your plan' or 'Week 3 with RunSmart'"
-}
-
-Rules:
-- Be specific: reference actual numbers (runs, distance, comparison to last week if available).
-- Be warm, direct, forward-looking.
-- Do not shame missed workouts: if runsCompleted < runsPlanned, acknowledge effort without guilt.
-- Do not diagnose or give medical advice.
-- If runsCompleted is 0, return a short encouraging message anyway.
-- Conservative under uncertainty.`;
-
 const forbiddenContextKeys = new Set([
   "latitude",
   "longitude",
@@ -88,7 +43,7 @@ const forbiddenContextKeys = new Set([
   "points",
 ]);
 
-async function generateRunDebrief(context: JsonRecord): Promise<{
+async function generateRunDebrief(context: JsonRecord, coach: CoachPromptContext | null = null): Promise<{
   headline: string;
   debrief: string;
   tomorrow: string;
@@ -121,7 +76,7 @@ async function generateRunDebrief(context: JsonRecord): Promise<{
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
-        instructions: RUN_DEBRIEF_SYSTEM_PROMPT,
+        instructions: instructionsFor(RUN_DEBRIEF_SYSTEM_PROMPT, coach),
         input: [{
           role: "user",
           content: [{ type: "input_text", text: `Run data:\n${JSON.stringify(context)}` }],
@@ -174,7 +129,7 @@ function fallbackRunDebrief(context: JsonRecord): {
   };
 }
 
-async function generateWeeklySummary(context: JsonRecord): Promise<{
+async function generateWeeklySummary(context: JsonRecord, coach: CoachPromptContext | null = null): Promise<{
   headline: string;
   narrative: string;
   forwardLook: string;
@@ -196,7 +151,7 @@ async function generateWeeklySummary(context: JsonRecord): Promise<{
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
-        instructions: WEEKLY_SUMMARY_SYSTEM_PROMPT,
+        instructions: instructionsFor(WEEKLY_SUMMARY_SYSTEM_PROMPT, coach),
         input: [{
           role: "user",
           content: [{ type: "input_text", text: `Week data:\n${JSON.stringify(context)}` }],
@@ -304,6 +259,12 @@ Deno.serve(async (req) => {
   const clientTimestamp = stringValue(body.clientTimestamp).trim();
   const context = asRecord(body.context);
   const intent = stringValue(body.intent) || "chat";
+  const coach = await resolveCoachContext(body, async () => {
+    const { data, error } = await userClient.rpc("my_coach_link");
+    if (error) return null;
+    const name = Array.isArray(data) ? data[0]?.display_name : null;
+    return typeof name === "string" ? name : null;
+  });
 
   // Route run_debrief before the chat-specific validation
   if (intent === "run_debrief") {
@@ -323,7 +284,7 @@ Deno.serve(async (req) => {
       effortRating: typeof body.effortRating === "number" ? body.effortRating : null,
       limitations: Array.isArray(body.limitations) ? (body.limitations as unknown[]).slice(0, 5).map(l => limitString(l, 160)) : [],
     };
-    const debrief = await generateRunDebrief(safeContext);
+    const debrief = await generateRunDebrief(safeContext, coach);
     return jsonResponse(req,debrief);
   }
 
@@ -344,7 +305,7 @@ Deno.serve(async (req) => {
       isRecoveryWeek: Boolean(context.isRecoveryWeek),
       readinessAverage: typeof context.readinessAverage === "number" ? context.readinessAverage : null,
     };
-    const summary = await generateWeeklySummary(safeContext);
+    const summary = await generateWeeklySummary(safeContext, coach);
     return jsonResponse(req,summary);
   }
 
@@ -356,7 +317,7 @@ Deno.serve(async (req) => {
     if (!request) {
       return jsonResponse(req,{ error: "Invalid flex_week payload" }, 400);
     }
-    const outcome = await generateFlexWeek(request);
+    const outcome = await generateFlexWeek(request, fetch, coach);
     return jsonResponse(req,{
       restructuredWeek: outcome.restructured_week,
       changes: outcome.changes.map((change) => ({
@@ -402,7 +363,7 @@ Deno.serve(async (req) => {
       metadata: { entryPoint, clientTimestamp, context: sanitizedContext },
     });
 
-    const ai = await liveCoachResponse(message, sanitizedContext, safetyFlags);
+    const ai = await liveCoachResponse(message, sanitizedContext, safetyFlags, coach);
     const source: CoachSource = ai.source;
     const assistantMessage = await persistMessage(adminClient, {
       conversationId: conversation.id,
@@ -693,7 +654,12 @@ async function persistMessage(
   return data as MessageRow;
 }
 
-async function liveCoachResponse(message: string, context: JsonRecord, safetyFlags: string[]) {
+async function liveCoachResponse(
+  message: string,
+  context: JsonRecord,
+  safetyFlags: string[],
+  coach: CoachPromptContext | null = null,
+) {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
   if (!apiKey) {
@@ -718,7 +684,7 @@ async function liveCoachResponse(message: string, context: JsonRecord, safetyFla
       },
       body: JSON.stringify({
         model,
-        instructions: SYSTEM_PROMPT,
+        instructions: instructionsFor(SYSTEM_PROMPT, coach),
         input: [
           {
             role: "user",
