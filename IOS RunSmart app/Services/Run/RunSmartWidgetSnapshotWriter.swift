@@ -19,7 +19,7 @@ final class RunSmartWidgetSnapshotWriter: ObservableObject {
         snapshotStore: RunSmartWidgetSnapshotStore = .shared,
         runs: @escaping () -> [RecordedRun] = { RunSmartLocalStore.shared.loadRuns() },
         reloadWidget: @escaping () -> Void = { WidgetCenter.shared.reloadTimelines(ofKind: RunSmartWidgetSnapshotStore.widgetKind) },
-        calendar: Calendar = .current
+        calendar: Calendar = .autoupdatingCurrent
     ) {
         self.snapshotStore = snapshotStore
         self.runs = runs
@@ -40,7 +40,7 @@ final class RunSmartWidgetSnapshotWriter: ObservableObject {
             .store(in: &cancellables)
         recorder.$lastSavedRun
             .dropFirst()
-            .receive(on: RunLoop.main)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 MainActor.assumeIsolated { self?.refresh() }
             }
@@ -80,6 +80,13 @@ final class RunSmartWidgetSnapshotWriter: ObservableObject {
         write(next, previous: previous)
     }
 
+    /// Sign-out: the next runner on this phone must not see the previous account's week.
+    func clear() {
+        guard snapshotStore.isAvailable, snapshotStore.load() != nil else { return }
+        snapshotStore.clear()
+        reloadWidget()
+    }
+
     private func write(_ next: RunSmartWidgetSnapshot, previous: RunSmartWidgetSnapshot?) {
         var comparable = previous
         comparable?.updatedAt = next.updatedAt
@@ -92,9 +99,9 @@ final class RunSmartWidgetSnapshotWriter: ObservableObject {
         calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? calendar.startOfDay(for: date)
     }
 
-    nonisolated static func weekDistanceMeters(runs: [RecordedRun], weekStart: Date, calendar: Calendar) -> Double {
-        guard let week = calendar.dateInterval(of: .weekOfYear, for: weekStart) else { return 0 }
-        return runs.filter { week.contains($0.startedAt) }.reduce(0) { $0 + max(0, $1.distanceMeters) }
+    /// Same rule as every other weekly figure in the app (`TrainingMetrics.weeklyDistanceKm`).
+    static func weekDistanceMeters(runs: [RecordedRun], weekStart: Date, calendar: Calendar) -> Double {
+        TrainingMetrics.weeklyDistanceKm(runs: runs, now: weekStart, calendar: calendar) * 1_000
     }
 }
 
