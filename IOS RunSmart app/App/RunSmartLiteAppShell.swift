@@ -621,6 +621,11 @@ struct RunSmartLiteAppShell: View {
     /// Universal links and custom URLs. An invite link never falls through to auth.
     /// Coach Mode off does not open the join screen.
     private func openIncomingURL(_ url: URL) {
+        // Live Activity and widget taps: runsmart://run/live, /debrief, /start.
+        if RunSmartRunDeepLink.isRunLink(url) {
+            router.selectedTab = .run
+            return
+        }
         let canOpenJoinNow = !session.isLoading && session.isAuthenticated && session.hasCompletedOnboarding
         let consumed = coachLinks.receiveInviteLink(
             url,

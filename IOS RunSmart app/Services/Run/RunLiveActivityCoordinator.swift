@@ -212,7 +212,8 @@ final class RunLiveActivityCoordinator: ObservableObject {
             endCurrent(dismissal: .immediate, state: current.state)
         }
 
-        let state = RunLiveActivityMapper.state(from: input, now: now)
+        var state = RunLiveActivityMapper.state(from: input, now: now)
+        state.splitHighlightUntil = splitHighlight(for: state, now: now)
         let staleDate = now.addingTimeInterval(RunLiveActivityUpdatePolicy.staleAfter)
 
         guard var handle = current else {
@@ -245,6 +246,19 @@ final class RunLiveActivityCoordinator: ObservableObject {
         handle.state = state
         current = handle
         lastSentAt = now
+    }
+
+    /// A newly crossed kilometer pops the split chip for 30 seconds; it then hides on the next
+    /// update. A recovered run's existing splits never pop.
+    static let splitHighlightDuration: TimeInterval = 30
+
+    private func splitHighlight(for state: RunLiveActivityState, now: Date) -> Date? {
+        guard let previous = current?.state, lastSentAt != nil else { return nil }
+        if let km = state.lastSplitKilometer, km != previous.lastSplitKilometer {
+            return now.addingTimeInterval(Self.splitHighlightDuration)
+        }
+        guard let until = previous.splitHighlightUntil, until > now else { return nil }
+        return until
     }
 
     private func handleNotLive(input: RunLiveActivityInput, now: Date) {
