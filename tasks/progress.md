@@ -1,9 +1,9 @@
 # 2026-11-20: Coach Experience v2 refined plan (C0.1)
 
 Current Phase: 1.2.6 (46) in App Review; Coach v2 refined plan written as a docs-only draft PR.
-Active Story: C0.1 refined plan, waiting for founder approval and the N1 decision (TestFlight only vs dark App Store build).
-Next Recommended Story: C7.0 coachV2Enabled gate plus kill switch, after the plan is approved.
-Blockers: Founder approval; N1; confirm 6 v1 coach migrations applied in production; APNs setup.
+Active Story: C0.1 refined plan; N1 decided B (dark App Store build, per-coach allowlist table). Waiting for plan approval.
+Next Recommended Story: C0.2 migration mirror check plus C7.0 gate, kill switch and pilot-coach allowlist, after plan approval.
+Blockers: Founder plan approval; confirm 6 v1 coach migrations applied in production; APNs setup.
 Last Validation: Docs only. Claims checked against origin/main 4a016b4 by code read; no build or tests run.
 Last Updated: 2026-11-20
 
