@@ -23,7 +23,13 @@ Changes in this release branch:
 - Privacy policy (runsmart-ai.com/privacy, updated 2026-11-02) mentions only the AI coach. Proposed line: "If you join a human coach with an invite code, that coach can see your runs and coach notes, and your route maps if you turn route sharing on. The coach keeps this access until you leave the coach in Profile."
 - Age rating banner: answers on "Location Sharing" are due by 2027-01-15. Coach Mode shares route maps with a coach, so answer it with Coach Mode in mind.
 
-## Reviewer coach link (needs founder yes; production writes)
+## Reviewer coach link
+
+Done 2026-11-20 with founder yes: the reviewer athlete (`runsmartteam@`) is linked to the pilot coach account (`nadav.yigal+coach@`, display name "Nadav"). Link id `3a4130fd-2178-43b7-9dc5-d450752bd3e5`, status active. No new account was created; the coach_profiles row already existed.
+
+Undo after review: `update coach_athlete_links set status='revoked', revoked_at=now() where id='3a4130fd-2178-43b7-9dc5-d450752bd3e5';`
+
+Original plan, kept for reference (a dedicated demo coach):
 
 The review notes say the reviewer athlete is already linked to a demo coach. Before Submit:
 1. Founder creates a coach account in the app (suggested `runsmartteam+coach@`) and sets a display name such as "RunSmart Demo Coach".

@@ -3,7 +3,7 @@
 Current Phase: Release 1.2.6 (46): Coach Mode on for all Release builds, plus Live Activity and weekly widget.
 Active Story: ASC 1.2.6 draft filled with build 46, What's New, review notes; not submitted.
 Next Recommended Story: Founder creates reviewer coach and athlete accounts, approves the coach_profiles insert, then Submit for Review.
-Blockers: Reviewer coach link (production insert), privacy policy line, PR merge and Submit all need founder yes.
+Blockers: Reviewer linked to pilot coach (done). Privacy policy line, PR #227 merge and Submit need founder.
 Last Validation: full suite 1145/0 (1 opt-in skip); CoachModeTests 19/0 after review fix; archive 46 passed backend check.
 Last Updated: 2026-11-19
 
