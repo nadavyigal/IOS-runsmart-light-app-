@@ -14,6 +14,10 @@ Changes in this release branch:
 - Export with `ExportOptionsAppStoreUpload.plist`: signed with Apple Distribution (8VC4R5M425), "Upload succeeded". The first attempt hung after creating its upload record and was killed; the retry succeeded.
 - Apple warning only: iOS 27 SDK required from April 2027.
 
+## Submitted (2026-11-20)
+
+PR #227 merged as 8f181b1 with founder yes. Founder said "Yes, merge and submit"; 1.2.6 (46) submitted at 07:12 local and shows Waiting for Review. Release option: automatic, to all users at once, keep rating.
+
 ## App Store Connect state (2026-11-20)
 
 - Version 1.2.6 created (Prepare for Submission). Build 46 attached. What's New and App Review notes saved and re-read after reload. Not submitted.
