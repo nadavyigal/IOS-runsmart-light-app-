@@ -6,7 +6,7 @@ struct ProfileTabView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var session: SupabaseSession
 
-    @State private var runner = RunnerProfile(name: "RunSmart Runner", goal: "Loading", streak: "--", level: "--", totalRuns: 0, totalDistance: 0, totalTime: "0h 0m")
+    @State private var runner = RunnerProfile(name: "", goal: "Loading", streak: "--", level: "--", totalRuns: 0, totalDistance: 0, totalTime: "0h 0m")
     @State private var achievements: [Achievement] = []
     @State private var deviceStatuses: [ConnectedDeviceStatus] = []
     @State private var recentRuns: [RecordedRun] = []
@@ -90,7 +90,7 @@ struct ProfileTabView: View {
         HStack(spacing: 18) {
             CoachAvatar(size: 118, showBolt: true)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(runner.name)
+                    Text(RunnerName.label(runner.name))
                         .font(.displayMD)
                         .foregroundStyle(Color.textPrimary)
                         .lineLimit(1)

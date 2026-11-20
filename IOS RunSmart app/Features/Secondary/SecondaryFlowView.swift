@@ -3042,6 +3042,7 @@ private struct AccountScaffold: View {
     @State private var showDeleteAccountConfirmation = false
     @State private var isDeletingAccount = false
     @State private var deleteAccountError: String?
+    @State private var showNameSheet = false
 
     private var email: String {
         session.currentEmail ?? "--"
@@ -3139,14 +3140,22 @@ private struct AccountScaffold: View {
                             .font(.system(size: 38))
                             .foregroundStyle(Color.lime)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(session.displayName.isEmpty ? "RunSmart Runner" : session.displayName)
+                            Text(RunnerName.resolved(session.displayName) ?? "Add your name")
                                 .font(.headline)
+                                .foregroundStyle(RunnerName.resolved(session.displayName) == nil ? Color.mutedText : Color.textPrimary)
                             Text(email)
                                 .font(.caption)
                                 .foregroundStyle(Color.mutedText)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
+                        Spacer(minLength: 8)
+                        Button(RunnerName.resolved(session.displayName) == nil ? "Add" : "Edit") {
+                            showNameSheet = true
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("Edit your name")
+                        .accessibilityIdentifier("settings.editName")
                     }
                 }
             }
@@ -3214,6 +3223,9 @@ private struct AccountScaffold: View {
                     .disabled(isDeletingAccount || isSigningOut || isDemoMode)
                 }
             }
+        }
+        .sheet(isPresented: $showNameSheet) {
+            RunnerNameSheet(currentName: session.displayName)
         }
         .confirmationDialog(
             "Delete your RunSmart account?",

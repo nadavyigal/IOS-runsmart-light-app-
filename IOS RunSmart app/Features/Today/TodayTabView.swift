@@ -34,6 +34,7 @@ struct TodayTabView: View {
     // dedupes per prompt so a scroll away and back doesn't double-count.
     @AppStorage("runsmart.adaptiveCoach.lastDismissedAt") private var adaptiveCoachDismissedAt: Double = 0
     @State private var adaptiveCoachShownFor: AdaptiveCoachPrompt?
+    @State private var showNameSheet = false
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -218,6 +219,9 @@ struct TodayTabView: View {
         .task {
             await loadData()
         }
+        .sheet(isPresented: $showNameSheet) {
+            RunnerNameSheet(currentName: session.onboardingProfile.displayName)
+        }
         .task(id: coachPresence.coach?.id) {
             await refreshCoachWelcome()
         }
@@ -313,11 +317,18 @@ struct TodayTabView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("\(greeting), \(displayName)")
+                Text(RunnerName.greeting(greeting, name: session.onboardingProfile.displayName))
                     .font(.displayMD)
                     .foregroundStyle(Color.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
+                if RunnerName.resolved(session.onboardingProfile.displayName) == nil {
+                    Button("Add your name") { showNameSheet = true }
+                        .font(.bodyMD.weight(.semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("today.addName")
+                }
                 // WP-44 S3: backends send "12 days", "12 day streak", or even
                 // "3x/week" — bolting " day streak" onto the raw value produced
                 // "12 days day streak" and mislabeled non-streak cadences.
@@ -519,11 +530,6 @@ struct TodayTabView: View {
         } else {
             openTodayCoach()
         }
-    }
-
-    private var displayName: String {
-        let name = session.onboardingProfile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? "Runner" : name
     }
 
     private var weekRangeLabel: String {
