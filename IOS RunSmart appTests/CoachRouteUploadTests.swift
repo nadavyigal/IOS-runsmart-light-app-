@@ -42,9 +42,8 @@ final class CoachRouteUploadTests: XCTestCase {
                            ], syncedAt: nil)
     }
 
-    func testPolicyIsOnAndReleaseCoachModeStillUploadsNothing() throws {
+    func testPolicyIsOnAndOutboxStagesNothingWhenCoachModeIsOff() throws {
         XCTAssertTrue(RouteUploadPolicy.isEnabled)
-        XCTAssertFalse(RunSmartFeatures.coachModeEnabled(processArguments: [], isDebugBuild: false))
         let suite = UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }

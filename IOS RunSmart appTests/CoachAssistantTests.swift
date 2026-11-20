@@ -18,20 +18,14 @@ final class CoachAssistantTests: XCTestCase {
         let message: String
     }
 
-    func testCoachModeFlagStaysOffUnlessDebugLaunchArgumentIsSet() {
-        XCTAssertFalse(RunSmartFeatures.coachModeEnabled(processArguments: [], isDebugBuild: true))
-        XCTAssertFalse(RunSmartFeatures.coachModeEnabled(processArguments: ["-enable-coach-mode"], isDebugBuild: false))
-        XCTAssertTrue(RunSmartFeatures.coachModeEnabled(processArguments: ["-enable-coach-mode"], isDebugBuild: true))
-    }
-
-    func testCoachModeIsOnInTestFlightAndOffInTheAppStore() {
-        XCTAssertTrue(RunSmartFeatures.coachModeEnabled(processArguments: [], isDebugBuild: false, receiptName: "sandboxReceipt"),
-                      "TestFlight installs (the pilot) see Coach Mode")
-        XCTAssertFalse(RunSmartFeatures.coachModeEnabled(processArguments: [], isDebugBuild: false, receiptName: "receipt"),
-                       "App Store installs never do")
-        XCTAssertFalse(RunSmartFeatures.coachModeEnabled(processArguments: [], isDebugBuild: false, receiptName: nil))
-        XCTAssertFalse(RunSmartFeatures.coachModeEnabled(processArguments: ["-enable-coach-mode"], isDebugBuild: false, receiptName: "receipt"),
-                       "the launch argument does nothing outside debug")
+    func testCoachModeIsOnInEveryReleaseBuildAndOptInForDebug() {
+        XCTAssertTrue(RunSmartFeatures.coachModeEnabled(processArguments: [], isDebugBuild: false),
+                      "TestFlight and App Store builds both show Coach Mode")
+        XCTAssertTrue(RunSmartFeatures.coachModeEnabled(processArguments: ["-enable-coach-mode"], isDebugBuild: false))
+        XCTAssertTrue(RunSmartFeatures.coachModeEnabled(processArguments: ["-enable-coach-mode"], isDebugBuild: true),
+                      "debug builds opt in with the launch argument")
+        XCTAssertFalse(RunSmartFeatures.coachModeEnabled(processArguments: [], isDebugBuild: true),
+                       "debug builds stay off without it")
     }
 
     func testSoloContextOmitsTheCoachAndLinkedContextCarriesEmptyLocks() throws {

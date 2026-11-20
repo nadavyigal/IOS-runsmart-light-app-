@@ -1,30 +1,20 @@
 import Foundation
 
 nonisolated enum RunSmartFeatures {
-    /// Coach Mode pilot: on in TestFlight builds, off in App Store builds.
+    /// Coach Mode is on in every Release build (TestFlight and the App Store).
     /// Debug builds turn it on with the `-enable-coach-mode` launch argument.
+    /// Only accounts with a `coach_profiles` row get the Coach tab; athletes see "Join a coach".
     static let coachModeEnabled: Bool = {
 #if DEBUG
         coachModeEnabled(processArguments: ProcessInfo.processInfo.arguments, isDebugBuild: true)
 #else
-        coachModeEnabled(
-            processArguments: ProcessInfo.processInfo.arguments,
-            isDebugBuild: false,
-            receiptName: Bundle.main.appStoreReceiptURL?.lastPathComponent
-        )
+        coachModeEnabled(processArguments: ProcessInfo.processInfo.arguments, isDebugBuild: false)
 #endif
     }()
 
-    /// `receiptName` is the app receipt's file name. TestFlight installs carry
-    /// "sandboxReceipt" (the same signal `AnalyticsService.resolveInternalTester` uses);
-    /// App Store installs carry "receipt", so the App Store build never shows Coach Mode.
-    static func coachModeEnabled(processArguments: [String], isDebugBuild: Bool, receiptName: String? = nil) -> Bool {
-        if isDebugBuild && processArguments.contains("-enable-coach-mode") { return true }
-        return isTestFlight(receiptName: receiptName)
-    }
-
-    static func isTestFlight(receiptName: String?) -> Bool {
-        receiptName == "sandboxReceipt"
+    static func coachModeEnabled(processArguments: [String], isDebugBuild: Bool) -> Bool {
+        if isDebugBuild { return processArguments.contains("-enable-coach-mode") }
+        return true
     }
 
     /// Invite URLs are reserved for Story 1.4 and must never enter authentication handling.
