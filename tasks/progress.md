@@ -1,3 +1,12 @@
+# 2026-11-20: RunSmart 1.2.6 (46) submitted to App Review
+
+Current Phase: 1.2.6 (46) Waiting for Review; auto-release to all users on approval. PR #227 merged (8f181b1).
+Active Story: None; waiting on Apple review.
+Next Recommended Story: Add human-coach line to web privacy policy; after approval, revoke reviewer coach link 3a4130fd.
+Blockers: None for review. Age rating Location Sharing answers due 2027-01-15.
+Last Validation: full suite 1145/0; archive 46 backend check passed; ASC shows 1.2.6 Waiting for Review.
+Last Updated: 2026-11-20
+
 # 2026-11-19: Release 1.2.6 (46) to App Store review
 
 Current Phase: Release 1.2.6 (46): Coach Mode on for all Release builds, plus Live Activity and weekly widget.
