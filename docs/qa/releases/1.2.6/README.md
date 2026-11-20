@@ -6,6 +6,14 @@ Changes in this release branch:
 - Coach Mode is on in every Release build (`RunSmartFeatures.coachModeEnabled`). Only accounts with a `coach_profiles` row get the Coach tab. Athletes see "Join a coach" in Profile and on sign-in.
 - `CURRENT_PROJECT_VERSION` = 46 on the app, tests and Live Activity extension. `MARKETING_VERSION` stays 1.2.6.
 
+## Build evidence (2026-11-20)
+
+- Archive: `~/Library/Developer/Xcode/Archives/2026-11-19/RunSmart-1.2.6-46.xcarchive`, from commit bd281ab.
+- App and `RunSmartRunLiveActivityExtension.appex` both 1.2.6 (46). Extension embedded. Both carry `group.com.runsmart.lite`. `NSSupportsLiveActivities` = true. PostHog key non-empty. `codesign --verify --deep --strict` ok.
+- `scripts/verify-release-backend.py`: passed, Auth settings HTTP 200, Apple and email enabled.
+- Export with `ExportOptionsAppStoreUpload.plist`: signed with Apple Distribution (8VC4R5M425), "Upload succeeded". The first attempt hung after creating its upload record and was killed; the retry succeeded.
+- Apple warning only: iOS 27 SDK required from April 2027.
+
 ## What's New (draft, paste into App Store Connect)
 
 ```

@@ -1,9 +1,9 @@
 # 2026-11-19: Release 1.2.6 (46) to App Store review
 
 Current Phase: Release 1.2.6 (46): Coach Mode on for all Release builds, plus Live Activity and weekly widget.
-Active Story: Release PR, then archive, upload, and fill the App Store Connect version page.
+Active Story: Build 46 uploaded 2026-11-20 (Upload succeeded); next fill the App Store Connect version page.
 Next Recommended Story: Founder creates reviewer coach and athlete accounts, approves the coach_profiles insert, then Submit for Review.
-Blockers: Founder yes for PR merge, production insert, and submission.
+Blockers: Founder ASC sign-in in Chrome; founder yes for PR merge, reviewer accounts insert, submission.
 Last Validation: full suite 1145/0 (1 opt-in skip); CoachModeTests 19/0 after review fix; archive 46 passed backend check.
 Last Updated: 2026-11-19
 
