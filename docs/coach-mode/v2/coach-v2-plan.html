@@ -1,0 +1,265 @@
+<title>Coach v2 Build Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; a training-block grid (lanes x waves) is the centerpiece. */
+:root{
+  --bg:#f6f7f9; --surface:#ffffff; --fg:#17202b; --muted:#5b6675; --line:#dde2e8;
+  --accent:#0f6fd6; --accent-soft:#e3effc;
+  --gate:#6b4fd8; --gate-soft:#ece7fd;
+  --laneA:#0e8a6a; --laneA-soft:#dff3ec;
+  --laneB:#c2410c; --laneB-soft:#fdeadf;
+  --laneC:#0f6fd6; --laneC-soft:#e3effc;
+  --nadav:#8a6a00; --nadav-soft:#fbf2d3;
+  --ok:#11795a; --warn:#a15c00;
+  --display:"Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --body:"Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f141a; --surface:#161d25; --fg:#e7ecf2; --muted:#9aa6b4; --line:#2a3440;
+  --accent:#5aa5f5; --accent-soft:#16283c;
+  --gate:#a793f5; --gate-soft:#241d3d;
+  --laneA:#45c39f; --laneA-soft:#12302a;
+  --laneB:#f08a52; --laneB-soft:#3a2418;
+  --laneC:#5aa5f5; --laneC-soft:#16283c;
+  --nadav:#e2c15a; --nadav-soft:#332a10;
+  --ok:#45c39f; --warn:#f0b35a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141a; --surface:#161d25; --fg:#e7ecf2; --muted:#9aa6b4; --line:#2a3440;
+  --accent:#5aa5f5; --accent-soft:#16283c;
+  --gate:#a793f5; --gate-soft:#241d3d;
+  --laneA:#45c39f; --laneA-soft:#12302a;
+  --laneB:#f08a52; --laneB-soft:#3a2418;
+  --laneC:#5aa5f5; --laneC-soft:#16283c;
+  --nadav:#e2c15a; --nadav-soft:#332a10;
+  --ok:#45c39f; --warn:#f0b35a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.55;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:32px 64px}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:2rem;letter-spacing:-.01em}
+h2{font-size:1.35rem}
+h3{font-size:1.02rem}
+p{margin:0;max-width:68ch}
+code,.mono{font-family:var(--mono);font-size:.86em}
+.eyebrow{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+header{display:flex;flex-direction:column;gap:12px}
+.lede{font-size:1.06rem;color:var(--fg)}
+.meta{color:var(--muted);font-size:.88rem}
+section{display:flex;flex-direction:column;gap:16px}
+.verdict{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.verdict div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.verdict b{font-family:var(--display);font-size:1.6rem;font-variant-numeric:tabular-nums}
+.verdict span{color:var(--muted);font-size:.88rem}
+.decision{background:var(--nadav-soft);border:1px solid var(--nadav);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px}
+.decision h2{color:var(--fg)}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.opt{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.opt.rec{border:2px solid var(--nadav)}
+.opt ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.pill{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:99px;letter-spacing:.03em}
+.pill.rec{background:var(--nadav);color:var(--surface)}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+/* training-block grid */
+.grid{display:grid;grid-template-columns:120px repeat(10,minmax(92px,1fr));min-width:1100px}
+.grid > div{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:8px;font-size:.82rem;min-height:52px}
+.grid .hd{background:var(--bg);font-weight:600;color:var(--muted);font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;min-height:auto}
+.grid .rowh{font-weight:600;font-size:.84rem;display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.chip{display:block;border-radius:6px;padding:4px 6px;font-weight:600;font-family:var(--mono);font-size:.76rem;margin-bottom:4px}
+.chip small{display:block;font-family:var(--body);font-weight:400;font-size:.72rem;opacity:.9}
+.g{background:var(--gate-soft);color:var(--gate)} .a{background:var(--laneA-soft);color:var(--laneA)}
+.b{background:var(--laneB-soft);color:var(--laneB)} .c{background:var(--laneC-soft);color:var(--laneC)}
+.n{background:var(--nadav-soft);color:var(--nadav)}
+.gatebar{display:block;border-radius:6px;padding:4px 6px;font-weight:700;font-size:.76rem;background:var(--fg);color:var(--bg);margin-top:4px}
+.releases{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.rel .tag{font-family:var(--mono);font-size:.78rem;color:var(--muted)}
+.rel.later{background:transparent;border-style:dashed}
+.rel b.count{font-family:var(--display);font-size:1.3rem}
+.changes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.change{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.change .id{font-family:var(--mono);font-size:.78rem;color:var(--accent);font-weight:500}
+ol.todo{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+summary{cursor:pointer;padding:12px 16px;font-weight:600}
+details .scroll{border:0;border-top:1px solid var(--line);border-radius:0 0 10px 10px}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:720px){
+  .verdict,.opts,.changes{grid-template-columns:1fr}
+  .releases{grid-template-columns:1fr 1fr}
+  h1{font-size:1.6rem}
+}
+@media (max-width:420px){.releases{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">RunSmart iOS · Coach Experience v2 · refined plan C0.1 · 2026-11-20</span>
+  <h1>Coach v2 build plan</h1>
+  <p class="lede">Same stories and decisions as Grok's v1.3 plan. What changes: the order, three parallel lanes, an earlier first gate, and a stop/go point after coaches can build workouts.</p>
+  <p class="meta">Checked against RunSmart iOS <code>origin/main</code> @ <code>4a016b4</code>. Source file in the repo: <code>docs/coach-experience-v2-plan.md</code>. No code or migration is written until you approve.</p>
+</header>
+
+<section class="verdict" aria-label="Summary numbers">
+  <div><b>9 PRs</b><span>to the first coach gate (TF-1a). v1.3 needed 16 plus push.</span></div>
+  <div><b>20 PRs</b><span>until coaches build workouts on TestFlight (TF-2).</span></div>
+  <div><b>15 stories</b><span>wait for a stop/go after TF-2. None deleted.</span></div>
+</section>
+
+<section class="decision" aria-labelledby="n1">
+  <span class="eyebrow">Your decision · N1</span>
+  <h2 id="n1">How do pilot athletes get v2?</h2>
+  <p>v1.3 turns v2 on only in TestFlight builds. With D4 (coach and athlete both need v2), every pilot athlete must install TestFlight. Beginner runners often won't.</p>
+  <div class="opts">
+    <div class="opt">
+      <h3>A. TestFlight only (v1.3 as written)</h3>
+      <ul><li>Zero risk to App Store users</li><li>Every athlete installs TestFlight and keeps it updated</li><li>Coach roster can fill with "needs the latest RunSmart"</li></ul>
+    </div>
+    <div class="opt rec">
+      <h3>B. Dark in the App Store build <span class="pill rec">RECOMMENDED</span></h3>
+      <ul><li>v2 ships in the App Store build, switched off</li><li>The server allowlist turns it on per pilot coach (<code>runtime_flags</code>)</li><li>Athletes just update the app</li><li>Cost: one extra condition in C7.0</li></ul>
+    </div>
+  </div>
+  <p>Until you answer, C7.0 builds both paths with the App Store path off. Either answer costs one line later.</p>
+</section>
+
+<section aria-labelledby="rel">
+  <h2 id="rel">Releases and gates</h2>
+  <div class="releases">
+    <div class="rel"><span class="tag">R1 · Batch A</span><h3>Coach sees how athletes feel</h3><b class="count">9 PRs</b><span>Coach Today, consent, RPE + notes, pain flag, replies, new markers, remove athlete, milestones.</span><span class="gatebar">TF-1a · in-app, no push</span></div>
+    <div class="rel"><span class="tag">R2 · Batch B</span><h3>Coach gets told</h3><b class="count">3 PRs</b><span>Push foundation, settings screens, push sender with quiet hours and collapse.</span><span class="gatebar">TF-1b · push + kill-switch drill</span></div>
+    <div class="rel"><span class="tag">R3 · Batch C</span><h3>Coach builds workouts</h3><b class="count">8 PRs</b><span>Lock columns and triggers, AI respects locks, create / edit / move / delete, athlete skip/move, goal-change warning, bundled push.</span><span class="gatebar">TF-2 · then stop/go</span></div>
+    <div class="rel later"><span class="tag">R4+ · decide after TF-2</span><h3>Pick with pilot data</h3><b class="count">15 stories</b><span>Evening summary, self sign-up, interval editor, AI drafts + publish, calendar, templates, groups, broadcast, Phase 3.</span></div>
+  </div>
+</section>
+
+<section aria-labelledby="lanes">
+  <h2 id="lanes">Parallel lanes, wave by wave</h2>
+  <p>At most 3 sessions write code at once, because your review is the bottleneck. Each lane owns its files. A dependent story starts from <code>main</code> after its parent is merged.</p>
+  <div class="scroll" role="region" aria-label="Lanes by wave" tabindex="0">
+    <div class="grid">
+      <div class="hd">Lane</div><div class="hd">W1</div><div class="hd">W2</div><div class="hd">W3</div><div class="hd">W4</div><div class="hd">W5</div><div class="hd">W6</div><div class="hd">W7</div><div class="hd">W8</div><div class="hd">W9</div><div class="hd">W10</div>
+
+      <div class="rowh"><span class="dot" style="background:var(--gate)"></span>Gate</div>
+      <div><span class="chip g">C7.0<small>gate + kill switch</small></span></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
+
+      <div class="rowh"><span class="dot" style="background:var(--laneA)"></span>A · athlete data</div>
+      <div></div>
+      <div><span class="chip a">C7.8<small>consent v2</small></span></div>
+      <div><span class="chip a">C7.3<small>RPE + notes</small></span></div>
+      <div><span class="chip a">C7.4<small>pain flag</small></span></div>
+      <div><span class="chip a">C7.7<small>replies</small></span></div>
+      <div><span class="chip a">C8.1a<small>workout locks</small></span></div>
+      <div><span class="chip a">C8.1b<small>plan locks</small></span></div>
+      <div><span class="chip a">C8.5<small>AI respects locks</small></span></div>
+      <div></div><div></div>
+
+      <div class="rowh"><span class="dot" style="background:var(--laneB)"></span>B · coach screens</div>
+      <div></div>
+      <div><span class="chip b">C7.1<small>Coach Today</small></span></div>
+      <div><span class="chip b">C7.2<small>new markers</small></span></div>
+      <div><span class="chip b">C7.11<small>remove athlete</small></span></div>
+      <div><span class="chip b">C7.16<small>milestones</small></span></div>
+      <div></div><div></div><div></div>
+      <div><span class="chip b">C8.15<small>skip / move</small></span><span class="chip b">C7.9<small>goal change</small></span></div>
+      <div><span class="chip b">C8.2<small>create workout</small></span><span class="chip b">C8.4<small>edit / move</small></span></div>
+
+      <div class="rowh"><span class="dot" style="background:var(--laneC)"></span>C · push</div>
+      <div></div>
+      <div><span class="chip c">C7.10<small>push base</small></span></div>
+      <div><span class="chip c">C7.14<small>settings</small></span></div>
+      <div></div><div></div>
+      <div><span class="chip c">C7.5<small>push sender</small></span></div>
+      <div></div>
+      <div><span class="chip c">C8.16<small>bundled push</small></span></div>
+      <div></div><div></div>
+
+      <div class="rowh"><span class="dot" style="background:var(--nadav)"></span>You</div>
+      <div><span class="chip n">Approve plan<small>N1, N2, APNs, invites</small></span></div>
+      <div><span class="chip n">Review 3<small>draft PRs</small></span></div>
+      <div></div><div></div>
+      <div><span class="chip n">Apply A</span><span class="gatebar">TF-1a</span></div>
+      <div><span class="chip n">APNs secrets</span></div>
+      <div><span class="chip n">Apply B</span><span class="gatebar">TF-1b</span></div>
+      <div><span class="chip n">Apply C<small>quiet time</small></span></div>
+      <div><span class="chip n">Digest cron</span></div>
+      <div><span class="gatebar">TF-2 · stop/go</span></div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="chg">
+  <h2 id="chg">What changed from v1.3</h2>
+  <div class="changes">
+    <div class="change"><span class="id">S1</span><h3>Kill switch folds into the gate</h3><p>C7.12 joins C7.0: one migration, one function (<code>link_is_v2</code>), one review. All ACs stay.</p></div>
+    <div class="change"><span class="id">S2 · S3</span><h3>Two helper stories fold in</h3><p>Hebrew/English text helpers go into C7.3. Analytics events go into each story; C7.0 creates the empty <code>CoachV2Analytics</code>.</p></div>
+    <div class="change"><span class="id">S4</span><h3>Push no longer blocks coach value</h3><p>TF-1 splits into TF-1a (in-app) and TF-1b (push). Apple push setup can't delay the first coach test.</p></div>
+    <div class="change"><span class="id">S5</span><h3>Stop/go after TF-2</h3><p>15 stories wait for pilot data. Interval editor can wait: the app already renders <code>workout_structure</code> JSON and text intervals.</p></div>
+    <div class="change"><span class="id">S6</span><h3>Migration names reserved now</h3><p>12 timestamps after <code>20261118180000</code>, so parallel sessions never collide and nothing gets renamed.</p></div>
+    <div class="change"><span class="id">F3</span><h3>A hidden privacy gap</h3><p>Leave and account deletion purge <code>coach_plan_drafts</code>, but v1.3 names the table <code>coach_plan_versions</code>. C8.6 must fix both hooks and test it.</p></div>
+  </div>
+</section>
+
+<section aria-labelledby="facts">
+  <h2 id="facts">Fact check against the code</h2>
+  <div class="scroll" role="region" aria-label="Fact check table" tabindex="0">
+    <table>
+      <thead><tr><th>#</th><th>v1.3 says</th><th>Code says</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">F1</td><td>RPE + notes in <code>SupabaseRunSmartServices.swift</code> L683</td><td>Wrong file. <code>Services/Production/RunSmartProductionServices.swift:1701</code> and <code>:1709</code>. Device only, as v1.3 says.</td></tr>
+        <tr><td class="mono">F2</td><td>Analytics needs no migration (assumption)</td><td>Confirmed: PostHog, <code>Services/Analytics/AnalyticsService.swift</code>.</td></tr>
+        <tr><td class="mono">F3</td><td>No lock, draft or push-token objects exist</td><td>True, but <code>leave_coach</code> and <code>delete_account</code> already expect <code>coach_plan_drafts</code>.</td></tr>
+        <tr><td class="mono">F4</td><td>Live-run guide parses workout text</td><td>It reads <code>workout_structure</code> JSON first, then text. <code>StructuredWorkoutFactory.swift:20</code>.</td></tr>
+        <tr><td class="mono">F5</td><td>Known drift between iOS and web migrations</td><td>All 17 coach migrations exist on web <code>main</code>. Byte identity not checked.</td></tr>
+        <tr><td class="mono">F6</td><td>(not mentioned)</td><td><code>tasks/coach-mode-status.md</code> (Nov 18) lists 6 v1 migrations not applied to production. Not re-checked.</td></tr>
+        <tr><td class="mono">F8</td><td>Coach Mode on in App Store, no remote push, locks always empty</td><td>All confirmed.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="you">
+  <h2 id="you">What you do outside code</h2>
+  <ol class="todo">
+    <li><b>N1:</b> pick A or B above. I recommend B.</li>
+    <li><b>N2:</b> confirm the 6 v1 coach migrations (<code>20261118100000</code> to <code>20261118180000</code>) are applied in production, before Batch A.</li>
+    <li><b>N3:</b> APNs key, Push capability on the App ID, secrets in Supabase. Start now; needed by wave 6.</li>
+    <li><b>N4:</b> TestFlight invites to both pilot coaches now (and athletes too if you pick A).</li>
+    <li><b>N5:</b> apply Batches A, B, C after each audit and 1.2.6 regression.</li>
+    <li><b>N6:</b> stop/go after TF-2, using SM-V1 to SM-V6.</li>
+  </ol>
+</section>
+
+<details>
+  <summary>Reserved migration files (12)</summary>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Batch</th><th>File</th><th>Story</th></tr></thead>
+      <tbody>
+        <tr><td>A</td><td class="mono">20261121100000_coach_v2_gate.sql</td><td>C7.0</td></tr>
+        <tr><td>A</td><td class="mono">20261121110000_coach_consent_v2.sql</td><td>C7.8</td></tr>
+        <tr><td>A</td><td class="mono">20261121120000_athlete_run_sharing.sql</td><td>C7.3</td></tr>
+        <tr><td>A</td><td class="mono">20261121130000_coach_last_seen_and_events.sql</td><td>C7.2</td></tr>
+        <tr><td>A</td><td class="mono">20261121140000_coach_feedback_replies.sql</td><td>C7.7</td></tr>
+        <tr><td>A</td><td class="mono">20261121150000_athlete_run_flags.sql</td><td>C7.4</td></tr>
+        <tr><td>A</td><td class="mono">20261121160000_coach_link_end.sql</td><td>C7.11</td></tr>
+        <tr><td>A</td><td class="mono">20261121170000_coach_milestones.sql (only if needed)</td><td>C7.16</td></tr>
+        <tr><td>B</td><td class="mono">20261122100000_push_tokens_and_prefs.sql</td><td>C7.10</td></tr>
+        <tr><td>B</td><td class="mono">20261122110000_notification_log_and_deferred.sql</td><td>C7.5</td></tr>
+        <tr><td>C</td><td class="mono">20261201100000_coach_workout_locks.sql</td><td>C8.1a</td></tr>
+        <tr><td>C</td><td class="mono">20261201110000_coach_plan_locks.sql</td><td>C8.1b</td></tr>
+      </tbody>
+    </table>
+  </div>
+</details>
+
+<p class="meta">Estimates are guesses at about one merged PR per working day per lane. Every story's ACs, schema, invariants and tests stay as in v1.3; decisions D1 to D14 are unchanged.</p>
+</div>
