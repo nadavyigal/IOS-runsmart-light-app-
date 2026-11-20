@@ -1640,7 +1640,7 @@ struct ProductionRunSmartServices: RunSmartServiceProviding, RouteProviding, Dev
         let totalHours: Int = Int(totalSeconds / 3_600)
         let totalMinutes: Int = Int(totalSeconds.truncatingRemainder(dividingBy: 3_600)) / 60
         return RunnerProfile(
-            name: profile.displayName.isEmpty ? "RunSmart Runner" : profile.displayName,
+            name: RunnerName.label(profile.displayName),
             goal: profile.goal,
             streak: "\(profile.weeklyRunDays)x/week",
             level: profile.experience,

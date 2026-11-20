@@ -752,3 +752,7 @@ Removing the share-map toggle made the old mapUnavailable advice impossible to f
 ## 2026-11-17 — Use fresh DerivedData after a handoff
 
 An inherited Cursor build still held its Xcode database. Use fresh DerivedData after a handoff unless the inherited build process has been confirmed stopped.
+
+## 2026-11-20 — Never save a placeholder as user data
+
+Onboarding never asked for a name and saved "RunSmart Runner" instead. 24 of 25 production profiles had no real name, Today said "Good morning, RunSmart Runner", and every unnamed athlete looked identical in the coach list. Save an empty value and decide the fallback at display time, in one place (`Services/RunnerName.swift`). When a placeholder already shipped, treat it as empty on every read, client and server.
