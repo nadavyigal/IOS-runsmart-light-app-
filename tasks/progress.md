@@ -1,3 +1,12 @@
+# 2026-11-20: Runner name fix, no more "RunSmart Runner"
+
+Current Phase: 1.2.6 (46) in App Review; runner-name fix on branch fix/runner-display-name for the next build.
+Active Story: Onboarding asks for a name; Today, Settings and Profile show it; coach list stops showing duplicate placeholders.
+Next Recommended Story: Merge PR #229, ship the next TestFlight build, set names on both test phones; mirror migration to web repo.
+Blockers: Migration applied to prod 2026-11-20 (remote 20261120094612). Tier 2 merge needs founder yes and cross-vendor review.
+Last Validation: iPhone 17 simulator, full unit suite 1151 passed, 0 failed, 1 skipped; simulator check of onboarding, Account edit, Today.
+Last Updated: 2026-11-20
+
 # 2026-11-20: RunSmart 1.2.6 (46) submitted to App Review
 
 Current Phase: 1.2.6 (46) Waiting for Review; auto-release to all users on approval. PR #227 merged (8f181b1).
