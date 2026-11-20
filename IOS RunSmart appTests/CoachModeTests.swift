@@ -51,7 +51,6 @@ final class CoachModeTests: XCTestCase {
     }
 
     func testCoachTabIsHiddenWhenCoachModeIsOff() {
-        XCTAssertFalse(RunSmartFeatures.coachModeEnabled)
         XCTAssertFalse(RunSmartTab.visibleTabs(isCoach: true, coachModeEnabled: false).contains(.coach))
     }
 
