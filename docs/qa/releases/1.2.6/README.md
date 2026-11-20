@@ -14,6 +14,33 @@ Changes in this release branch:
 - Export with `ExportOptionsAppStoreUpload.plist`: signed with Apple Distribution (8VC4R5M425), "Upload succeeded". The first attempt hung after creating its upload record and was killed; the retry succeeded.
 - Apple warning only: iOS 27 SDK required from April 2027.
 
+## App Store Connect state (2026-11-20)
+
+- Version 1.2.6 created (Prepare for Submission). Build 46 attached. What's New and App Review notes saved and re-read after reload. Not submitted.
+- Build 46 email: only ITMS-90725 (iOS 27 SDK from April 2027). Not blocking.
+- Sign-In Information keeps the existing dedicated reviewer account (`runsmartteam@`), not a personal account.
+- App Privacy: no change needed. Location, Fitness, Health and Other User Content are already declared for App Functionality and linked to the user. Showing data to a coach the user joined is user-directed, not tracking.
+- Privacy policy (runsmart-ai.com/privacy, updated 2026-11-02) mentions only the AI coach. Proposed line: "If you join a human coach with an invite code, that coach can see your runs and coach notes, and your route maps if you turn route sharing on. The coach keeps this access until you leave the coach in Profile."
+- Age rating banner: answers on "Location Sharing" are due by 2027-01-15. Coach Mode shares route maps with a coach, so answer it with Coach Mode in mind.
+
+## Reviewer coach link (needs founder yes; production writes)
+
+The review notes say the reviewer athlete is already linked to a demo coach. Before Submit:
+1. Founder creates a coach account in the app (suggested `runsmartteam+coach@`) and sets a display name such as "RunSmart Demo Coach".
+2. Run in Supabase SQL (production):
+
+```sql
+-- ids
+select id, email from auth.users where email in ('<coach email>', '<reviewer athlete email>');
+-- make the coach
+insert into coach_profiles (user_id, display_name) values ('<coach id>', 'RunSmart Demo Coach');
+-- link the reviewer athlete (same shape join_coach writes)
+insert into coach_athlete_links (coach_id, athlete_id, status, consented_at)
+values ('<coach id>', '<athlete id>', 'active', now());
+```
+
+Undo: `update coach_athlete_links set status='revoked', revoked_at=now() where athlete_id='<athlete id>' and status='active'; delete from coach_profiles where user_id='<coach id>';`
+
 ## What's New (draft, paste into App Store Connect)
 
 ```
