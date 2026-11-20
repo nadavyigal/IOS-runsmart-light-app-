@@ -32,7 +32,7 @@
 
 | # | Change | Why |
 |---|---|---|
-| S1 | **Fold C7.12 (kill switch) into C7.0 (gate).** One migration (`M0`) creates `client_capabilities`, `runtime_flags` and `link_is_v2`, which reads both. All ACs of both stories stay. `docs/coach-v2-rollback.md` still ships in this PR. | Same SQL function, same tier (Opus high), one review. If N1 goes the App Store way, the kill switch is essential from day 1. |
+| S1 | **Fold C7.12 (kill switch) into C7.0 (gate).** One migration (`M0`) creates `client_capabilities`, `runtime_flags` and `link_is_v2`, which reads both. All ACs of both stories stay. `docs/coach-v2-rollback.md` still ships in this PR. | Same SQL function, same tier (Opus high), one review. With N1 = B, v2 code ships in the App Store build, so the kill switch is essential from day 1. |
 | S2 | **Fold C7.15 (mixed-direction text) into C7.3.** C7.3 is the first story that shows athlete text to the coach. Helpers and bidi fixtures keep their ACs. | A helper with no caller is hard to review. |
 | S3 | **Fold C7.13 (analytics) into the stories.** C7.0 creates the typed `CoachV2Analytics` with no events. Each story adds its own events from v1.3 §3.8. `docs/coach-v2-metrics.md` ships with C0.2. | Analytics has no migration (F2). Events are reviewed with the code that fires them. |
 | S4 | **Split TF-1 into TF-1a (in-app, after Batch A) and TF-1b (push, after Batch B).** | Push depends on Nadav's Apple setup (v1.3 R4). Coach Today, RPE, notes, flags, replies and removal all work without push. |
@@ -41,19 +41,19 @@
 
 **Result (guess):** 35 build PRs instead of 38. **20 PRs reach TF-2** (coach builds workouts on TestFlight). TF-1a, the first coach-visible gate, comes after 9 PRs, about 2 weeks after approval. TF-2 is about 4 to 5 weeks after approval, against about 6 in v1.3.
 
-### 0.3 One decision for Nadav (N1): how pilot athletes get v2
+### 0.3 Decision N1 (decided 2026-11-20: B): how pilot athletes get v2
 
 v1.3 puts v2 behind `coachV2Enabled`, ON only in Debug and TestFlight. With D4 (both sides need v2), **every pilot athlete must install TestFlight**. Beginner runners often won't, and the coach then sees "{Athlete} needs the latest RunSmart" for most of the roster (v1.3 R5).
 
-| | A. TestFlight only (v1.3 as written) | **B. Dark in the App Store build, switched on per coach (recommended)** |
+| | A. TestFlight only (v1.3 as written) | **B. Dark in the App Store build, switched on per coach (chosen)** |
 |---|---|---|
-| How | Build flag only. | Build flag ON for Debug and TestFlight. In App Store builds, v2 is ON only when the server allowlist (`runtime_flags.coach_v2_coach_ids`) contains the athlete's coach. The client reads it through the 15-minute flag cache v1.3 §3.7 already defines. |
+| How | Build flag only. | Build flag ON for Debug and TestFlight. In App Store builds, v2 is ON only when the user is a coach on the server allowlist (`coach_v2_pilot_coaches`), or an athlete linked to one. The client reads it through the 15-minute flag cache v1.3 §3.7 already defines. |
 | Athlete friction | High: install TestFlight, accept the invite, keep it updated. | None: a normal App Store update. |
 | Risk to solo users | None. | Low: v2 code ships but stays off for everyone not linked to an allowlisted coach. Same App Review per release as today. |
 | Extra work | None. | One extra condition in C7.0, plus a flag-off test for an App Store build with an unlisted coach. |
 
-**Recommendation: B**, because the pilot only works if athletes actually run v2. TF-1a and TF-1b still run on TestFlight with Nadav's own two phones first. The allowlist gets pilot coaches only after TF-1a passes. D4 does not change: both sides still need a v2-capable build.
-**Until Nadav answers, C7.0 builds both paths** with the App Store path hard-wired off, so either answer costs one line later.
+**Decision: B** (Nadav, 2026-11-20), because the pilot only works if athletes actually run v2. TF-1a and TF-1b still run on TestFlight with Nadav's own two phones first. The allowlist gets pilot coaches only after TF-1a passes. D4 does not change: both sides still need a v2-capable build.
+**What this means for C7.0:** v1.3's `runtime_flags` holds one boolean per key, so it cannot hold a coach list. M0 adds a table `coach_v2_pilot_coaches(coach_id uuid primary key references auth.users on delete cascade, added_at timestamptz not null default now())` with RLS on and no client policies, plus a security-definer RPC `coach_v2_pilot_access()` (`set search_path=''`) that returns true when `auth.uid()` is a listed coach or has an active link to one. `coachV2Enabled` = build flag (ON in Debug and TestFlight) OR, in App Store builds, `coach_v2_pilot_access()`. The table ships empty. The kill switch (`runtime_flags.coach_v2 = false`) overrides both, and `link_is_v2` also returns false for a pair whose coach is not listed when the athlete is on an App Store build. Required tests: App Store build + unlisted coach = v2 off; App Store build + listed coach = v2 on; kill switch off = v2 off in every build. Adding a coach to the list is a production data change, so Nadav does it, after TF-1a passes.
 
 ---
 
@@ -82,7 +82,7 @@ Tier and author model are unchanged from v1.3 unless the "Change" column says so
 |---|---|---|---|---|---|---|
 | C0.1 | Refined plan (this doc) | R0 | docs | none | none | Done in this PR |
 | C0.2 | Migration ledger, drift script, `docs/coach-v2-metrics.md` | R0 | docs | none | none | Smaller (F5); also owns the metrics doc (S3) |
-| C7.0 | `coachV2Enabled` gate + capabilities + **kill switch** + `CoachV2Analytics` shell | R1 | Gate | M0 | C0.1 | Absorbs C7.12 (S1) and the analytics shell (S3); builds both N1 paths |
+| C7.0 | `coachV2Enabled` gate + capabilities + **kill switch** + `CoachV2Analytics` shell | R1 | Gate | M0 | C0.1 | Absorbs C7.12 (S1) and the analytics shell (S3); adds the N1 = B per-coach allowlist |
 | C7.12 | Kill switch + rollback runbook | R1 | (in C7.0) | (in M0) | | Folded into C7.0 |
 | C7.13 | Analytics events + metric definitions | all | (in each story) | none | | Folded (S3) |
 | C7.15 | Mixed-direction text helpers | R1 | (in C7.3) | none | | Folded into C7.3 (S2) |
@@ -138,7 +138,7 @@ C7.4 adds a chip on Coach Today (lane B's screen): it starts only after C7.1 is 
 
 | Wave | Gate lane | Lane A | Lane B | Lane C | Nadav |
 |---|---|---|---|---|---|
-| 0 (now) | | | | | Approve this doc; answer N1; N2 (v1 migrations applied?); start APNs setup; TestFlight invites to both coaches. C0.2 runs in parallel. |
+| 0 (now) | | | | | Approve this doc; N2 (v1 migrations applied?); start APNs setup; TestFlight invites to both coaches. C0.2 runs in parallel. |
 | 1 | **C7.0** | | | | Review C7.0 |
 | 2 | | C7.8 | C7.1 | C7.10 | Review 3 drafts |
 | 3 | | C7.3 (+bidi) | C7.2 | C7.14 | |
@@ -183,10 +183,10 @@ The order inside Batch A matches v1.3. A story that needs a file not listed adds
 
 | # | Action | When |
 |---|---|---|
-| N1 | Choose A or B (§0.3). Recommendation: B. | Before C7.0 is reviewed |
+| N1 | Done 2026-11-20: B, dark in the App Store build with a per-coach allowlist (§0.3). Later: insert each pilot coach into `coach_v2_pilot_coaches` after TF-1a passes. | After TF-1a |
 | N2 | Confirm the 6 v1 coach migrations in `tasks/coach-mode-status.md` are applied in production (or apply them). | Before Batch A |
 | N3 | APNs: create the key, enable Push Notifications on the App ID, store the secrets in Supabase. Agents never handle the `.p8` key. | Start in wave 0; needed by wave 6 |
-| N4 | TestFlight invites to both pilot coaches (and their athletes if N1 = A). | Wave 0 |
+| N4 | TestFlight invites to both pilot coaches. Athletes need no TestFlight (N1 = B). | Wave 0 |
 | N5 | Apply Batches A, B, C after each audit and regression. | Waves 5, 7, 8 |
 | N6 | Stop/go after TF-2. | After wave 10 |
 

@@ -115,7 +115,7 @@ a{color:var(--accent)}
 </section>
 
 <section class="decision" aria-labelledby="n1">
-  <span class="eyebrow">Your decision · N1</span>
+  <span class="eyebrow">Decided 2026-11-20 · N1</span>
   <h2 id="n1">How do pilot athletes get v2?</h2>
   <p>v1.3 turns v2 on only in TestFlight builds. With D4 (coach and athlete both need v2), every pilot athlete must install TestFlight. Beginner runners often won't.</p>
   <div class="opts">
@@ -124,11 +124,11 @@ a{color:var(--accent)}
       <ul><li>Zero risk to App Store users</li><li>Every athlete installs TestFlight and keeps it updated</li><li>Coach roster can fill with "needs the latest RunSmart"</li></ul>
     </div>
     <div class="opt rec">
-      <h3>B. Dark in the App Store build <span class="pill rec">RECOMMENDED</span></h3>
-      <ul><li>v2 ships in the App Store build, switched off</li><li>The server allowlist turns it on per pilot coach (<code>runtime_flags</code>)</li><li>Athletes just update the app</li><li>Cost: one extra condition in C7.0</li></ul>
+      <h3>B. Dark in the App Store build <span class="pill rec">CHOSEN</span></h3>
+      <ul><li>v2 ships in the App Store build, switched off</li><li>A server allowlist turns it on per pilot coach (new table <code>coach_v2_pilot_coaches</code>)</li><li>Athletes just update the app</li><li>Cost: one extra condition in C7.0</li></ul>
     </div>
   </div>
-  <p>Until you answer, C7.0 builds both paths with the App Store path off. Either answer costs one line later.</p>
+  <p><b>You picked B.</b> C7.0 ships the per-coach allowlist empty, with three tests: unlisted coach = off, listed coach = on, kill switch = off everywhere. You add each pilot coach to the list after TF-1a passes.</p>
 </section>
 
 <section aria-labelledby="rel">
@@ -183,7 +183,7 @@ a{color:var(--accent)}
       <div></div><div></div>
 
       <div class="rowh"><span class="dot" style="background:var(--nadav)"></span>You</div>
-      <div><span class="chip n">Approve plan<small>N1, N2, APNs, invites</small></span></div>
+      <div><span class="chip n">Approve plan<small>N2, APNs, invites</small></span></div>
       <div><span class="chip n">Review 3<small>draft PRs</small></span></div>
       <div></div><div></div>
       <div><span class="chip n">Apply A</span><span class="gatebar">TF-1a</span></div>
@@ -229,10 +229,10 @@ a{color:var(--accent)}
 <section aria-labelledby="you">
   <h2 id="you">What you do outside code</h2>
   <ol class="todo">
-    <li><b>N1:</b> pick A or B above. I recommend B.</li>
+    <li><b>N1:</b> done, B. Later, after TF-1a: add each pilot coach to <code>coach_v2_pilot_coaches</code> (a new one-column table in C7.0).</li>
     <li><b>N2:</b> confirm the 6 v1 coach migrations (<code>20261118100000</code> to <code>20261118180000</code>) are applied in production, before Batch A.</li>
     <li><b>N3:</b> APNs key, Push capability on the App ID, secrets in Supabase. Start now; needed by wave 6.</li>
-    <li><b>N4:</b> TestFlight invites to both pilot coaches now (and athletes too if you pick A).</li>
+    <li><b>N4:</b> TestFlight invites to both pilot coaches now. Athletes need no TestFlight.</li>
     <li><b>N5:</b> apply Batches A, B, C after each audit and 1.2.6 regression.</li>
     <li><b>N6:</b> stop/go after TF-2, using SM-V1 to SM-V6.</li>
   </ol>
