@@ -1,3 +1,12 @@
+# 2026-11-21: Xcode Cloud archive backend check (draft PR)
+
+Current Phase: 1.2.6 (46) live on the App Store since 2026-11-20; Apple membership follow-ups.
+Active Story: plan PR 5, `ci_scripts/ci_post_xcodebuild.sh` runs the release backend check on Xcode Cloud archives.
+Next Recommended Story: Nadav OKs and creates the Xcode Cloud workflow; then debrief PRs 1-3 (on-device debrief as small opt-in).
+Blockers: Xcode Cloud and App Store Connect setup need founder OK.
+Last Validation: 2026-11-21 6 script unit tests pass; Release build 1.2.6 (46) passed the backend check through the script.
+Last Updated: 2026-11-21
+
 # 2026-11-20: RunSmart 1.2.6 (46) submitted to App Review
 
 Current Phase: 1.2.6 (46) Waiting for Review; auto-release to all users on approval. PR #227 merged (8f181b1).
