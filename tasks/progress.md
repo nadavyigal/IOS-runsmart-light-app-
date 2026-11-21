@@ -1,3 +1,12 @@
+# 2026-11-21: Coach v2 C0.2 migration ledger, drift script, metrics doc
+
+Current Phase: Coach Experience v2, R0 ground truth. C0.2 docs-only draft PR open; no product code or SQL.
+Active Story: C0.2 done: ledger, drift script (17 files, 0 drift), metrics doc. Awaiting overseer review.
+Next Recommended Story: C7.0 gate plus kill switch, after Nadav approves the plan PR and confirms N2.
+Blockers: N2: 6 v1 coach migrations (20261118100000 to 180000) possibly unapplied in prod. Plan PR #230 not merged.
+Last Validation: drift script exit 0 on both origin/main trees; scratch-copy test exits 1; 0 em dashes in new docs.
+Last Updated: 2026-11-21
+
 # 2026-11-20: RunSmart 1.2.6 (46) submitted to App Review
 
 Current Phase: 1.2.6 (46) Waiting for Review; auto-release to all users on approval. PR #227 merged (8f181b1).
