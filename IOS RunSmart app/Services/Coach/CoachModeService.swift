@@ -17,6 +17,67 @@ nonisolated enum RunSmartFeatures {
         return true
     }
 
+    // MARK: Coach Experience v2 gate (C7.0, decision N1 = B)
+
+    /// Debug builds turn v2 on with this launch argument.
+    static let coachV2LaunchArgument = "-enable-coach-v2"
+
+    /// Which build this is, as the server stores it in `client_capabilities.channel`.
+    static let coachV2Channel: CoachV2Channel = {
+#if DEBUG
+        coachV2Channel(isDebugBuild: true, receiptName: Bundle.main.appStoreReceiptURL?.lastPathComponent)
+#else
+        coachV2Channel(isDebugBuild: false, receiptName: Bundle.main.appStoreReceiptURL?.lastPathComponent)
+#endif
+    }()
+
+    /// TestFlight installs carry a "sandboxReceipt" (the signal `Analytics.resolveInternalTesterSignals`
+    /// uses); App Store installs carry "receipt".
+    static func coachV2Channel(isDebugBuild: Bool, receiptName: String?) -> CoachV2Channel {
+        if isDebugBuild { return .debug }
+        return receiptName == "sandboxReceipt" ? .testflight : .appStore
+    }
+
+    /// The build half of the gate: Debug with `-enable-coach-v2`, or any TestFlight build.
+    static func coachV2BuildFlag(channel: CoachV2Channel, processArguments: [String]) -> Bool {
+        switch channel {
+        case .debug: processArguments.contains(coachV2LaunchArgument)
+        case .testflight: true
+        case .appStore: false
+        }
+    }
+
+    /// v2 is on when the server kill switch (`runtime_flags.coach_v2`) is on AND either the build
+    /// flag is on, or this is an App Store build and `coach_v2_pilot_access()` said yes.
+    /// A Debug build without the argument stays off even with pilot access.
+    static func coachV2Enabled(
+        channel: CoachV2Channel,
+        processArguments: [String],
+        pilotAccess: Bool,
+        v2FlagOn: Bool
+    ) -> Bool {
+        guard v2FlagOn else { return false }
+        return coachV2WouldBeEnabled(channel: channel, processArguments: processArguments, pilotAccess: pilotAccess)
+    }
+
+    /// The same rule without the kill switch. True with the switch off means "paused", not "off".
+    static func coachV2WouldBeEnabled(channel: CoachV2Channel, processArguments: [String], pilotAccess: Bool) -> Bool {
+        if coachV2BuildFlag(channel: channel, processArguments: processArguments) { return true }
+        return channel == .appStore && pilotAccess
+    }
+
+    /// Live answer from the 15-minute flag cache. Off until the flags were read once,
+    /// so a fresh install offline, or a server without the v2 migration, stays on 1.2.6 behavior.
+    static var coachV2Enabled: Bool {
+        let snapshot = CoachV2FlagCache.standard.load()
+        return coachV2Enabled(
+            channel: coachV2Channel,
+            processArguments: ProcessInfo.processInfo.arguments,
+            pilotAccess: snapshot?.pilotAccess ?? false,
+            v2FlagOn: snapshot?.v2FlagOn ?? false
+        )
+    }
+
     /// Invite URLs are reserved for Story 1.4 and must never enter authentication handling.
     static func isCoachInviteURL(_ url: URL) -> Bool {
         url.host?.caseInsensitiveCompare("join") == .orderedSame

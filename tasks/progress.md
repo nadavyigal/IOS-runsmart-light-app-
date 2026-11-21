@@ -1,3 +1,12 @@
+# 2026-11-21: Coach v2 C7.0 gate, kill switch and pilot allowlist (draft PR)
+
+Current Phase: Coach Experience v2, wave 1 (Gate lane). C7.0 draft PRs open in iOS and web; nothing applied.
+Active Story: C7.0 (+C7.12, CoachV2Analytics shell, N1 = B allowlist), awaiting the overseeing Opus review.
+Next Recommended Story: Wave 2 after C7.0 merges: C7.8 (lane A), C7.1 (lane B), C7.10 (lane C).
+Blockers: Nadav applies M0 in Batch A after the Grok Bot audit and 1.2.6 regression. C0.2 ledger not on main.
+Last Validation: iOS full suite 1166/0 (1 skip) on iOS 26.5; SQL client_capabilities + kill_switch PASS on throwaway Postgres; Deno flags 8/0.
+Last Updated: 2026-11-21
+
 # 2026-11-20: RunSmart 1.2.6 (46) submitted to App Review
 
 Current Phase: 1.2.6 (46) Waiting for Review; auto-release to all users on approval. PR #227 merged (8f181b1).

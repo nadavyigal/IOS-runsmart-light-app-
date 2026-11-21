@@ -7,13 +7,46 @@ final class CoachAthleteListModel: ObservableObject {
     @Published private(set) var updatedAt: Date?
     @Published private(set) var failure = false
     @Published private(set) var offline = false
+    /// C7.0: what the v2 gate says for this coach. `.off` keeps the roster exactly as in 1.2.6.
+    @Published private(set) var coachV2: CoachV2State = .off
+    /// C7.0 AC6: athletes the server reports as not v2-capable. Only filled while v2 is on.
+    @Published private(set) var athletesNeedingUpdate: Set<UUID> = []
     private let service: any CoachReadServing
+    private let rosterStatus: @Sendable () async throws -> [UUID: Bool]
     private(set) var ownerID: UUID?
     private var generation = 0
     private var loading = false
 
-    init(service: any CoachReadServing = CoachReadService()) {
+    init(
+        service: any CoachReadServing = CoachReadService(),
+        rosterStatus: @escaping @Sendable () async throws -> [UUID: Bool] = {
+            try await SupabaseCoachV2GateRepository().rosterStatus()
+        }
+    ) {
         self.service = service
+        self.rosterStatus = rosterStatus
+    }
+
+    /// Called when `CoachV2Gate.state` changes. Off or paused makes no v2 call.
+    func applyCoachV2(_ state: CoachV2State) async {
+        coachV2 = state
+        guard state == .on, ownerID != nil, updatedAt != nil else {
+            athletesNeedingUpdate = []
+            return
+        }
+        await loadCoachV2Status(generation: generation)
+    }
+
+    private func loadCoachV2Status(generation current: Int) async {
+        do {
+            let status = try await rosterStatus()
+            guard current == generation, coachV2 == .on else { return }
+            // Only an explicit false shows the line. A missing row is unknown, not "old app".
+            athletesNeedingUpdate = Set(rows.map(\.id).filter { status[$0] == false })
+        } catch {
+            guard current == generation, !(error is CancellationError) else { return }
+            athletesNeedingUpdate = []
+        }
     }
 
     func reset(for owner: UUID?) {
@@ -25,6 +58,7 @@ final class CoachAthleteListModel: ObservableObject {
         failure = false
         offline = false
         loading = false
+        athletesNeedingUpdate = []
     }
 
     func refresh(owner: UUID, now: Date = .now) async {
@@ -72,6 +106,11 @@ final class CoachAthleteListModel: ObservableObject {
                 athletes: athletes, workouts: workouts, runs: weeklyRuns, latest: latest, now: now, week: week
             )
             updatedAt = now
+            if coachV2 == .on {
+                await loadCoachV2Status(generation: current)
+            } else {
+                athletesNeedingUpdate = []
+            }
         } catch {
             guard current == generation, !Task.isCancelled, !(error is CancellationError) else { return }
             let code = (error as? URLError)?.code
@@ -103,6 +142,14 @@ struct CoachAthleteList: View {
 
     @ViewBuilder
     private var content: some View {
+        if model.coachV2 == .paused {
+            // v1.3 §3.7, C7.12: the server kill switch is on. [ASSUMPTION copy]
+            Text("Some coach tools are paused for now.")
+                .font(.bodyMD)
+                .foregroundStyle(Color.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
         if model.failure || planSetupUnavailable {
             ContentCard {
                 VStack(alignment: .leading, spacing: 8) {
@@ -170,7 +217,7 @@ struct CoachAthleteList: View {
                 .accessibilityAddTraits(.isHeader)
             ForEach(rows) { row in
                 NavigationLink(value: CoachAthleteDestination(athleteID: row.id, name: row.athlete.displayName)) {
-                    CoachAthleteListRow(row: row)
+                    CoachAthleteListRow(row: row, needsLatestApp: model.athletesNeedingUpdate.contains(row.id))
                 }
                 .buttonStyle(.plain)
             }
@@ -180,6 +227,7 @@ struct CoachAthleteList: View {
 
 private struct CoachAthleteListRow: View {
     let row: CoachAthleteRow
+    var needsLatestApp = false
     @Environment(\.dynamicTypeSize) private var size
 
     private var adherence: String { "\(row.done) of \(row.planned) this week" }
@@ -218,6 +266,13 @@ private struct CoachAthleteListRow: View {
                         Text(row.athlete.displayName).font(.bodyLG.weight(.semibold))
                         Text(adherence).font(.bodyMD)
                         Text(lastRun).font(.bodyMD)
+                        if needsLatestApp {
+                            // UX spec A.5, mixed versions (C7.0 AC6). Later v2 actions use this as their disabled reason.
+                            Text("Effort, notes and flags aren't available. \(row.athlete.displayName) needs the latest RunSmart.")
+                                .font(.bodyMD)
+                                .foregroundStyle(Color.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -230,7 +285,15 @@ private struct CoachAthleteListRow: View {
             .frame(minHeight: 44)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(row.athlete.displayName). \(adherence). \(lastRun). \(row.status.rawValue).")
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var accessibilityText: Text {
+        let name = row.athlete.displayName
+        guard needsLatestApp else {
+            return Text("\(name). \(adherence). \(lastRun). \(row.status.rawValue).")
+        }
+        return Text("\(name). \(adherence). \(lastRun). \(row.status.rawValue). Effort, notes and flags aren't available. \(name) needs the latest RunSmart.")
     }
 
     private var chipColor: Color {
