@@ -1337,9 +1337,17 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         guard let authSession = try? await supabase.auth.session else {
             return .fallback(for: run)
         }
+        let input = await runDebriefInput(for: run)
+        let generators: [any RunDebriefGenerating] = [
+            CloudRunDebriefGenerator(authUserID: authSession.user.id, accessToken: authSession.accessToken)
+        ]
+        return await RunDebriefPipeline.debrief(for: input, run: run, generators: generators) { model in
+            await self.persistDebrief(model, for: run)
+        }
+    }
 
+    private func runDebriefInput(for run: RecordedRun) async -> RunDebriefInput {
         let distanceKm = run.distanceMeters / 1_000.0
-        let durationSec = Int(run.movingTimeSeconds)
         let paceMinPerKm: Double? = distanceKm > 0 && run.movingTimeSeconds > 0
             ? (run.movingTimeSeconds / 60.0) / distanceKm
             : nil
@@ -1359,72 +1367,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             )?.kind
         }
 
-        let request = RunSmartDTO.RunDebriefRequestDTO(
-            runDistanceKm: distanceKm,
-            runDurationSeconds: durationSec,
+        return RunDebriefInput(
+            distanceKm: distanceKm,
+            durationSeconds: Int(run.movingTimeSeconds),
             averagePaceMinPerKm: paceMinPerKm,
             averageHeartRateBPM: run.averageHeartRateBPM,
             workoutType: Self.debriefWorkoutType(planned: plannedKind, for: run),
-            planPhase: nil,
-            recentLoadDays: recentCount,
-            limitations: []
+            recentRunsLast7Days: recentCount
         )
-        guard let body = try? CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context(for: authSession.user.id)) else {
-            return .fallback(for: run)
-        }
-        let client = URLSessionRunSmartAPIClient(
-            baseURL: SupabaseManager.functionsBaseURL,
-            accessToken: authSession.accessToken,
-            additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
-        )
-        do {
-            let response = try await withThrowingTaskGroup(of: RunSmartDTO.RunDebriefResponseDTO.self) { group in
-                group.addTask {
-                    try await client.send(
-                        RunSmartAPI.Endpoint(path: "coach_message", method: .post, body: body),
-                        as: RunSmartDTO.RunDebriefResponseDTO.self
-                    )
-                }
-                group.addTask {
-                    try await Task.sleep(nanoseconds: 12_000_000_000)
-                    throw DebriefTimeoutError()
-                }
-                do {
-                    guard let result = try await group.next() else { throw DebriefTimeoutError() }
-                    group.cancelAll()
-                    return result
-                } catch {
-                    group.cancelAll()
-                    throw error
-                }
-            }
-            let headline = response.headline.trimmingCharacters(in: .whitespacesAndNewlines)
-            let debrief = response.debrief.trimmingCharacters(in: .whitespacesAndNewlines)
-            let tomorrow = response.tomorrow.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !headline.isEmpty, !debrief.isEmpty, !tomorrow.isEmpty else {
-                print("[SupabaseServices] run_debrief: AI response missing required fields, using fallback")
-                return .fallback(for: run)
-            }
-            let model = PostRunDebriefModel(
-                headline: headline,
-                debrief: debrief,
-                tomorrow: tomorrow,
-                planImpact: response.planImpact,
-                source: .ai
-            )
-            await persistDebrief(model, for: run)
-            return model
-        } catch {
-            switch error {
-            case is DebriefTimeoutError:
-                print("[SupabaseServices] run_debrief timed out after 12s, using fallback")
-            case is CancellationError:
-                break  // parent task was cancelled — silent
-            default:
-                print("[SupabaseServices] run_debrief fallback:", error)
-            }
-            return .fallback(for: run)
-        }
     }
 
     func generateWeeklySummary() async -> WeeklyProgressSummary? {
@@ -2800,7 +2750,6 @@ private struct DBWellnessCheckinUpsert: Encodable {
     }
 }
 
-private struct DebriefTimeoutError: Error {}
 private struct WeeklySummaryTimeoutError: Error {}
 private struct FlexWeekTimeoutError: Error {}
 

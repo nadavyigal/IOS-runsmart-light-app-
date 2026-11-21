@@ -1,3 +1,12 @@
+# 2026-11-21: Debrief generator protocol (draft PR, no behavior change)
+
+Current Phase: 1.2.6 (46) live on the App Store; Apple membership plan PR 1 of the on-device debrief experiment.
+Active Story: `RunDebriefGenerating` protocol and `RunDebriefPipeline`; cloud debrief moved into `CloudRunDebriefGenerator`, same order and fallback.
+Next Recommended Story: PR 2, on-device generator as a small opt-in (English, eligible devices); needs Nadav's call on the opt-in surface.
+Blockers: none for this PR; draft only, Nadav merges.
+Last Validation: 2026-11-21 full suite 1150 passed, 0 failed, 1 opt-in skip; new RunDebriefPipelineTests 5/0; iPhone 17 iOS 26.5 sim.
+Last Updated: 2026-11-21
+
 # 2026-11-20: RunSmart 1.2.6 (46) submitted to App Review
 
 Current Phase: 1.2.6 (46) Waiting for Review; auto-release to all users on approval. PR #227 merged (8f181b1).
