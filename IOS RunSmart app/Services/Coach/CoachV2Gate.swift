@@ -255,8 +255,16 @@ final class CoachV2Gate: ObservableObject {
     }
 
     private func reportIfNeeded(for user: UUID) async {
+        // Never report from a guess. Without flags read for this account, a failed flag
+        // or pilot read could overwrite a correct `true` on the server. Retry next foreground.
+        guard let snapshot = cache.load(), snapshot.userID == user else { return }
+        // Report what this client can do, not the switched state. The server applies the
+        // kill switch inside link_is_v2, so reporting `false` while it is off would leave
+        // athletes who don't reopen the app looking outdated after the switch returns.
         let report = CoachV2CapabilityReport(
-            coachV2: isEnabled,
+            coachV2: RunSmartFeatures.coachV2WouldBeEnabled(
+                channel: channel, processArguments: processArguments, pilotAccess: snapshot.pilotAccess
+            ),
             version: appVersion,
             build: appBuild,
             channel: channel

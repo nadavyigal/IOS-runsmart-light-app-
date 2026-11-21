@@ -204,15 +204,49 @@ final class CoachV2GateTests: XCTestCase {
         await gate.sync(userID: userA)
         XCTAssertEqual(gate.state, .paused)
         XCTAssertFalse(gate.isEnabled)
-        XCTAssertEqual(repository.reports.last?.coachV2, false)
 
-        // Back on: v2 returns on the next foreground after the window, and the report says so.
+        // Back on: v2 returns on the next foreground after the window.
         repository.flags = .success(["coach_v2": true])
         clock.advance(minutes: 16)
         await gate.sync(userID: userA)
         XCTAssertEqual(gate.state, .on)
-        XCTAssertEqual(repository.reports.last?.coachV2, true)
-        XCTAssertEqual(repository.reports.count, 3, "one report per changed answer")
+        XCTAssertEqual(repository.reports.map(\.coachV2), [true],
+                       "the capability never changed, so the switch caused no report")
+    }
+
+    func testKillSwitchOffStillReportsCapabilityTrue() async {
+        // Overseer review round 1: the server applies the switch, so the report stays true.
+        // Otherwise an athlete who doesn't reopen the app looks outdated after the switch returns.
+        let repository = StubGateRepository()
+        repository.flags = .success(["coach_v2": false])
+        let gate = makeGate(repository, channel: .testflight)
+        await gate.sync(userID: userA)
+        XCTAssertEqual(gate.state, .paused)
+        XCTAssertEqual(repository.reports, [CoachV2CapabilityReport(coachV2: true, version: "1.2.7", build: 50, channel: .testflight)])
+    }
+
+    func testNoReportUntilFlagsWereReadForThisUser() async {
+        // Overseer review round 1: a failed flag read must not overwrite a correct true with false.
+        let repository = StubGateRepository()
+        repository.flags = .failure(URLError(.notConnectedToInternet))
+        let gate = makeGate(repository, channel: .testflight)
+        await gate.sync(userID: userA)
+        XCTAssertEqual(gate.state, .off)
+        XCTAssertTrue(repository.reports.isEmpty, "no flags read for this user: nothing reported")
+
+        repository.flags = .success(["coach_v2": true])
+        await gate.sync(userID: userA)
+        XCTAssertEqual(gate.state, .on)
+        XCTAssertEqual(repository.reports, [CoachV2CapabilityReport(coachV2: true, version: "1.2.7", build: 50, channel: .testflight)])
+    }
+
+    func testFailedPilotReadDoesNotReportFalse() async {
+        let repository = StubGateRepository()
+        repository.pilot = .failure(URLError(.notConnectedToInternet))
+        let gate = makeGate(repository, channel: .appStore)
+        await gate.sync(userID: userA)
+        XCTAssertEqual(gate.state, .off)
+        XCTAssertTrue(repository.reports.isEmpty, "a failed pilot read is not a reason to report false")
     }
 
     func testKillSwitchOnAnUnlistedAppStoreBuildIsOffNotPaused() async {
@@ -235,18 +269,21 @@ final class CoachV2GateTests: XCTestCase {
     func testOfflineDoesNotCrashAndRetriesNextForeground() async {
         let repository = StubGateRepository()
         repository.flags = .failure(URLError(.notConnectedToInternet))
-        repository.reportResult = .failure(URLError(.notConnectedToInternet))
         let gate = makeGate(repository, channel: .testflight)
 
         await gate.sync(userID: userA)
         XCTAssertEqual(gate.state, .off, "no flags read yet: stay on 1.2.6 behavior")
-        XCTAssertEqual(repository.reports.count, 1)
 
+        // Flags come back but the report fails: it is retried on the next foreground.
         repository.flags = .success(["coach_v2": true])
-        repository.reportResult = .success(())
+        repository.reportResult = .failure(URLError(.networkConnectionLost))
         await gate.sync(userID: userA)
         XCTAssertEqual(gate.state, .on)
         XCTAssertEqual(repository.flagReads, 2, "the failed read is retried on the next foreground")
+        XCTAssertEqual(repository.reports.count, 1)
+
+        repository.reportResult = .success(())
+        await gate.sync(userID: userA)
         XCTAssertEqual(repository.reports.count, 2, "the failed report is retried on the next foreground")
         XCTAssertEqual(repository.reports.last?.coachV2, true)
     }
@@ -277,6 +314,7 @@ final class CoachV2GateTests: XCTestCase {
         await gate.sync(userID: userB)
         XCTAssertEqual(gate.state, .off)
         XCTAssertNil(CoachV2FlagCache(defaults: defaults).load(), "A's pilot access was dropped")
+        XCTAssertEqual(repository.reports.count, 1, "B has no flags read yet, so nothing is reported for B")
     }
 
     func testSignOutClearsTheCacheAndTurnsOff() async {

@@ -47,7 +47,7 @@ The server side is the real gate, so data stops flowing at once even while an ap
 
 ### When the switch is back on
 
-The server answers at once. Each app picks it up on its next foreground after its 15-minute cache, reports `coach_v2 = true` again, and v2 returns. Outbox items flush from that point.
+The server answers at once. Apps keep reporting `coach_v2 = true` while the switch is off (they report what the build can do, and the server applies the switch), so every pair is v2 again right away on the server, including athletes who have not opened the app. Each app shows v2 again on its next foreground after its 15-minute cache. Outbox items flush from that point.
 
 ## 2. Pilot coach allowlist (decision N1 = B)
 
