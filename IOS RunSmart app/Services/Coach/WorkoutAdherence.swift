@@ -38,6 +38,19 @@ enum WorkoutAdherence: Equatable {
         workout.type.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare("rest") != .orderedSame
     }
 
+    /// C7.1, UX spec A.3: a workout counts as missed once its day is over, or once today passes
+    /// 20:00. The cutoff is read in `calendar`'s time zone. Pass the result as `today` to `classify`
+    /// and `state`: before the cutoff it is today's date, after it is tomorrow's.
+    static let missedCutoffHour = 20
+
+    static func missedBoundary(now: Date, calendar: Calendar, cutoffHour: Int = missedCutoffHour) -> String {
+        guard calendar.component(.hour, from: now) >= cutoffHour,
+              let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) else {
+            return CoachReadDay.iso(now, calendar: calendar)
+        }
+        return CoachReadDay.iso(tomorrow, calendar: calendar)
+    }
+
     static func isBehind(_ results: [(date: String, state: Self)], today: String) -> Bool {
         let past = results.filter { $0.date < today }
         return !past.isEmpty && !past.contains { $0.state == .done || $0.state == .partial }

@@ -34,6 +34,10 @@ struct PostRunSummaryView: View {
     @EnvironmentObject private var session: SupabaseSession
     @ObservedObject private var strava = StravaConnectionService.shared
     @ObservedObject private var stravaUploads = StravaUploadCoordinator.shared
+    /// C7.3: effort and note sharing with a human coach (v2 only).
+    @ObservedObject private var runSharing = AthleteRunSharingService.shared
+    @EnvironmentObject private var athleteFeedback: AthleteFeedbackStore
+    @EnvironmentObject private var coachLinks: CoachLinkStore
     var run: RecordedRun?
     var outcome: PostActivityOutcome? = nil
     var isProcessing: Bool = false
@@ -67,6 +71,7 @@ struct PostRunSummaryView: View {
                     AthleteRunFeedbackSection(run: displayRun)
 
                     RPESelector(value: $rpe)
+                    effortVisibilityLine
 
                     if displayRun != nil {
                         notesCard
@@ -117,6 +122,9 @@ struct PostRunSummaryView: View {
         }
         .onChange(of: rpe) { _, newValue in
             Task { await persistRPE(newValue) }
+        }
+        .task(id: "\(displayRun?.id.uuidString ?? "-").\(runSharing.context.sharingActive)") {
+            if let run = displayRun { await runSharing.resolveServerRow(for: run) }
         }
         .onChange(of: focusedField) { oldValue, _ in
             if oldValue != nil {
@@ -327,6 +335,7 @@ struct PostRunSummaryView: View {
                     .lineLimit(2...6)
                     .focused($focusedField, equals: .notes)
                     .accessibilityLabel("Run notes")
+                noteSharingControls
                 if StravaCopy.showsNotesHint(
                     stravaAvailable: showsStrava,
                     autoUploadEnabled: stravaUploads.autoUploadEnabled
@@ -337,6 +346,57 @@ struct PostRunSummaryView: View {
                 }
             }
         }
+    }
+
+    // MARK: C7.3 sharing lines (P7)
+
+    private var sharingCoachName: String? {
+        runSharing.context.coachName
+    }
+
+    /// "Shared with {Coach}" under effort: only while sharing, for a run with a server row,
+    /// and only when the MVP review line is absent, so the screen keeps one status line (G24).
+    @ViewBuilder
+    private var effortVisibilityLine: some View {
+        if let run = displayRun, let coach = sharingCoachName, runSharing.sharesRPE(run),
+           !hasCoachReviewLine(run) {
+            Label(BidiText.fill("Shared with {Coach}", ["Coach": coach]), systemImage: "eye")
+                .font(.caption)
+                .foregroundStyle(Color.textTertiary)
+                .accessibilityLabel(BidiText.fill("Effort shared with {Coach}", ["Coach": coach]))
+        }
+    }
+
+    /// Note helper, "Hide note from {Coach}" and "Waiting to send". Absent unless this
+    /// run's note would reach the coach (v2, linked, accepted, after the ack, server row).
+    @ViewBuilder
+    private var noteSharingControls: some View {
+        if let run = displayRun, let coach = sharingCoachName, runSharing.sharesNote(run) {
+            let hidden = runSharing.isNoteHidden(run)
+            if !hidden {
+                Text(BidiText.fill("{Coach} can see your note.", ["Coach": coach]))
+                    .font(.caption)
+                    .foregroundStyle(Color.textTertiary)
+            }
+            Toggle(BidiText.fill("Hide note from {Coach}", ["Coach": coach]), isOn: Binding(
+                get: { hidden },
+                set: { newValue in
+                    Task { await (services as? SupabaseRunSmartServices)?.setRunNoteHiddenFromCoach(run, hidden: newValue) }
+                }
+            ))
+            .font(.caption)
+            .frame(minHeight: 44)
+        }
+        if let run = displayRun, runSharing.isWaiting(run) {
+            Text("Waiting to send")
+                .font(.caption)
+                .foregroundStyle(Color.textTertiary)
+        }
+    }
+
+    private func hasCoachReviewLine(_ run: RecordedRun) -> Bool {
+        guard let link = coachLinks.currentLink else { return false }
+        return athleteFeedback.reviewLine(for: run, link: link) != nil
     }
 
     @ViewBuilder

@@ -29,6 +29,8 @@ enum RunDebriefPipeline {
         persist: (PostRunDebriefModel) async -> Void = { _ in }
     ) async -> PostRunDebriefModel {
         for generator in generators {
+            // A cancelled task (the run screen closed) stops here instead of asking the next generator.
+            if Task.isCancelled { return .fallback(for: run) }
             do {
                 guard let candidate = try await generator.generateDebrief(for: input) else { continue }
                 guard let complete = candidate.trimmedIfComplete else {
@@ -42,6 +44,8 @@ enum RunDebriefPipeline {
             } catch is RunDebriefTimeoutError {
                 print("[RunDebrief] \(type(of: generator)) timed out, trying next")
             } catch {
+                // URLError(.cancelled) is not a CancellationError; treat a cancelled task the same way.
+                if Task.isCancelled { return .fallback(for: run) }
                 print("[RunDebrief] \(type(of: generator)) failed, trying next:", error)
             }
         }

@@ -111,6 +111,27 @@ final class RunDebriefPipelineTests: XCTestCase {
         XCTAssertEqual(later.calls, 0)
     }
 
+    /// Mimics URLSession when the task is cancelled mid-request: the task is
+    /// cancelled and the request fails with URLError(.cancelled), not CancellationError.
+    private final class CancelledRequestGenerator: RunDebriefGenerating {
+        func generateDebrief(for input: RunDebriefInput) async throws -> PostRunDebriefModel? {
+            withUnsafeCurrentTask { $0?.cancel() }
+            throw URLError(.cancelled)
+        }
+    }
+
+    func testCancelledRequestDoesNotAskTheNextGenerator() async {
+        let later = FakeGenerator(.debrief(model()))
+        let run = makeRun()
+        let input = input
+        let result = await Task { @MainActor in
+            await RunDebriefPipeline.debrief(for: input, run: run, generators: [CancelledRequestGenerator(), later])
+        }.value
+
+        XCTAssertEqual(result.source, .fallback)
+        XCTAssertEqual(later.calls, 0)
+    }
+
     func testGeneratedTextIsTrimmed() async {
         let padded = PostRunDebriefModel(headline: " Nice run \n", debrief: "\tEven pace. ", tomorrow: " Rest. ", planImpact: "none", source: .ai)
         let result = await RunDebriefPipeline.debrief(for: input, run: makeRun(), generators: [FakeGenerator(.debrief(padded))])
