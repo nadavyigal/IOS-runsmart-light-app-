@@ -360,7 +360,8 @@ final class CoachV2GateTests: XCTestCase {
         let seen = CoachSeenStub()
         let outbox = CoachV2Outbox(defaults: UserDefaults(suiteName: "CoachV2GateTests-\(UUID().uuidString)")!, repository: seen)
         return CoachAthleteListModel(
-            service: service, rosterStatus: { try await repository.rosterStatus() }, seen: seen, outbox: outbox
+            service: service, rosterStatus: { try await repository.rosterStatus() }, seen: seen, outbox: outbox,
+            flagStore: .offline()
         )
     }
 

@@ -107,7 +107,7 @@ Rules for every batch:
 | `20261121120000_athlete_run_sharing.sql` (M1a) | C7.3 | `supabase/rollback/20261121120000_athlete_run_sharing.sql` | merged (iOS #238, web #171); not applied |
 | `20261121130000_coach_last_seen_and_events.sql` (M3) | C7.2 | `supabase/rollback/20261121130000_coach_last_seen_and_events.sql` | merged (iOS #239, web #172); not applied |
 | `20261121140000_coach_feedback_replies.sql` (M4) | C7.7 | added by C7.7 | not written |
-| `20261121150000_athlete_run_flags.sql` (M1b) | C7.4 | added by C7.4 | not written |
+| `20261121150000_athlete_run_flags.sql` (M1b) | C7.4 | `supabase/rollback/20261121150000_athlete_run_flags.sql` | written (draft PR) |
 | `20261121160000_coach_link_end.sql` (M5b) | C7.11 | added by C7.11 | not written |
 | `20261121170000_coach_milestones.sql` (M13, only if needed) | C7.16 | added by C7.16 | not written |
 
@@ -147,6 +147,16 @@ Rules for every batch:
 5. **After the rollback, the app:** v2 coach builds fail the counts read and show Coach Today without markers; seen and goal-change writes stay queued on the phone and are dropped after 14 days. 1.2.6 apps see no change.
 6. **Account deletion:** both tables reference `auth.users` with `on delete cascade`, so `delete_account` (which deletes the auth user last) removes the rows. `purge_coach_data_for_deleted_account` is not replaced by M3.
 7. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: `coach_last_seen.sql` and the M3 case in `kill_switch.sql` pass; the rollback dropped the four functions and kept a seen row and an event row; re-applying the migration restored the functions without changing either row, and `coach_last_seen.sql` passed again.
+
+#### M1b: `20261121150000_athlete_run_flags.sql`
+
+1. **Flag to flip first:** `coach_v2` to false. With it off, `coach_get_athlete_flags` returns zero rows, `coach_roster_summary` returns zero rows (so no flag count), and `athlete_flag_run` and `coach_resolve_flag` raise `v2_unavailable` and change nothing. `athlete_remove_flag` still works: removing is a privacy action, like hiding a note.
+2. **Safe with the flag off:** every flag already sent stays in `athlete_run_flags`, unreadable by any coach. New flags and "Mark handled" taps wait in the phones' outboxes and send when the flag returns, so no pain flag is lost. The athlete still sees their own flags (owner select).
+3. **Rollback file:** `supabase/rollback/20261121150000_athlete_run_flags.sql`. It restores C7.2's `coach_roster_summary` (same signature, `new_flags` 0) and C7.3's `purge_coach_data_for_deleted_account`, then drops `coach_resolve_flag`, `coach_get_athlete_flags`, `athlete_remove_flag` and `athlete_flag_run`. It keeps `athlete_run_flags` with every row, RLS on and its owner-select policy. A deleted athlete's flags still go, through the `on delete cascade` from `auth.users`.
+4. **When not to roll back:** while M5b (`20261121160000_coach_link_end.sql`) or any later file that replaces `coach_roster_summary` or the purge, or reads `athlete_run_flags`, is applied. Roll those back first, or flip `coach_v2` instead. M1a and M3 must not be rolled back while M1b is applied: M1b calls M1a's `athlete_sharing_ack_time` and `athlete_own_run_id` and replaces M3's summary.
+5. **After the rollback, the app:** v2 athlete apps get "function not found" on flag sends and removals and keep them queued (dropped after 14 days); v2 coach apps fail the flags read and show "Pain flags didn't load. Try again." on Coach Today. 1.2.6 apps see no change.
+6. **Account deletion and link end:** the purge deletes the athlete's flags and clears `resolved_by` where the deleted user was the coach. Leaving or being removed keeps the rows; every coach read needs the flag's own link to be active, so the coach sees none of them, and a rejoin (a new link row) does not bring them back. `leave_coach` is not replaced.
+7. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: `athlete_run_flags.sql` and the M1b case in `kill_switch.sql` pass, and `coach_last_seen.sql` and `athlete_run_sharing.sql` still pass with M1b applied; the rollback dropped the four functions, kept a flag row, RLS and the policy, restored C7.2's summary and C7.3's purge, and a re-apply restored the functions.
 
 ### Batch B (R2: coach gets told)
 
