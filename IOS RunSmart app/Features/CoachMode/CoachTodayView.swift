@@ -293,6 +293,7 @@ extension CoachTodayReason {
         switch self {
         case .missedToday, .missedYesterday: Color.accentHeart
         case .behind: Color.accentEnergy
+        case .reply, .newRun, .changedGoal, .changedWorkout: Color.accentPrimary
         }
     }
 }
@@ -319,6 +320,11 @@ struct CoachTodayRowView: View {
                         .foregroundStyle(Color.accentPrimary)
                         .frame(width: 44, height: 44)
                         .background(Color.surfaceElevated, in: Circle())
+                        // C7.2: the "new" dot on the trailing-top corner. It is drawn only together with
+                        // the "{n} new" text next to the name (UX spec A.3 item 4).
+                        .overlay(alignment: .topTrailing) {
+                            if row.newLabel != nil { newDot.offset(x: 2, y: -2) }
+                        }
                     VStack(alignment: .leading, spacing: 6) {
                         nameAndChip
                         Text(row.todayLine)
@@ -368,10 +374,19 @@ struct CoachTodayRowView: View {
         let layout = stacked ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
             : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
         layout {
-            Text(row.name)
-                .font(.bodyLG.weight(.semibold))
-                .foregroundStyle(Color.textPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(row.name)
+                    .font(.bodyLG.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                if let newLabel = row.newLabel {
+                    // Pairs with the dot on the monogram (UX spec A.3 item 4).
+                    Text(newLabel)
+                        .font(.labelSM)
+                        .foregroundStyle(Color.accentPrimary)
+                        .fixedSize()
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             if let reason = row.reason {
                 // Icon plus text: the chip never relies on color.
                 Label(reason.chip, systemImage: reason.icon)
@@ -382,6 +397,14 @@ struct CoachTodayRowView: View {
                     .background(reason.color.opacity(0.12), in: Capsule())
             }
         }
+    }
+
+    private var newDot: some View {
+        Circle()
+            .fill(Color.accentPrimary)
+            .frame(width: 10, height: 10)
+            .overlay(Circle().stroke(Color.surfaceBase, lineWidth: 1.5))
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -424,7 +447,7 @@ struct CoachTodayRowView: View {
 extension CoachTodaySnapshot {
     /// 30 fixture athletes across every group, for the previews and the simulator screenshots.
     static func previewFixture(
-        athletes count: Int = 30, runsLoaded: Bool = true,
+        athletes count: Int = 30, runsLoaded: Bool = true, withNews: Bool = false,
         now: Date = Date(timeIntervalSince1970: 1_795_000_000)
     ) -> CoachTodaySnapshot {
         var calendar = Calendar(identifier: .gregorian)
@@ -458,9 +481,27 @@ extension CoachTodaySnapshot {
             }
         }
         return CoachTodaySnapshot.make(
-            athletes: athletes, workouts: workouts, runs: runs, runsLoaded: runsLoaded, now: now, week: week,
+            athletes: athletes, workouts: workouts, runs: runs, runsLoaded: runsLoaded,
+            news: withNews ? previewNews(athletes, now: now) : [:], now: now, week: week,
             locale: Locale(identifier: "en_GB")
         )
+    }
+
+    /// C7.2 markers: new runs, a goal change, a changed workout, and news on rows that are also urgent.
+    static func previewNews(_ athletes: [CoachAthleteSummary], now: Date) -> [UUID: CoachAthleteNews] {
+        var news: [UUID: CoachAthleteNews] = [:]
+        let patterns: [Int: CoachAthleteNews] = [
+            1: CoachAthleteNews(newRuns: 2, oldestNewAt: now.addingTimeInterval(-20_000)),
+            2: CoachAthleteNews(newRuns: 1, newEvents: 1, latestEventKind: .goalChange, oldestNewAt: now.addingTimeInterval(-50_000)),
+            3: CoachAthleteNews(newEvents: 1, latestEventKind: .goalChange, oldestNewAt: now.addingTimeInterval(-9_000)),
+            4: CoachAthleteNews(newRuns: 3, oldestNewAt: now.addingTimeInterval(-80_000)),
+            5: CoachAthleteNews(newEvents: 1, latestEventKind: .athleteMove, oldestNewAt: now.addingTimeInterval(-4_000)),
+            8: CoachAthleteNews(newRuns: 1, oldestNewAt: now.addingTimeInterval(-3_000))
+        ]
+        for (index, athlete) in athletes.enumerated() {
+            if let item = patterns[index] { news[athlete.athleteID] = item }
+        }
+        return news
     }
 
     private static func previewWorkout(_ id: UUID, _ athlete: UUID, _ date: String, _ seed: Int) -> CoachWorkoutSummary {
@@ -487,6 +528,19 @@ extension CoachTodaySnapshot {
         LazyVStack(alignment: .leading, spacing: 14) {
             CoachTodayView(
                 model: CoachAthleteListModel.previewModel(.previewFixture()), onShareInvite: nil, open: { _ in }, retry: {}
+            )
+        }
+        .padding(.horizontal, 18)
+    }
+    .background(Color.surfaceBase)
+}
+
+#Preview("Coach Today, new to review") {
+    ScrollView {
+        LazyVStack(alignment: .leading, spacing: 14) {
+            CoachTodayView(
+                model: CoachAthleteListModel.previewModel(.previewFixture(athletes: 10, withNews: true)),
+                onShareInvite: nil, open: { _ in }, retry: {}
             )
         }
         .padding(.horizontal, 18)

@@ -356,7 +356,12 @@ final class CoachV2GateTests: XCTestCase {
         service.athletes = athletes.enumerated().map { index, id in
             CoachAthleteSummary(athleteID: id, displayName: "Athlete \(index)", linkedAt: Date(timeIntervalSince1970: 0), hasActivePlan: false)
         }
-        return CoachAthleteListModel(service: service, rosterStatus: { try await repository.rosterStatus() })
+        // C7.2: counts and seen writes go to a stub, never to Supabase.
+        let seen = CoachSeenStub()
+        let outbox = CoachV2Outbox(defaults: UserDefaults(suiteName: "CoachV2GateTests-\(UUID().uuidString)")!, repository: seen)
+        return CoachAthleteListModel(
+            service: service, rosterStatus: { try await repository.rosterStatus() }, seen: seen, outbox: outbox
+        )
     }
 
     func testFlagOffRosterMakesNoV2Call() async {

@@ -15,6 +15,10 @@
 --     coach_v2_sharing_allowed is false even for an acked pair, and
 --     coach_invite_consent_version returns 1 (A3 copy). Back on, P9 shows again
 --     for the athlete who has not acked, and the acked pair shares again.
+--   * C7.2 (M3): with the flag off, coach_roster_summary and
+--     coach_get_athlete_events return zero rows, coach_mark_athlete_seen and
+--     athlete_log_goal_change raise v2_unavailable and write nothing (the app's
+--     outbox keeps the items). Back on, both writes succeed and the counts return.
 --   * C7.3 (M1a): with the flag off, coach_get_athletes_runs keeps its Story 2.2
 --     rows but returns no effort and has_note = false, coach_get_run_notes returns
 --     zero rows, the athlete's effort and note writes raise v2_unavailable and change
@@ -38,8 +42,8 @@
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261117164500_coach_read_rpcs.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121100000_coach_v2_gate.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121110000_coach_consent_v2.sql
---   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121120000_athlete_run_sharing.sql
---   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121120000_athlete_run_sharing.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121130000_coach_last_seen_and_events.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121130000_coach_last_seen_and_events.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/kill_switch.sql
 
 begin;
@@ -275,6 +279,35 @@ reset role;
 select pg_temp.expect_bool(public.coach_v2_sharing_allowed('cccccccc-0000-4000-8000-00000000000c',
   'eeeeeeee-0000-4000-8000-00000000000e'), true, 'acked pair shares again with the flag back on');
 
+-- C7.2 (M3): seen state and coach events with the switch off ---------------------------
+-- Same as expect_error, and also checks the message (v2_unavailable, not link_inactive).
+create function pg_temp.expect_error_msg(stmt text, expected_state text, expected_message text, label text)
+returns void language plpgsql as $$
+begin
+  execute stmt;
+  raise exception 'FAIL: % succeeded but should have failed with %', label, expected_message;
+exception when others then
+  if sqlstate = 'P0001' and sqlerrm like 'FAIL:%' then raise; end if;
+  if sqlstate <> expected_state or sqlerrm <> expected_message then
+    raise exception 'FAIL: % failed with % (%), expected % (%)', label, sqlstate, sqlerrm, expected_state, expected_message;
+  end if;
+end $$;
+grant execute on function pg_temp.expect_error_msg(text, text, text, text) to authenticated;
+
+-- A-B is the TestFlight pair. One run for B in the last hour.
+insert into public.runs (auth_user_id, type, distance, duration, completed_at)
+values ('bbbbbbbb-0000-4000-8000-00000000000b', 'easy', 5, 1800, now() - interval '1 hour');
+
+set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+select pg_temp.expect_bool(public.athlete_log_goal_change('22222222-0000-4000-8000-000000000002'), true,
+  'goal change with the flag on');
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
+select pg_temp.expect_count(
+  $q$select 1 from public.coach_roster_summary() where new_runs = 1 and new_events = 1$q$,
+  1, 'summary with the flag on');
+reset role;
+
 -- C7.3 (M1a): effort and notes with the switch off --------------------------------------
 -- E (acked, C-E listed App Store pair) shares a run completed after the ack.
 insert into public.runs (auth_user_id, type, distance, duration, completed_at, source_provider, source_activity_id)
@@ -294,6 +327,30 @@ select pg_temp.expect_count(
 reset role;
 
 update public.runtime_flags set enabled = false, updated_at = now() where key = 'coach_v2';
+
+set local role authenticated;
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
+select pg_temp.expect_count('select 1 from public.coach_roster_summary()', 0, 'summary with the kill switch on');
+select pg_temp.expect_count(
+  $q$select 1 from public.coach_get_athlete_events('bbbbbbbb-0000-4000-8000-00000000000b')$q$,
+  0, 'events with the kill switch on');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_mark_athlete_seen('bbbbbbbb-0000-4000-8000-00000000000b')$q$,
+  'P0001', 'v2_unavailable', 'mark seen with the kill switch on');
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+select pg_temp.expect_error_msg(
+  $q$select public.athlete_log_goal_change('33333333-0000-4000-8000-000000000003')$q$,
+  'P0001', 'v2_unavailable', 'goal change with the kill switch on');
+reset role;
+do $$
+begin
+  if exists (select 1 from public.coach_athlete_seen) then
+    raise exception 'FAIL: mark seen with the kill switch on wrote a row';
+  end if;
+  if (select count(*) from public.coach_athlete_events) <> 1 then
+    raise exception 'FAIL: a goal change with the kill switch on wrote a row';
+  end if;
+end $$;
 
 set local role authenticated;
 select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
@@ -327,6 +384,19 @@ end $$;
 
 update public.runtime_flags set enabled = true, updated_at = now() where key = 'coach_v2';
 
+-- The outbox retries after the switch is back on: both writes land, and the counts clear.
+set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+select pg_temp.expect_bool(public.athlete_log_goal_change('33333333-0000-4000-8000-000000000003'), true,
+  'queued goal change after the flag is back on');
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
+select pg_temp.expect_count(
+  $q$select 1 from public.coach_roster_summary() where new_runs = 1 and new_events = 2$q$,
+  1, 'summary after the flag is back on');
+select public.coach_mark_athlete_seen('bbbbbbbb-0000-4000-8000-00000000000b');
+select pg_temp.expect_count(
+  $q$select 1 from public.coach_roster_summary() where new_runs = 0 and new_events = 0$q$,
+  1, 'seen after the flag is back on');
 set local role authenticated;
 select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
 select pg_temp.expect_count(

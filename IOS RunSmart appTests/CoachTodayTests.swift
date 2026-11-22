@@ -294,8 +294,10 @@ final class CoachTodayTests: XCTestCase {
 
     func testReasonPriorityOrder() {
         let order = CoachTodayReason.allCases.sorted { $0.priority < $1.priority }
-        XCTAssertEqual(order, [.missedToday, .missedYesterday, .behind])
-        XCTAssertEqual(CoachTodayReason.allCases.map(\.chip), ["Missed today", "Missed yesterday", "Behind"])
+        // C7.2 adds the four "new" reasons after the urgent ones (UX spec A.3 item 5).
+        XCTAssertEqual(order, [.missedToday, .missedYesterday, .behind, .reply, .newRun, .changedGoal, .changedWorkout])
+        XCTAssertEqual(CoachTodayReason.allCases.map(\.chip),
+                       ["Missed today", "Missed yesterday", "Behind", "Reply", "New run", "Changed goal", "Changed your workout"])
     }
 
     func testBehindRuleTwoMissesOrBelowEightyPercent() throws {
@@ -393,9 +395,10 @@ final class CoachTodayTests: XCTestCase {
         XCTAssertEqual(result.groups, [.noPlan])
         XCTAssertNil(result.rows[0].weekProgress)
         XCTAssertEqual(result.rows[0].spokenSentence, "Yoni. Waiting for a plan.")
-        // C7.4 pain, C7.2 new to review, C7.16 milestones: none of those groups exists yet.
-        XCTAssertEqual(CoachTodayGroup.allCases.count, 7)
-        XCTAssertFalse(CoachTodayGroup.allCases.contains { $0.title(count: 1).contains("Pain") || $0.title(count: 1).contains("New to review") })
+        // C7.4 pain and C7.16 milestones: no group exists yet. C7.2 added "New to review", which has no
+        // header without news (CoachSeenStateTests).
+        XCTAssertEqual(CoachTodayGroup.allCases.count, 8)
+        XCTAssertFalse(CoachTodayGroup.allCases.contains { $0.title(count: 1).contains("Pain") })
     }
 
     func testThirtyAthletesFillTheGroupsAndCollapseAtEight() {
@@ -469,7 +472,11 @@ final class CoachTodayTests: XCTestCase {
     // MARK: AC7/AC5 model: window, failure, pending pill, flag off
 
     private func model(_ service: StubRead, tracker: EventSpy? = nil) -> CoachAthleteListModel {
-        CoachAthleteListModel(service: service, rosterStatus: { [:] }, tracker: tracker)
+        let seen = CoachSeenStub()
+        let outbox = CoachV2Outbox(
+            defaults: UserDefaults(suiteName: "CoachTodayTests-\(UUID().uuidString)")!, repository: seen
+        )
+        return CoachAthleteListModel(service: service, rosterStatus: { [:] }, tracker: tracker, seen: seen, outbox: outbox)
     }
 
     private func stubWithAthlete() -> StubRead {

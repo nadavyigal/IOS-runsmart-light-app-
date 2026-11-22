@@ -35,6 +35,11 @@ nonisolated enum CoachV2Analytics {
         case coachTodayViewed(athleteCount: Int, needCount: Int)
         /// C7.1: a Today row was opened. `reason` is a `CoachTodayReason` raw value, or "none".
         case coachTodayRowOpened(reason: String)
+        /// C7.2: the coach opened an athlete's detail and it was marked seen. `newCount` is how many new
+        /// items the marker showed (0 when nothing was new).
+        case coachAthleteSeen(newCount: Int)
+        /// C7.2: a linked v2 athlete saved a new goal and the goal change was queued for the coach.
+        case athleteGoalChangeLogged
         /// C7.8: the v2 consent copy was shown (P8 at join, P9 on Today).
         case consentV2Shown(surface: CoachConsentSurface)
         /// C7.8: the athlete accepted the v2 copy and the server recorded it.
@@ -54,6 +59,8 @@ nonisolated enum CoachV2Analytics {
             switch self {
             case .coachTodayViewed: "coach_today_viewed"
             case .coachTodayRowOpened: "coach_today_row_opened"
+            case .coachAthleteSeen: "coach_athlete_seen"
+            case .athleteGoalChangeLogged: "athlete_goal_change_logged"
             case .consentV2Shown: "consent_v2_shown"
             case .consentV2Acked: "consent_v2_acked"
             case .consentV2LeaveTapped: "consent_v2_leave_tapped"
@@ -70,6 +77,10 @@ nonisolated enum CoachV2Analytics {
                 ["athlete_count": .count(athleteCount), "need_count": .count(needCount)]
             case .coachTodayRowOpened(let reason):
                 ["reason": .kind(reason)]
+            case .coachAthleteSeen(let newCount):
+                ["new_count": .count(newCount)]
+            case .athleteGoalChangeLogged:
+                [:]
             case .consentV2Shown(let surface), .consentV2Acked(let surface), .consentV2LeaveTapped(let surface):
                 ["surface": .kind(surface.rawValue)]
             case .runRPESet(let shared), .runNoteSaved(let shared):

@@ -3,11 +3,12 @@ import Foundation
 // Coach Today (story C7.1, UX spec A.3 to A.8). "Coach" means a HUMAN coach (Coach Mode).
 //
 // Pure logic: the 7-day dots, the groups, the one reason chip per row, the order, and the
-// sentences VoiceOver reads. No view code and no network. Data comes only from the existing
-// `coach_get_athletes_workouts` and `coach_get_athletes_runs` results.
+// sentences VoiceOver reads. No view code and no network. Data comes from the existing
+// `coach_get_athletes_workouts` and `coach_get_athletes_runs` results, plus `coach_roster_summary`
+// for the "new since last visit" counts (C7.2).
 //
 // Left for later stories, so nothing here renders an empty header for them: the pain group
-// (C7.4), "New to review" and the "{n} new" marker (C7.2), and milestone tags (C7.16).
+// (C7.4) and milestone tags (C7.16).
 
 /// One day of the 7-day strip. Each state has its own shape and a text label. Color is the second channel.
 enum CoachTodayDayState: String, CaseIterable, Equatable {
@@ -53,26 +54,42 @@ enum CoachTodayDayState: String, CaseIterable, Equatable {
     }
 }
 
-/// Why a row is urgent. Lower `priority` is more urgent (UX spec A.3 item 5). Later stories add
-/// pain, something off, reply, new run, changed goal and changed your workout above or below these.
+/// Why a row is urgent. Lower `priority` is more urgent (UX spec A.3 item 5). C7.4 adds pain and
+/// something off above these.
 enum CoachTodayReason: String, Equatable, CaseIterable {
     case missedToday = "missed_today"
     case missedYesterday = "missed_yesterday"
     case behind
+    // C7.2: something new since the coach last opened the athlete. Never urgent on its own.
+    case reply
+    case newRun = "new_run"
+    case changedGoal = "changed_goal"
+    case changedWorkout = "changed_workout"
 
     var priority: Int {
         switch self {
         case .missedToday: 10
         case .missedYesterday: 11
         case .behind: 20
+        case .reply: 30
+        case .newRun: 31
+        case .changedGoal: 32
+        case .changedWorkout: 33
         }
     }
+
+    /// The "New to review" reasons (C7.2).
+    var isNew: Bool { priority >= 30 }
 
     var chip: String {
         switch self {
         case .missedToday: "Missed today"
         case .missedYesterday: "Missed yesterday"
         case .behind: "Behind"
+        case .reply: "Reply"
+        case .newRun: "New run"
+        case .changedGoal: "Changed goal"
+        case .changedWorkout: "Changed your workout"
         }
     }
 
@@ -81,6 +98,10 @@ enum CoachTodayReason: String, Equatable, CaseIterable {
         case .missedToday: "Missed today"
         case .missedYesterday: "Missed yesterday"
         case .behind: "Behind this week"
+        case .reply: "Replied to your note"
+        case .newRun: "New run"
+        case .changedGoal: "Changed goal"
+        case .changedWorkout: "Changed your workout"
         }
     }
 
@@ -88,13 +109,32 @@ enum CoachTodayReason: String, Equatable, CaseIterable {
         switch self {
         case .missedToday, .missedYesterday: "exclamationmark.circle"
         case .behind: "arrow.down.right.circle"
+        case .reply: "arrowshape.turn.up.left"
+        case .newRun: "figure.run"
+        case .changedGoal: "flag"
+        case .changedWorkout: "calendar.badge.exclamationmark"
         }
+    }
+
+    /// The most specific "new" reason for an athlete, in chip order (UX spec A.3 item 5). Nil when nothing is new.
+    static func newReason(for news: CoachAthleteNews?) -> CoachTodayReason? {
+        guard let news, news.total > 0 else { return nil }
+        if news.newReplies > 0 { return .reply }
+        if news.newRuns > 0 { return .newRun }
+        if news.newEvents > 0 {
+            switch news.latestEventKind {
+            case .athleteSkip, .athleteMove: return .changedWorkout
+            case .goalChange, nil: return .changedGoal
+            }
+        }
+        // Only flags are new. C7.4 gives them their own chip and group.
+        return nil
     }
 }
 
 /// The groups of T1, in screen order (UX spec A.3 item 3).
 enum CoachTodayGroup: Int, CaseIterable, Comparable {
-    case missedToday, missedYesterday, behind, onTrack, restToday
+    case missedToday, missedYesterday, behind, newToReview, onTrack, restToday
     /// Used only while the runs call failed: nobody can be called on track or behind.
     case athletes
     case noPlan
@@ -111,6 +151,7 @@ enum CoachTodayGroup: Int, CaseIterable, Comparable {
         case .missedToday: "Missed today (\(count))"
         case .missedYesterday: "Missed yesterday (\(count))"
         case .behind: "Behind this week (\(count))"
+        case .newToReview: "New to review (\(count))"
         case .onTrack: "On track (\(count))"
         case .restToday: "Rest today (\(count))"
         case .athletes: "Athletes (\(count))"
@@ -144,7 +185,14 @@ struct CoachTodayRow: Identifiable, Equatable {
     let missedThisWeek: Int
     /// The day the row opens on, the reason's day (UX spec A.3 item 8).
     let focusDayISO: String
+    /// C7.2: the "{n} new" number since the coach last opened this athlete. 0 shows no dot and no text.
+    var newCount: Int = 0
+    /// C7.2: the oldest new item, for the order inside "New to review".
+    var oldestNewAt: Date?
     var id: UUID { athlete.athleteID }
+
+    /// "{n} new" (UX spec A.6). Nil when nothing is new, so the dot never appears without its text.
+    var newLabel: String? { newCount > 0 ? "\(newCount) new" : nil }
     var name: String { athlete.displayName }
 
     func count(_ state: CoachTodayDayState) -> Int { days.count { $0.state == state } }
@@ -163,7 +211,11 @@ struct CoachTodayRow: Identifiable, Equatable {
 
     /// The one VoiceOver sentence for the row (UX spec A.8).
     var spokenSentence: String {
-        guard athlete.hasActivePlan else { return "\(name). Waiting for a plan." }
+        let newPart = newLabel.map { " \($0)." } ?? ""
+        guard athlete.hasActivePlan else {
+            if let reason, reason.isNew { return "\(name). \(reason.spoken). Waiting for a plan.\(newPart)" }
+            return "\(name). Waiting for a plan.\(newPart)"
+        }
         var parts = [name + "."]
         if let reason { parts.append(reason.spoken + ".") }
         parts.append("Today: \(todaySpoken).")
@@ -174,7 +226,7 @@ struct CoachTodayRow: Identifiable, Equatable {
             if count(.extra) > 0 { line += ", \(count(.extra)) extra" }
             parts.append(line + ".")
         }
-        return parts.joined(separator: " ")
+        return parts.joined(separator: " ") + newPart
     }
 }
 
@@ -201,7 +253,8 @@ struct CoachTodaySnapshot: Equatable {
         rows.map { row in
             let days = row.days.map(\.state.rawValue).joined(separator: ",")
             return [row.id.uuidString, row.group.rawValue.description, row.reason?.rawValue ?? "-",
-                    row.secondaryReason?.rawValue ?? "-", row.todayLine, row.weekProgress ?? "-", days]
+                    row.secondaryReason?.rawValue ?? "-", row.todayLine, row.weekProgress ?? "-", days,
+                    String(row.newCount)]
                 .joined(separator: "|")
         } + [runsLoaded ? "runs" : "no-runs"]
     }
@@ -245,9 +298,12 @@ extension CoachTodaySnapshot {
     ///   - workouts: every workout from the 7-day window to the end of the training week.
     ///   - runs: runs from the 7-day window. Pass `runsLoaded: false` (and any runs) when the runs call
     ///     failed: every day then reads "unknown" and nobody is put in a missed or behind group.
+    ///   - news: C7.2 counts from `coach_roster_summary`. An athlete with something new and nothing urgent
+    ///     goes to "New to review". Empty (the call failed, or the pair is not v2) shows no markers.
     static func make(
         athletes: [CoachAthleteSummary], workouts: [CoachWorkoutSummary], runs: [CoachRunSummary],
-        runsLoaded: Bool = true, now: Date, week: CoachAthleteWeek, locale: Locale = .current
+        runsLoaded: Bool = true, news: [UUID: CoachAthleteNews] = [:], now: Date, week: CoachAthleteWeek,
+        locale: Locale = .current
     ) -> CoachTodaySnapshot {
         let calendar = week.calendar
         let workoutsByAthlete = Dictionary(grouping: workouts, by: \.athleteID)
@@ -285,12 +341,18 @@ extension CoachTodaySnapshot {
                     reasons.append(.behind)
                 }
             }
+            let athleteNews = news[athlete.athleteID]
+            let newCount = athleteNews?.total ?? 0
+            if let newReason = CoachTodayReason.newReason(for: athleteNews) { reasons.append(newReason) }
             reasons.sort { $0.priority < $1.priority }
             let reason = reasons.first
             let secondary = reasons.dropFirst().first
 
             let group: CoachTodayGroup
-            if !hasPlan {
+            if reason?.isNew == true {
+                // New and nothing urgent (UX spec A.3 item 3.4). No runs or no plan needed for this.
+                group = .newToReview
+            } else if !hasPlan {
                 group = .noPlan
             } else if !runsLoaded {
                 group = .athletes
@@ -299,6 +361,7 @@ extension CoachTodaySnapshot {
                 case .missedToday: group = .missedToday
                 case .missedYesterday: group = .missedYesterday
                 case .behind: group = .behind
+                case .reply, .newRun, .changedGoal, .changedWorkout: group = .newToReview
                 case nil: group = todayDay.workouts.isEmpty ? .restToday : .onTrack
                 }
             }
@@ -311,7 +374,7 @@ extension CoachTodaySnapshot {
             switch reason {
             case .missedYesterday: focus = yesterdayISO
             case .behind: focus = weekDays.last { missedDays.contains($0.iso) }?.iso ?? todayISO
-            case .missedToday, nil: focus = todayISO
+            case .missedToday, .reply, .newRun, .changedGoal, .changedWorkout, nil: focus = todayISO
             }
             let line = CoachTodayFormat.todayLine(
                 hasPlan: hasPlan, day: todayDay, runsLoaded: runsLoaded, secondary: secondary, isolated: true
@@ -329,7 +392,8 @@ extension CoachTodaySnapshot {
                 athlete: athlete, group: group, reason: reason, secondaryReason: secondary, days: dayList,
                 todayLine: line, todaySpoken: spoken,
                 weekProgress: runsLoaded && hasPlan ? "\(doneThisWeek) of \(plannedThisWeek) this week" : nil,
-                missedThisWeek: missedThisWeek, focusDayISO: focus
+                missedThisWeek: missedThisWeek, focusDayISO: focus,
+                newCount: newCount, oldestNewAt: newCount > 0 ? athleteNews?.oldestNewAt : nil
             )
             return (row, missedDays.first)
         }
@@ -338,6 +402,10 @@ extension CoachTodaySnapshot {
         // the order never depends on the server's row order.
         let ordered = built.sorted { lhs, rhs in
             if lhs.row.group != rhs.row.group { return lhs.row.group < rhs.row.group }
+            if lhs.row.group == .newToReview, lhs.row.oldestNewAt != rhs.row.oldestNewAt {
+                // The oldest unhandled item first (UX spec A.3 item 6).
+                return (lhs.row.oldestNewAt ?? .distantFuture) < (rhs.row.oldestNewAt ?? .distantFuture)
+            }
             if lhs.row.group.needsYou {
                 if lhs.row.missedThisWeek != rhs.row.missedThisWeek {
                     return lhs.row.missedThisWeek > rhs.row.missedThisWeek

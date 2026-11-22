@@ -18,6 +18,14 @@ final class CoachAthleteListModel: ObservableObject {
     private let service: any CoachReadServing
     private let rosterStatus: @Sendable () async throws -> [UUID: Bool]
     private let tracker: any AnalyticsTracking
+    /// C7.2: "new since last visit" counts, and the queue the seen write goes through.
+    private let seen: any CoachSeenRepository
+    private let outbox: CoachV2Outbox
+    /// C7.2: athletes opened on this phone, and when. Their markers stay cleared until the server's
+    /// seen_at catches up, so an offline open does not bring the dot back on the next refresh.
+    private var localSeen: [UUID: Date] = [:]
+    /// What `today` was built from, so a seen athlete can be rebuilt without a network call.
+    private var todayInputs: TodayInputs?
     private(set) var ownerID: UUID?
     private var generation = 0
     private var loading = false
@@ -28,7 +36,18 @@ final class CoachAthleteListModel: ObservableObject {
     private struct PendingUpdate {
         let rows: [CoachAthleteRow]
         let today: CoachTodaySnapshot
+        let inputs: TodayInputs?
         let updatedAt: Date
+    }
+
+    private struct TodayInputs {
+        let athletes: [CoachAthleteSummary]
+        let workouts: [CoachWorkoutSummary]
+        let runs: [CoachRunSummary]
+        let runsLoaded: Bool
+        let news: [UUID: CoachAthleteNews]
+        let now: Date
+        let week: CoachAthleteWeek
     }
 
     /// How a refresh meets the screen. `replace`: pull to refresh, re-entry, foreground, retry.
@@ -40,11 +59,15 @@ final class CoachAthleteListModel: ObservableObject {
         rosterStatus: @escaping @Sendable () async throws -> [UUID: Bool] = {
             try await SupabaseCoachV2GateRepository().rosterStatus()
         },
-        tracker: (any AnalyticsTracking)? = nil
+        tracker: (any AnalyticsTracking)? = nil,
+        seen: any CoachSeenRepository = SupabaseCoachSeenRepository(),
+        outbox: CoachV2Outbox? = nil
     ) {
         self.service = service
         self.rosterStatus = rosterStatus
         self.tracker = tracker ?? Analytics.shared
+        self.seen = seen
+        self.outbox = outbox ?? .shared
     }
 
     /// Called when `CoachV2Gate.state` changes. Off or paused makes no v2 call.
@@ -52,6 +75,7 @@ final class CoachAthleteListModel: ObservableObject {
         coachV2 = state
         if state != .on {
             today = nil
+            todayInputs = nil
             pending = nil
             hasPendingUpdate = false
             viewedTracked = false
@@ -73,7 +97,8 @@ final class CoachAthleteListModel: ObservableObject {
     func applyPendingUpdate() {
         guard let pending else { return }
         rows = pending.rows
-        today = pending.today
+        todayInputs = pending.inputs
+        today = pending.inputs.map(buildToday) ?? pending.today
         updatedAt = pending.updatedAt
         self.pending = nil
         hasPendingUpdate = false
@@ -101,6 +126,53 @@ final class CoachAthleteListModel: ObservableObject {
         updatedAt = snapshot.generatedAt
     }
     #endif
+
+    // MARK: C7.2 seen state
+
+    /// The coach opened this athlete's detail (UX spec A.4: seen means opening detail, not scrolling past).
+    /// Clears the marker on this phone at once and queues `coach_mark_athlete_seen` with the open time.
+    /// Flag-off and paused make no v2 call.
+    func markSeen(_ athleteID: UUID, now: Date = .now) {
+        guard coachV2 == .on, let owner = ownerID else { return }
+        let cleared = today?.rows.first { $0.id == athleteID }?.newCount ?? 0
+        localSeen[athleteID] = now
+        // Today sits under the detail, so rebuilding it here never moves rows while the coach looks at them.
+        if let inputs = todayInputs { today = buildToday(inputs) }
+        outbox.enqueue(.markSeen(athleteID: athleteID, seenAt: now), userID: owner)
+        CoachV2Analytics.track(.coachAthleteSeen(newCount: cleared), to: tracker)
+        let outbox = outbox
+        Task { await outbox.flush(userID: owner) }
+    }
+
+    private func buildToday(_ inputs: TodayInputs) -> CoachTodaySnapshot {
+        CoachTodaySnapshot.make(
+            athletes: inputs.athletes, workouts: inputs.workouts, runs: inputs.runs, runsLoaded: inputs.runsLoaded,
+            news: effectiveNews(inputs.news), now: inputs.now, week: inputs.week
+        )
+    }
+
+    /// Server counts, minus athletes opened on this phone after the server's seen_at.
+    private func effectiveNews(_ server: [UUID: CoachAthleteNews]) -> [UUID: CoachAthleteNews] {
+        var result = server
+        for (id, openedAt) in localSeen {
+            guard let item = server[id] else { continue }
+            if let serverSeen = item.seenAt, serverSeen >= openedAt.addingTimeInterval(-1) { continue }
+            result[id] = item.seen(at: openedAt)
+        }
+        return result
+    }
+
+    /// Sends queued seen writes first, so the counts read right after reflect them. Any failure shows no markers.
+    private func loadNews(owner: UUID, enabled: Bool) async -> [UUID: CoachAthleteNews] {
+        guard enabled else { return [:] }
+        await outbox.flush(userID: owner)
+        do {
+            return try await seen.rosterNews()
+        } catch {
+            if !(error is CancellationError) { print("[CoachToday] news read failed:", error) }
+            return [:]
+        }
+    }
 
     func trackRowOpened(_ row: CoachTodayRow) {
         guard coachV2 == .on else { return }
@@ -136,6 +208,8 @@ final class CoachAthleteListModel: ObservableObject {
         loading = false
         athletesNeedingUpdate = []
         today = nil
+        todayInputs = nil
+        localSeen = [:]
         pending = nil
         hasPendingUpdate = false
         viewedTracked = false
@@ -171,8 +245,10 @@ final class CoachAthleteListModel: ObservableObject {
             let week = CoachAthleteWeek(now: now)
             rows.removeAll { !active.contains($0.id) }
             if ids.isEmpty {
-                let empty = v2 ? CoachTodaySnapshot.make(athletes: [], workouts: [], runs: [], now: now, week: week) : nil
-                _ = commit(rows: rows, snapshot: empty, now: now, style: style)
+                let inputs = v2 ? TodayInputs(
+                    athletes: [], workouts: [], runs: [], runsLoaded: true, news: [:], now: now, week: week
+                ) : nil
+                _ = commit(rows: rows, inputs: inputs, now: now, style: style)
                 return
             }
 
@@ -187,6 +263,8 @@ final class CoachAthleteListModel: ObservableObject {
             )
             // The server filters run dates in UTC. Fetch the boundary dates and then use the coach's week.
             async let recorded = Self.fetchRuns(service, from: windowStart, to: now, athleteIDs: ids)
+            // C7.2: only for v2. Flag-off and paused never call it.
+            async let fetchedNews = loadNews(owner: owner, enabled: v2)
             let workouts = try await planned
             var runsLoaded = true
             var runs: [CoachRunSummary] = []
@@ -217,12 +295,15 @@ final class CoachAthleteListModel: ObservableObject {
             let newRows = runsLoaded ? CoachAthleteRow.make(
                 athletes: athletes, workouts: weeklyWorkouts, runs: weeklyRuns, latest: latest, now: now, week: week
             ) : rows
-            let snapshot = v2 ? CoachTodaySnapshot.make(
+            let news = await fetchedNews
+            try Task.checkCancellation()
+            guard current == generation else { return }
+            let inputs = v2 ? TodayInputs(
                 athletes: athletes, workouts: workouts, runs: runs.filter { $0.completedAt <= now },
-                runsLoaded: runsLoaded, now: now, week: week
+                runsLoaded: runsLoaded, news: news, now: now, week: week
             ) : nil
 
-            guard commit(rows: newRows, snapshot: snapshot, now: now, style: style) else { return }
+            guard commit(rows: newRows, inputs: inputs, now: now, style: style) else { return }
             if coachV2 == .on {
                 await loadCoachV2Status(generation: current)
             } else {
@@ -242,14 +323,23 @@ final class CoachAthleteListModel: ObservableObject {
 
     /// Shows a finished load. A quiet load that would move rows is held behind the pill instead.
     /// Returns false when it was held.
-    private func commit(rows newRows: [CoachAthleteRow], snapshot: CoachTodaySnapshot?, now: Date, style: RefreshStyle) -> Bool {
+    private func commit(rows newRows: [CoachAthleteRow], inputs: TodayInputs?, now: Date, style: RefreshStyle) -> Bool {
+        if let inputs {
+            // The server caught up with an open on this phone: its counts are right again.
+            localSeen = localSeen.filter { id, openedAt in
+                guard let serverSeen = inputs.news[id]?.seenAt else { return true }
+                return serverSeen < openedAt.addingTimeInterval(-1)
+            }
+        }
+        let snapshot = inputs.map(buildToday)
         if style == .quiet, let shown = today, let snapshot, snapshot.layoutSignature != shown.layoutSignature {
             // Rows would move while the coach is looking. Hold the update behind the pill.
-            pending = PendingUpdate(rows: newRows, today: snapshot, updatedAt: now)
+            pending = PendingUpdate(rows: newRows, today: snapshot, inputs: inputs, updatedAt: now)
             hasPendingUpdate = true
             return false
         }
         rows = newRows
+        todayInputs = inputs
         today = snapshot
         pending = nil
         hasPendingUpdate = false
