@@ -31,6 +31,10 @@ nonisolated enum CoachV2Analytics {
 
     /// One case per event. Each story adds its own (v1.3 section 3.8).
     enum Event: Sendable, Equatable {
+        /// C7.1: Coach Today first has data on screen. Counts only.
+        case coachTodayViewed(athleteCount: Int, needCount: Int)
+        /// C7.1: a Today row was opened. `reason` is a `CoachTodayReason` raw value, or "none".
+        case coachTodayRowOpened(reason: String)
         /// C7.8: the v2 consent copy was shown (P8 at join, P9 on Today).
         case consentV2Shown(surface: CoachConsentSurface)
         /// C7.8: the athlete accepted the v2 copy and the server recorded it.
@@ -40,6 +44,8 @@ nonisolated enum CoachV2Analytics {
 
         var name: String {
             switch self {
+            case .coachTodayViewed: "coach_today_viewed"
+            case .coachTodayRowOpened: "coach_today_row_opened"
             case .consentV2Shown: "consent_v2_shown"
             case .consentV2Acked: "consent_v2_acked"
             case .consentV2LeaveTapped: "consent_v2_leave_tapped"
@@ -48,6 +54,10 @@ nonisolated enum CoachV2Analytics {
 
         var properties: [String: Value] {
             switch self {
+            case .coachTodayViewed(let athleteCount, let needCount):
+                ["athlete_count": .count(athleteCount), "need_count": .count(needCount)]
+            case .coachTodayRowOpened(let reason):
+                ["reason": .kind(reason)]
             case .consentV2Shown(let surface), .consentV2Acked(let surface), .consentV2LeaveTapped(let surface):
                 ["surface": .kind(surface.rawValue)]
             }
