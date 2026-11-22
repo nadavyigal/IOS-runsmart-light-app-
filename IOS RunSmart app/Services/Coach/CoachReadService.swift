@@ -169,6 +169,11 @@ struct CoachRunSummary: Codable, Equatable, Sendable {
     let pace: Double?
     let averageHeartRate: Int?
     let source: String?
+    /// C7.3: shared effort 1 to 10. Nil when not shared (no ack, not v2, kill switch, or
+    /// a server without M1a).
+    let rpe: Int?
+    /// C7.3: a note the coach may read with `CoachRunNotesFetcher`. False when hidden.
+    let hasNote: Bool
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case id
@@ -181,6 +186,8 @@ struct CoachRunSummary: Codable, Equatable, Sendable {
         case pace
         case averageHeartRate = "average_heart_rate"
         case source
+        case rpe
+        case hasNote = "has_note"
     }
 
     init(from decoder: Decoder) throws {
@@ -195,6 +202,8 @@ struct CoachRunSummary: Codable, Equatable, Sendable {
         pace = try container.decodeIfPresent(Double.self, forKey: .pace)
         averageHeartRate = try container.decodeIfPresent(Int.self, forKey: .averageHeartRate)
         source = try container.decodeIfPresent(String.self, forKey: .source)
+        rpe = try container.decodeIfPresent(Int.self, forKey: .rpe)
+        hasNote = try container.decodeIfPresent(Bool.self, forKey: .hasNote) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -209,6 +218,8 @@ struct CoachRunSummary: Codable, Equatable, Sendable {
         try container.encodeIfPresent(pace, forKey: .pace)
         try container.encodeIfPresent(averageHeartRate, forKey: .averageHeartRate)
         try container.encodeIfPresent(source, forKey: .source)
+        try container.encodeIfPresent(rpe, forKey: .rpe)
+        try container.encode(hasNote, forKey: .hasNote)
     }
 }
 

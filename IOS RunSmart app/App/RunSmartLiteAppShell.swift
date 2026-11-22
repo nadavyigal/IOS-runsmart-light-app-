@@ -224,6 +224,8 @@ struct RunSmartLiteAppShell: View {
 
             // C7.0 hooks live in their own view so this body's modifier chain stays type-checkable.
             CoachV2GateHooks(gate: coachV2Gate, athletes: coachAthletes, userID: coachRoleCheckUserID)
+            // C7.3: effort and note sharing follow the gate, the link and the consent.
+            AthleteRunSharingHooks(gate: coachV2Gate, links: coachLinks, userID: coachRoleCheckUserID, services: services)
 
             if isShowingLaunch {
                 RunSmartLaunchView()
@@ -829,6 +831,42 @@ private struct CoachV2GateHooks: View {
             .onChange(of: gate.state) { _, state in
                 Task { await athletes.applyCoachV2(state) }
             }
+    }
+}
+
+/// C7.3: refreshes effort and note sharing on sign-in, when the v2 gate or the coach link
+/// changes, and on every foreground. With v2 off it makes no call.
+private struct AthleteRunSharingHooks: View {
+    @ObservedObject var gate: CoachV2Gate
+    @ObservedObject var links: CoachLinkStore
+    let userID: UUID?
+    let services: any RunSmartServiceProviding
+    @Environment(\.scenePhase) private var scenePhase
+
+    private var key: String {
+        "\(userID?.uuidString ?? "-").\(gate.isEnabled).\(links.currentLink?.id.uuidString ?? "-")"
+    }
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .task(id: key) { await refresh() }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task { await refresh() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .coachConsentV2Acked)) { _ in
+                Task { await refresh() }
+            }
+    }
+
+    private func refresh() async {
+        guard !RunSmartDemoMode.isEnabled, RunSmartFeatures.coachModeEnabled else { return }
+        let link = links.currentLink
+        await (services as? SupabaseRunSmartServices)?.refreshRunSharing(
+            v2Enabled: gate.isEnabled, linkID: link?.id, coachName: link?.coachName
+        )
     }
 }
 

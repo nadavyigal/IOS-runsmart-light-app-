@@ -168,6 +168,8 @@ final class CoachConsentNoticeModel: ObservableObject {
             try await repository.acknowledge()
             CoachV2Analytics.track(.consentV2Acked(surface: .notice), to: analytics())
             if notice == shown { notice = nil }
+            // C7.3: sharing starts now, and the one-time RPE backfill runs right after the ack.
+            NotificationCenter.default.post(name: .coachConsentV2Acked, object: nil)
             return true
         } catch {
             // Nothing was shared. P9 comes back on the next open.
