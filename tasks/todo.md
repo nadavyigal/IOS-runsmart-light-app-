@@ -9,6 +9,8 @@ Founder chose a Settings toggle on 2026-11-22. Off by default; shown only when t
 - [x] Tests: opt-in off by default, prompt facts and size, source raw value, clipping, Hebrew gate (`-testLanguage he`). Full suite.
 - [ ] See the toggle on a signed-in English iPhone with Apple Intelligence on, then run 10 real debriefs (not possible in the simulator: guest preview needs sign-in).
 - Risk: a linked coach's context only reaches the cloud prompt, so on-device is skipped for coach-linked runners.
+- [x] Grok Bot review fixes (2026-11-22): PostHog flag `runsmart-on-device-debrief` as remote kill switch (off when missing, on in Debug); on-device only for `live_run`; on-device timeout 8 s; caption says it's saved to the account; `generatorPlan` pure function with tests.
+- [ ] Nadav creates the PostHog flag `runsmart-on-device-debrief` when the toggle should appear in App Store builds.
 
 ## 2026-11-19 — Live Activity pace for guided workouts
 

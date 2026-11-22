@@ -30,18 +30,55 @@ final class OnDeviceDebriefTests: XCTestCase {
 
     func testOptInIsOffByDefault() {
         XCTAssertFalse(OnDeviceDebrief.isOptedIn(defaults))
-        XCTAssertNil(OnDeviceDebrief.generatorIfEnabled(coachLinked: false, defaults: defaults))
     }
 
-    func testLinkedCoachNeverGetsTheOnDeviceGenerator() {
-        defaults.set(true, forKey: OnDeviceDebrief.optInKey)
-        XCTAssertNil(OnDeviceDebrief.generatorIfEnabled(coachLinked: true, defaults: defaults))
+    private func plan(
+        optedIn: Bool = true, ready: Bool = true, remoteEnabled: Bool = true,
+        coachLinked: Bool = false, hasSession: Bool = true, trigger: RunDebriefTrigger = .liveRun
+    ) -> [RunDebriefGeneratorKind] {
+        OnDeviceDebrief.generatorPlan(optedIn: optedIn, ready: ready, remoteEnabled: remoteEnabled,
+                                      coachLinked: coachLinked, hasSession: hasSession, trigger: trigger)
     }
 
-    func testOptedInGeneratorFollowsModelReadiness() {
-        defaults.set(true, forKey: OnDeviceDebrief.optInKey)
-        let generator = OnDeviceDebrief.generatorIfEnabled(coachLinked: false, defaults: defaults)
-        XCTAssertEqual(generator != nil, OnDeviceDebrief.isReady)
+    func testPlanForOptedInLiveRunIsOnDeviceThenCloud() {
+        XCTAssertEqual(plan(), [.onDevice, .cloud])
+    }
+
+    func testPlanWithoutOptInIsCloudOnly() {
+        XCTAssertEqual(plan(optedIn: false), [.cloud])
+    }
+
+    func testRemoteFlagOffIsCloudOnlyEvenWhenOptedIn() {
+        XCTAssertEqual(plan(remoteEnabled: false), [.cloud])
+    }
+
+    func testModelNotReadyIsCloudOnly() {
+        XCTAssertEqual(plan(ready: false), [.cloud])
+    }
+
+    func testLinkedCoachIsCloudOnly() {
+        XCTAssertEqual(plan(coachLinked: true), [.cloud])
+    }
+
+    func testOptedInGuestOnALiveRunGetsOnDeviceOnly() {
+        XCTAssertEqual(plan(hasSession: false), [.onDevice])
+    }
+
+    func testImportsSyncsAndRecoveredRunsAreCloudOnly() {
+        for trigger in [RunDebriefTrigger.importRun, .syncNewest, .recovered, .background] {
+            XCTAssertEqual(plan(trigger: trigger), [.cloud], trigger.rawValue)
+        }
+    }
+
+    func testGuestWithoutOptInGetsNoGenerator() {
+        XCTAssertEqual(plan(optedIn: false, hasSession: false), [])
+    }
+
+    func testOnDeviceTimeoutIsShorterThanCloud() {
+        if #available(iOS 26.0, *) {
+            XCTAssertEqual(OnDeviceDebriefGenerator().timeoutNanoseconds, 8_000_000_000)
+        }
+        XCTAssertEqual(CloudRunDebriefGenerator(authUserID: UUID(), accessToken: "t").timeoutNanoseconds, 12_000_000_000)
     }
 
     func testNonEnglishAppLanguageHidesTheExperiment() throws {
