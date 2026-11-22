@@ -1,3 +1,12 @@
+# 2026-11-22: Garmin worker 500 report (draft PR #243)
+
+Current Phase: report only; garmin-worker-drain fails with Unregistered API key from running-coach.
+Active Story: founder picks fix (new Run-Smart secret key in Vercel) or fallback pause migration.
+Next Recommended Story: Garmin credential rotation per docs/runbooks/2026-11-22-garmin-worker-500.md.
+Blockers: founder action in Supabase and Vercel; no production change made.
+Last Validation: 2026-11-22 net._http_response 72/72 HTTP 500 over 6h; 0 queued Garmin jobs.
+Last Updated: 2026-11-22
+
 # 2026-11-22: Coach v2 C7.2 "New since last visit" markers and coach events merged
 
 Current Phase: Coach Experience v2, R1 wave 3, lane B. C7.2 merged in iOS and web with founder yes; M3 not applied.
