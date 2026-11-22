@@ -4,7 +4,7 @@ Current Phase: Coach Experience v2, R1 wave 4, lane A. C7.4 draft PR open in iOS
 Active Story: C7.4: M1b flags table and RPCs, new_flags in roster summary, P7 flag row, pain group on Coach Today.
 Next Recommended Story: Overseer review of C7.4; lane B wires CoachFlagBlock into day detail; then C7.7 (lane A).
 Blockers: Nadav applies Batch A (M0, M5a, M1a, M3, M1b) after the Grok Bot audit and the 1.2.6 regression.
-Last Validation: SQL athlete_run_flags, kill_switch and 5 earlier suites PASS on local Postgres; iOS results in the PR body.
+Last Validation: SQL athlete_run_flags, kill_switch, coach_last_seen, athlete_run_sharing PASS; iOS full suite 1298 passed, 0 failed, 2 skipped.
 Last Updated: 2026-11-22
 
 # 2026-11-22: Coach v2 C7.2 "New since last visit" markers and coach events merged
