@@ -29,14 +29,27 @@ nonisolated enum CoachV2Analytics {
         }
     }
 
-    /// One case per event. Empty until a story adds the first one.
-    enum Event: Sendable {
+    /// One case per event. Each story adds its own (v1.3 section 3.8).
+    enum Event: Sendable, Equatable {
+        /// C7.1: Coach Today first has data on screen. Counts only.
+        case coachTodayViewed(athleteCount: Int, needCount: Int)
+        /// C7.1: a Today row was opened. `reason` is a `CoachTodayReason` raw value, or "none".
+        case coachTodayRowOpened(reason: String)
+
         var name: String {
-            switch self {}
+            switch self {
+            case .coachTodayViewed: "coach_today_viewed"
+            case .coachTodayRowOpened: "coach_today_row_opened"
+            }
         }
 
         var properties: [String: Value] {
-            switch self {}
+            switch self {
+            case .coachTodayViewed(let athleteCount, let needCount):
+                ["athlete_count": .count(athleteCount), "need_count": .count(needCount)]
+            case .coachTodayRowOpened(let reason):
+                ["reason": .kind(reason)]
+            }
         }
     }
 

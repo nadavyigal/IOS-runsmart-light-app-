@@ -11,30 +11,106 @@ final class CoachAthleteListModel: ObservableObject {
     @Published private(set) var coachV2: CoachV2State = .off
     /// C7.0 AC6: athletes the server reports as not v2-capable. Only filled while v2 is on.
     @Published private(set) var athletesNeedingUpdate: Set<UUID> = []
+    /// C7.1: what Coach Today shows. Nil unless v2 is on and a load finished. The screen never
+    /// re-sorts while visible: a background refresh waits in `pending` behind a "New updates" pill.
+    @Published private(set) var today: CoachTodaySnapshot?
+    @Published private(set) var hasPendingUpdate = false
     private let service: any CoachReadServing
     private let rosterStatus: @Sendable () async throws -> [UUID: Bool]
+    private let tracker: any AnalyticsTracking
     private(set) var ownerID: UUID?
     private var generation = 0
     private var loading = false
+    private var needsV2Reload = false
+    private var viewedTracked = false
+    private var pending: PendingUpdate?
+
+    private struct PendingUpdate {
+        let rows: [CoachAthleteRow]
+        let today: CoachTodaySnapshot
+        let updatedAt: Date
+    }
+
+    /// How a refresh meets the screen. `replace`: pull to refresh, re-entry, foreground, retry.
+    /// `quiet`: a timer while Today is on screen. A quiet result that would move rows waits for the pill.
+    enum RefreshStyle { case replace, quiet }
 
     init(
         service: any CoachReadServing = CoachReadService(),
         rosterStatus: @escaping @Sendable () async throws -> [UUID: Bool] = {
             try await SupabaseCoachV2GateRepository().rosterStatus()
-        }
+        },
+        tracker: (any AnalyticsTracking)? = nil
     ) {
         self.service = service
         self.rosterStatus = rosterStatus
+        self.tracker = tracker ?? Analytics.shared
     }
 
     /// Called when `CoachV2Gate.state` changes. Off or paused makes no v2 call.
     func applyCoachV2(_ state: CoachV2State) async {
         coachV2 = state
+        if state != .on {
+            today = nil
+            pending = nil
+            hasPendingUpdate = false
+            viewedTracked = false
+        }
         guard state == .on, ownerID != nil, updatedAt != nil else {
             athletesNeedingUpdate = []
             return
         }
+        if today == nil, let owner = ownerID {
+            // The rows were loaded with the 1.2.6 window. Today needs the 7-day window, so load again.
+            // That load reads the roster status too.
+            if loading { needsV2Reload = true } else { await refresh(owner: owner) }
+            return
+        }
         await loadCoachV2Status(generation: generation)
+    }
+
+    /// Show the update that was held back (the "New updates · Refresh" pill).
+    func applyPendingUpdate() {
+        guard let pending else { return }
+        rows = pending.rows
+        today = pending.today
+        updatedAt = pending.updatedAt
+        self.pending = nil
+        hasPendingUpdate = false
+    }
+
+    // MARK: C7.1 analytics (v1.3 section 3.8). Only ids, counts and enums leave the device.
+
+    /// Once per visit, when Today first has data on screen.
+    func trackTodayViewed() {
+        guard coachV2 == .on, let today, !viewedTracked else { return }
+        viewedTracked = true
+        CoachV2Analytics.track(
+            .coachTodayViewed(athleteCount: today.athleteCount, needCount: today.needCount), to: tracker
+        )
+    }
+
+    func todayDidDisappear() { viewedTracked = false }
+
+    #if DEBUG
+    /// Previews and screenshots only: show `snapshot` as if a load had finished.
+    func loadPreview(_ snapshot: CoachTodaySnapshot) {
+        ownerID = UUID()
+        coachV2 = .on
+        today = snapshot
+        updatedAt = snapshot.generatedAt
+    }
+    #endif
+
+    func trackRowOpened(_ row: CoachTodayRow) {
+        guard coachV2 == .on else { return }
+        CoachV2Analytics.track(.coachTodayRowOpened(reason: row.reason?.rawValue ?? "none"), to: tracker)
+    }
+
+    private var rosterIDs: [UUID] {
+        var ids = rows.map(\.id)
+        if let today { ids += today.rows.map(\.id) }
+        return ids
     }
 
     private func loadCoachV2Status(generation current: Int) async {
@@ -42,7 +118,7 @@ final class CoachAthleteListModel: ObservableObject {
             let status = try await rosterStatus()
             guard current == generation, coachV2 == .on else { return }
             // Only an explicit false shows the line. A missing row is unknown, not "old app".
-            athletesNeedingUpdate = Set(rows.map(\.id).filter { status[$0] == false })
+            athletesNeedingUpdate = Set(rosterIDs.filter { status[$0] == false })
         } catch {
             guard current == generation, !(error is CancellationError) else { return }
             athletesNeedingUpdate = []
@@ -59,16 +135,32 @@ final class CoachAthleteListModel: ObservableObject {
         offline = false
         loading = false
         athletesNeedingUpdate = []
+        today = nil
+        pending = nil
+        hasPendingUpdate = false
+        viewedTracked = false
     }
 
-    func refresh(owner: UUID, now: Date = .now) async {
+    func refresh(owner: UUID, now: Date = .now, style: RefreshStyle = .replace) async {
+        await performRefresh(owner: owner, now: now, style: style)
+        // The gate turned v2 on while the 1.2.6-window load was running.
+        if needsV2Reload, coachV2 == .on, today == nil, !failure, ownerID == owner {
+            await performRefresh(owner: owner, now: now, style: style)
+        }
+    }
+
+    private func performRefresh(owner: UUID, now: Date, style: RefreshStyle) async {
         reset(for: owner)
         guard !loading else { return }
         loading = true
         let current = generation
         defer { if current == generation { loading = false } }
-        failure = false
-        offline = false
+        let v2 = coachV2 == .on
+        needsV2Reload = false
+        if style == .replace {
+            failure = false
+            offline = false
+        }
 
         do {
             let athletes = try await service.listAthletes()
@@ -76,46 +168,102 @@ final class CoachAthleteListModel: ObservableObject {
             guard current == generation else { return }
             let ids = athletes.map(\.athleteID)
             let active = Set(ids)
+            let week = CoachAthleteWeek(now: now)
             rows.removeAll { !active.contains($0.id) }
             if ids.isEmpty {
-                updatedAt = now
+                let empty = v2 ? CoachTodaySnapshot.make(athletes: [], workouts: [], runs: [], now: now, week: week) : nil
+                _ = commit(rows: rows, snapshot: empty, now: now, style: style)
                 return
             }
 
-            let week = CoachAthleteWeek(now: now)
+            // Today (v2) reads the last 7 days, which can start before this training week.
+            // The roster below it keeps the 1.2.6 week window and 1.2.6 rules.
+            let sevenDaysAgo = week.calendar.date(
+                byAdding: .day, value: -6, to: week.calendar.startOfDay(for: now)
+            )!
+            let windowStart = v2 ? min(week.interval.start, sevenDaysAgo) : week.interval.start
             async let planned = service.workouts(
-                from: week.interval.start, to: week.lastDay, athleteIDs: ids, calendar: week.calendar
+                from: windowStart, to: week.lastDay, athleteIDs: ids, calendar: week.calendar
             )
             // The server filters run dates in UTC. Fetch the boundary dates and then use the coach's week.
-            async let recorded = service.runs(
-                from: week.interval.start, to: now, athleteIDs: ids, calendar: .coachRunUTC
-            )
-            let (workouts, runs) = try await (planned, recorded)
+            async let recorded = Self.fetchRuns(service, from: windowStart, to: now, athleteIDs: ids)
+            let workouts = try await planned
+            var runsLoaded = true
+            var runs: [CoachRunSummary] = []
+            switch await recorded {
+            case .success(let fetched):
+                runs = fetched
+            case .failure(let error):
+                // 1.2.6: any failure fails the roster. v2: runs may fail alone, and then days read "unknown".
+                if !v2 || error is CancellationError { throw error }
+                runsLoaded = false
+            }
+            let weekStartISO = CoachReadDay.iso(week.interval.start, calendar: week.calendar)
+            let weeklyWorkouts = v2 ? workouts.filter { $0.scheduledDate >= weekStartISO } : workouts
             let weeklyRuns = runs.filter { week.contains($0.completedAt) && $0.completedAt <= now }
-            let recentIDs = Set(weeklyRuns.map(\.athleteID))
             var latest: [UUID: Date] = [:]
-            for id in ids where !recentIDs.contains(id) {
-                try Task.checkCancellation()
-                guard current == generation else { return }
-                latest[id] = try await service.latestRun(for: id, through: now)?.completedAt
+            if runsLoaded {
+                let recentIDs = Set(weeklyRuns.map(\.athleteID))
+                for id in ids where !recentIDs.contains(id) {
+                    try Task.checkCancellation()
+                    guard current == generation else { return }
+                    latest[id] = try await service.latestRun(for: id, through: now)?.completedAt
+                }
             }
 
             try Task.checkCancellation()
             guard current == generation else { return }
-            rows = CoachAthleteRow.make(
-                athletes: athletes, workouts: workouts, runs: weeklyRuns, latest: latest, now: now, week: week
-            )
-            updatedAt = now
+            // Without runs every athlete would look behind, so the roster keeps its last rows.
+            let newRows = runsLoaded ? CoachAthleteRow.make(
+                athletes: athletes, workouts: weeklyWorkouts, runs: weeklyRuns, latest: latest, now: now, week: week
+            ) : rows
+            let snapshot = v2 ? CoachTodaySnapshot.make(
+                athletes: athletes, workouts: workouts, runs: runs.filter { $0.completedAt <= now },
+                runsLoaded: runsLoaded, now: now, week: week
+            ) : nil
+
+            guard commit(rows: newRows, snapshot: snapshot, now: now, style: style) else { return }
             if coachV2 == .on {
                 await loadCoachV2Status(generation: current)
             } else {
                 athletesNeedingUpdate = []
+                if !v2 { needsV2Reload = false }
             }
+            if !v2 && coachV2 == .on { needsV2Reload = true }
         } catch {
             guard current == generation, !Task.isCancelled, !(error is CancellationError) else { return }
+            // A quiet refresh never turns a working screen into an error.
+            guard style == .replace else { return }
             let code = (error as? URLError)?.code
             offline = code == .notConnectedToInternet || code == .networkConnectionLost
             failure = true
+        }
+    }
+
+    /// Shows a finished load. A quiet load that would move rows is held behind the pill instead.
+    /// Returns false when it was held.
+    private func commit(rows newRows: [CoachAthleteRow], snapshot: CoachTodaySnapshot?, now: Date, style: RefreshStyle) -> Bool {
+        if style == .quiet, let shown = today, let snapshot, snapshot.layoutSignature != shown.layoutSignature {
+            // Rows would move while the coach is looking. Hold the update behind the pill.
+            pending = PendingUpdate(rows: newRows, today: snapshot, updatedAt: now)
+            hasPendingUpdate = true
+            return false
+        }
+        rows = newRows
+        today = snapshot
+        pending = nil
+        hasPendingUpdate = false
+        updatedAt = now
+        return true
+    }
+
+    private nonisolated static func fetchRuns(
+        _ service: any CoachReadServing, from: Date, to: Date, athleteIDs: [UUID]
+    ) async -> Result<[CoachRunSummary], Error> {
+        do {
+            return .success(try await service.runs(from: from, to: to, athleteIDs: athleteIDs, calendar: .coachRunUTC))
+        } catch {
+            return .failure(error)
         }
     }
 }
@@ -123,13 +271,21 @@ final class CoachAthleteListModel: ObservableObject {
 struct CoachAthleteDestination: Hashable {
     let athleteID: UUID
     let name: String
+    /// C7.1: the day the detail opens on (`yyyy-MM-dd`, the reason's day). Nil opens the week as before.
+    var focusDayISO: String?
+    /// C7.1: opened from the v2 Coach tab, so the detail uses the v2 copy for a revoked link.
+    var coachV2 = false
 }
 
 struct CoachAthleteList: View {
     @ObservedObject var model: CoachAthleteListModel
     let ownerID: UUID
     var planSetupUnavailable = false
+    /// C7.1: opens the athlete on the row's reason. Used by Coach Today only.
+    var open: (CoachAthleteDestination, CoachTodayRow) -> Void = { _, _ in }
+    var onShareInvite: (() -> Void)?
     let retry: () async -> Void
+    @State private var showsRoster = false
 
     var body: some View {
         if model.ownerID == ownerID {
@@ -142,6 +298,51 @@ struct CoachAthleteList: View {
 
     @ViewBuilder
     private var content: some View {
+        if model.coachV2 == .on {
+            // C7.1: Coach Today above the roster. Off and paused fall through to the 1.2.6 roster below.
+            CoachTodayView(model: model, onShareInvite: onShareInvite, open: { row in
+                open(
+                    CoachAthleteDestination(
+                        athleteID: row.id, name: row.name, focusDayISO: row.focusDayISO, coachV2: true
+                    ),
+                    row
+                )
+            }, retry: retry)
+            allAthletes
+        } else {
+            roster
+        }
+    }
+
+    /// T7: the full roster stays one tap below Today. It starts collapsed so rows are not shown twice.
+    @ViewBuilder
+    private var allAthletes: some View {
+        if let today = model.today, today.runsLoaded, !model.rows.isEmpty {
+            Button {
+                showsRoster.toggle()
+            } label: {
+                HStack {
+                    Text("All athletes (\(model.rows.count))").font(.headingMD).foregroundStyle(Color.textPrimary)
+                    Spacer()
+                    Image(systemName: showsRoster ? "chevron.down" : "chevron.forward")
+                        .foregroundStyle(Color.textSecondary)
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityValue(showsRoster ? "Expanded" : "Collapsed")
+            if showsRoster {
+                group("Needs attention", statuses: [.behind])
+                group("On track", statuses: [.onTrack])
+                group("No plan yet", statuses: [.noPlan, .joining])
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var roster: some View {
         if model.coachV2 == .paused {
             // v1.3 §3.7, C7.12: the server kill switch is on. [ASSUMPTION copy]
             Text("Some coach tools are paused for now.")
@@ -216,7 +417,9 @@ struct CoachAthleteList: View {
                 .font(.headingMD)
                 .accessibilityAddTraits(.isHeader)
             ForEach(rows) { row in
-                NavigationLink(value: CoachAthleteDestination(athleteID: row.id, name: row.athlete.displayName)) {
+                NavigationLink(value: CoachAthleteDestination(
+                    athleteID: row.id, name: row.athlete.displayName, coachV2: model.coachV2 == .on
+                )) {
                     CoachAthleteListRow(row: row, needsLatestApp: model.athletesNeedingUpdate.contains(row.id))
                 }
                 .buttonStyle(.plain)

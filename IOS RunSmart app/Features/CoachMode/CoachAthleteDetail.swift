@@ -90,6 +90,9 @@ struct CoachAthleteDetailView: View {
     @State private var showsPreviousWeek = false
     @State private var composer: CoachFeedbackRequest?
     @State private var showsWelcomeEditor = false
+    /// C7.1: set once, after the first load, to open on the day the Today row was urgent for.
+    @State private var focusedDayISO: String?
+    @State private var didFocus = false
 
     init(destination: CoachAthleteDestination, service: any CoachReadServing = CoachReadService(),
          feedbackService: any CoachFeedbackServing = SupabaseCoachFeedbackService()) {
@@ -145,13 +148,36 @@ struct CoachAthleteDetailView: View {
         .onChange(of: feedback.revoked) { _, revoked in
             if revoked { Task { await model.load() } }
         }
+        .onChange(of: model.updatedAt) { _, _ in focusRequestedDay() }
+        .navigationDestination(item: $focusedDayISO) { iso in
+            if let day = dayFor(iso), let strip = weekContaining(iso) {
+                CoachDayDetailView(
+                    day: day, calendar: model.calendar, name: destination.name, feedback: feedback,
+                    weekStart: CoachReadDay.iso(strip.start, calendar: model.calendar)
+                )
+            }
+        }
         .onChange(of: model.revoked) { _, revoked in
-            guard revoked else { return }
+            guard revoked, !destination.coachV2 else { return }
             Task {
                 try? await Task.sleep(for: .seconds(2))
                 dismiss()
             }
         }
+    }
+
+    private func weekContaining(_ iso: String) -> CoachAthleteWeekDays? {
+        [model.current, model.previous].compactMap { $0 }.first { $0.days.contains { $0.iso == iso } }
+    }
+
+    private func dayFor(_ iso: String) -> CoachDay? { weekContaining(iso)?.days.first { $0.iso == iso } }
+
+    /// C7.1 AC10: a row tap opens the athlete on the reason's day. Runs once, so Back returns to the week.
+    private func focusRequestedDay() {
+        guard !didFocus, let iso = destination.focusDayISO, destination.coachV2,
+              !model.revoked, !model.failure, model.updatedAt != nil, dayFor(iso) != nil else { return }
+        didFocus = true
+        focusedDayISO = iso
     }
 
     private var header: some View {
@@ -173,9 +199,20 @@ struct CoachAthleteDetailView: View {
     private var content: some View {
         if model.revoked {
             ContentCard {
-                Text("\(destination.name) is no longer in your group")
-                    .foregroundStyle(Color.textPrimary)
+                if destination.coachV2 {
+                    // UX spec A.5, revoked mid-session (v2 copy).
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("\(destination.name) is no longer linked to you.")
+                            .foregroundStyle(Color.textPrimary)
+                        Button("Back to Today") { dismiss() }
+                            .buttonStyle(NeonButtonStyle())
+                    }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text("\(destination.name) is no longer in your group")
+                        .foregroundStyle(Color.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         } else {
             if model.failure {
