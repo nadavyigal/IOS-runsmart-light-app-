@@ -1,3 +1,15 @@
+## 2026-11-22 — On-device debrief, opt-in (Apple membership plan PR 2)
+
+Founder chose a Settings toggle on 2026-11-22. Off by default; shown only when the app runs in English and Apple's on-device model is ready. Hebrew users never see it.
+- [x] `Services/Coach/OnDeviceDebriefGenerator.swift`: availability gate (iOS 26, model ready, English), opt-in key, prompt built from `RunDebriefInput` (port of `RUN_DEBRIEF_SYSTEM_PROMPT`), `@Generable` output, 12 s timeout, `source: .onDevice`.
+- [x] `PostRunDebriefModel.Source.onDevice` (`on_device`); `run_debriefs.source` is free text, nothing decodes it.
+- [x] `fetchRunDebrief`: on-device first when opted in and no linked coach, then cloud, then fallback. Guests can get the on-device debrief.
+- [x] Toggle "Post-run summary on this iPhone" in Run preferences (`SecondaryFlowView.swift`, `AudioCuesScaffold`).
+- [x] Badge in `PostRunLearningCard` shows "AI" for any generated debrief.
+- [x] Tests: opt-in off by default, prompt facts and size, source raw value, clipping, Hebrew gate (`-testLanguage he`). Full suite.
+- [ ] See the toggle on a signed-in English iPhone with Apple Intelligence on, then run 10 real debriefs (not possible in the simulator: guest preview needs sign-in).
+- Risk: a linked coach's context only reaches the cloud prompt, so on-device is skipped for coach-linked runners.
+
 ## 2026-11-19 — Live Activity pace for guided workouts
 
 - [x] Send the current guide step’s target to the existing Live Activity.

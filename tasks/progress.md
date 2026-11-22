@@ -1,3 +1,12 @@
+# 2026-11-22: On-device debrief, opt-in Settings toggle (draft PR, stacked on #232)
+
+Current Phase: 1.2.6 (46) live; Apple membership plan PR 2. Founder chose a Settings toggle on 2026-11-22.
+Active Story: `OnDeviceDebriefGenerator` (Foundation Models, English only, off by default); toggle "Post-run summary on this iPhone" in Run preferences.
+Next Recommended Story: PR 3, `run_debrief_generated` PostHog event and debug compare mode; then founder rates 10 real runs.
+Blockers: toggle not seen on screen yet: needs a signed-in English iPhone with Apple Intelligence on.
+Last Validation: 2026-11-22 full suite 1158 passed, 0 failed, 1 skip; OnDeviceDebriefTests he 9/0, en 8/0 + 1 skip; iPhone 17 iOS 26.5 sim.
+Last Updated: 2026-11-22
+
 # 2026-11-21: Debrief generator protocol (draft PR, no behavior change)
 
 Current Phase: 1.2.6 (46) live on the App Store; Apple membership plan PR 1 of the on-device debrief experiment.

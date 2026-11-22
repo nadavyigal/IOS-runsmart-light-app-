@@ -346,8 +346,8 @@ struct PostRunLearningCard<Footer: View>: View {
                         .foregroundStyle(Color.accentPrimary)
                     Spacer()
                     StatusChip(
-                        text: coachAssistantActive ? "RunSmart" : (debrief.source == .ai ? "AI" : "Coach"),
-                        tint: debrief.source == .ai ? .accentPrimary : .textSecondary
+                        text: coachAssistantActive ? "RunSmart" : (debrief.source != .fallback ? "AI" : "Coach"),
+                        tint: debrief.source != .fallback ? .accentPrimary : .textSecondary
                     )
                 }
 

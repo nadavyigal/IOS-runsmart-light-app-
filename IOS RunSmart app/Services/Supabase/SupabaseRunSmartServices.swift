@@ -1334,13 +1334,17 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     private func fetchRunDebrief(for run: RecordedRun) async -> PostRunDebriefModel {
-        guard let authSession = try? await supabase.auth.session else {
-            return .fallback(for: run)
+        // Opt-in on-device debrief first, then the cloud coach, then the fixed fallback.
+        var generators: [any RunDebriefGenerating] = []
+        let coachLinked = CoachContextSource.shared.context(for: currentUserID).linkActive
+        if let onDevice = OnDeviceDebrief.generatorIfEnabled(coachLinked: coachLinked) {
+            generators.append(onDevice)
         }
+        if let authSession = try? await supabase.auth.session {
+            generators.append(CloudRunDebriefGenerator(authUserID: authSession.user.id, accessToken: authSession.accessToken))
+        }
+        guard !generators.isEmpty else { return .fallback(for: run) }
         let input = await runDebriefInput(for: run)
-        let generators: [any RunDebriefGenerating] = [
-            CloudRunDebriefGenerator(authUserID: authSession.user.id, accessToken: authSession.accessToken)
-        ]
         return await RunDebriefPipeline.debrief(for: input, run: run, generators: generators) { model in
             await self.persistDebrief(model, for: run)
         }

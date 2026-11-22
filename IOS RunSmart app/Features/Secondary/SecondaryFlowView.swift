@@ -1668,7 +1668,10 @@ private struct AudioCuesScaffold: View {
     @Environment(\.coachAssistantActive) private var coachAssistantActive
     @AppStorage("runAutoPauseEnabled") private var autoPause = true
     @AppStorage(RunLiveActivityCoordinator.enabledKey) private var liveActivity = true
+    @AppStorage(OnDeviceDebrief.optInKey) private var onDeviceDebrief = false
     @State private var systemAllowsLiveActivities = ActivityAuthorizationInfo().areActivitiesEnabled
+    @State private var onDeviceDebriefReady = OnDeviceDebrief.isReady
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(alignment: .leading, spacing: RunSmartSpacing.md) {
@@ -1705,6 +1708,11 @@ private struct AudioCuesScaffold: View {
                     Toggle(CoachAssistantCopy.apply("Extra AI coach cues", assistant: coachAssistantActive), isOn: Binding(get: { coach.isEnabled }, set: { coach.setEnabled($0) }))
                     Text("AI cues need a signed-in account and an internet connection.")
                         .font(.caption).foregroundStyle(Color.mutedText)
+                    if onDeviceDebriefReady {
+                        Toggle("Post-run summary on this iPhone", isOn: $onDeviceDebrief)
+                        Text("Experimental. Apple Intelligence writes your post-run summary on this iPhone. If it can't, RunSmart writes it online as usual.")
+                            .font(.caption).foregroundStyle(Color.mutedText)
+                    }
                 }
             }
             RunnerWeightSettingsView()
@@ -1717,6 +1725,10 @@ private struct AudioCuesScaffold: View {
             for await enabled in info.activityEnablementUpdates {
                 systemAllowsLiveActivities = enabled
             }
+        }
+        // Apple Intelligence is turned on in iOS Settings; re-check when the runner comes back.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { onDeviceDebriefReady = OnDeviceDebrief.isReady }
         }
     }
 }
