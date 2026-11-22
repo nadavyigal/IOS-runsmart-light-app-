@@ -105,7 +105,7 @@ Rules for every batch:
 | `20261121100000_coach_v2_gate.sql` (M0 + M0b) | C7.0 + C7.12 | `supabase/rollback/20261121100000_coach_v2_gate.sql` | written (draft PR) |
 | `20261121110000_coach_consent_v2.sql` (M5a) | C7.8 | `supabase/rollback/20261121110000_coach_consent_v2.sql` | written (draft PR) |
 | `20261121120000_athlete_run_sharing.sql` (M1a) | C7.3 | added by C7.3 | not written |
-| `20261121130000_coach_last_seen_and_events.sql` (M3) | C7.2 | added by C7.2 | not written |
+| `20261121130000_coach_last_seen_and_events.sql` (M3) | C7.2 | `supabase/rollback/20261121130000_coach_last_seen_and_events.sql` | written (draft PR) |
 | `20261121140000_coach_feedback_replies.sql` (M4) | C7.7 | added by C7.7 | not written |
 | `20261121150000_athlete_run_flags.sql` (M1b) | C7.4 | added by C7.4 | not written |
 | `20261121160000_coach_link_end.sql` (M5b) | C7.11 | added by C7.11 | not written |
@@ -128,6 +128,16 @@ Rules for every batch:
 4. **When not to roll back:** while M1a (`20261121120000_athlete_run_sharing.sql`) or any later file that calls `coach_v2_sharing_allowed` is applied. Roll those back first, or flip `coach_v2` instead.
 5. **After the rollback, the app:** v2 builds fail the status read, so P9 never shows; the join screen falls back to the A3 copy and `join_coach`. 1.2.6 apps see no change.
 6. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: with an acked link in place, the rollback dropped the five functions, kept the link's `consent_version = 2` and its ack time, and the restored `join_coach` joined a new athlete at consent v1 with the Story 1.3 payload. Re-applying the migration kept the ack unchanged, and `coach_consent_v2.sql` passed again.
+
+#### M3: `20261121130000_coach_last_seen_and_events.sql`
+
+1. **Flag to flip first:** `coach_v2` to false. With it off, `coach_roster_summary` and `coach_get_athlete_events` return zero rows (no "new" markers), and `coach_mark_athlete_seen` and `athlete_log_goal_change` raise `v2_unavailable` and write nothing.
+2. **Safe with the flag off:** every seen time and every event stays. Apps keep queued seen and goal-change writes in their outbox and send them when the flag returns, so no goal change is lost. Coach Today falls back to the 1.2.6 roster.
+3. **Rollback file:** `supabase/rollback/20261121130000_coach_last_seen_and_events.sql`. It drops `coach_roster_summary`, `coach_get_athlete_events`, `athlete_log_goal_change` and `coach_mark_athlete_seen`. It keeps both tables (`coach_athlete_seen`, `coach_athlete_events`) and their rows, with RLS on and no client access. Dropping the tables is a commented, optional step that deletes every seen time and event; export first if you ever run it.
+4. **When not to roll back:** while M4, M1b, M5b or any later file that reads or writes `coach_athlete_events` or replaces `coach_roster_summary` is applied. Roll those back first, or flip `coach_v2` instead.
+5. **After the rollback, the app:** v2 coach builds fail the counts read and show Coach Today without markers; seen and goal-change writes stay queued on the phone and are dropped after 14 days. 1.2.6 apps see no change.
+6. **Account deletion:** both tables reference `auth.users` with `on delete cascade`, so `delete_account` (which deletes the auth user last) removes the rows. `purge_coach_data_for_deleted_account` is not replaced by M3.
+7. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: `coach_last_seen.sql` and the M3 case in `kill_switch.sql` pass; the rollback dropped the four functions and kept a seen row and an event row; re-applying the migration restored the functions without changing either row, and `coach_last_seen.sql` passed again.
 
 ### Batch B (R2: coach gets told)
 

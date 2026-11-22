@@ -30,6 +30,9 @@ struct CoachTabView: View {
                 coachScreen
                     .navigationDestination(for: CoachAthleteDestination.self) { athlete in
                         CoachAthleteDetailView(destination: athlete)
+                            // C7.2: opening the detail marks the athlete seen, from Today or the roster.
+                            // `markSeen` does nothing unless v2 is on.
+                            .onAppear { if athlete.coachV2 { athletes.markSeen(athlete.athleteID) } }
                     }
                     .toolbar(.hidden, for: .navigationBar)
             }

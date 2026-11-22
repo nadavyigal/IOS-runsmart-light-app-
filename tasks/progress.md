@@ -1,3 +1,12 @@
+# 2026-11-22: Coach v2 C7.2 "New since last visit" markers and coach events (draft)
+
+Current Phase: Coach Experience v2, R1 wave 3, lane B. C7.2 draft PRs open in iOS and web; M3 written, not applied.
+Active Story: C7.2: M3 seen and events tables, four RPCs, New to review group, "{n} new" markers, outbox, analytics.
+Next Recommended Story: C7.11 (lane B) after C7.8 and C7.2 merge; it logs left/removed events into M3.
+Blockers: Nadav applies Batch A (M0, M5a, M1a, M3) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: SQL 5 suites pass on local Postgres; iOS full suite 1255 passed, 0 failed, 1 skipped (iPhone 17, iOS 26.5).
+Last Updated: 2026-11-22
+
 # 2026-11-22: Coach v2 C7.1 Coach Today with 7-day dots merged
 
 Current Phase: Coach Experience v2, wave 2 (lane B). C7.1 merged with founder yes; SwiftUI only, no migration, no new RPC.

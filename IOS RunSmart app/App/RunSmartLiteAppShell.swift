@@ -223,7 +223,7 @@ struct RunSmartLiteAppShell: View {
             #endif
 
             // C7.0 hooks live in their own view so this body's modifier chain stays type-checkable.
-            CoachV2GateHooks(gate: coachV2Gate, athletes: coachAthletes, userID: coachRoleCheckUserID)
+            CoachV2GateHooks(gate: coachV2Gate, athletes: coachAthletes, coachLinks: coachLinks, userID: coachRoleCheckUserID)
 
             if isShowingLaunch {
                 RunSmartLaunchView()
@@ -808,9 +808,11 @@ struct RunSmartLiteAppShell: View {
 
 /// C7.0: syncs the v2 gate on sign-in, sign-out and every foreground (flags, then one
 /// capability report), and passes its state to the coach roster. Renders nothing.
+/// C7.2: also sends the v2 outbox on those moments, and queues a goal change after a goal save.
 private struct CoachV2GateHooks: View {
     @ObservedObject var gate: CoachV2Gate
     let athletes: CoachAthleteListModel
+    @ObservedObject var coachLinks: CoachLinkStore
     let userID: UUID?
     @Environment(\.scenePhase) private var scenePhase
 
@@ -821,14 +823,33 @@ private struct CoachV2GateHooks: View {
             .task(id: userID) {
                 guard !RunSmartDemoMode.isEnabled else { return }
                 await gate.sync(userID: userID)
+                await flushOutbox()
             }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active, !RunSmartDemoMode.isEnabled, RunSmartFeatures.coachModeEnabled else { return }
-                Task { await gate.sync(userID: userID) }
+                Task {
+                    await gate.sync(userID: userID)
+                    await flushOutbox()
+                }
+            }
+            // C7.2 AC3: every goal-save caller ends in SupabaseRunSmartServices.saveTrainingGoal, which posts
+            // `.generating` only after the goal is saved. One hook covers them all.
+            .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanGenerationStatusDidChange)) { note in
+                guard case .generating? = note.object as? RunSmartPlanGenerationStatus,
+                      !RunSmartDemoMode.isEnabled, gate.state == .on, let userID else { return }
+                // Skip only when the link store has loaded and found no coach. The server checks again.
+                guard !(coachLinks.didAttemptLoad && coachLinks.currentLink == nil) else { return }
+                Task { await CoachV2Outbox.shared.logGoalChange(userID: userID) }
             }
             .onChange(of: gate.state) { _, state in
                 Task { await athletes.applyCoachV2(state) }
             }
+    }
+
+    /// Flag-off and paused keep the queue and send nothing (v1.3 §1.1 offline AC).
+    private func flushOutbox() async {
+        guard gate.state == .on, let userID else { return }
+        await CoachV2Outbox.shared.flush(userID: userID)
     }
 }
 

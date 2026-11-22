@@ -68,6 +68,13 @@ final class CoachTodayScreenshotTests: XCTestCase {
         try render(.previewFixture(athletes: 3), name: "05-ax3-text-dots", size: .accessibility3, height: 2200, to: out)
         try render(.previewFixture(athletes: 4), name: "06-rtl", rtl: true, height: 1200, to: out)
         try render(Self.empty(), name: "07-no-athletes", height: 500, to: out)
+        // C7.2: "New to review" and the "{n} new" markers (dot plus text), including urgent rows with news.
+        try render(.previewFixture(athletes: 10, withNews: true), name: "08-new-to-review", height: 2400,
+                   viewport: 1400, to: out)
+        try render(.previewFixture(athletes: 10, withNews: true), name: "09-new-to-review-xxl", size: .xxxLarge,
+                   height: 4000, viewport: 1800, to: out)
+        try render(.previewFixture(athletes: 10, withNews: true), name: "10-new-to-review-rtl", rtl: true,
+                   height: 2400, viewport: 1400, to: out)
     }
 
     // MARK: Fixtures
