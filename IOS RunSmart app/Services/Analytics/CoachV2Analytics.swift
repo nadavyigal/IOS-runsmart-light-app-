@@ -29,14 +29,28 @@ nonisolated enum CoachV2Analytics {
         }
     }
 
-    /// One case per event. Empty until a story adds the first one.
-    enum Event: Sendable {
+    /// One case per event. Each story adds its own (v1.3 section 3.8).
+    enum Event: Sendable, Equatable {
+        /// C7.8: the v2 consent copy was shown (P8 at join, P9 on Today).
+        case consentV2Shown(surface: CoachConsentSurface)
+        /// C7.8: the athlete accepted the v2 copy and the server recorded it.
+        case consentV2Acked(surface: CoachConsentSurface)
+        /// C7.8: P9 "Leave {Coach}" opened the leave sheet.
+        case consentV2LeaveTapped(surface: CoachConsentSurface)
+
         var name: String {
-            switch self {}
+            switch self {
+            case .consentV2Shown: "consent_v2_shown"
+            case .consentV2Acked: "consent_v2_acked"
+            case .consentV2LeaveTapped: "consent_v2_leave_tapped"
+            }
         }
 
         var properties: [String: Value] {
-            switch self {}
+            switch self {
+            case .consentV2Shown(let surface), .consentV2Acked(let surface), .consentV2LeaveTapped(let surface):
+                ["surface": .kind(surface.rawValue)]
+            }
         }
     }
 

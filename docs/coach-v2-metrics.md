@@ -47,7 +47,7 @@ Each story adds its events in its own PR. The "Feeds" column shows which metrics
 | C7.3 | R1 | `run_rpe_set(shared)`, `run_note_saved(shared)`, `run_note_hidden_toggled(hidden)`, `rpe_backfill_done(count)` | none directly |
 | C7.4 | R1 | `flag_created(kind, has_run)`, `flag_removed`, `flag_resolved(minutes_open)` | SM-V2 |
 | C7.7 | R1 | `coach_note_reply_sent` | SM-V5 |
-| C7.8 | R1 | `consent_v2_shown(surface)`, `consent_v2_acked(surface)`, `consent_v2_leave_tapped(surface)` | SM-V3 |
+| C7.8 | R1 | `consent_v2_shown(surface)`, `consent_v2_acked(surface)`, `consent_v2_leave_tapped(surface)`. `surface` is `join` (P8) or `notice` (P9); `leave_tapped` is P9 only. SM-V3 filters on `surface = notice`. | SM-V3 |
 | C7.10 | R2 | `push_permission_prompted(role)`, `push_permission_result(role, granted)`, `push_opened(kind)` | none directly |
 | C7.11 | R1 | `coach_removed_athlete`, `athlete_left_coach` | none directly |
 | C7.14 | R2 | `notification_pref_changed(kind, enabled)` | SM-VC1 |

@@ -221,6 +221,8 @@ struct TodayTabView: View {
         .task(id: coachPresence.coach?.id) {
             await refreshCoachWelcome()
         }
+        // C7.8 P9: the one-time sharing notice. Nothing with v2 off.
+        .coachConsentNotice()
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await refreshCoachWelcome() } }
         }

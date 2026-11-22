@@ -10,6 +10,11 @@
 --     runtime_flags; get_runtime_flags() returns only the allow-listed keys;
 --     anon is denied.
 --   * The migration seeds coach_v2, coach_v2_push and coach_v2_ai as enabled.
+--   * C7.8 (M5a): with the flag off, my_coach_consent_status shows no P9 and no
+--     sharing, ack_coach_consent raises v2_unavailable and changes nothing,
+--     coach_v2_sharing_allowed is false even for an acked pair, and
+--     coach_invite_consent_version returns 1 (A3 copy). Back on, P9 shows again
+--     for the athlete who has not acked, and the acked pair shares again.
 --
 -- Every later v2 RPC adds its own case to this file (C7.12 DoD): with the flag
 -- off, write RPCs raise v2_unavailable and read RPCs return zero rows.
@@ -18,11 +23,13 @@
 -- Inserts auth.users rows. Refuses to run if auth.users is not empty, so it can
 -- only run on a blank throwaway Postgres (supabase/postgres image), never production.
 --
--- Run (after Stories 1.2 and 1.3, then the gate migration twice):
+-- Run (after Stories 1.2 and 1.3 and the gate, then the newest v2 migration that
+-- adds a case here, twice; CI's matrix row lists the same files):
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261114210000_coach_role_and_invites.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261115091000_coach_athlete_links.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121100000_coach_v2_gate.sql
---   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121100000_coach_v2_gate.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121110000_coach_consent_v2.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121110000_coach_consent_v2.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/kill_switch.sql
 
 begin;
@@ -195,6 +202,68 @@ begin
     raise exception 'FAIL: a client changed coach_v2_push';
   end if;
 end $$;
+
+-- C7.8 (M5a): consent v2 with the switch off ------------------------------------------
+-- B (A-B, TestFlight) is on consent v1. E (C-E, listed App Store pair) acks first.
+insert into public.coach_invites (coach_id, code, active)
+values ('aaaaaaaa-0000-4000-8000-00000000000a', 'DANA22', true);
+-- D is only a caller for the invite check: a TestFlight v2 client with no link.
+insert into auth.users (id, email, aud, role)
+values ('dddddddd-0000-4000-8000-00000000000d', 'third-d@example.com', 'authenticated', 'authenticated');
+insert into public.client_capabilities (user_id, coach_v2, channel)
+values ('dddddddd-0000-4000-8000-00000000000d', true, 'testflight');
+
+set local role authenticated;
+select pg_temp.act_as('eeeeeeee-0000-4000-8000-00000000000e');
+select public.ack_coach_consent(2);
+select pg_temp.act_as('dddddddd-0000-4000-8000-00000000000d');
+select pg_temp.expect_count(
+  $q$select 1 where public.coach_invite_consent_version('DANA22') = 2$q$, 1, 'P8 copy with the flag on');
+reset role;
+select pg_temp.expect_bool(public.coach_v2_sharing_allowed('cccccccc-0000-4000-8000-00000000000c',
+  'eeeeeeee-0000-4000-8000-00000000000e'), true, 'acked pair shares with the flag on');
+
+update public.runtime_flags set enabled = false, updated_at = now() where key = 'coach_v2';
+
+set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+select pg_temp.expect_count(
+  $q$select 1 from public.my_coach_consent_status() where not link_is_v2 and not needs_v2_ack and not sharing_active$q$,
+  1, 'kill switch on: no P9, no sharing');
+select pg_temp.expect_error($q$select public.ack_coach_consent(2)$q$, 'P0001', 'ack with the kill switch on');
+select pg_temp.act_as('eeeeeeee-0000-4000-8000-00000000000e');
+select pg_temp.expect_count(
+  $q$select 1 from public.my_coach_consent_status() where not sharing_active$q$,
+  1, 'kill switch on: acked athlete shares nothing');
+-- An athlete who already acked gets the same answer back, with nothing changed.
+select pg_temp.expect_count(
+  $q$select 1 where public.ack_coach_consent(2)->>'status' = 'already_acked'$q$,
+  1, 'repeat ack with the kill switch on');
+select pg_temp.act_as('dddddddd-0000-4000-8000-00000000000d');
+select pg_temp.expect_count(
+  $q$select 1 where public.coach_invite_consent_version('DANA22') = 1$q$, 1, 'A3 copy with the kill switch on');
+reset role;
+select pg_temp.expect_bool(public.coach_v2_sharing_allowed('cccccccc-0000-4000-8000-00000000000c',
+  'eeeeeeee-0000-4000-8000-00000000000e'), false, 'acked pair with the kill switch on');
+do $$
+begin
+  if not exists (select 1 from public.coach_athlete_links
+                 where athlete_id = 'bbbbbbbb-0000-4000-8000-00000000000b' and status = 'active'
+                   and consent_version = 1 and consent_acknowledged_at is null) then
+    raise exception 'FAIL: an ack with the kill switch on changed the link';
+  end if;
+end $$;
+
+update public.runtime_flags set enabled = true, updated_at = now() where key = 'coach_v2';
+
+set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+select pg_temp.expect_count(
+  $q$select 1 from public.my_coach_consent_status() where link_is_v2 and needs_v2_ack$q$,
+  1, 'flag back on: P9 shows again');
+reset role;
+select pg_temp.expect_bool(public.coach_v2_sharing_allowed('cccccccc-0000-4000-8000-00000000000c',
+  'eeeeeeee-0000-4000-8000-00000000000e'), true, 'acked pair shares again with the flag back on');
 
 do $$ begin raise notice 'kill_switch: PASS'; end $$;
 

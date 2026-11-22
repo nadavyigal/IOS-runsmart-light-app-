@@ -16,6 +16,8 @@ struct MyCoachView: View {
     @State private var pathMonitor: NWPathMonitor?
     @State private var openTask: Task<Void, Never>?
     @State private var unavailableNoteID: UUID?
+    /// C7.8 AC8: the leave sheet adds its v2 lines only while v2 is on and the link is v2.
+    @State private var leaveIncludesV2Lines = false
 
     var body: some View {
         Group {
@@ -27,6 +29,7 @@ struct MyCoachView: View {
             }
         }
         .onAppear(perform: startReachability)
+        .task(id: coachLinks.currentLink?.id) { await loadLeaveV2Lines() }
         .onDisappear {
             stopReachability()
             // A report must not open after My coach is closed.
@@ -35,7 +38,8 @@ struct MyCoachView: View {
         }
         .sheet(isPresented: $showLeaveSheet) {
             if let link = coachLinks.currentLink {
-                LeaveCoachSheet(coachName: link.coachName, model: model) {
+                LeaveCoachSheet(coachName: link.coachName, model: model,
+                                includesV2Lines: leaveIncludesV2Lines) {
                     guard let userID = session.currentUserID else { return }
                     let toast = await model.confirm(
                         coachName: link.coachName,
@@ -198,6 +202,17 @@ struct MyCoachView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Flag off makes no v2 call (flag-off AC). A failed read keeps the 1.2.6 sheet.
+    private func loadLeaveV2Lines() async {
+        guard RunSmartFeatures.coachV2Enabled, let link = coachLinks.currentLink else {
+            leaveIncludesV2Lines = false
+            return
+        }
+        let status = try? await SupabaseCoachConsentRepository().status()
+        guard coachLinks.currentLink?.id == link.id else { return }
+        leaveIncludesV2Lines = status?.linkID == link.id && status?.linkIsV2 == true
+    }
+
     private func startReachability() {
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { path in
@@ -215,10 +230,13 @@ struct MyCoachView: View {
     }
 }
 
-/// A13. Equal-weight buttons, no timer, no second confirmation.
-private struct LeaveCoachSheet: View {
+/// A13. Equal-weight buttons, no timer, no second confirmation. P9's "Leave {Coach}"
+/// (C7.8) opens this same sheet, with `onCancel` returning to P9.
+struct LeaveCoachSheet: View {
     var coachName: String
     @ObservedObject var model: LeaveCoachModel
+    var includesV2Lines = false
+    var onCancel: (() -> Void)? = nil
     var onConfirm: () async -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -234,7 +252,7 @@ private struct LeaveCoachSheet: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(LeaveCoachCopy.sheet(coach: coachName))
+            Text(LeaveCoachCopy.sheet(coach: coachName, includesV2Lines: includesV2Lines))
                 .font(.body)
                 .foregroundStyle(Color.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -249,7 +267,7 @@ private struct LeaveCoachSheet: View {
             HStack(spacing: 12) {
                 Button("Cancel") {
                     model.cancel()
-                    dismiss()
+                    if let onCancel { onCancel() } else { dismiss() }
                 }
                 .buttonStyle(.bordered)
                 .disabled(model.isWorking)
