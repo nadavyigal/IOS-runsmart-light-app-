@@ -11,14 +11,23 @@ final class CoachAthleteDetailModel: ObservableObject {
     @Published private(set) var failure = false
     @Published private(set) var offline = false
     @Published private(set) var revoked = false
+    /// C7.3 AC4: the athlete's run notes the coach may read, by run id. Always empty when Coach v2 is off.
+    @Published private(set) var runNotes: [Int: String] = [:]
     private(set) var calendar = Calendar(identifier: .gregorian)
     let athleteID: UUID
+    let coachV2: Bool
     private let service: any CoachReadServing
+    private let fetchNotes: @Sendable ([Int]) async throws -> [Int: String]
     private var inFlight: Task<Void, Never>?
 
-    init(athleteID: UUID, service: any CoachReadServing = CoachReadService()) {
+    init(
+        athleteID: UUID, service: any CoachReadServing = CoachReadService(), coachV2: Bool = false,
+        fetchNotes: @escaping @Sendable ([Int]) async throws -> [Int: String] = { try await CoachRunNotesFetcher.notes(runIDs: $0) }
+    ) {
         self.athleteID = athleteID
         self.service = service
+        self.coachV2 = coachV2
+        self.fetchNotes = fetchNotes
     }
 
     var hasRuns: Bool {
@@ -51,6 +60,7 @@ final class CoachAthleteDetailModel: ObservableObject {
                 revoked = true
                 current = nil
                 previous = nil
+                runNotes = [:]
                 return
             }
             hasPlan = athlete.hasActivePlan
@@ -65,10 +75,12 @@ final class CoachAthleteDetailModel: ObservableObject {
                 from: previousStart, to: now, athleteIDs: [athleteID], calendar: .coachRunUTC
             )
             let (workouts, runs) = try await (planned, recorded)
+            let athleteRuns = runs.filter { $0.athleteID == athleteID }
             let weeks = CoachAthleteDays.weeks(
                 workouts: workouts.filter { $0.athleteID == athleteID },
-                runs: runs.filter { $0.athleteID == athleteID }, now: now, week: week
+                runs: athleteRuns, now: now, week: week
             )
+            runNotes = coachV2 ? await notes(for: athleteRuns) : [:]
             current = weeks.current
             previous = weeks.previous
             updatedAt = now
@@ -77,6 +89,51 @@ final class CoachAthleteDetailModel: ObservableObject {
             let code = (error as? URLError)?.code
             offline = code == .notConnectedToInternet || code == .networkConnectionLost
             failure = true
+        }
+    }
+
+    /// Reads only runs the server marked `has_note`. A failed read never fails the week:
+    /// notes from the last good read stay, and a run without one shows no note.
+    private func notes(for runs: [CoachRunSummary]) async -> [Int: String] {
+        let ids = runs.filter(\.hasNote).map(\.id)
+        guard !ids.isEmpty else { return [:] }
+        if let fresh = try? await fetchNotes(ids) { return fresh }
+        let kept = Set(ids)
+        return runNotes.filter { kept.contains($0.key) }
+    }
+}
+
+/// C7.3 AC4: what the coach may see of an athlete's shared effort and notes. Nil when Coach v2 is off.
+struct CoachDaySharing: Equatable {
+    let athleteName: String
+    let notes: [Int: String]
+}
+
+/// C7.3 AC4: the lines under Actual for one run. Empty when sharing is off, effort is not shared
+/// and there is no readable note. A hidden note comes back as `has_note` false, so it shows nothing.
+nonisolated struct CoachRunSharingLines: Equatable {
+    let effort: String?
+    let spokenEffort: String?
+    let note: String?
+    let attribution: String?
+    let spokenNote: String?
+
+    var isEmpty: Bool { effort == nil && note == nil }
+
+    init(run: CoachRunSummary, sharing: CoachDaySharing?) {
+        guard let sharing else {
+            effort = nil; spokenEffort = nil; note = nil; attribution = nil; spokenNote = nil
+            return
+        }
+        effort = CoachRunSharingCopy.effort(run.rpe)
+        spokenEffort = effort == nil ? nil : run.rpe.map { "Effort, \($0) of 10" }
+        let text = run.hasNote ? sharing.notes[run.id]?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+        if let text, !text.isEmpty {
+            note = CoachRunSharingCopy.quotedNote(text)
+            attribution = CoachRunSharingCopy.attribution(athlete: sharing.athleteName)
+            spokenNote = "Note from \(sharing.athleteName): \(text)"
+        } else {
+            note = nil; attribution = nil; spokenNote = nil
         }
     }
 }
@@ -97,7 +154,9 @@ struct CoachAthleteDetailView: View {
     init(destination: CoachAthleteDestination, service: any CoachReadServing = CoachReadService(),
          feedbackService: any CoachFeedbackServing = SupabaseCoachFeedbackService()) {
         self.destination = destination
-        _model = StateObject(wrappedValue: CoachAthleteDetailModel(athleteID: destination.athleteID, service: service))
+        _model = StateObject(wrappedValue: CoachAthleteDetailModel(
+            athleteID: destination.athleteID, service: service, coachV2: destination.coachV2
+        ))
         _feedback = StateObject(wrappedValue: CoachFeedbackStore(
             athleteID: destination.athleteID, athleteName: destination.name, service: feedbackService
         ))
@@ -153,7 +212,7 @@ struct CoachAthleteDetailView: View {
             if let day = dayFor(iso), let strip = weekContaining(iso) {
                 CoachDayDetailView(
                     day: day, calendar: model.calendar, name: destination.name, feedback: feedback,
-                    weekStart: CoachReadDay.iso(strip.start, calendar: model.calendar)
+                    weekStart: CoachReadDay.iso(strip.start, calendar: model.calendar), sharing: sharing
                 )
             }
         }
@@ -164,6 +223,11 @@ struct CoachAthleteDetailView: View {
                 dismiss()
             }
         }
+    }
+
+    /// C7.3 AC4: effort and notes reach the day detail only while Coach v2 is on.
+    private var sharing: CoachDaySharing? {
+        destination.coachV2 ? CoachDaySharing(athleteName: destination.name, notes: model.runNotes) : nil
     }
 
     private func weekContaining(_ iso: String) -> CoachAthleteWeekDays? {
@@ -252,12 +316,14 @@ struct CoachAthleteDetailView: View {
                 Text("No runs yet").font(.bodyMD).foregroundStyle(Color.textSecondary)
             }
             Text("This week").font(.headingMD).accessibilityAddTraits(.isHeader)
-            CoachWeekStrip(week: current, calendar: model.calendar, name: destination.name, feedback: feedback)
+            CoachWeekStrip(week: current, calendar: model.calendar, name: destination.name, feedback: feedback,
+                           sharing: sharing)
             weekNote(current)
             if let previous = model.previous {
                 DisclosureGroup(isExpanded: $showsPreviousWeek) {
                     VStack(alignment: .leading, spacing: 10) {
-                        CoachWeekStrip(week: previous, calendar: model.calendar, name: destination.name, feedback: feedback)
+                        CoachWeekStrip(week: previous, calendar: model.calendar, name: destination.name, feedback: feedback,
+                                       sharing: sharing)
                         weekNote(previous)
                     }
                     .padding(.top, 8)
@@ -302,6 +368,7 @@ struct CoachWeekStrip: View {
     let calendar: Calendar
     let name: String
     var feedback: CoachFeedbackStore?
+    var sharing: CoachDaySharing?
     @Environment(\.dynamicTypeSize) private var size
 
     var body: some View {
@@ -320,7 +387,7 @@ struct CoachWeekStrip: View {
     private func link<Label: View>(_ day: CoachDay, @ViewBuilder label: () -> Label) -> some View {
         NavigationLink {
             CoachDayDetailView(day: day, calendar: calendar, name: name, feedback: feedback,
-                               weekStart: CoachReadDay.iso(week.start, calendar: calendar))
+                               weekStart: CoachReadDay.iso(week.start, calendar: calendar), sharing: sharing)
         } label: {
             label()
         }
@@ -397,6 +464,7 @@ struct CoachDayDetailView: View {
     let name: String
     var feedback: CoachFeedbackStore?
     var weekStart = ""
+    var sharing: CoachDaySharing?
     @State private var composer: CoachFeedbackRequest?
     /// Several runs on one day each load a map; a revoked link is handled once.
     @State private var handledRevoke = false
@@ -405,7 +473,7 @@ struct CoachDayDetailView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             CoachDayDetailContent(day: day, calendar: calendar, feedback: feedback, weekStart: weekStart,
-                                  open: { composer = $0 },
+                                  sharing: sharing, open: { composer = $0 },
                                   onRunRevoked: {
                                       // Back to the athlete screen, which shows "no longer in your group".
                                       guard !handledRevoke else { return }
@@ -436,6 +504,8 @@ struct CoachDayDetailContent: View {
     let calendar: Calendar
     var feedback: CoachFeedbackStore?
     var weekStart = ""
+    /// C7.3 AC4: shared effort and notes. Nil (Coach v2 off) shows neither.
+    var sharing: CoachDaySharing?
     var open: (CoachFeedbackRequest) -> Void = { _ in }
     /// Set by the day detail to show each run's map (Story 6.2). Nil draws no map.
     var onRunRevoked: (() -> Void)?
@@ -505,6 +575,7 @@ struct CoachDayDetailContent: View {
                     actual: run.flatMap(CoachMetricFormat.paceSeconds).map(CoachMetricFormat.pace)
                 )
                 metricRow("Avg HR", planned: nil, actual: run?.averageHeartRate.map(CoachMetricFormat.heartRate))
+                if let run { sharingLines(run) }
                 if run == nil {
                     Text(item.state == .missed ? "Missed" : "Not run yet")
                         .font(.bodyMD)
@@ -541,6 +612,41 @@ struct CoachDayDetailContent: View {
                 metricRow("Duration", planned: nil, actual: CoachMetricFormat.duration(seconds: run.durationSeconds))
                 metricRow("Pace", planned: nil, actual: CoachMetricFormat.paceSeconds(for: run).map(CoachMetricFormat.pace))
                 metricRow("Avg HR", planned: nil, actual: run.averageHeartRate.map(CoachMetricFormat.heartRate))
+                sharingLines(run)
+            }
+        }
+    }
+
+    /// C7.3 AC4: "Effort 7/10", then the note in quotes with the athlete's name under it.
+    /// The note keeps its own direction (a Hebrew note in an English screen reads right to left).
+    @ViewBuilder
+    private func sharingLines(_ run: CoachRunSummary) -> some View {
+        let lines = CoachRunSharingLines(run: run, sharing: sharing)
+        if !lines.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Divider().overlay(Color.textSecondary.opacity(0.2))
+                if let effort = lines.effort {
+                    Text(effort)
+                        .font(.bodyMD.weight(.semibold))
+                        .foregroundStyle(Color.textPrimary)
+                        .accessibilityLabel(lines.spokenEffort ?? effort)
+                }
+                if let note = lines.note, let attribution = lines.attribution {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(note)
+                            .font(.bodyMD)
+                            .foregroundStyle(Color.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .naturalTextDirection(note)
+                        Text(attribution)
+                            .font(.labelLG)
+                            .foregroundStyle(Color.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(lines.spokenNote ?? note)
+                }
             }
         }
     }
