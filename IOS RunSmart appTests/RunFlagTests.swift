@@ -39,6 +39,32 @@ private nonisolated final class FakeCoachFlagRepository: CoachFlagRepository, @u
     }
 }
 
+/// A flag store with no flags and no network, for tests that build `CoachAthleteListModel`.
+nonisolated final class NoFlagsRepository: CoachFlagRepository, @unchecked Sendable {
+    var failRead = false
+    func flags(athleteIDs: [UUID]?, includeResolved: Bool) async throws -> [CoachRunFlag] {
+        if failRead { throw URLError(.timedOut) }
+        return []
+    }
+    func resolve(flagID: UUID) async throws -> Date? { nil }
+}
+
+extension CoachFlagStore {
+    @MainActor
+    static func offline(_ repository: NoFlagsRepository = NoFlagsRepository()) -> CoachFlagStore {
+        CoachFlagStore(repository: repository, defaults: UserDefaults(suiteName: "CoachFlagStore.\(UUID().uuidString)")!,
+                       tracker: { NoFlagEvents() }, sleep: { _ in })
+    }
+}
+
+private nonisolated final class NoFlagEvents: AnalyticsTracking, @unchecked Sendable {
+    func track(_ event: String, properties: [String: Any]) {}
+    func identify(userId: String, traits: [String: Any]) {}
+    func register(properties: [String: Any]) {}
+    func unregister(_ key: String) {}
+    func reset() {}
+}
+
 private nonisolated final class FlagEventSpy: AnalyticsTracking, @unchecked Sendable {
     var events: [(name: String, properties: [String: Any])] = []
     func track(_ event: String, properties: [String: Any]) { events.append((event, properties)) }

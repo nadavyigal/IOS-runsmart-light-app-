@@ -479,7 +479,8 @@ final class CoachTodayTests: XCTestCase {
         let outbox = CoachV2Outbox(
             defaults: UserDefaults(suiteName: "CoachTodayTests-\(UUID().uuidString)")!, repository: seen
         )
-        return CoachAthleteListModel(service: service, rosterStatus: { [:] }, tracker: tracker, seen: seen, outbox: outbox)
+        return CoachAthleteListModel(service: service, rosterStatus: { [:] }, tracker: tracker, seen: seen, outbox: outbox,
+                                     flagStore: .offline())
     }
 
     private func stubWithAthlete() -> StubRead {
