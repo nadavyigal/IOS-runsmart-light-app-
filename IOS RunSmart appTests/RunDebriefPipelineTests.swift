@@ -10,7 +10,8 @@ final class RunDebriefPipelineTests: XCTestCase {
         case fail(Error)
     }
 
-    private final class FakeGenerator: RunDebriefGenerating {
+    // Only touched from the main actor in these tests.
+    private final class FakeGenerator: RunDebriefGenerating, @unchecked Sendable {
         let outcome: Outcome
         private(set) var calls = 0
 
