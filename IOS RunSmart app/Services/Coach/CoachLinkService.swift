@@ -23,6 +23,9 @@ struct CoachLookup: Equatable, Sendable {
     var planMode: CoachPlanMode? = nil
     /// Present only for a Group Plan coach whose settings came back complete.
     var groupPlan: GroupPlanSettings? = nil
+    /// C7.8: which consent copy the athlete sees. 1 = the MVP A3 copy, 2 = the v2 P8
+    /// copy. Stays 1 unless v2 is on and `coach_invite_consent_version` says 2.
+    var consentVersion: Int = 1
 }
 
 enum JoinCoachOutcome: Equatable, Sendable {
@@ -45,6 +48,21 @@ nonisolated protocol CoachLinkRepository: Sendable {
     func lookupInvite(code: String) async throws -> CoachLookup?
     func joinCoach(code: String, inviteID: UUID, coachID: UUID, athleteID: UUID) async throws -> JoinCoachOutcome
     func leaveCoach(linkID: UUID) async throws
+    /// C7.8: `coach_invite_consent_version(code)`. 2 when the P8 copy applies, else 1.
+    func inviteConsentVersion(code: String) async throws -> Int
+    /// C7.8: `join_coach_v2`. Version 2 writes the ack in the same call (AC2).
+    func joinCoach(code: String, inviteID: UUID, coachID: UUID, athleteID: UUID,
+                   consentVersion: Int) async throws -> JoinCoachOutcome
+}
+
+extension CoachLinkRepository {
+    /// Repositories without the v2 RPCs show the A3 copy.
+    func inviteConsentVersion(code: String) async throws -> Int { 1 }
+
+    func joinCoach(code: String, inviteID: UUID, coachID: UUID, athleteID: UUID,
+                   consentVersion: Int) async throws -> JoinCoachOutcome {
+        try await joinCoach(code: code, inviteID: inviteID, coachID: coachID, athleteID: athleteID)
+    }
 }
 
 nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
@@ -106,6 +124,22 @@ nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
         }
     }
 
+    private struct JoinV2Params: Encodable {
+        let code: String
+        let expectedInviteId: UUID
+        let expectedCoachId: UUID
+        let expectedAthleteId: UUID
+        let consentVersion: Int
+
+        enum CodingKeys: String, CodingKey {
+            case code
+            case expectedInviteId = "expected_invite_id"
+            case expectedCoachId = "expected_coach_id"
+            case expectedAthleteId = "expected_athlete_id"
+            case consentVersion = "p_consent_version"
+        }
+    }
+
     func currentLink() async throws -> CoachLink? {
         let rows: [LinkRow] = try await SupabaseManager.client
             .rpc("my_coach_link")
@@ -131,6 +165,34 @@ nonisolated struct SupabaseCoachLinkRepository: CoachLinkRepository {
             )
             .execute()
             .value
+        return Self.outcome(payload)
+    }
+
+    func inviteConsentVersion(code: String) async throws -> Int {
+        try await SupabaseManager.client
+            .rpc(CoachConsentV2RPC.inviteConsentVersion, params: CodeParams(code: code))
+            .execute()
+            .value
+    }
+
+    /// Version 1 goes through Story 1.3's `join_coach`, exactly as before.
+    func joinCoach(code: String, inviteID: UUID, coachID: UUID, athleteID: UUID,
+                   consentVersion: Int) async throws -> JoinCoachOutcome {
+        guard consentVersion >= 2 else {
+            return try await joinCoach(code: code, inviteID: inviteID, coachID: coachID, athleteID: athleteID)
+        }
+        let payload: JoinPayload = try await SupabaseManager.client
+            .rpc(
+                CoachConsentV2RPC.joinV2,
+                params: JoinV2Params(code: code, expectedInviteId: inviteID, expectedCoachId: coachID,
+                                     expectedAthleteId: athleteID, consentVersion: 2)
+            )
+            .execute()
+            .value
+        return Self.outcome(payload)
+    }
+
+    private static func outcome(_ payload: JoinPayload) -> JoinCoachOutcome {
         switch payload {
         case .joined(let row):
             return .joined(row.link)
@@ -399,6 +461,65 @@ enum CoachConsentCopy {
         """
     }
 
+    /// C7.8 P8: the v2 join consent body, word for word from the UX spec (section C.5),
+    /// plus the D9 read-receipt line (v1.3 C7.8 AC1). The lock sentence ("RunSmart won't
+    /// change workouts {Coach} sets.") is added only when `LeaveCoachCopy.coachWorkoutLocksEnabled`
+    /// is true, the same rule the A13 leave sheet uses: before C8.1a it would not be true.
+    static func v2Body(coach: String) -> String {
+        let workouts = LeaveCoachCopy.coachWorkoutLocksEnabled
+            ? "\(coach) can also set and change your upcoming workouts. RunSmart won't change workouts \(coach) sets."
+            : "\(coach) can also set and change your upcoming workouts."
+        return """
+        \(coach) can see:
+        • Your training plan
+        • Your runs: distance, time, pace and average heart rate
+        • Route maps of runs you record in RunSmart, with the start and end trimmed for privacy
+        • How hard each run felt (effort 1–10)
+        • Notes you add to your runs. You can hide any note from \(coach).
+        • Pain or "something off" flags you send
+
+        \(readReceipts(coach: coach))
+
+        \(workouts)
+
+        Not shared: your chats with RunSmart, and health data such as sleep or HRV.
+
+        If you leave, \(coach) will no longer see your runs. You keep any feedback \(coach) has already given you. You can leave anytime in Settings.
+        """
+    }
+
+    /// Decision D9: the coach can see when the athlete reads group messages.
+    static func readReceipts(coach: String) -> String {
+        "\(coach) can see when you read group messages."
+    }
+
+    /// C7.8 P9 title, for athletes who joined before v2.
+    static func noticeTitle(coach: String) -> String {
+        "\(coach) can now see how your runs felt"
+    }
+
+    /// C7.8 P9 body, word for word from the UX spec (section C.5). The effort line is the
+    /// spec's variant for the D7 14-day effort backfill; the read-receipt line is D9.
+    static func noticeBody(coach: String) -> String {
+        """
+        From now on, \(coach) can see:
+        • How hard each run felt (effort 1–10)
+        • Notes you add to runs. You can hide any note from \(coach).
+        • Pain or "something off" flags you send
+
+        \(readReceipts(coach: coach))
+
+        Notes you wrote before today stay on this phone.
+        Effort from your last 14 days is shared too.
+        """
+    }
+
+    static let noticeOK = "OK"
+
+    static func noticeLeave(coach: String) -> String {
+        "Leave \(coach)"
+    }
+
     /// The three "can see" bullets on the consent screen. My coach repeats them.
     static func sharedBullets() -> [String] {
         [
@@ -433,18 +554,34 @@ enum LeaveCoachCopy {
     }
 
     /// Full sheet body, including the title line. The lock bullet is included only when
-    /// `coachWorkoutLocksEnabled` is true.
-    static func sheet(coach: String) -> String {
+    /// `coachWorkoutLocksEnabled` is true. `includesV2Lines` (C7.8 AC8, UX gap G17) adds the
+    /// effort, notes and flags line and the replies line; pass true only while v2 is on and
+    /// the link is v2, so the flag-off sheet stays the 1.2.6 sheet.
+    static func sheet(coach: String, includesV2Lines: Bool = false) -> String {
         var stops = [
             "• \(coach) won't see your plan, runs or maps.",
+        ]
+        if includesV2Lines {
+            stops.append("• \(coach) won't see your effort, notes or flags.")
+        }
+        stops.append(contentsOf: [
             "• \(coach) won't review your runs or send new feedback.",
             "• \(coach) can't change your workouts.",
-        ]
+        ])
         if coachWorkoutLocksEnabled {
             stops.append("• Workouts \(coach) set are no longer protected, so RunSmart may adjust them.")
         }
         stops.append("• \(coach)'s name and notes are removed from your plan.")
         let stopBlock = stops.joined(separator: "\n")
+        var stays = [
+            "• Your plan, which RunSmart keeps adapting.",
+            "• Your run history.",
+            "• Feedback \(coach) has already given you. You can still read it on the runs it was written for.",
+        ]
+        if includesV2Lines {
+            stays.append("• Your replies to \(coach)'s notes.")
+        }
+        let stayBlock = stays.joined(separator: "\n")
         return """
         \(title(coach: coach))
         If you leave, \(coach) will no longer see your runs.
@@ -453,9 +590,7 @@ enum LeaveCoachCopy {
         \(stopBlock)
 
         What stays:
-        • Your plan, which RunSmart keeps adapting.
-        • Your run history.
-        • Feedback \(coach) has already given you. You can still read it on the runs it was written for.
+        \(stayBlock)
 
         You can join a coach again with a code.
         """
@@ -531,19 +666,61 @@ final class JoinCoachViewModel: ObservableObject {
     var plans: (any GroupPlanAthleteContext)?
     private let now: @Sendable () -> Date
     let calendar: Calendar
+    /// C7.8: v2 on for this user. Off keeps the A3 copy and Story 1.3's join, with no v2 call.
+    private let coachV2Enabled: () -> Bool
+    private let analytics: () -> any AnalyticsTracking
 
     init(
         code: String = "",
         repository: any CoachLinkRepository = SupabaseCoachLinkRepository(),
         plans: (any GroupPlanAthleteContext)? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        coachV2Enabled: @escaping () -> Bool = { RunSmartFeatures.coachV2Enabled },
+        analytics: @escaping () -> any AnalyticsTracking = { Analytics.shared }
     ) {
         self.code = code
         self.repository = repository
         self.plans = plans
         self.now = now
         self.calendar = calendar
+        self.coachV2Enabled = coachV2Enabled
+        self.analytics = analytics
+    }
+
+    /// C7.8 AC1 + AC7: with v2 on, asks the server whether the P8 copy applies to this
+    /// coach. Any failure keeps the A3 copy; the athlete then sees P9 once the link is v2.
+    private func withConsentVersion(_ coach: CoachLookup) async -> CoachLookup {
+        guard coachV2Enabled() else { return coach }
+        var resolved = coach
+        let version = (try? await repository.inviteConsentVersion(code: coach.code)) ?? 1
+        resolved.consentVersion = version >= 2 ? 2 : 1
+        return resolved
+    }
+
+    /// Shows the consent screen. Counts P8 as shown when the v2 copy is on screen.
+    private func showConsent(_ coach: CoachLookup, athleteID: UUID) {
+        phase = .consent(coach, athleteID: athleteID)
+        if coach.consentVersion >= 2 {
+            CoachV2Analytics.track(.consentV2Shown(surface: .join), to: analytics())
+        }
+    }
+
+    /// Story 1.3's join for the A3 copy; `join_coach_v2` with the ack for the P8 copy.
+    private func join(_ coach: CoachLookup, athleteID: UUID) async throws -> JoinCoachOutcome {
+        guard coach.consentVersion >= 2 else {
+            return try await repository.joinCoach(
+                code: coach.code, inviteID: coach.inviteID, coachID: coach.coachID, athleteID: athleteID
+            )
+        }
+        let outcome = try await repository.joinCoach(
+            code: coach.code, inviteID: coach.inviteID, coachID: coach.coachID, athleteID: athleteID,
+            consentVersion: 2
+        )
+        if case .joined = outcome {
+            CoachV2Analytics.track(.consentV2Acked(surface: .join), to: analytics())
+        }
+        return outcome
     }
 
     /// The live join screen calls this once. Tests pass their own context and this does not replace it.
@@ -594,7 +771,7 @@ final class JoinCoachViewModel: ObservableObject {
                 errorMessage = CoachConsentCopy.invalidCode
                 return
             }
-            phase = .consent(coach, athleteID: athleteID)
+            showConsent(await withConsentVersion(coach), athleteID: athleteID)
         } catch {
             phase = .enterCode
             errorMessage = Self.message(for: error)
@@ -646,7 +823,7 @@ final class JoinCoachViewModel: ObservableObject {
                 landUnresolved()
                 return
             }
-            phase = .consent(coach, athleteID: athleteID)
+            showConsent(await withConsentVersion(coach), athleteID: athleteID)
         } catch {
             landUnresolved()
         }
@@ -683,17 +860,20 @@ final class JoinCoachViewModel: ObservableObject {
             }
             // The code now names a different invite or coach. Drop the previous consent.
             if resolved.inviteID != shown.inviteID || resolved.coachID != shown.coachID {
-                phase = .consent(resolved, athleteID: athleteID)
+                showConsent(await withConsentVersion(resolved), athleteID: athleteID)
                 errorMessage = CoachConsentCopy.codeReassigned(coach: resolved.displayName)
                 return
             }
+            // The join records the copy the athlete accepted, not a fresh answer.
+            var accepted = resolved
+            accepted.consentVersion = shown.consentVersion
             if resolved.planMode == .group {
                 guard let settings = resolved.groupPlan else {
                     errorMessage = GroupPlanConfirmCopy.generationFailed
                     return
                 }
                 phase = .groupConfirm(GroupPlanConfirm(
-                    coach: resolved,
+                    coach: accepted,
                     athleteID: athleteID,
                     settings: settings,
                     replacement: await replacementSentence(),
@@ -702,12 +882,7 @@ final class JoinCoachViewModel: ObservableObject {
                 ))
                 return
             }
-            switch try await repository.joinCoach(
-                code: shown.code,
-                inviteID: shown.inviteID,
-                coachID: shown.coachID,
-                athleteID: consentingAthleteID
-            ) {
+            switch try await join(shown, athleteID: consentingAthleteID) {
             case .joined(let coach):
                 joinedCoach = coach
                 followUp = await individualFollowUp()
@@ -773,12 +948,7 @@ final class JoinCoachViewModel: ObservableObject {
         }
 
         do {
-            switch try await repository.joinCoach(
-                code: confirm.coach.code,
-                inviteID: confirm.coach.inviteID,
-                coachID: confirm.coach.coachID,
-                athleteID: confirm.athleteID
-            ) {
+            switch try await join(confirm.coach, athleteID: confirm.athleteID) {
             case .joined(let coach):
                 joinedCoach = coach
                 followUp = .today
@@ -815,7 +985,7 @@ final class JoinCoachViewModel: ObservableObject {
     private func reshowConsent(for code: String, athleteID: UUID) async {
         do {
             if let resolved = try await repository.lookupInvite(code: code) {
-                phase = .consent(resolved, athleteID: athleteID)
+                showConsent(await withConsentVersion(resolved), athleteID: athleteID)
                 errorMessage = CoachConsentCopy.codeReassigned(coach: resolved.displayName)
                 return
             }

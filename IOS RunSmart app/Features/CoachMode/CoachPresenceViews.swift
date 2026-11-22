@@ -227,3 +227,157 @@ enum AthleteFeedbackOpening {
         return await services.recentRuns().first { note.matches($0) }
     }
 }
+
+// MARK: C7.8 P9, the one-time sharing notice
+
+extension View {
+    /// C7.8 P9 on Today: shown once to an athlete who joined before v2, while v2 is on and
+    /// the link is v2. Renders nothing and calls nothing with v2 off.
+    func coachConsentNotice() -> some View {
+        modifier(CoachConsentNoticeHost())
+    }
+}
+
+private struct CoachConsentNoticeHost: ViewModifier {
+    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var session: SupabaseSession
+    @EnvironmentObject private var coachLinks: CoachLinkStore
+    @EnvironmentObject private var coachV2Gate: CoachV2Gate
+    @StateObject private var model = CoachConsentNoticeModel()
+    @StateObject private var leaveModel = LeaveCoachModel()
+
+    private struct Inputs: Equatable {
+        let v2Enabled: Bool
+        let userID: UUID?
+        let linkID: UUID?
+    }
+
+    private var inputs: Inputs {
+        let userID = session.isAuthenticated ? session.currentUserID : nil
+        return Inputs(
+            v2Enabled: coachV2Gate.isEnabled,
+            userID: userID,
+            linkID: coachLinks.activeLink(for: userID)?.id
+        )
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .task(id: inputs) { await evaluate() }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                model.beginForeground()
+                Task { await evaluate() }
+            }
+            .sheet(item: noticeBinding) { notice in
+                CoachConsentNoticeSheet(
+                    notice: notice,
+                    model: model,
+                    leaveModel: leaveModel,
+                    onLeave: { await confirmLeave(notice) }
+                )
+            }
+    }
+
+    private func evaluate() async {
+        let current = inputs
+        await model.evaluate(v2Enabled: current.v2Enabled, userID: current.userID, linkID: current.linkID)
+    }
+
+    /// A swipe-away hides P9 until the next foreground (C7.8 AC4).
+    private var noticeBinding: Binding<CoachConsentNotice?> {
+        Binding(
+            get: { model.notice },
+            set: { value in if value == nil { model.dismissForNow() } }
+        )
+    }
+
+    private func confirmLeave(_ notice: CoachConsentNotice) async {
+        guard let userID = session.currentUserID else { return }
+        let toast = await leaveModel.confirm(
+            coachName: notice.coachName,
+            userID: userID,
+            store: coachLinks,
+            expectedLinkID: notice.linkID
+        )
+        guard toast != nil else { return }
+        await evaluate()
+    }
+}
+
+/// P9. OK and "Leave {Coach}" are the same size with no pressure styling (MVP leave rules).
+/// "Leave {Coach}" opens the existing A13 leave sheet in place, never an instant leave.
+private struct CoachConsentNoticeSheet: View {
+    let notice: CoachConsentNotice
+    @ObservedObject var model: CoachConsentNoticeModel
+    @ObservedObject var leaveModel: LeaveCoachModel
+    let onLeave: () async -> Void
+    @State private var showsLeave = false
+
+    var body: some View {
+        if showsLeave {
+            LeaveCoachSheet(
+                coachName: notice.coachName,
+                model: leaveModel,
+                includesV2Lines: true,
+                onCancel: { showsLeave = false },
+                onConfirm: onLeave
+            )
+        } else {
+            ScrollView {
+                noticeContent
+                    .padding(20)
+            }
+            .presentationDetents([.large])
+            .interactiveDismissDisabled(model.isWorking)
+        }
+    }
+
+    private var noticeContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(verbatim: CoachConsentCopy.noticeTitle(coach: notice.coachName))
+                .font(.displayMD)
+                .foregroundStyle(Color.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text(verbatim: CoachConsentCopy.noticeBody(coach: notice.coachName))
+                .font(.body)
+                .foregroundStyle(Color.textSecondary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 12) {
+                noticeButton(CoachConsentCopy.noticeOK) {
+                    Task { await model.acknowledge() }
+                }
+                noticeButton(CoachConsentCopy.noticeLeave(coach: notice.coachName)) {
+                    model.leaveTapped()
+                    leaveModel.cancel()
+                    showsLeave = true
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("coach-consent-notice")
+    }
+
+    private func noticeButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Group {
+                if model.isWorking, title == CoachConsentCopy.noticeOK {
+                    ProgressView()
+                } else {
+                    Text(verbatim: title)
+                }
+            }
+            .font(.body.weight(.semibold))
+            .frame(maxWidth: .infinity, minHeight: 48)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.textPrimary)
+        .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.border, lineWidth: 1))
+        .disabled(model.isWorking)
+        .accessibilityLabel(title)
+    }
+}

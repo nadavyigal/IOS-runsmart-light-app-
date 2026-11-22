@@ -711,6 +711,7 @@ extension Analytics {
     /// One event per post-run debrief. Measures the opt-in on-device experiment
     /// against the cloud coach. Never carries the debrief text.
     static func trackRunDebriefGenerated(
+        trigger: RunDebriefTrigger,
         result: PostRunDebriefModel.Source,
         totalLatencyMs: Int,
         attempts: [RunDebriefAttempt],
@@ -720,6 +721,7 @@ extension Analytics {
         let onDevice = attempts.first { $0.generator == "on_device" }
         let cloud = attempts.first { $0.generator == "cloud" }
         var props: [String: Any] = [
+            "trigger": trigger.rawValue,
             "source": result.rawValue,
             "latency_ms": totalLatencyMs,
             "on_device_opted_in": onDeviceOptedIn,

@@ -4,6 +4,7 @@
 - [x] PostHog `run_debrief_generated` once per debrief: `source`, `latency_ms`, `on_device_opted_in`, `on_device_ready`, `on_device_unavailable_reason`, `on_device_outcome`, `on_device_latency_ms`, `on_device_error_type`, `cloud_outcome`. No debrief text is sent.
 - [x] Debug builds only: when on-device is opted in and ready, run both generators on the same run in the background and append both texts to `Documents/debrief-compare.jsonl` for the 10-run rating. Never persisted, never sent.
 - [x] Tests: attempt reports, event properties with a spy, compare line encoding. Full suite.
+- [x] Grok Bot review fixes (2026-11-22): `trigger` on the event; no event on a cancelled debrief; compare only for `live_run` with both generators, once per run id; `RunDebriefGenerating: Sendable`; compare helpers `#if DEBUG`; `RunDebriefSession` seam with tests.
 
 ## 2026-11-22 — On-device debrief, opt-in (Apple membership plan PR 2)
 
@@ -16,6 +17,8 @@ Founder chose a Settings toggle on 2026-11-22. Off by default; shown only when t
 - [x] Tests: opt-in off by default, prompt facts and size, source raw value, clipping, Hebrew gate (`-testLanguage he`). Full suite.
 - [ ] See the toggle on a signed-in English iPhone with Apple Intelligence on, then run 10 real debriefs (not possible in the simulator: guest preview needs sign-in).
 - Risk: a linked coach's context only reaches the cloud prompt, so on-device is skipped for coach-linked runners.
+- [x] Grok Bot review fixes (2026-11-22): PostHog flag `runsmart-on-device-debrief` as remote kill switch (off when missing, on in Debug); on-device only for `live_run`; on-device timeout 8 s; caption says it's saved to the account; `generatorPlan` pure function with tests.
+- [ ] Nadav creates the PostHog flag `runsmart-on-device-debrief` when the toggle should appear in App Store builds.
 
 ## 2026-11-19 — Live Activity pace for guided workouts
 

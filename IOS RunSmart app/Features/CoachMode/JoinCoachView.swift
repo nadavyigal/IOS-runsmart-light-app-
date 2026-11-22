@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A1 (enter a code), A3 (consent), and A4 (group plan confirm).
+/// A1 (enter a code), A3 or the v2 P8 (consent, C7.8), and A4 (group plan confirm).
 /// Individual Plans still link on Share. A Group Plan links only after the plan exists.
 struct JoinCoachView: View {
     @Environment(\.dismiss) private var dismiss
@@ -139,7 +139,10 @@ struct JoinCoachView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(CoachConsentCopy.title(coach: coach.displayName))
                 .font(.displayMD)
-            Text(CoachConsentCopy.body(coach: coach.displayName))
+            // C7.8: the v2 copy (P8) only when the server said it applies to this coach.
+            Text(coach.consentVersion >= 2
+                 ? CoachConsentCopy.v2Body(coach: coach.displayName)
+                 : CoachConsentCopy.body(coach: coach.displayName))
                 .font(.body)
                 .foregroundStyle(Color.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)

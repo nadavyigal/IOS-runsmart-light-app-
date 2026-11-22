@@ -7,6 +7,12 @@ import Foundation
 enum RunDebriefCompare {
     static let fileName = "debrief-compare.jsonl"
 
+    /// Only a live run that had both generators: never a Garmin import, sync or recovered run.
+    static func shouldRecord(trigger: RunDebriefTrigger, generatorNames: [String]) -> Bool {
+        trigger == .liveRun && generatorNames.contains("on_device") && generatorNames.contains("cloud")
+    }
+
+    #if DEBUG
     struct Side: Equatable {
         let headline: String?
         let debrief: String?
@@ -35,15 +41,28 @@ enum RunDebriefCompare {
         return String(data: data, encoding: .utf8)
     }
 
-    #if DEBUG
-    /// Asks each generator on its own and appends one line. Call off the critical path.
-    static func record(run: RecordedRun, input: RunDebriefInput, onDevice: any RunDebriefGenerating, cloud: any RunDebriefGenerating) async {
+    /// True when the log already has a line for this run, so a run is compared once.
+    static func hasLine(for runID: UUID, in log: String) -> Bool {
+        log.contains("\"run_id\":\"\(runID.uuidString)\"")
+    }
+
+    /// Asks the on-device and the cloud generator on their own and appends one line.
+    /// Call off the critical path, only when `shouldRecord` is true.
+    static func record(run: RecordedRun, input: RunDebriefInput, generators: [any RunDebriefGenerating]) async {
+        guard let onDevice = generators.first(where: { $0.attemptName == "on_device" }),
+              let cloud = generators.first(where: { $0.attemptName == "cloud" }),
+              let url = logURL else { return }
+        if let existing = try? String(contentsOf: url, encoding: .utf8), hasLine(for: run.id, in: existing) { return }
         async let onDeviceSide = side(from: onDevice, input: input)
         async let cloudSide = side(from: cloud, input: input)
         let (left, right) = await (onDeviceSide, cloudSide)
         guard let line = line(runID: run.id, date: Date(), input: input, onDevice: left, cloud: right) else { return }
         print("[RunDebriefCompare]", line)
-        append(line)
+        append(line, to: url)
+    }
+
+    private static var logURL: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent(fileName)
     }
 
     private static func side(from generator: any RunDebriefGenerating, input: RunDebriefInput) async -> Side {
@@ -60,10 +79,8 @@ enum RunDebriefCompare {
         }
     }
 
-    private static func append(_ line: String) {
-        guard let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
-              let data = (line + "\n").data(using: .utf8) else { return }
-        let url = folder.appendingPathComponent(fileName)
+    private static func append(_ line: String, to url: URL) {
+        guard let data = (line + "\n").data(using: .utf8) else { return }
         if let handle = try? FileHandle(forWritingTo: url) {
             defer { try? handle.close() }
             _ = try? handle.seekToEnd()

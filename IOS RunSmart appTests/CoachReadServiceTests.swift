@@ -45,10 +45,13 @@ final class CoachReadServiceTests: XCTestCase {
         let keys = Set(CoachRunSummary.CodingKeys.allCases.map(\.stringValue))
         XCTAssertEqual(keys, [
             "id", "athlete_id", "workout_id", "completed_at", "type",
-            "distance_km", "duration_seconds", "pace", "average_heart_rate", "source"
+            "distance_km", "duration_seconds", "pace", "average_heart_rate", "source",
+            "rpe", "has_note"
         ])
         XCTAssertFalse(keys.contains("route"))
         XCTAssertFalse(keys.contains("notes"))
+        // C7.3: the note text never rides on the runs read; it needs coach_get_run_notes.
+        XCTAssertFalse(keys.contains("athlete_note"))
 
         let payload = """
         {
@@ -62,6 +65,8 @@ final class CoachReadServiceTests: XCTestCase {
           "pace": 364.7,
           "average_heart_rate": 142,
           "source": "runsmart_ios",
+          "rpe": 7,
+          "has_note": true,
           "route": [{"lat": 32.0, "lng": 34.0}],
           "notes": "PRIVATE_RUN_NOTE"
         }
@@ -74,6 +79,8 @@ final class CoachReadServiceTests: XCTestCase {
         XCTAssertEqual(run.distanceKm, 5.1)
         XCTAssertEqual(run.pace, 364.7)
         XCTAssertEqual(run.source, "runsmart_ios")
+        XCTAssertEqual(run.rpe, 7)
+        XCTAssertTrue(run.hasNote)
         XCTAssertNil(object["route"])
         XCTAssertNil(object["notes"])
         XCTAssertEqual(keys, Set(object.keys))

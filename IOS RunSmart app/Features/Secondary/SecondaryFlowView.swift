@@ -1670,7 +1670,7 @@ private struct AudioCuesScaffold: View {
     @AppStorage(RunLiveActivityCoordinator.enabledKey) private var liveActivity = true
     @AppStorage(OnDeviceDebrief.optInKey) private var onDeviceDebrief = false
     @State private var systemAllowsLiveActivities = ActivityAuthorizationInfo().areActivitiesEnabled
-    @State private var onDeviceDebriefReady = OnDeviceDebrief.isReady
+    @State private var onDeviceDebriefReady = OnDeviceDebrief.isOffered
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -1710,7 +1710,7 @@ private struct AudioCuesScaffold: View {
                         .font(.caption).foregroundStyle(Color.mutedText)
                     if onDeviceDebriefReady {
                         Toggle("Post-run summary on this iPhone", isOn: $onDeviceDebrief)
-                        Text("Experimental. Apple Intelligence writes your post-run summary on this iPhone. If it can't, RunSmart writes it online as usual.")
+                        Text("Experimental. Apple Intelligence writes your post-run summary on this iPhone. If it can't, RunSmart writes it online as usual. Either way, it's saved to your account like your other summaries.")
                             .font(.caption).foregroundStyle(Color.mutedText)
                     }
                 }
@@ -1728,7 +1728,7 @@ private struct AudioCuesScaffold: View {
         }
         // Apple Intelligence is turned on in iOS Settings; re-check when the runner comes back.
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { onDeviceDebriefReady = OnDeviceDebrief.isReady }
+            if phase == .active { onDeviceDebriefReady = OnDeviceDebrief.isOffered }
         }
     }
 }

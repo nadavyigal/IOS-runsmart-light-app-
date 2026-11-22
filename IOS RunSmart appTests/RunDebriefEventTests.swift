@@ -81,7 +81,7 @@ final class RunDebriefEventTests: XCTestCase {
     func testEventForOnDeviceSuccess() {
         let props = trackedProperties {
             Analytics.trackRunDebriefGenerated(
-                result: .onDevice, totalLatencyMs: 900,
+                trigger: .liveRun, result: .onDevice, totalLatencyMs: 900,
                 attempts: [RunDebriefAttempt(generator: "on_device", outcome: .generated, latencyMs: 850, errorType: nil)],
                 onDeviceOptedIn: true, onDeviceUnavailable: nil
             )
@@ -100,7 +100,7 @@ final class RunDebriefEventTests: XCTestCase {
     func testEventForOnDeviceFailureFallingBackToCloud() {
         let props = trackedProperties {
             Analytics.trackRunDebriefGenerated(
-                result: .ai, totalLatencyMs: 4_000,
+                trigger: .liveRun, result: .ai, totalLatencyMs: 4_000,
                 attempts: [
                     RunDebriefAttempt(generator: "on_device", outcome: .failed, latencyMs: 300, errorType: "GenerationError"),
                     RunDebriefAttempt(generator: "cloud", outcome: .generated, latencyMs: 3_600, errorType: nil),
@@ -117,7 +117,7 @@ final class RunDebriefEventTests: XCTestCase {
     func testEventForRunnerWhoDidNotOptInCarriesNoText() {
         let props = trackedProperties {
             Analytics.trackRunDebriefGenerated(
-                result: .fallback, totalLatencyMs: 12_000,
+                trigger: .liveRun, result: .fallback, totalLatencyMs: 12_000,
                 attempts: [RunDebriefAttempt(generator: "cloud", outcome: .timedOut, latencyMs: 12_000, errorType: "RunDebriefTimeoutError")],
                 onDeviceOptedIn: false, onDeviceUnavailable: .language
             )
@@ -127,8 +127,102 @@ final class RunDebriefEventTests: XCTestCase {
         XCTAssertEqual(props["on_device_outcome"] as? String, "not_tried")
         XCTAssertNil(props["on_device_latency_ms"])
         XCTAssertEqual(props["cloud_outcome"] as? String, "timed_out")
-        XCTAssertEqual(Set(props.keys), ["source", "latency_ms", "on_device_opted_in", "on_device_ready",
+        XCTAssertEqual(props["trigger"] as? String, "live_run")
+        XCTAssertEqual(Set(props.keys), ["trigger", "source", "latency_ms", "on_device_opted_in", "on_device_ready",
                                          "on_device_unavailable_reason", "on_device_outcome", "cloud_outcome"])
+    }
+
+    // MARK: - RunDebriefSession
+
+    private func produce(
+        trigger: RunDebriefTrigger = .liveRun,
+        generators: [any RunDebriefGenerating],
+        compared: inout Int
+    ) async -> (PostRunDebriefModel, [(name: String, properties: [String: Any])]) {
+        let saved = Analytics.shared
+        let spy = AnalyticsSpy()
+        defer { Analytics.shared = saved }
+        Analytics.shared = spy
+        var count = 0
+        let result = await RunDebriefSession.produce(
+            run: makeRun(), trigger: trigger, generators: generators,
+            onDeviceOptedIn: true, onDeviceUnavailable: nil,
+            makeInput: { self.input }, persist: { _ in }, compare: { _ in count += 1 }
+        )
+        compared = count
+        return (result, spy.events)
+    }
+
+    func testSessionSendsExactlyOneEventWithTheTrigger() async {
+        var compared = 0
+        let (result, events) = await produce(
+            trigger: .importRun,
+            generators: [Fake(attemptName: "cloud", behavior: .generate)],
+            compared: &compared
+        )
+        XCTAssertEqual(result.headline, "Steady")
+        XCTAssertEqual(events.map(\.name), ["run_debrief_generated"])
+        XCTAssertEqual(events.first?.properties["trigger"] as? String, "import")
+        XCTAssertEqual(events.first?.properties["cloud_outcome"] as? String, "generated")
+    }
+
+    func testSessionWithNoGeneratorSendsOneFallbackEvent() async {
+        var compared = 0
+        let (result, events) = await produce(generators: [], compared: &compared)
+        XCTAssertEqual(result.source, .fallback)
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.properties["source"] as? String, "fallback")
+        XCTAssertEqual(events.first?.properties["cloud_outcome"] as? String, "not_tried")
+        XCTAssertEqual(compared, 0)
+    }
+
+    func testCancelledSessionSendsNoEventAndNoCompare() async {
+        let saved = Analytics.shared
+        let spy = AnalyticsSpy()
+        defer { Analytics.shared = saved }
+        Analytics.shared = spy
+        var compared = 0
+        let run = makeRun()
+        let input = input
+        let generators: [any RunDebriefGenerating] = [Fake(attemptName: "on_device", behavior: .generate),
+                                                      Fake(attemptName: "cloud", behavior: .generate)]
+        let task = Task { @MainActor in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await RunDebriefSession.produce(
+                run: run, trigger: .liveRun, generators: generators,
+                onDeviceOptedIn: true, onDeviceUnavailable: nil,
+                makeInput: { input }, persist: { _ in }, compare: { _ in compared += 1 }
+            )
+        }
+        let result = await task.value
+        XCTAssertEqual(result.source, .fallback)
+        XCTAssertTrue(spy.events.isEmpty)
+        XCTAssertEqual(compared, 0)
+    }
+
+    func testCompareRunsOnlyForLiveRunsWithBothGenerators() async {
+        let both: [any RunDebriefGenerating] = [Fake(attemptName: "on_device", behavior: .generate),
+                                                Fake(attemptName: "cloud", behavior: .generate)]
+        var compared = 0
+        _ = await produce(trigger: .liveRun, generators: both, compared: &compared)
+        XCTAssertEqual(compared, 1)
+        for trigger in [RunDebriefTrigger.importRun, .syncNewest, .recovered, .background] {
+            _ = await produce(trigger: trigger, generators: both, compared: &compared)
+            XCTAssertEqual(compared, 0, trigger.rawValue)
+        }
+        _ = await produce(trigger: .liveRun, generators: [Fake(attemptName: "cloud", behavior: .generate)], compared: &compared)
+        XCTAssertEqual(compared, 0)
+    }
+
+    func testCompareLogIsDedupedByRunID() throws {
+        let runID = UUID()
+        let line = try XCTUnwrap(RunDebriefCompare.line(
+            runID: runID, date: Date(), input: input,
+            onDevice: .init(headline: "A", debrief: "B", tomorrow: "C", latencyMs: 1, outcome: "generated"),
+            cloud: .init(headline: "D", debrief: "E", tomorrow: "F", latencyMs: 2, outcome: "generated")
+        ))
+        XCTAssertTrue(RunDebriefCompare.hasLine(for: runID, in: line + "\n"))
+        XCTAssertFalse(RunDebriefCompare.hasLine(for: UUID(), in: line + "\n"))
     }
 
     func testCompareLineHasBothSidesAndTheFacts() throws {

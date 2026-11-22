@@ -13,7 +13,7 @@ struct RunDebriefInput: Hashable {
 
 /// One way to write a post-run debrief.
 /// Return nil to be skipped (no session, model not ready). Throw on failure.
-protocol RunDebriefGenerating {
+protocol RunDebriefGenerating: Sendable {
     /// Short stable name for analytics, for example "cloud" or "on_device".
     var attemptName: String { get }
     func generateDebrief(for input: RunDebriefInput) async throws -> PostRunDebriefModel?
@@ -54,6 +54,8 @@ enum RunDebriefPipeline {
         persist: (PostRunDebriefModel) async -> Void = { _ in }
     ) async -> PostRunDebriefModel {
         for generator in generators {
+            // A cancelled task (the run screen closed) stops here instead of asking the next generator.
+            if Task.isCancelled { return .fallback(for: run) }
             let started = ContinuousClock.now
             func record(_ outcome: RunDebriefAttempt.Outcome, _ error: Error? = nil) {
                 report(RunDebriefAttempt(
@@ -83,6 +85,11 @@ enum RunDebriefPipeline {
                 print("[RunDebrief] \(generator.attemptName) timed out, trying next")
                 record(.timedOut, error)
             } catch {
+                // URLError(.cancelled) is not a CancellationError; treat a cancelled task the same way.
+                if Task.isCancelled {
+                    record(.cancelled)
+                    return .fallback(for: run)
+                }
                 print("[RunDebrief] \(generator.attemptName) failed, trying next:", error)
                 record(.failed, error)
             }

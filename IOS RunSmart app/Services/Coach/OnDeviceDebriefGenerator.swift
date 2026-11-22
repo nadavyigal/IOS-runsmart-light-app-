@@ -1,13 +1,32 @@
 import Foundation
+import PostHog
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
 
+/// Why a post-run debrief is being made. Only `liveRun` (the summary right after a
+/// run recorded on the Run tab) may use the on-device model; imports, syncs and
+/// recovered runs use the cloud coach only.
+enum RunDebriefTrigger: String {
+    case liveRun = "live_run"
+    case recovered
+    case importRun = "import"
+    case syncNewest = "sync_newest"
+    case background
+}
+
+enum RunDebriefGeneratorKind: Equatable {
+    case onDevice
+    case cloud
+}
+
 /// Opt-in experiment: Apple's on-device model writes the post-run debrief.
-/// Off by default. Offered only when the app runs in English and the model is ready,
-/// because Apple Intelligence has no Hebrew. The cloud coach stays the next step.
+/// Off by default. Offered only when the remote flag is on, the app runs in English
+/// and the model is ready (Apple Intelligence has no Hebrew). The cloud coach stays the next step.
 enum OnDeviceDebrief {
     static let optInKey = "runsmart.onDeviceDebrief.optIn"
+    /// PostHog feature flag. Missing or off = the toggle is hidden and nothing runs on device.
+    static let remoteFlagKey = "runsmart-on-device-debrief"
 
     /// Why the experiment can't run on this device right now.
     enum Unavailable: String, Equatable {
@@ -42,6 +61,18 @@ enum OnDeviceDebrief {
 
     static var isReady: Bool { unavailableReason == nil }
 
+    /// Remote kill switch. Debug builds are always on so the experiment can be tested.
+    static var remoteEnabled: Bool {
+        #if DEBUG
+        return true
+        #else
+        return PostHogSDK.shared.isFeatureEnabled(remoteFlagKey)
+        #endif
+    }
+
+    /// Whether Settings shows the toggle.
+    static var isOffered: Bool { remoteEnabled && isReady }
+
     static var appLanguageIsEnglish: Bool {
         (Bundle.main.preferredLocalizations.first ?? "en").hasPrefix("en")
     }
@@ -50,10 +81,28 @@ enum OnDeviceDebrief {
         defaults.bool(forKey: optInKey)
     }
 
-    /// The on-device generator when the runner opted in, has no linked coach
-    /// (a coach's context only reaches the cloud prompt) and the model is ready.
-    static func generatorIfEnabled(coachLinked: Bool, defaults: UserDefaults = .standard) -> (any RunDebriefGenerating)? {
-        guard isOptedIn(defaults), !coachLinked, isReady else { return nil }
+    /// Which generators to ask, in order. On-device only when every condition holds:
+    /// opted in, remote flag on, model ready, no linked coach (coach context only reaches
+    /// the cloud prompt) and a live run. Cloud only with a signed-in session.
+    static func generatorPlan(
+        optedIn: Bool,
+        ready: Bool,
+        remoteEnabled: Bool,
+        coachLinked: Bool,
+        hasSession: Bool,
+        trigger: RunDebriefTrigger
+    ) -> [RunDebriefGeneratorKind] {
+        var plan: [RunDebriefGeneratorKind] = []
+        if optedIn, ready, remoteEnabled, !coachLinked, trigger == .liveRun {
+            plan.append(.onDevice)
+        }
+        if hasSession {
+            plan.append(.cloud)
+        }
+        return plan
+    }
+
+    static func makeGenerator() -> (any RunDebriefGenerating)? {
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) { return OnDeviceDebriefGenerator() }
         #endif
@@ -120,7 +169,10 @@ nonisolated struct OnDeviceDebriefOutput {
 @available(iOS 26.0, *)
 struct OnDeviceDebriefGenerator: RunDebriefGenerating {
     let attemptName = "on_device"
-    var timeoutNanoseconds: UInt64 = 12_000_000_000
+    /// 8 s, not the cloud's 12 s: the worst case before the fixed fallback stays near 20 s
+    /// (8 s on device, then 12 s cloud). The first call also loads the model, so 6 s would
+    /// time out more often and skew the experiment.
+    var timeoutNanoseconds: UInt64 = 8_000_000_000
 
     func generateDebrief(for input: RunDebriefInput) async throws -> PostRunDebriefModel? {
         guard OnDeviceDebrief.isReady else { return nil }

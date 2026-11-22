@@ -680,18 +680,44 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return run
     }
 
+    /// C7.3: effort is shared with a human coach only while v2 is on, the athlete has an
+    /// active link and has accepted the v2 copy (`AthleteRunSharingService`). Otherwise it
+    /// stays on this device.
     func updateRunRPE(_ run: RecordedRun, rpe: Int?) async -> RecordedRun {
         let updated = store.updateRunRPE(run, rpe: rpe)
         await postRunsChanged()
+        if run.rpe != updated.rpe {
+            await AthleteRunSharingService.shared.record(.rpe(updated.rpe), for: updated)
+        }
         return updated
     }
 
-    /// Title and notes stay on this device. The `runs` upsert (`DBRunInsert`) has no title column,
-    /// and its `notes` column holds a system source note, so nothing is sent to Supabase.
+    /// The title stays on this device. The athlete's note is shared with a human coach only
+    /// under the same rules as effort, into `runs.athlete_note`; `runs.notes` holds a system
+    /// source note and is never written from here. Without sharing, nothing is sent.
     func updateRunDetails(_ run: RecordedRun, title: String?, notes: String?) async -> RecordedRun {
         let updated = store.updateRunDetails(run, title: title, notes: notes)
         await postRunsChanged()
+        if run.notes != updated.notes {
+            await AthleteRunSharingService.shared.record(.note(updated.notes), for: updated)
+        }
         return updated
+    }
+
+    /// C7.3 AC5: "Hide note from {Coach}". Kept on this device, and sent while sharing.
+    func setRunNoteHiddenFromCoach(_ run: RecordedRun, hidden: Bool) async {
+        await AthleteRunSharingService.shared.record(.noteHidden(hidden), for: run)
+    }
+
+    /// C7.3: reads consent, runs the one-time RPE backfill and flushes the sharing outbox.
+    func refreshRunSharing(v2Enabled: Bool, linkID: UUID?, coachName: String?) async {
+        await AthleteRunSharingService.shared.refresh(
+            v2Enabled: v2Enabled,
+            userID: currentUserID,
+            linkID: linkID,
+            coachName: coachName,
+            localRuns: store.visibleRuns(store.loadRuns())
+        )
     }
 
     func removeRun(_ run: RecordedRun) async -> Bool {
@@ -1035,7 +1061,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 return !existingIDs.contains(providerID)
             }
             for run in newRuns {
-                _ = await processCompletedActivity(run)
+                _ = await processCompletedActivity(run, trigger: .importRun)
             }
             saveFirstSyncReviewIfNeeded(
                 provider: .garmin,
@@ -1177,7 +1203,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             },
             processNewest: { run, match in
                 guard self.currentUserID == syncingUserID else { return }
-                _ = await self.processCompletedActivity(run) { _ in match }
+                _ = await self.processCompletedActivity(run, trigger: .syncNewest) { _ in match }
             },
             refreshRuns: {
                 guard self.currentUserID == syncingUserID else { return }
@@ -1333,44 +1359,41 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return await generateRunReportIfMissing(for: run)
     }
 
-    private func fetchRunDebrief(for run: RecordedRun) async -> PostRunDebriefModel {
-        // Opt-in on-device debrief first, then the cloud coach, then the fixed fallback.
-        let started = ContinuousClock.now
-        let onDeviceOptedIn = OnDeviceDebrief.isOptedIn()
-        let onDeviceUnavailable = OnDeviceDebrief.unavailableReason
-        let coachLinked = CoachContextSource.shared.context(for: currentUserID).linkActive
-        let onDevice = OnDeviceDebrief.generatorIfEnabled(coachLinked: coachLinked)
-        var cloud: (any RunDebriefGenerating)?
-        if let authSession = try? await supabase.auth.session {
-            cloud = CloudRunDebriefGenerator(authUserID: authSession.user.id, accessToken: authSession.accessToken)
-        }
-        let generators = [onDevice, cloud].compactMap { $0 }
-
-        var attempts: [RunDebriefAttempt] = []
-        var result = PostRunDebriefModel.fallback(for: run)
-        if !generators.isEmpty {
-            let input = await runDebriefInput(for: run)
-            result = await RunDebriefPipeline.debrief(
-                for: input,
-                run: run,
-                generators: generators,
-                report: { attempts.append($0) },
-                persist: { model in await self.persistDebrief(model, for: run) }
-            )
-            #if DEBUG
-            if let onDevice, let cloud {
-                Task { await RunDebriefCompare.record(run: run, input: input, onDevice: onDevice, cloud: cloud) }
-            }
-            #endif
-        }
-        Analytics.trackRunDebriefGenerated(
-            result: result.source,
-            totalLatencyMs: RunDebriefPipeline.milliseconds(since: started),
-            attempts: attempts,
-            onDeviceOptedIn: onDeviceOptedIn,
-            onDeviceUnavailable: onDeviceUnavailable
+    private func fetchRunDebrief(for run: RecordedRun, trigger: RunDebriefTrigger) async -> PostRunDebriefModel {
+        // Opt-in on-device debrief first (live runs only), then the cloud coach, then the fixed fallback.
+        let authSession = try? await supabase.auth.session
+        let optedIn = OnDeviceDebrief.isOptedIn()
+        let plan = OnDeviceDebrief.generatorPlan(
+            optedIn: optedIn,
+            ready: OnDeviceDebrief.isReady,
+            remoteEnabled: OnDeviceDebrief.remoteEnabled,
+            coachLinked: CoachContextSource.shared.context(for: currentUserID).linkActive,
+            hasSession: authSession != nil,
+            trigger: trigger
         )
-        return result
+        let generators: [any RunDebriefGenerating] = plan.compactMap { kind in
+            switch kind {
+            case .onDevice:
+                return OnDeviceDebrief.makeGenerator()
+            case .cloud:
+                guard let authSession else { return nil }
+                return CloudRunDebriefGenerator(authUserID: authSession.user.id, accessToken: authSession.accessToken)
+            }
+        }
+        return await RunDebriefSession.produce(
+            run: run,
+            trigger: trigger,
+            generators: generators,
+            onDeviceOptedIn: optedIn,
+            onDeviceUnavailable: OnDeviceDebrief.unavailableReason,
+            makeInput: { await self.runDebriefInput(for: run) },
+            persist: { model in await self.persistDebrief(model, for: run) },
+            compare: { input in
+                #if DEBUG
+                Task { await RunDebriefCompare.record(run: run, input: input, generators: generators) }
+                #endif
+            }
+        )
     }
 
     private func runDebriefInput(for run: RecordedRun) async -> RunDebriefInput {
@@ -1633,11 +1656,16 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
-        await processCompletedActivity(run, complete: completeMatchingWorkout)
+        await processCompletedActivity(run, trigger: .background)
+    }
+
+    func processCompletedActivity(_ run: RecordedRun, trigger: RunDebriefTrigger) async -> PostActivityOutcome {
+        await processCompletedActivity(run, trigger: trigger, complete: completeMatchingWorkout)
     }
 
     private func processCompletedActivity(
         _ run: RecordedRun,
+        trigger: RunDebriefTrigger,
         complete: (RecordedRun) async -> WorkoutSummary?
     ) async -> PostActivityOutcome {
         let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: await recentRuns(limit: 100)))
@@ -1645,7 +1673,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         store.refreshBenchmarkStats()
         async let reportTask = generateRunReportIfMissing(for: canonical)
         async let completedTask = complete(canonical)
-        async let debriefTask = fetchRunDebrief(for: canonical)          // E6
+        async let debriefTask = fetchRunDebrief(for: canonical, trigger: trigger)          // E6
         let (report, completed, debrief) = await (reportTask, completedTask, debriefTask)
 
         Analytics.trackCompletedRunIfNeeded(
