@@ -1,3 +1,12 @@
+# 2026-11-22: Coach v2 C7.8 consent v2 and one-time notice (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 2, lane A. C7.8 draft PRs open in iOS and web; M5a not applied.
+Active Story: C7.8 consent v2: M5a migration, ack and status RPCs, P8 and P9 sheets, leave sheet lines, analytics.
+Next Recommended Story: Overseer review of C7.8; then C7.3 (lane A) after C7.8 merges, using coach_v2_sharing_allowed.
+Blockers: Nadav applies Batch A (gate, then M5a) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: SQL 8 suites pass on local Postgres; iOS targeted 104/0; full suite 1187/0 before simulator died at 24 min.
+Last Updated: 2026-11-22
+
 # 2026-11-22: Coach v2 C7.0 gate, kill switch and pilot allowlist merged
 
 Current Phase: Coach Experience v2, wave 1 (Gate lane). C7.0 merged in iOS and web with founder yes; M0 not applied.

@@ -103,7 +103,7 @@ Rules for every batch:
 | File | Story | Rollback file | Status |
 |---|---|---|---|
 | `20261121100000_coach_v2_gate.sql` (M0 + M0b) | C7.0 + C7.12 | `supabase/rollback/20261121100000_coach_v2_gate.sql` | written (draft PR) |
-| `20261121110000_coach_consent_v2.sql` (M5a) | C7.8 | added by C7.8 | not written |
+| `20261121110000_coach_consent_v2.sql` (M5a) | C7.8 | `supabase/rollback/20261121110000_coach_consent_v2.sql` | written (draft PR) |
 | `20261121120000_athlete_run_sharing.sql` (M1a) | C7.3 | added by C7.3 | not written |
 | `20261121130000_coach_last_seen_and_events.sql` (M3) | C7.2 | added by C7.2 | not written |
 | `20261121140000_coach_feedback_replies.sql` (M4) | C7.7 | added by C7.7 | not written |
@@ -119,6 +119,15 @@ Rules for every batch:
 4. **When not to roll back:** while any later v2 migration is applied. Every later v2 RPC calls `link_is_v2`, so dropping it breaks them. Flip `coach_v2` instead.
 5. **After the rollback, the app:** fails its flag read, treats v2 as off, and shows the 1.2.6 coach UI in every build. Nothing else changes for users.
 6. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-21: the rollback dropped all five functions, kept the pilot row and a flag value set to false, and a re-apply restored the functions without changing either.
+
+#### M5a: `20261121110000_coach_consent_v2.sql`
+
+1. **Flag to flip first:** `coach_v2` to false. With it off, `my_coach_consent_status` reports no P9 and no sharing, `ack_coach_consent` raises `v2_unavailable`, `coach_v2_sharing_allowed` is false for every pair, and the join screen shows the A3 copy (`coach_invite_consent_version` returns 1).
+2. **Safe with the flag off:** every ack already given stays in `coach_athlete_links` (`consent_version`, `consent_acknowledged_at`). Athletes who have not acked see P9 again when the flag returns. Joins keep working: 1.2.6 and flag-off clients use Story 1.3's `join_coach`.
+3. **Rollback file:** `supabase/rollback/20261121110000_coach_consent_v2.sql`. It restores Story 1.3's `join_coach` body (same signature, same payload), then drops `my_coach_consent_status`, `ack_coach_consent`, `coach_invite_consent_version`, `join_coach_v2` and `coach_v2_sharing_allowed`. It keeps both columns, their values and both check constraints. Dropping the columns is a commented, optional step that deletes every ack; export first if you ever run it.
+4. **When not to roll back:** while M1a (`20261121120000_athlete_run_sharing.sql`) or any later file that calls `coach_v2_sharing_allowed` is applied. Roll those back first, or flip `coach_v2` instead.
+5. **After the rollback, the app:** v2 builds fail the status read, so P9 never shows; the join screen falls back to the A3 copy and `join_coach`. 1.2.6 apps see no change.
+6. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: with an acked link in place, the rollback dropped the five functions, kept the link's `consent_version = 2` and its ack time, and the restored `join_coach` joined a new athlete at consent v1 with the Story 1.3 payload. Re-applying the migration kept the ack unchanged, and `coach_consent_v2.sql` passed again.
 
 ### Batch B (R2: coach gets told)
 
