@@ -680,18 +680,44 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return run
     }
 
+    /// C7.3: effort is shared with a human coach only while v2 is on, the athlete has an
+    /// active link and has accepted the v2 copy (`AthleteRunSharingService`). Otherwise it
+    /// stays on this device.
     func updateRunRPE(_ run: RecordedRun, rpe: Int?) async -> RecordedRun {
         let updated = store.updateRunRPE(run, rpe: rpe)
         await postRunsChanged()
+        if run.rpe != updated.rpe {
+            await AthleteRunSharingService.shared.record(.rpe(updated.rpe), for: updated)
+        }
         return updated
     }
 
-    /// Title and notes stay on this device. The `runs` upsert (`DBRunInsert`) has no title column,
-    /// and its `notes` column holds a system source note, so nothing is sent to Supabase.
+    /// The title stays on this device. The athlete's note is shared with a human coach only
+    /// under the same rules as effort, into `runs.athlete_note`; `runs.notes` holds a system
+    /// source note and is never written from here. Without sharing, nothing is sent.
     func updateRunDetails(_ run: RecordedRun, title: String?, notes: String?) async -> RecordedRun {
         let updated = store.updateRunDetails(run, title: title, notes: notes)
         await postRunsChanged()
+        if run.notes != updated.notes {
+            await AthleteRunSharingService.shared.record(.note(updated.notes), for: updated)
+        }
         return updated
+    }
+
+    /// C7.3 AC5: "Hide note from {Coach}". Kept on this device, and sent while sharing.
+    func setRunNoteHiddenFromCoach(_ run: RecordedRun, hidden: Bool) async {
+        await AthleteRunSharingService.shared.record(.noteHidden(hidden), for: run)
+    }
+
+    /// C7.3: reads consent, runs the one-time RPE backfill and flushes the sharing outbox.
+    func refreshRunSharing(v2Enabled: Bool, linkID: UUID?, coachName: String?) async {
+        await AthleteRunSharingService.shared.refresh(
+            v2Enabled: v2Enabled,
+            userID: currentUserID,
+            linkID: linkID,
+            coachName: coachName,
+            localRuns: store.visibleRuns(store.loadRuns())
+        )
     }
 
     func removeRun(_ run: RecordedRun) async -> Bool {

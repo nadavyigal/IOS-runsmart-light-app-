@@ -104,7 +104,7 @@ Rules for every batch:
 |---|---|---|---|
 | `20261121100000_coach_v2_gate.sql` (M0 + M0b) | C7.0 + C7.12 | `supabase/rollback/20261121100000_coach_v2_gate.sql` | written (draft PR) |
 | `20261121110000_coach_consent_v2.sql` (M5a) | C7.8 | `supabase/rollback/20261121110000_coach_consent_v2.sql` | written (draft PR) |
-| `20261121120000_athlete_run_sharing.sql` (M1a) | C7.3 | added by C7.3 | not written |
+| `20261121120000_athlete_run_sharing.sql` (M1a) | C7.3 | `supabase/rollback/20261121120000_athlete_run_sharing.sql` | written (draft PR) |
 | `20261121130000_coach_last_seen_and_events.sql` (M3) | C7.2 | added by C7.2 | not written |
 | `20261121140000_coach_feedback_replies.sql` (M4) | C7.7 | added by C7.7 | not written |
 | `20261121150000_athlete_run_flags.sql` (M1b) | C7.4 | added by C7.4 | not written |
@@ -128,6 +128,15 @@ Rules for every batch:
 4. **When not to roll back:** while M1a (`20261121120000_athlete_run_sharing.sql`) or any later file that calls `coach_v2_sharing_allowed` is applied. Roll those back first, or flip `coach_v2` instead.
 5. **After the rollback, the app:** v2 builds fail the status read, so P9 never shows; the join screen falls back to the A3 copy and `join_coach`. 1.2.6 apps see no change.
 6. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: with an acked link in place, the rollback dropped the five functions, kept the link's `consent_version = 2` and its ack time, and the restored `join_coach` joined a new athlete at consent v1 with the Story 1.3 payload. Re-applying the migration kept the ack unchanged, and `coach_consent_v2.sql` passed again.
+
+#### M1a: `20261121120000_athlete_run_sharing.sql`
+
+1. **Flag to flip first:** `coach_v2` to false. With it off, `coach_get_athletes_runs` keeps returning runs exactly as Story 2.2 did, but `rpe` is null and `has_note` is false; `coach_get_run_notes` returns zero rows; the athlete's effort and note writes raise `v2_unavailable`, so the app keeps them queued. Hiding a note still works.
+2. **Safe with the flag off:** every effort and note already synced stays in `runs`, unreadable by any coach. Changes made while the flag is off wait on the athlete's phone and flush when it returns. A note hidden while the flag is off stays hidden after.
+3. **Rollback file:** `supabase/rollback/20261121120000_athlete_run_sharing.sql`. It restores Story 2.2's ten-column `coach_get_athletes_runs` and Story 1.5's `purge_coach_data_for_deleted_account`, then drops `coach_get_run_notes`, `athlete_set_run_note_hidden`, `athlete_set_run_note`, `athlete_set_run_rpe`, `athlete_sharing_ack_time` and `athlete_own_run_id`. It keeps `runs.rpe`, `runs.athlete_note`, `runs.note_hidden_from_coach`, their values and both check constraints. Dropping the columns is a commented, optional step that deletes every synced effort and note; export first if you ever run it.
+4. **When not to roll back:** while M1b (`20261121150000_athlete_run_flags.sql`) or any later file that relies on these columns is applied. Roll those back first, or flip `coach_v2` instead. M5a (`coach_v2_sharing_allowed`) must stay applied while M1a is.
+5. **After the rollback, the app:** v2 athlete apps get "function not found" on the sharing writes and keep them queued; coach apps read runs without effort or notes. 1.2.6 apps see no change.
+6. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: with a run holding `rpe = 7`, a note and the hide flag, the rollback dropped the six functions, restored the ten-column `coach_get_athletes_runs` and the Story 1.5 purge, and kept all three values. Re-applying the migration kept the values unchanged and restored the functions.
 
 ### Batch B (R2: coach gets told)
 

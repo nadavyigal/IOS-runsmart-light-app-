@@ -15,6 +15,11 @@
 --     coach_v2_sharing_allowed is false even for an acked pair, and
 --     coach_invite_consent_version returns 1 (A3 copy). Back on, P9 shows again
 --     for the athlete who has not acked, and the acked pair shares again.
+--   * C7.3 (M1a): with the flag off, coach_get_athletes_runs keeps its Story 2.2
+--     rows but returns no effort and has_note = false, coach_get_run_notes returns
+--     zero rows, the athlete's effort and note writes raise v2_unavailable and change
+--     nothing, and hiding a note still works. Back on, effort returns and the note
+--     hidden while the flag was off stays hidden.
 --
 -- Every later v2 RPC adds its own case to this file (C7.12 DoD): with the flag
 -- off, write RPCs raise v2_unavailable and read RPCs return zero rows.
@@ -23,13 +28,18 @@
 -- Inserts auth.users rows. Refuses to run if auth.users is not empty, so it can
 -- only run on a blank throwaway Postgres (supabase/postgres image), never production.
 --
--- Run (after Stories 1.2 and 1.3 and the gate, then the newest v2 migration that
--- adds a case here, twice; CI's matrix row lists the same files):
+-- Run (the runs fixture, Stories 1.2, 1.3, 1.5 and 2.2, the gate and every earlier
+-- v2 migration, then the newest v2 migration that adds a case here, twice; CI's
+-- matrix row lists the same files):
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/coach_read_fixture.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261114210000_coach_role_and_invites.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261115091000_coach_athlete_links.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261115194500_leave_coach.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261117164500_coach_read_rpcs.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121100000_coach_v2_gate.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121110000_coach_consent_v2.sql
---   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121110000_coach_consent_v2.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121120000_athlete_run_sharing.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121120000_athlete_run_sharing.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/kill_switch.sql
 
 begin;
@@ -264,6 +274,68 @@ select pg_temp.expect_count(
 reset role;
 select pg_temp.expect_bool(public.coach_v2_sharing_allowed('cccccccc-0000-4000-8000-00000000000c',
   'eeeeeeee-0000-4000-8000-00000000000e'), true, 'acked pair shares again with the flag back on');
+
+-- C7.3 (M1a): effort and notes with the switch off --------------------------------------
+-- E (acked, C-E listed App Store pair) shares a run completed after the ack.
+insert into public.runs (auth_user_id, type, distance, duration, completed_at, source_provider, source_activity_id)
+values ('eeeeeeee-0000-4000-8000-00000000000e', 'easy', 5, 1800, now(), 'runsmart_ios', 'E7E7E7E7-0000-4000-8000-000000000007');
+
+set local role authenticated;
+select pg_temp.act_as('eeeeeeee-0000-4000-8000-00000000000e');
+select public.athlete_set_run_rpe('runsmart_ios', 'E7E7E7E7-0000-4000-8000-000000000007', 8);
+select public.athlete_set_run_note('runsmart_ios', 'E7E7E7E7-0000-4000-8000-000000000007', 'Hilly route');
+select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
+select pg_temp.expect_count(
+  $q$select 1 from public.coach_get_athletes_runs(current_date - 1, current_date + 1) where rpe = 8 and has_note$q$,
+  1, 'C sees effort and a note with the flag on');
+select pg_temp.expect_count(
+  $q$select 1 from public.coach_get_run_notes(array(select id from public.coach_get_athletes_runs(current_date - 1, current_date + 1)))$q$,
+  1, 'C reads the note with the flag on');
+reset role;
+
+update public.runtime_flags set enabled = false, updated_at = now() where key = 'coach_v2';
+
+set local role authenticated;
+select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
+-- The Story 2.2 row stays (1.2.6 coach behavior); only the v2 columns go empty.
+select pg_temp.expect_count(
+  $q$select 1 from public.coach_get_athletes_runs(current_date - 1, current_date + 1) where rpe is null and not has_note$q$,
+  1, 'kill switch on: no effort, no note flag');
+select pg_temp.expect_count(
+  $q$select 1 from public.coach_get_run_notes(array(select id from public.coach_get_athletes_runs(current_date - 1, current_date + 1)))$q$,
+  0, 'kill switch on: no note text');
+select pg_temp.act_as('eeeeeeee-0000-4000-8000-00000000000e');
+-- Writes raise v2_unavailable, so the app keeps them queued.
+select pg_temp.expect_error(
+  $q$select public.athlete_set_run_rpe('runsmart_ios', 'E7E7E7E7-0000-4000-8000-000000000007', 9)$q$,
+  'P0001', 'RPE with the kill switch on');
+select pg_temp.expect_error(
+  $q$select public.athlete_set_run_note('runsmart_ios', 'E7E7E7E7-0000-4000-8000-000000000007', 'edited')$q$,
+  'P0001', 'note with the kill switch on');
+-- Hiding still works, so the note stays hidden when the flag returns.
+select pg_temp.expect_count(
+  $q$select 1 where public.athlete_set_run_note_hidden('runsmart_ios', 'E7E7E7E7-0000-4000-8000-000000000007', true) = 'saved'$q$,
+  1, 'hide with the kill switch on');
+reset role;
+do $$
+begin
+  if not exists (select 1 from public.runs where source_activity_id = 'E7E7E7E7-0000-4000-8000-000000000007'
+                 and rpe = 8 and athlete_note = 'Hilly route' and note_hidden_from_coach) then
+    raise exception 'FAIL: a write with the kill switch on changed effort or the note';
+  end if;
+end $$;
+
+update public.runtime_flags set enabled = true, updated_at = now() where key = 'coach_v2';
+
+set local role authenticated;
+select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
+select pg_temp.expect_count(
+  $q$select 1 from public.coach_get_athletes_runs(current_date - 1, current_date + 1) where rpe = 8 and not has_note$q$,
+  1, 'flag back on: effort returns, the hidden note stays hidden');
+select pg_temp.expect_count(
+  $q$select 1 from public.coach_get_run_notes(array(select id from public.coach_get_athletes_runs(current_date - 1, current_date + 1)))$q$,
+  0, 'flag back on: hidden note');
+reset role;
 
 do $$ begin raise notice 'kill_switch: PASS'; end $$;
 

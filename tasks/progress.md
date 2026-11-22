@@ -1,3 +1,12 @@
+# 2026-11-22: Coach v2 C7.3 RPE and note sharing (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 3, lane A. C7.3 draft PR with M1a; not merged, not applied.
+Active Story: C7.3 sync RPE and notes to the coach behind consent v2, hide toggle, 14-day RPE backfill, bidi helpers.
+Next Recommended Story: Overseer review of C7.3; lane B wires "Effort 7/10" and the note into coach day detail.
+Blockers: Nadav applies Batch A (gate, M5a, M1a) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: iOS full suite 1255/0 (2 skips); SQL athlete_run_sharing, kill_switch, consent, coach_read PASS; Deno 6/6.
+Last Updated: 2026-11-22
+
 # 2026-11-22: Coach v2 C7.1 Coach Today with 7-day dots merged
 
 Current Phase: Coach Experience v2, wave 2 (lane B). C7.1 merged with founder yes; SwiftUI only, no migration, no new RPC.
