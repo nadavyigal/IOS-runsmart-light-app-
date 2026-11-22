@@ -1,3 +1,12 @@
+# 2026-11-22: Coach v2 C7.3 AC4 coach day detail shows effort and note (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 4, lane B. C7.3 AC4 follow-up in a draft PR; SwiftUI only, no migration.
+Active Story: C7.3 AC4: coach day detail shows "Effort 7/10" and the athlete's quoted note under Actual, flag-gated.
+Next Recommended Story: C7.11 coach removes an athlete (lane B, M5b), after this PR merges.
+Blockers: None for this PR. Batch A (M0, M5a, M1a, M3) still waits for Nadav; effort and notes show only after M1a.
+Last Validation: 17 coach test classes 259 passed, 0 failed, 1 skipped (iPhone 17, iOS 26.5); 6 fixture screenshots. Full suite not run (23 min).
+Last Updated: 2026-11-22
+
 # 2026-11-22: Coach v2 C7.2 "New since last visit" markers and coach events merged
 
 Current Phase: Coach Experience v2, R1 wave 3, lane B. C7.2 merged in iOS and web with founder yes; M3 not applied.
