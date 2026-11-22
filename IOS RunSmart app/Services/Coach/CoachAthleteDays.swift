@@ -67,53 +67,99 @@ enum CoachAthleteDays {
         workouts: [CoachWorkoutSummary], runs: [CoachRunSummary], now: Date, week: CoachAthleteWeek
     ) -> (current: CoachAthleteWeekDays, previous: CoachAthleteWeekDays) {
         let calendar = week.calendar
-        let today = CoachReadDay.iso(now, calendar: calendar)
         let previousStart = calendar.date(byAdding: .day, value: -7, to: week.interval.start)!
-        let counted = workouts.filter(WorkoutAdherence.counts)
-        let runsInRange = runs.filter { $0.completedAt >= previousStart && $0.completedAt < week.interval.end && $0.completedAt <= now }
-        let linkedIDs = Set(runsInRange.compactMap(\.workoutID))
-        let workoutIDs = Set(counted.map(\.id))
-        let byWorkout = Dictionary(grouping: runsInRange.filter { $0.workoutID != nil }, by: \.workoutID)
-
-        // Extra runs: no `workout_id`, or linked to a workout this screen does not show (in practice a
-        // rest row, which is not a workout). Either way it is a real run with no planned workout here.
-        // Only runs with a null `workout_id` can be "Matched by date".
-        var unlinked = runsInRange.filter { $0.workoutID == nil || !workoutIDs.contains($0.workoutID!) }
-            .sorted { $0.completedAt < $1.completedAt }
-        var pairs: [UUID: CoachRunSummary] = [:]
-        // "Matched by date": a completed workout no run links to, and an unlinked run on the same day.
-        for workout in counted.sorted(by: { $0.scheduledDate < $1.scheduledDate })
-        where workout.completed && !linkedIDs.contains(workout.id) {
-            if let index = unlinked.firstIndex(where: {
-                $0.workoutID == nil && CoachReadDay.iso($0.completedAt, calendar: calendar) == workout.scheduledDate
-            }) {
-                pairs[workout.id] = unlinked.remove(at: index)
-            }
-        }
-
+        let builder = DayBuilder(
+            workouts: workouts, runs: runs, now: now, calendar: calendar,
+            rangeStart: previousStart, rangeEnd: week.interval.end,
+            missedBoundary: CoachReadDay.iso(now, calendar: calendar)
+        )
         func days(from start: Date) -> CoachAthleteWeekDays {
-            let list = (0..<7).map { offset -> CoachDay in
-                let date = calendar.date(byAdding: .day, value: offset, to: start)!
-                let iso = CoachReadDay.iso(date, calendar: calendar)
-                let dayWorkouts = counted.filter { $0.scheduledDate == iso }.map { workout -> CoachDayWorkout in
-                    if let matched = pairs[workout.id] {
-                        return CoachDayWorkout(
-                            workout: workout, state: WorkoutAdherence.measure(workout: workout, run: matched),
-                            run: matched, matchedByDate: true
-                        )
-                    }
-                    let linked = byWorkout[workout.id, default: []]
-                    let state = WorkoutAdherence.state(workout: workout, linkedRuns: linked, today: today)
-                    let run = linked.first { WorkoutAdherence.classify(workout: workout, run: $0, today: today) == state }
-                        ?? linked.first
-                    return CoachDayWorkout(workout: workout, state: state, run: run, matchedByDate: false)
-                }
-                let extras = unlinked.filter { CoachReadDay.iso($0.completedAt, calendar: calendar) == iso }
-                return CoachDay(date: date, iso: iso, workouts: dayWorkouts, extraRuns: extras)
+            let list = (0..<7).map { offset in
+                builder.day(at: calendar.date(byAdding: .day, value: offset, to: start)!)
             }
             return CoachAthleteWeekDays(start: start, days: list)
         }
         return (days(from: week.interval.start), days(from: previousStart))
+    }
+
+    /// C7.1: the last `count` days ending today, oldest first, in `calendar`'s days (the coach's
+    /// stand-in for the athlete's local days: the read RPCs carry no athlete time zone).
+    /// A workout is "missed" once its day is over, or once today passes the 20:00 cutoff.
+    static func recentDays(
+        workouts: [CoachWorkoutSummary], runs: [CoachRunSummary], now: Date, calendar: Calendar,
+        count: Int = 7, missedCutoffHour: Int = WorkoutAdherence.missedCutoffHour
+    ) -> [CoachDay] {
+        let todayStart = calendar.startOfDay(for: now)
+        let start = calendar.date(byAdding: .day, value: -(count - 1), to: todayStart)!
+        let end = calendar.date(byAdding: .day, value: 1, to: todayStart)!
+        let builder = DayBuilder(
+            workouts: workouts, runs: runs, now: now, calendar: calendar,
+            rangeStart: start, rangeEnd: end,
+            missedBoundary: WorkoutAdherence.missedBoundary(now: now, calendar: calendar, cutoffHour: missedCutoffHour)
+        )
+        return (0..<count).map { builder.day(at: calendar.date(byAdding: .day, value: $0, to: start)!) }
+    }
+
+    /// Pairs runs with workouts once, then answers "what happened on this day".
+    private struct DayBuilder {
+        let calendar: Calendar
+        let counted: [CoachWorkoutSummary]
+        let byWorkout: [UUID?: [CoachRunSummary]]
+        let unlinked: [CoachRunSummary]
+        let pairs: [UUID: CoachRunSummary]
+        /// `classify` treats a workout dated before this day as missed. Today normally, tomorrow after the cutoff.
+        let missedBoundary: String
+
+        init(
+            workouts: [CoachWorkoutSummary], runs: [CoachRunSummary], now: Date, calendar: Calendar,
+            rangeStart: Date, rangeEnd: Date, missedBoundary: String
+        ) {
+            self.calendar = calendar
+            self.missedBoundary = missedBoundary
+            let counted = workouts.filter(WorkoutAdherence.counts)
+            let runsInRange = runs.filter { $0.completedAt >= rangeStart && $0.completedAt < rangeEnd && $0.completedAt <= now }
+            let linkedIDs = Set(runsInRange.compactMap(\.workoutID))
+            let workoutIDs = Set(counted.map(\.id))
+            byWorkout = Dictionary(grouping: runsInRange.filter { $0.workoutID != nil }, by: \.workoutID)
+
+            // Extra runs: no `workout_id`, or linked to a workout this screen does not show (in practice a
+            // rest row, which is not a workout). Either way it is a real run with no planned workout here.
+            // Only runs with a null `workout_id` can be "Matched by date".
+            var unlinked = runsInRange.filter { $0.workoutID == nil || !workoutIDs.contains($0.workoutID!) }
+                .sorted { $0.completedAt < $1.completedAt }
+            var pairs: [UUID: CoachRunSummary] = [:]
+            // "Matched by date": a completed workout no run links to, and an unlinked run on the same day.
+            for workout in counted.sorted(by: { $0.scheduledDate < $1.scheduledDate })
+            where workout.completed && !linkedIDs.contains(workout.id) {
+                if let index = unlinked.firstIndex(where: {
+                    $0.workoutID == nil && CoachReadDay.iso($0.completedAt, calendar: calendar) == workout.scheduledDate
+                }) {
+                    pairs[workout.id] = unlinked.remove(at: index)
+                }
+            }
+            self.counted = counted
+            self.unlinked = unlinked
+            self.pairs = pairs
+        }
+
+        func day(at date: Date) -> CoachDay {
+            let iso = CoachReadDay.iso(date, calendar: calendar)
+            let dayWorkouts = counted.filter { $0.scheduledDate == iso }.map { workout -> CoachDayWorkout in
+                if let matched = pairs[workout.id] {
+                    return CoachDayWorkout(
+                        workout: workout, state: WorkoutAdherence.measure(workout: workout, run: matched),
+                        run: matched, matchedByDate: true
+                    )
+                }
+                let linked = byWorkout[workout.id, default: []]
+                let state = WorkoutAdherence.state(workout: workout, linkedRuns: linked, today: missedBoundary)
+                let run = linked.first { WorkoutAdherence.classify(workout: workout, run: $0, today: missedBoundary) == state }
+                    ?? linked.first
+                return CoachDayWorkout(workout: workout, state: state, run: run, matchedByDate: false)
+            }
+            let extras = unlinked.filter { CoachReadDay.iso($0.completedAt, calendar: calendar) == iso }
+            return CoachDay(date: date, iso: iso, workouts: dayWorkouts, extraRuns: extras)
+        }
     }
 }
 
