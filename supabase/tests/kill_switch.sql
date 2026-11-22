@@ -24,6 +24,11 @@
 --     zero rows, the athlete's effort and note writes raise v2_unavailable and change
 --     nothing, and hiding a note still works. Back on, effort returns and the note
 --     hidden while the flag was off stays hidden.
+--   * C7.11 (M5b): with the flag off, coach_remove_athlete and the 1.2.6
+--     leave_coach still end the link and log removed / left (the switch never
+--     blocks ending a link); my_coach_link_notice returns zero rows and
+--     mark_link_notice_seen raises v2_unavailable and marks nothing. Back on, the
+--     removed athlete sees the notice once; the athlete who left sees none.
 --
 -- Every later v2 RPC adds its own case to this file (C7.12 DoD): with the flag
 -- off, write RPCs raise v2_unavailable and read RPCs return zero rows.
@@ -42,8 +47,10 @@
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261117164500_coach_read_rpcs.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121100000_coach_v2_gate.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121110000_coach_consent_v2.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121120000_athlete_run_sharing.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121130000_coach_last_seen_and_events.sql
---   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121130000_coach_last_seen_and_events.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121160000_coach_link_end.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121160000_coach_link_end.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/kill_switch.sql
 
 begin;
@@ -405,6 +412,69 @@ select pg_temp.expect_count(
 select pg_temp.expect_count(
   $q$select 1 from public.coach_get_run_notes(array(select id from public.coach_get_athletes_runs(current_date - 1, current_date + 1)))$q$,
   0, 'flag back on: hidden note');
+reset role;
+
+-- C7.11 (M5b): ending a link with the switch off --------------------------------------
+-- G (v2 TestFlight) is Dana's athlete, H (v2 TestFlight) is Ron's.
+insert into auth.users (id, email, aud, role) values
+  ('99999999-0000-4000-8000-000000000009', 'athlete-g@example.com', 'authenticated', 'authenticated'),
+  ('88888888-0000-4000-8000-000000000008', 'athlete-h@example.com', 'authenticated', 'authenticated');
+insert into public.coach_athlete_links (id, coach_id, athlete_id, status, consented_at) values
+  ('00000009-0000-4000-8000-000000000009', 'aaaaaaaa-0000-4000-8000-00000000000a',
+   '99999999-0000-4000-8000-000000000009', 'active', now()),
+  ('00000008-0000-4000-8000-000000000008', 'cccccccc-0000-4000-8000-00000000000c',
+   '88888888-0000-4000-8000-000000000008', 'active', now());
+insert into public.client_capabilities (user_id, coach_v2, channel) values
+  ('99999999-0000-4000-8000-000000000009', true, 'testflight'),
+  ('88888888-0000-4000-8000-000000000008', true, 'testflight');
+
+update public.runtime_flags set enabled = false, updated_at = now() where key = 'coach_v2';
+
+set local role authenticated;
+-- The switch never blocks ending a link: removal and the 1.2.6 leave both work.
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
+select pg_temp.expect_count(
+  $q$select 1 where public.coach_remove_athlete('99999999-0000-4000-8000-000000000009') = 'removed'$q$,
+  1, 'remove with the kill switch on');
+select pg_temp.act_as('88888888-0000-4000-8000-000000000008');
+select public.leave_coach('00000008-0000-4000-8000-000000000008');
+-- The notice is a v2 surface: hidden, and it cannot be marked, while the switch is on.
+select pg_temp.act_as('99999999-0000-4000-8000-000000000009');
+select pg_temp.expect_count('select 1 from public.my_coach_link_notice()', 0, 'notice with the kill switch on');
+select pg_temp.expect_error_msg(
+  $q$select public.mark_link_notice_seen('00000009-0000-4000-8000-000000000009')$q$,
+  'P0001', 'v2_unavailable', 'mark notice with the kill switch on');
+reset role;
+do $$
+begin
+  if not exists (select 1 from public.coach_athlete_links
+                 where id = '00000009-0000-4000-8000-000000000009' and status = 'revoked'
+                   and ended_by = 'coach' and ended_notice_seen_at is null)
+     or not exists (select 1 from public.coach_athlete_links
+                    where id = '00000008-0000-4000-8000-000000000008' and status = 'revoked'
+                      and ended_by = 'athlete') then
+    raise exception 'FAIL: a link end with the kill switch on did not revoke, or marked the notice';
+  end if;
+  if (select count(*) from public.coach_athlete_events
+      where (athlete_id = '99999999-0000-4000-8000-000000000009' and kind = 'removed')
+         or (athlete_id = '88888888-0000-4000-8000-000000000008' and kind = 'left')) <> 2 then
+    raise exception 'FAIL: a link end with the kill switch on did not log its event';
+  end if;
+end $$;
+
+update public.runtime_flags set enabled = true, updated_at = now() where key = 'coach_v2';
+
+-- Back on: the unseen notice shows once.
+set local role authenticated;
+select pg_temp.act_as('99999999-0000-4000-8000-000000000009');
+select pg_temp.expect_count(
+  $q$select 1 from public.my_coach_link_notice() where coach_name = 'Dana'$q$,
+  1, 'notice after the flag is back on');
+select pg_temp.expect_bool(public.mark_link_notice_seen('00000009-0000-4000-8000-000000000009'), true,
+  'mark notice after the flag is back on');
+select pg_temp.expect_count('select 1 from public.my_coach_link_notice()', 0, 'notice shown once');
+select pg_temp.act_as('88888888-0000-4000-8000-000000000008');
+select pg_temp.expect_count('select 1 from public.my_coach_link_notice()', 0, 'no notice after a leave');
 reset role;
 
 do $$ begin raise notice 'kill_switch: PASS'; end $$;

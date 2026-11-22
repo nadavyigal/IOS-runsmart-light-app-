@@ -223,6 +223,8 @@ struct TodayTabView: View {
         }
         // C7.8 P9: the one-time sharing notice. Nothing with v2 off.
         .coachConsentNotice()
+        // C7.11: the one-time "no longer coached" line after a coach removal. Nothing with v2 off.
+        .coachLinkNotice()
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await refreshCoachWelcome() } }
         }

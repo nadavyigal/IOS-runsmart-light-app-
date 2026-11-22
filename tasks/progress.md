@@ -1,3 +1,12 @@
+# 2026-11-22: Coach v2 C7.11 coach removes an athlete, M5b (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 4, lane B. C7.11 in draft PRs (iOS + web twin); M5b written, not applied.
+Active Story: C7.11: Remove {Athlete}, end_coach_link shared with leave_coach, one-time athlete line, left/removed events.
+Next Recommended Story: C7.16 milestones (lane B) after C7.1/C7.2; Batch A apply after the Grok Bot audit.
+Blockers: Nadav applies Batch A incl. M5b; Sally light copy review of the remove sheet lines.
+Last Validation: SQL coach_link_end, kill_switch, 1.5 leave_coach pass on local Postgres; 19 coach test classes 279 passed, 0 failed.
+Last Updated: 2026-11-22
+
 # 2026-11-22: Coach v2 C7.3 AC4 coach day detail shows effort and note (draft PR)
 
 Current Phase: Coach Experience v2, R1 wave 4, lane B. C7.3 AC4 follow-up in a draft PR; SwiftUI only, no migration.

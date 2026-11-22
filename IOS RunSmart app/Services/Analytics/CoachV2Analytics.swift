@@ -54,6 +54,10 @@ nonisolated enum CoachV2Analytics {
         case runNoteHiddenToggled(hidden: Bool)
         /// C7.3: the one-time RPE backfill after the ack queued `count` runs (D7).
         case rpeBackfillDone(count: Int)
+        /// C7.11: the coach removed an athlete and the server ended the link. No properties.
+        case coachRemovedAthlete
+        /// C7.11: the athlete left their coach (A13 or P9) and the server ended the link. No properties.
+        case athleteLeftCoach
 
         var name: String {
             switch self {
@@ -68,6 +72,8 @@ nonisolated enum CoachV2Analytics {
             case .runNoteSaved: "run_note_saved"
             case .runNoteHiddenToggled: "run_note_hidden_toggled"
             case .rpeBackfillDone: "rpe_backfill_done"
+            case .coachRemovedAthlete: "coach_removed_athlete"
+            case .athleteLeftCoach: "athlete_left_coach"
             }
         }
 
@@ -79,7 +85,7 @@ nonisolated enum CoachV2Analytics {
                 ["reason": .kind(reason)]
             case .coachAthleteSeen(let newCount):
                 ["new_count": .count(newCount)]
-            case .athleteGoalChangeLogged:
+            case .athleteGoalChangeLogged, .coachRemovedAthlete, .athleteLeftCoach:
                 [:]
             case .consentV2Shown(let surface), .consentV2Acked(let surface), .consentV2LeaveTapped(let surface):
                 ["surface": .kind(surface.rawValue)]
