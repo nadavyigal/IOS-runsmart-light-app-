@@ -16,7 +16,8 @@
 --     one removed event. The coach's other athletes are untouched.
 --   * AC3 parity: after a removal and after a leave, every coach read that exists
 --     at this point returns zero rows for that athlete (get_coach_welcome raises
---     not_linked, as it does for any unlinked athlete). Each read is checked
+--     not_linked, as it does for any unlinked athlete). C7.4's
+--     coach_get_athlete_flags is included. Each read is checked
 --     non-empty first, so a zero means the link end did it.
 --   * AC7: a queued coach write for the removed athlete raises link_inactive.
 --   * AC5: the removed v2 athlete sees one notice with the coach's name, once.
@@ -46,11 +47,12 @@
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121110000_coach_consent_v2.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121120000_athlete_run_sharing.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121130000_coach_last_seen_and_events.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121150000_athlete_run_flags.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121160000_coach_link_end.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121160000_coach_link_end.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/coach_link_end.sql
 --
--- Later stories that add a coach read (C7.4, C7.7, C8.1b, C8.6, C9.1) add it to
+-- Later stories that add a coach read (C7.7, C8.1b, C8.6, C9.1) add it to
 -- pg_temp.parity below, so the parity test grows with end_coach_link.
 
 begin;
@@ -170,6 +172,9 @@ begin
   perform pg_temp.expect_count(
     'select 1 where exists (select 1 from public.coach_feedback where athlete_id = ' || a || ')', want, label || ': coach_feedback');
   perform pg_temp.expect_count(
+    'select 1 where exists (select 1 from public.coach_get_athlete_flags(array[' || a || '], true))',
+    want, label || ': coach_get_athlete_flags');
+  perform pg_temp.expect_count(
     'select 1 where exists (select 1 from public.coach_get_athlete_events(' || a || '))', want, label || ': coach_get_athlete_events');
   perform pg_temp.expect_count(
     'select 1 where exists (select 1 from public.coach_roster_summary() where athlete_id = ' || a || ')', want, label || ': coach_roster_summary');
@@ -278,6 +283,11 @@ end $$;
 
 -- Baseline: every read sees B (as Dana) and E (as Ron).
 set local role authenticated;
+-- C7.4 (M1b): each athlete sends one flag while linked.
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+select public.athlete_flag_run('f000000b-0000-4000-8000-00000000000b', 'pain', 'Left knee');
+select pg_temp.act_as('eeeeeeee-0000-4000-8000-00000000000e');
+select public.athlete_flag_run('f000000e-0000-4000-8000-00000000000e', 'off', null);
 select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
 select pg_temp.parity('bbbbbbbb-0000-4000-8000-00000000000b', current_setting('test.run_b')::bigint, true, 'B before removal');
 select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');

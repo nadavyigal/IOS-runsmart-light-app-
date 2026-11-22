@@ -4,7 +4,16 @@ Current Phase: Coach Experience v2, R1 wave 4, lane B. C7.11 in draft PRs (iOS +
 Active Story: C7.11: Remove {Athlete}, end_coach_link shared with leave_coach, one-time athlete line, left/removed events.
 Next Recommended Story: C7.16 milestones (lane B) after C7.1/C7.2; Batch A apply after the Grok Bot audit.
 Blockers: Nadav applies Batch A incl. M5b; Sally light copy review of the remove sheet lines.
-Last Validation: SQL coach_link_end, kill_switch, 1.5 leave_coach pass on local Postgres; 19 coach test classes 279 passed, 0 failed.
+Last Validation: After C7.4 catch-up: SQL coach_link_end, kill_switch, athlete_run_flags, 1.5 leave_coach PASS; 20 coach classes 300 passed, 0 failed.
+Last Updated: 2026-11-22
+
+# 2026-11-22: Coach v2 C7.4 pain / something off flag (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 4, lane A. C7.4 draft PR open in iOS and web; M1b not applied.
+Active Story: C7.4: M1b flags table and RPCs, new_flags in roster summary, P7 flag row, pain group on Coach Today.
+Next Recommended Story: Overseer review of C7.4; lane B wires CoachFlagBlock into day detail; then C7.7 (lane A).
+Blockers: Nadav applies Batch A (M0, M5a, M1a, M3, M1b) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: SQL athlete_run_flags, kill_switch, coach_last_seen, athlete_run_sharing PASS; iOS full suite 1298 passed, 0 failed, 2 skipped.
 Last Updated: 2026-11-22
 
 # 2026-11-22: Coach v2 C7.3 AC4 coach day detail shows effort and note (draft PR)

@@ -24,6 +24,11 @@
 --     zero rows, the athlete's effort and note writes raise v2_unavailable and change
 --     nothing, and hiding a note still works. Back on, effort returns and the note
 --     hidden while the flag was off stays hidden.
+--   * C7.4 (M1b): with the flag off, coach_get_athlete_flags returns zero rows and
+--     the roster summary has no flag count, athlete_flag_run and coach_resolve_flag
+--     raise v2_unavailable and change nothing (the app's outbox keeps them), and
+--     athlete_remove_flag still works (a privacy action). Back on, the queued flag
+--     lands, the coach reads it and resolves the open one.
 --   * C7.11 (M5b): with the flag off, coach_remove_athlete and the 1.2.6
 --     leave_coach still end the link and log removed / left (the switch never
 --     blocks ending a link); my_coach_link_notice returns zero rows and
@@ -49,6 +54,7 @@
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121110000_coach_consent_v2.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121120000_athlete_run_sharing.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121130000_coach_last_seen_and_events.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121150000_athlete_run_flags.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121160000_coach_link_end.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121160000_coach_link_end.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/kill_switch.sql
@@ -412,6 +418,58 @@ select pg_temp.expect_count(
 select pg_temp.expect_count(
   $q$select 1 from public.coach_get_run_notes(array(select id from public.coach_get_athletes_runs(current_date - 1, current_date + 1)))$q$,
   0, 'flag back on: hidden note');
+reset role;
+
+-- C7.4 (M1b): flags with the switch off ---------------------------------------------------
+-- E (acked, C-E listed App Store pair) sends two flags while the flag is on.
+set local role authenticated;
+select pg_temp.act_as('eeeeeeee-0000-4000-8000-00000000000e');
+select public.athlete_flag_run('f1000000-0000-4000-8000-0000000000e1', 'pain', 'knee');
+select public.athlete_flag_run('f2000000-0000-4000-8000-0000000000e2', 'off', null);
+select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
+select pg_temp.expect_count('select 1 from public.coach_get_athlete_flags()', 2, 'C reads flags with the flag on');
+select pg_temp.expect_count(
+  $q$select 1 from public.coach_roster_summary() where athlete_id = 'eeeeeeee-0000-4000-8000-00000000000e' and new_flags = 2$q$,
+  1, 'flag count with the flag on');
+reset role;
+
+update public.runtime_flags set enabled = false, updated_at = now() where key = 'coach_v2';
+
+set local role authenticated;
+select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
+select pg_temp.expect_count('select 1 from public.coach_get_athlete_flags(null, true)', 0, 'flags with the kill switch on');
+select pg_temp.expect_count('select 1 from public.coach_roster_summary()', 0, 'summary (flags) with the kill switch on');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_resolve_flag('f1000000-0000-4000-8000-0000000000e1')$q$,
+  'P0001', 'v2_unavailable', 'resolve with the kill switch on');
+select pg_temp.act_as('eeeeeeee-0000-4000-8000-00000000000e');
+select pg_temp.expect_error_msg(
+  $q$select public.athlete_flag_run('f3000000-0000-4000-8000-0000000000e3', 'pain', 'queued')$q$,
+  'P0001', 'v2_unavailable', 'flag with the kill switch on');
+-- Removing is a privacy action and works with the switch on.
+select pg_temp.expect_count(
+  $q$select 1 where public.athlete_remove_flag('f2000000-0000-4000-8000-0000000000e2') = 'removed'$q$,
+  1, 'remove with the kill switch on');
+reset role;
+do $$
+begin
+  if exists (select 1 from public.athlete_run_flags where id = 'f3000000-0000-4000-8000-0000000000e3')
+     or exists (select 1 from public.athlete_run_flags where id = 'f2000000-0000-4000-8000-0000000000e2')
+     or exists (select 1 from public.athlete_run_flags where resolved_at is not null) then
+    raise exception 'FAIL: a flag write with the kill switch on changed the wrong rows';
+  end if;
+end $$;
+
+update public.runtime_flags set enabled = true, updated_at = now() where key = 'coach_v2';
+
+-- The outbox retries after the switch is back on.
+set local role authenticated;
+select pg_temp.act_as('eeeeeeee-0000-4000-8000-00000000000e');
+select public.athlete_flag_run('f3000000-0000-4000-8000-0000000000e3', 'pain', 'queued');
+select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
+select public.coach_resolve_flag('f1000000-0000-4000-8000-0000000000e1');
+select pg_temp.expect_count('select 1 from public.coach_get_athlete_flags()', 1, 'flag back on: the queued flag is open');
+select pg_temp.expect_count('select 1 from public.coach_get_athlete_flags(null, true)', 2, 'flag back on: with the resolved one');
 reset role;
 
 -- C7.11 (M5b): ending a link with the switch off --------------------------------------

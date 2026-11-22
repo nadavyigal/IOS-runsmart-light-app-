@@ -54,6 +54,13 @@ nonisolated enum CoachV2Analytics {
         case runNoteHiddenToggled(hidden: Bool)
         /// C7.3: the one-time RPE backfill after the ack queued `count` runs (D7).
         case rpeBackfillDone(count: Int)
+        /// C7.4: the athlete sent a flag. `hasRun` = it is about a run (false for Today's run-less entry).
+        /// Never the note.
+        case flagCreated(kind: RunFlagKind, hasRun: Bool)
+        /// C7.4: the athlete removed an unhandled flag.
+        case flagRemoved
+        /// C7.4: the coach's "Mark handled" reached the server. Minutes from the flag to the resolve.
+        case flagResolved(minutesOpen: Int)
         /// C7.11: the coach removed an athlete and the server ended the link. No properties.
         case coachRemovedAthlete
         /// C7.11: the athlete left their coach (A13 or P9) and the server ended the link. No properties.
@@ -72,6 +79,9 @@ nonisolated enum CoachV2Analytics {
             case .runNoteSaved: "run_note_saved"
             case .runNoteHiddenToggled: "run_note_hidden_toggled"
             case .rpeBackfillDone: "rpe_backfill_done"
+            case .flagCreated: "flag_created"
+            case .flagRemoved: "flag_removed"
+            case .flagResolved: "flag_resolved"
             case .coachRemovedAthlete: "coach_removed_athlete"
             case .athleteLeftCoach: "athlete_left_coach"
             }
@@ -95,6 +105,12 @@ nonisolated enum CoachV2Analytics {
                 ["hidden": .flag(hidden)]
             case .rpeBackfillDone(let count):
                 ["count": .count(count)]
+            case .flagCreated(let kind, let hasRun):
+                ["kind": .kind(kind.rawValue), "has_run": .flag(hasRun)]
+            case .flagRemoved:
+                [:]
+            case .flagResolved(let minutesOpen):
+                ["minutes_open": .count(minutesOpen)]
             }
         }
     }
