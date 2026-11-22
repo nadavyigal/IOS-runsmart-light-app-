@@ -1,10 +1,19 @@
-# 2026-11-22: Coach v2 C7.1 Coach Today with 7-day dots (draft PR)
+# 2026-11-22: Coach v2 C7.1 Coach Today with 7-day dots merged
 
-Current Phase: Coach Experience v2, wave 2 (lane B). C7.1 draft PR open; SwiftUI only, no migration, no new RPC.
-Active Story: C7.1 built: dots, groups, chips, no re-sort pill, states, VoiceOver, RTL; waiting for overseer review.
-Next Recommended Story: C7.2 "New since last visit" (lane B, needs M3) after C7.1 merges; lane A C7.8 runs in parallel.
-Blockers: Overseer review; progress.md will conflict with the C7.8 entry (overseer resolves).
+Current Phase: Coach Experience v2, wave 2 (lane B). C7.1 merged with founder yes; SwiftUI only, no migration, no new RPC.
+Active Story: C7.1 built: dots, groups, chips, no re-sort pill, states, VoiceOver, RTL; passed overseer review.
+Next Recommended Story: Wave 3: C7.2 "New since last visit" (lane B, writes M3) and C7.3 (lane A, writes M1a).
+Blockers: None for lane B; C7.2 needs Batch A M3 written, not applied.
 Last Validation: Full suite 1209 passed, 0 failed on iPhone 17 simulator (iOS 26.5); 40 new C7.1 tests.
+Last Updated: 2026-11-22
+
+# 2026-11-22: Coach v2 C7.8 consent v2 and one-time notice merged
+
+Current Phase: Coach Experience v2, R1 wave 2, lane A. C7.8 merged in iOS and web with founder yes; M5a not applied.
+Active Story: C7.8 consent v2: M5a migration, ack and status RPCs, P8 and P9 sheets, leave sheet lines, analytics.
+Next Recommended Story: C7.3 (lane A), gated by coach_v2_sharing_allowed.
+Blockers: Nadav applies Batch A (gate, then M5a) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: SQL 8 suites pass on local Postgres; iOS targeted 104/0; full suite 1187/0 before simulator died at 24 min.
 Last Updated: 2026-11-22
 
 # 2026-11-22: Coach v2 C7.0 gate, kill switch and pilot allowlist merged

@@ -250,6 +250,8 @@ struct RunSmartLiteAppShell: View {
         .environmentObject(coachLinks)
         .environmentObject(athleteFeedback)
         .environmentObject(coachPresence)
+        // C7.8: Today's P9 notice reads `coachV2Enabled` from the gate.
+        .environmentObject(coachV2Gate)
         .environment(\.coachAssistantActive, assistantContext.linkActive)
         .environment(\.coachAssistantName, assistantContext.coachDisplayName)
         .environment(\.runSmartServices, services)
