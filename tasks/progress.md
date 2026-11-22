@@ -4,7 +4,7 @@ Current Phase: Coach Experience v2, wave 2 (lane B). C7.1 draft PR open; SwiftUI
 Active Story: C7.1 built: dots, groups, chips, no re-sort pill, states, VoiceOver, RTL; waiting for overseer review.
 Next Recommended Story: C7.2 "New since last visit" (lane B, needs M3) after C7.1 merges; lane A C7.8 runs in parallel.
 Blockers: Overseer review; progress.md will conflict with the C7.8 entry (overseer resolves).
-Last Validation: Full suite 1209 passed, 0 failed on iPhone 17 simulator (iOS 26.5); 30 new C7.1 tests.
+Last Validation: Full suite 1209 passed, 0 failed on iPhone 17 simulator (iOS 26.5); 40 new C7.1 tests.
 Last Updated: 2026-11-22
 
 # 2026-11-22: Coach v2 C7.0 gate, kill switch and pilot allowlist merged
