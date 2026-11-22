@@ -46,6 +46,14 @@ nonisolated enum CoachV2Analytics {
         case consentV2Acked(surface: CoachConsentSurface)
         /// C7.8: P9 "Leave {Coach}" opened the leave sheet.
         case consentV2LeaveTapped(surface: CoachConsentSurface)
+        /// C7.3: the athlete set effort. `shared` = it was queued for the coach. Never the value.
+        case runRPESet(shared: Bool)
+        /// C7.3: the athlete saved a run note. Never the text.
+        case runNoteSaved(shared: Bool)
+        /// C7.3: "Hide note from {Coach}" was turned on or off.
+        case runNoteHiddenToggled(hidden: Bool)
+        /// C7.3: the one-time RPE backfill after the ack queued `count` runs (D7).
+        case rpeBackfillDone(count: Int)
 
         var name: String {
             switch self {
@@ -56,6 +64,10 @@ nonisolated enum CoachV2Analytics {
             case .consentV2Shown: "consent_v2_shown"
             case .consentV2Acked: "consent_v2_acked"
             case .consentV2LeaveTapped: "consent_v2_leave_tapped"
+            case .runRPESet: "run_rpe_set"
+            case .runNoteSaved: "run_note_saved"
+            case .runNoteHiddenToggled: "run_note_hidden_toggled"
+            case .rpeBackfillDone: "rpe_backfill_done"
             }
         }
 
@@ -71,6 +83,12 @@ nonisolated enum CoachV2Analytics {
                 [:]
             case .consentV2Shown(let surface), .consentV2Acked(let surface), .consentV2LeaveTapped(let surface):
                 ["surface": .kind(surface.rawValue)]
+            case .runRPESet(let shared), .runNoteSaved(let shared):
+                ["shared": .flag(shared)]
+            case .runNoteHiddenToggled(let hidden):
+                ["hidden": .flag(hidden)]
+            case .rpeBackfillDone(let count):
+                ["count": .count(count)]
             }
         }
     }
