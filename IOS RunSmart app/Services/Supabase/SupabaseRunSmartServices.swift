@@ -1335,19 +1335,42 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     private func fetchRunDebrief(for run: RecordedRun) async -> PostRunDebriefModel {
         // Opt-in on-device debrief first, then the cloud coach, then the fixed fallback.
-        var generators: [any RunDebriefGenerating] = []
+        let started = ContinuousClock.now
+        let onDeviceOptedIn = OnDeviceDebrief.isOptedIn()
+        let onDeviceUnavailable = OnDeviceDebrief.unavailableReason
         let coachLinked = CoachContextSource.shared.context(for: currentUserID).linkActive
-        if let onDevice = OnDeviceDebrief.generatorIfEnabled(coachLinked: coachLinked) {
-            generators.append(onDevice)
-        }
+        let onDevice = OnDeviceDebrief.generatorIfEnabled(coachLinked: coachLinked)
+        var cloud: (any RunDebriefGenerating)?
         if let authSession = try? await supabase.auth.session {
-            generators.append(CloudRunDebriefGenerator(authUserID: authSession.user.id, accessToken: authSession.accessToken))
+            cloud = CloudRunDebriefGenerator(authUserID: authSession.user.id, accessToken: authSession.accessToken)
         }
-        guard !generators.isEmpty else { return .fallback(for: run) }
-        let input = await runDebriefInput(for: run)
-        return await RunDebriefPipeline.debrief(for: input, run: run, generators: generators) { model in
-            await self.persistDebrief(model, for: run)
+        let generators = [onDevice, cloud].compactMap { $0 }
+
+        var attempts: [RunDebriefAttempt] = []
+        var result = PostRunDebriefModel.fallback(for: run)
+        if !generators.isEmpty {
+            let input = await runDebriefInput(for: run)
+            result = await RunDebriefPipeline.debrief(
+                for: input,
+                run: run,
+                generators: generators,
+                report: { attempts.append($0) },
+                persist: { model in await self.persistDebrief(model, for: run) }
+            )
+            #if DEBUG
+            if let onDevice, let cloud {
+                Task { await RunDebriefCompare.record(run: run, input: input, onDevice: onDevice, cloud: cloud) }
+            }
+            #endif
         }
+        Analytics.trackRunDebriefGenerated(
+            result: result.source,
+            totalLatencyMs: RunDebriefPipeline.milliseconds(since: started),
+            attempts: attempts,
+            onDeviceOptedIn: onDeviceOptedIn,
+            onDeviceUnavailable: onDeviceUnavailable
+        )
+        return result
     }
 
     private func runDebriefInput(for run: RecordedRun) async -> RunDebriefInput {

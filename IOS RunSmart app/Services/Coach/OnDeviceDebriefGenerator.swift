@@ -119,6 +119,7 @@ nonisolated struct OnDeviceDebriefOutput {
 
 @available(iOS 26.0, *)
 struct OnDeviceDebriefGenerator: RunDebriefGenerating {
+    let attemptName = "on_device"
     var timeoutNanoseconds: UInt64 = 12_000_000_000
 
     func generateDebrief(for input: RunDebriefInput) async throws -> PostRunDebriefModel? {

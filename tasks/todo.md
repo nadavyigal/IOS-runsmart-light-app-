@@ -1,3 +1,10 @@
+## 2026-11-22 — Debrief event + debug compare (Apple membership plan PR 3)
+
+- [x] `RunDebriefPipeline` reports each attempt (generator, outcome, latency, error type) through a `report` closure.
+- [x] PostHog `run_debrief_generated` once per debrief: `source`, `latency_ms`, `on_device_opted_in`, `on_device_ready`, `on_device_unavailable_reason`, `on_device_outcome`, `on_device_latency_ms`, `on_device_error_type`, `cloud_outcome`. No debrief text is sent.
+- [x] Debug builds only: when on-device is opted in and ready, run both generators on the same run in the background and append both texts to `Documents/debrief-compare.jsonl` for the 10-run rating. Never persisted, never sent.
+- [x] Tests: attempt reports, event properties with a spy, compare line encoding. Full suite.
+
 ## 2026-11-22 — On-device debrief, opt-in (Apple membership plan PR 2)
 
 Founder chose a Settings toggle on 2026-11-22. Off by default; shown only when the app runs in English and Apple's on-device model is ready. Hebrew users never see it.

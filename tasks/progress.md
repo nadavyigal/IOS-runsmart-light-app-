@@ -1,3 +1,12 @@
+# 2026-11-22: Debrief event and debug compare (draft PR, stacked on #237)
+
+Current Phase: 1.2.6 (46) live; Apple membership plan PR 3, last of the on-device debrief stack (#232, #237, this).
+Active Story: PostHog `run_debrief_generated` per debrief (no text); debug-only `Documents/debrief-compare.jsonl` with both texts.
+Next Recommended Story: Nadav reviews #232, #237, this; then a signed-in English iPhone run with the toggle on and the 10-run rating.
+Blockers: real event and compare line need a device run with Apple Intelligence on.
+Last Validation: 2026-11-22 full suite 1165 passed, 0 failed, 1 skip (parallel off); Release build clean; iPhone 17 iOS 26.5 sim.
+Last Updated: 2026-11-22
+
 # 2026-11-22: On-device debrief, opt-in Settings toggle (draft PR, stacked on #232)
 
 Current Phase: 1.2.6 (46) live; Apple membership plan PR 2. Founder chose a Settings toggle on 2026-11-22.
