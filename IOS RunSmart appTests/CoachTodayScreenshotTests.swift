@@ -75,6 +75,15 @@ final class CoachTodayScreenshotTests: XCTestCase {
                    height: 4000, viewport: 1800, to: out)
         try render(.previewFixture(athletes: 10, withNews: true), name: "10-new-to-review-rtl", rtl: true,
                    height: 2400, viewport: 1400, to: out)
+        // C7.4: the pain group first, "Pain · 2", note previews (one Hebrew), a deleted run, and the flags-failed banner.
+        try render(.previewFixture(athletes: 10, withNews: true, withFlags: true), name: "11-pain-group", height: 2800,
+                   viewport: 1400, to: out)
+        try render(.previewFixture(athletes: 10, withNews: true, withFlags: true), name: "12-pain-group-rtl", rtl: true,
+                   height: 2800, viewport: 1400, to: out)
+        try render(.previewFixture(athletes: 10, withNews: true, withFlags: true), name: "13-pain-group-xxl",
+                   size: .xxxLarge, height: 4400, viewport: 1800, to: out)
+        try render(.previewFixture(athletes: 6, withFlags: true, flagsLoaded: false), name: "14-pain-flags-failed",
+                   height: 1400, to: out)
     }
 
     // MARK: Fixtures

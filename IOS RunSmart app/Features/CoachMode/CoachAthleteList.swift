@@ -21,6 +21,8 @@ final class CoachAthleteListModel: ObservableObject {
     /// C7.2: "new since last visit" counts, and the queue the seen write goes through.
     private let seen: any CoachSeenRepository
     private let outbox: CoachV2Outbox
+    /// C7.4: the coach's open flags and the "Mark handled" queue. Coach Today shows its toast.
+    let flagStore: CoachFlagStore
     /// C7.2: athletes opened on this phone, and when. Their markers stay cleared until the server's
     /// seen_at catches up, so an offline open does not bring the dot back on the next refresh.
     private var localSeen: [UUID: Date] = [:]
@@ -46,6 +48,8 @@ final class CoachAthleteListModel: ObservableObject {
         let runs: [CoachRunSummary]
         let runsLoaded: Bool
         let news: [UUID: CoachAthleteNews]
+        var flags: [CoachRunFlag] = []
+        var flagsLoaded = true
         let now: Date
         let week: CoachAthleteWeek
     }
@@ -61,13 +65,20 @@ final class CoachAthleteListModel: ObservableObject {
         },
         tracker: (any AnalyticsTracking)? = nil,
         seen: any CoachSeenRepository = SupabaseCoachSeenRepository(),
-        outbox: CoachV2Outbox? = nil
+        outbox: CoachV2Outbox? = nil,
+        flagStore: CoachFlagStore? = nil
     ) {
         self.service = service
         self.rosterStatus = rosterStatus
         self.tracker = tracker ?? Analytics.shared
         self.seen = seen
         self.outbox = outbox ?? .shared
+        self.flagStore = flagStore ?? .shared
+        // A queued, undone or answered "Mark handled" moves the row at once (it is the coach's own action).
+        self.flagStore.onChange = { [weak self] in
+            guard let self, let inputs = self.todayInputs else { return }
+            self.today = self.buildToday(inputs)
+        }
     }
 
     /// Called when `CoachV2Gate.state` changes. Off or paused makes no v2 call.
@@ -147,8 +158,35 @@ final class CoachAthleteListModel: ObservableObject {
     private func buildToday(_ inputs: TodayInputs) -> CoachTodaySnapshot {
         CoachTodaySnapshot.make(
             athletes: inputs.athletes, workouts: inputs.workouts, runs: inputs.runs, runsLoaded: inputs.runsLoaded,
-            news: effectiveNews(inputs.news), now: inputs.now, week: inputs.week
+            news: effectiveNews(inputs.news), flags: flagStore.openFlags(inputs.flags), flagsLoaded: inputs.flagsLoaded,
+            now: inputs.now, week: inputs.week
         )
+    }
+
+    // MARK: C7.4 flags
+
+    /// "Mark handled" on a Today row (UX spec A.3 item 8). Flag-off and paused make no v2 call.
+    func markHandled(_ row: CoachTodayRow) {
+        guard coachV2 == .on, let owner = ownerID else { return }
+        flagStore.knownNames[row.id] = row.name
+        for flag in row.flags { flagStore.markHandled(flag, coachID: owner) }
+    }
+
+    /// For the failure line after the athlete left: their row is gone by then.
+    func athleteName(_ id: UUID) -> String? {
+        today?.rows.first { $0.id == id }?.name ?? flagStore.knownNames[id]
+    }
+
+    /// Sends queued resolves first, then reads open flags. A failure shows the banner, never an empty group.
+    private func loadFlags(owner: UUID, athleteIDs: [UUID], enabled: Bool) async -> (flags: [CoachRunFlag], loaded: Bool) {
+        guard enabled else { return ([], true) }
+        await flagStore.flush(coachID: owner)
+        do {
+            return (try await flagStore.load(athleteIDs: athleteIDs), true)
+        } catch {
+            if !(error is CancellationError) { print("[CoachToday] flags read failed:", error) }
+            return ([], false)
+        }
     }
 
     /// Server counts, minus athletes opened on this phone after the server's seen_at.
@@ -265,6 +303,8 @@ final class CoachAthleteListModel: ObservableObject {
             async let recorded = Self.fetchRuns(service, from: windowStart, to: now, athleteIDs: ids)
             // C7.2: only for v2. Flag-off and paused never call it.
             async let fetchedNews = loadNews(owner: owner, enabled: v2)
+            // C7.4: only for v2, like the news read.
+            async let fetchedFlags = loadFlags(owner: owner, athleteIDs: ids, enabled: v2)
             let workouts = try await planned
             var runsLoaded = true
             var runs: [CoachRunSummary] = []
@@ -296,11 +336,13 @@ final class CoachAthleteListModel: ObservableObject {
                 athletes: athletes, workouts: weeklyWorkouts, runs: weeklyRuns, latest: latest, now: now, week: week
             ) : rows
             let news = await fetchedNews
+            let flagResult = await fetchedFlags
             try Task.checkCancellation()
             guard current == generation else { return }
             let inputs = v2 ? TodayInputs(
                 athletes: athletes, workouts: workouts, runs: runs.filter { $0.completedAt <= now },
-                runsLoaded: runsLoaded, news: news, now: now, week: week
+                runsLoaded: runsLoaded, news: news, flags: flagResult.flags, flagsLoaded: flagResult.loaded,
+                now: now, week: week
             ) : nil
 
             guard commit(rows: newRows, inputs: inputs, now: now, style: style) else { return }
