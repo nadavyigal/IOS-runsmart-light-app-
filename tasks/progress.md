@@ -1,3 +1,12 @@
+# 2026-11-22: Coach v2 C7.0 gate, kill switch and pilot allowlist merged
+
+Current Phase: Coach Experience v2, wave 1 (Gate lane). C7.0 merged in iOS and web with founder yes; M0 not applied.
+Active Story: C7.0 passed overseer review after round 1 (capability report, no report before flags read).
+Next Recommended Story: Wave 2 after C7.0 merges: C7.8 (lane A), C7.1 (lane B), C7.10 (lane C).
+Blockers: Nadav applies M0 in Batch A after the Grok Bot audit and 1.2.6 regression.
+Last Validation: iOS full suite 1169/0 (1 skip) on iOS 26.5 after round 1; SQL and Deno unchanged and passing.
+Last Updated: 2026-11-22
+
 # 2026-11-21: Coach v2 C0.2 migration ledger, drift script, metrics doc
 
 Current Phase: Coach Experience v2, R0 ground truth. C0.2 docs-only draft PR open; no product code or SQL.

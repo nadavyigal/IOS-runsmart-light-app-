@@ -169,6 +169,8 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var guestJourney = GuestJourneyStore()
     @StateObject private var coachMode = CoachModeStore()
     @StateObject private var coachAthletes = CoachAthleteListModel()
+    /// C7.0: `coachV2Enabled`, the server kill switch and the capability report.
+    @StateObject private var coachV2Gate = CoachV2Gate()
     @StateObject private var coachLinks = CoachLinkStore(publishesAssistantContext: true)
     @StateObject private var athleteFeedback = AthleteFeedbackStore()
     /// Story 3.3: the one gate every coach element on Today and the Plan reads.
@@ -219,6 +221,9 @@ struct RunSmartLiteAppShell: View {
                 tabbedContent
             }
             #endif
+
+            // C7.0 hooks live in their own view so this body's modifier chain stays type-checkable.
+            CoachV2GateHooks(gate: coachV2Gate, athletes: coachAthletes, userID: coachRoleCheckUserID)
 
             if isShowingLaunch {
                 RunSmartLaunchView()
@@ -796,6 +801,32 @@ struct RunSmartLiteAppShell: View {
 
     private var activationFirstFrameTrackingKey: String {
         "\(isAnalyticsReady)-\(isShowingLaunch)-\(resolvedActivationFirstFrameScreen?.rawValue ?? "loading")"
+    }
+}
+
+/// C7.0: syncs the v2 gate on sign-in, sign-out and every foreground (flags, then one
+/// capability report), and passes its state to the coach roster. Renders nothing.
+private struct CoachV2GateHooks: View {
+    @ObservedObject var gate: CoachV2Gate
+    let athletes: CoachAthleteListModel
+    let userID: UUID?
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .task(id: userID) {
+                guard !RunSmartDemoMode.isEnabled else { return }
+                await gate.sync(userID: userID)
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active, !RunSmartDemoMode.isEnabled, RunSmartFeatures.coachModeEnabled else { return }
+                Task { await gate.sync(userID: userID) }
+            }
+            .onChange(of: gate.state) { _, state in
+                Task { await athletes.applyCoachV2(state) }
+            }
     }
 }
 

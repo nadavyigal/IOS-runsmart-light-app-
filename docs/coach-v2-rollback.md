@@ -1,0 +1,157 @@
+# Coach Experience v2: kill switch and rollback runbook
+
+**Owner:** Nadav. Agents never run anything in this file against production.
+**Created:** 2026-11-21 by story C7.0 (C7.12 folded in). Every later v2 migration PR adds its row and its batch section here.
+**Source of truth for the switch:** `supabase/migrations/20261121100000_coach_v2_gate.sql`.
+
+## 1. First move on a bad pilot day: flip the flag
+
+Run these in the Supabase SQL editor for the production project. Each is one statement and needs no build.
+
+Turn every v2 coach feature off:
+
+```sql
+update public.runtime_flags set enabled = false, updated_at = now(), note = 'off: <reason>' where key = 'coach_v2';
+```
+
+Turn it back on:
+
+```sql
+update public.runtime_flags set enabled = true, updated_at = now(), note = null where key = 'coach_v2';
+```
+
+Narrower switches (they leave the rest of v2 running):
+
+```sql
+-- Stop coach pushes only. Queued and deferred rows are kept and send when it is back on.
+update public.runtime_flags set enabled = false, updated_at = now() where key = 'coach_v2_push';
+-- Pause AI drafting and weekly summaries only.
+update public.runtime_flags set enabled = false, updated_at = now() where key = 'coach_v2_ai';
+```
+
+Check the current values:
+
+```sql
+select key, enabled, updated_at, note from public.runtime_flags order by key;
+```
+
+### What happens when `coach_v2` is off
+
+| Where | Effect | How fast |
+|---|---|---|
+| Server | `link_is_v2` returns false for every pair. v2 read RPCs return zero rows, v2 write RPCs raise `v2_unavailable`. | Next call, right away |
+| Edge Functions | Functions that need the flag exit with 200 and log `skipped_kill_switch` (`supabase/functions/_shared/flags.ts`). Nothing is sent or deleted. | Next invocation |
+| App | Shows the 1.2.6 coach UI. A pilot coach whose build would have v2 sees one line on the roster: "Some coach tools are paused for now." Queued outbox items stay queued. Solo users see nothing new. | Next foreground after the 15-minute flag cache expires |
+
+The server side is the real gate, so data stops flowing at once even while an app still shows v2 for up to 15 minutes.
+
+### When the switch is back on
+
+The server answers at once. Apps keep reporting `coach_v2 = true` while the switch is off (they report what the build can do, and the server applies the switch), so every pair is v2 again right away on the server, including athletes who have not opened the app. Each app shows v2 again on its next foreground after its 15-minute cache. Outbox items flush from that point.
+
+## 2. Pilot coach allowlist (decision N1 = B)
+
+App Store builds turn v2 on only for coaches in `coach_v2_pilot_coaches` and for athletes with an active link to one. TestFlight and Debug builds do not need the list. The table ships empty. Add coaches only after TF-1a passes.
+
+Find a coach's user id by email:
+
+```sql
+select u.id, u.email, cp.display_name
+from auth.users u join public.coach_profiles cp on cp.user_id = u.id
+where u.email = '<coach email>';
+```
+
+Add a pilot coach:
+
+```sql
+insert into public.coach_v2_pilot_coaches (coach_id) values ('<coach user id>') on conflict (coach_id) do nothing;
+```
+
+Remove a pilot coach (their App Store pairs turn off on the next server call; their apps follow within 15 minutes):
+
+```sql
+delete from public.coach_v2_pilot_coaches where coach_id = '<coach user id>';
+```
+
+List pilot coaches:
+
+```sql
+select p.coach_id, cp.display_name, p.added_at
+from public.coach_v2_pilot_coaches p left join public.coach_profiles cp on cp.user_id = p.coach_id
+order by p.added_at;
+```
+
+See which of a coach's athletes are v2-capable (the same data the roster line uses):
+
+```sql
+select l.athlete_id, c.coach_v2, c.channel, c.app_version, c.build, c.updated_at
+from public.coach_athlete_links l left join public.client_capabilities c on c.user_id = l.athlete_id
+where l.coach_id = '<coach user id>' and l.status = 'active';
+```
+
+## 3. Rollback files, one section per batch
+
+Rules for every batch:
+
+1. Flip the flag first (section 1). Most problems end there.
+2. Roll back only the newest batch first, newest file first. Never roll back a batch while a later one is applied.
+3. Rollback files live in `supabase/rollback/`, never in `supabase/migrations/`. They drop triggers, then functions, then policies, then new tables. They keep new columns on existing tables.
+4. After a rollback, the migration can be applied again. It is idempotent and keeps the rows the rollback kept.
+
+### Batch A (R1: coach sees how athletes feel)
+
+| File | Story | Rollback file | Status |
+|---|---|---|---|
+| `20261121100000_coach_v2_gate.sql` (M0 + M0b) | C7.0 + C7.12 | `supabase/rollback/20261121100000_coach_v2_gate.sql` | written (draft PR) |
+| `20261121110000_coach_consent_v2.sql` (M5a) | C7.8 | added by C7.8 | not written |
+| `20261121120000_athlete_run_sharing.sql` (M1a) | C7.3 | added by C7.3 | not written |
+| `20261121130000_coach_last_seen_and_events.sql` (M3) | C7.2 | added by C7.2 | not written |
+| `20261121140000_coach_feedback_replies.sql` (M4) | C7.7 | added by C7.7 | not written |
+| `20261121150000_athlete_run_flags.sql` (M1b) | C7.4 | added by C7.4 | not written |
+| `20261121160000_coach_link_end.sql` (M5b) | C7.11 | added by C7.11 | not written |
+| `20261121170000_coach_milestones.sql` (M13, only if needed) | C7.16 | added by C7.16 | not written |
+
+#### M0: `20261121100000_coach_v2_gate.sql`
+
+1. **Flag to flip first:** `coach_v2` to false.
+2. **Safe with the flag off:** every pair is non-v2 on the server. Capability reports keep arriving, so the server knows which clients are v2 when the flag returns. The pilot list and the flag values are untouched. No athlete data is shared through v2 while the flag is off.
+3. **Rollback file:** `supabase/rollback/20261121100000_coach_v2_gate.sql`. It drops the five functions (`coach_v2_roster_status`, `link_is_v2`, `coach_v2_pilot_access`, `get_runtime_flags`, `report_client_capabilities`). It keeps the three tables and their rows: `client_capabilities`, `runtime_flags`, `coach_v2_pilot_coaches`. RLS stays on and clients keep no write access. Dropping the tables is a commented, optional step at the end of the file; export first if you ever run it.
+4. **When not to roll back:** while any later v2 migration is applied. Every later v2 RPC calls `link_is_v2`, so dropping it breaks them. Flip `coach_v2` instead.
+5. **After the rollback, the app:** fails its flag read, treats v2 as off, and shows the 1.2.6 coach UI in every build. Nothing else changes for users.
+6. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-21: the rollback dropped all five functions, kept the pilot row and a flag value set to false, and a re-apply restored the functions without changing either.
+
+### Batch B (R2: coach gets told)
+
+| File | Story | Rollback file | Status |
+|---|---|---|---|
+| `20261122100000_push_tokens_and_prefs.sql` (M2a) | C7.10 | added by C7.10 | not written |
+| `20261122110000_notification_log_and_deferred.sql` (M2b) | C7.5 | added by C7.5 | not written |
+
+First move: `coach_v2_push` to false. Senders keep their queue.
+
+### Batch C (R3: coach builds workouts)
+
+| File | Story | Rollback file | Status |
+|---|---|---|---|
+| `20261201100000_coach_workout_locks.sql` (M6a) | C8.1a | added by C8.1a | not written |
+| `20261201110000_coach_plan_locks.sql` (M6b) | C8.1b | added by C8.1b | not written |
+
+Warning carried from v1.3 §3.7: once athletes have coach-published workouts, dropping the M6 triggers exposes them to the AI and to 1.2.6 writers. Flip `coach_v2` instead. Existing locks stay enforced by the triggers with the flag off. Unlocking is a separate Nadav-only script, `supabase/rollback/release_all_coach_locks.sql`, added by C8.1a.
+
+### Batches D, E, F and M10
+
+Rows are added when Nadav picks those stories after TF-2.
+
+## 4. Kill-switch drill (TF-1b)
+
+Run once on TestFlight with Nadav's two phones before pilot coaches get push (refined plan §1, TF-1b). Time each step and write the times here.
+
+1. Coach phone and athlete phone both on v2. Confirm a v2 screen shows on the coach phone.
+2. Run the "turn off" line from section 1. Note the time.
+3. Background and reopen both apps after 15 minutes. Expect the 1.2.6 coach UI and the paused line on the coach roster.
+4. Run the "turn back on" line. Background and reopen after 15 minutes. Expect v2 back and any queued items sent.
+
+| Step | Expected | Time taken | Date |
+|---|---|---|---|
+| Off to flag-off UI | at most 15 minutes plus one foreground | not run yet | |
+| On to v2 back | at most 15 minutes plus one foreground | not run yet | |
