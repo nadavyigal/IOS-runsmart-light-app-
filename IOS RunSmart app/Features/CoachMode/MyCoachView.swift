@@ -85,6 +85,8 @@ struct MyCoachView: View {
                                 .frame(minWidth: 44, minHeight: 44)
                                 .accessibilityHint("Marks the welcome as read")
                         }
+                        // C7.7: the welcome is a coach_feedback row, so it takes replies (v2 only).
+                        FeedbackReplyThread(note: note, link: link)
                     }
                 } else {
                     Button { open(note) } label: {
@@ -289,5 +291,79 @@ struct LeaveCoachSheet: View {
             }
             .frame(maxWidth: .infinity)
         }
+    }
+}
+
+// MARK: C7.11, the one-time removal line on Today
+
+extension View {
+    /// C7.11 AC5: after a coach removed this athlete, Today shows one neutral line, once.
+    /// Renders nothing and calls nothing with v2 off, while linked, or before the link read.
+    func coachLinkNotice() -> some View {
+        modifier(CoachLinkNoticeHost())
+    }
+}
+
+private struct CoachLinkNoticeHost: ViewModifier {
+    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var session: SupabaseSession
+    @EnvironmentObject private var coachLinks: CoachLinkStore
+    @EnvironmentObject private var coachV2Gate: CoachV2Gate
+    @StateObject private var model = CoachLinkNoticeModel()
+
+    private struct Inputs: Equatable {
+        let v2Enabled: Bool
+        let userID: UUID?
+        let noLink: Bool
+    }
+
+    private var inputs: Inputs {
+        let userID = session.isAuthenticated ? session.currentUserID : nil
+        return Inputs(v2Enabled: coachV2Gate.isEnabled, userID: userID,
+                      noLink: userID != nil && coachLinks.showsJoinCoach)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let notice = model.notice {
+                    CoachLinkNoticeCard(notice: notice) { model.dismiss() }
+                        .padding(.horizontal, 18)
+                        .padding(.top, 8)
+                        .task(id: notice.linkID) { await model.shown() }
+                }
+            }
+            .task(id: inputs) { await evaluate() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await evaluate() } }
+            }
+    }
+
+    private func evaluate() async {
+        let current = inputs
+        await model.evaluate(v2Enabled: current.v2Enabled, userID: current.userID, noLink: current.noLink)
+    }
+}
+
+/// Neutral and calm: no warning color, no action besides OK (UX spec G16).
+struct CoachLinkNoticeCard: View {
+    let notice: CoachLinkNotice
+    var onOK: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(verbatim: CoachRemovalCopy.notice(coach: notice.coachName))
+                .font(.bodyMD)
+                .foregroundStyle(Color.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button(CoachRemovalCopy.noticeOK, action: onOK)
+                .font(.bodyMD.weight(.semibold))
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 6)
+        .padding(.vertical, 6)
+        .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }

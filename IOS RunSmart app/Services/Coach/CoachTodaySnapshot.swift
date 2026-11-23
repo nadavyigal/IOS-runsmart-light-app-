@@ -7,8 +7,9 @@ import Foundation
 // `coach_get_athletes_workouts` and `coach_get_athletes_runs` results, plus `coach_roster_summary`
 // for the "new since last visit" counts (C7.2).
 //
-// Left for later stories, so nothing here renders an empty header for them: the pain group
-// (C7.4) and milestone tags (C7.16).
+// C7.4 adds the "Pain or something off" group from `coach_get_athlete_flags`. C7.16 adds the milestone
+// tags ("First run", "First full week", "Longest run", "Quiet 3 days"); a row only has them when
+// the coach passes milestones in, so nothing renders an empty header or strip.
 
 /// One day of the 7-day strip. Each state has its own shape and a text label. Color is the second channel.
 enum CoachTodayDayState: String, CaseIterable, Equatable {
@@ -54,9 +55,11 @@ enum CoachTodayDayState: String, CaseIterable, Equatable {
     }
 }
 
-/// Why a row is urgent. Lower `priority` is more urgent (UX spec A.3 item 5). C7.4 adds pain and
-/// something off above these.
+/// Why a row is urgent. Lower `priority` is more urgent (UX spec A.3 item 5).
 enum CoachTodayReason: String, Equatable, CaseIterable {
+    // C7.4: an open flag. Pain before something off.
+    case pain
+    case somethingOff = "something_off"
     case missedToday = "missed_today"
     case missedYesterday = "missed_yesterday"
     case behind
@@ -68,6 +71,8 @@ enum CoachTodayReason: String, Equatable, CaseIterable {
 
     var priority: Int {
         switch self {
+        case .pain: 0
+        case .somethingOff: 1
         case .missedToday: 10
         case .missedYesterday: 11
         case .behind: 20
@@ -83,6 +88,8 @@ enum CoachTodayReason: String, Equatable, CaseIterable {
 
     var chip: String {
         switch self {
+        case .pain: "Pain"
+        case .somethingOff: "Something off"
         case .missedToday: "Missed today"
         case .missedYesterday: "Missed yesterday"
         case .behind: "Behind"
@@ -95,6 +102,8 @@ enum CoachTodayReason: String, Equatable, CaseIterable {
 
     var spoken: String {
         switch self {
+        case .pain: "Pain flagged"
+        case .somethingOff: "Something off flagged"
         case .missedToday: "Missed today"
         case .missedYesterday: "Missed yesterday"
         case .behind: "Behind this week"
@@ -107,6 +116,8 @@ enum CoachTodayReason: String, Equatable, CaseIterable {
 
     var icon: String {
         switch self {
+        case .pain: "bandage"
+        case .somethingOff: "exclamationmark.bubble"
         case .missedToday, .missedYesterday: "exclamationmark.circle"
         case .behind: "arrow.down.right.circle"
         case .reply: "arrowshape.turn.up.left"
@@ -134,6 +145,8 @@ enum CoachTodayReason: String, Equatable, CaseIterable {
 
 /// The groups of T1, in screen order (UX spec A.3 item 3).
 enum CoachTodayGroup: Int, CaseIterable, Comparable {
+    /// C7.4: open flags, first. Absent when nobody has an open flag or the flags read failed.
+    case pain
     case missedToday, missedYesterday, behind, newToReview, onTrack, restToday
     /// Used only while the runs call failed: nobody can be called on track or behind.
     case athletes
@@ -141,13 +154,14 @@ enum CoachTodayGroup: Int, CaseIterable, Comparable {
 
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 
-    var needsYou: Bool { self == .missedToday || self == .missedYesterday || self == .behind }
+    var needsYou: Bool { self == .pain || self == .missedToday || self == .missedYesterday || self == .behind }
 
     /// On track, Rest today and No plan yet start collapsed (UX spec A.3).
     var startsCollapsed: Bool { self == .onTrack || self == .restToday || self == .noPlan }
 
     func title(count: Int) -> String {
         switch self {
+        case .pain: "Pain or something off (\(count))"
         case .missedToday: "Missed today (\(count))"
         case .missedYesterday: "Missed yesterday (\(count))"
         case .behind: "Behind this week (\(count))"
@@ -189,7 +203,24 @@ struct CoachTodayRow: Identifiable, Equatable {
     var newCount: Int = 0
     /// C7.2: the oldest new item, for the order inside "New to review".
     var oldestNewAt: Date?
+    /// C7.4: this athlete's open flags, oldest first. Each is listed separately in the day detail.
+    var flags: [CoachRunFlag] = []
+    /// C7.16: milestone tags, in tag order. Empty when none, and always empty with Coach v2 off.
+    var milestones: [CoachMilestone] = []
     var id: UUID { athlete.athleteID }
+
+    /// "Pain", "Something off", or "Pain · 2" with several open flags (UX spec A.7 item 6).
+    var chipText: String? {
+        guard let reason else { return nil }
+        if (reason == .pain || reason == .somethingOff), flags.count > 1 { return "\(reason.chip) · \(flags.count)" }
+        return reason.chip
+    }
+
+    /// The first 60 characters of the oldest open flag's note, coach-only (UX spec A.6).
+    var flagPreview: String? {
+        guard reason == .pain || reason == .somethingOff, let flag = flags.first else { return nil }
+        return RunFlagCopy.preview(flag.note) ?? (flag.runDeleted ? RunFlagCopy.runDeleted : nil)
+    }
 
     /// "{n} new" (UX spec A.6). Nil when nothing is new, so the dot never appears without its text.
     var newLabel: String? { newCount > 0 ? "\(newCount) new" : nil }
@@ -213,11 +244,13 @@ struct CoachTodayRow: Identifiable, Equatable {
     var spokenSentence: String {
         let newPart = newLabel.map { " \($0)." } ?? ""
         guard athlete.hasActivePlan else {
-            if let reason, reason.isNew { return "\(name). \(reason.spoken). Waiting for a plan.\(newPart)" }
+            if let reason, reason.isNew || reason.priority < 10 {
+                return "\(name). \(reasonSpoken(reason)). Waiting for a plan.\(newPart)"
+            }
             return "\(name). Waiting for a plan.\(newPart)"
         }
         var parts = [name + "."]
-        if let reason { parts.append(reason.spoken + ".") }
+        if let reason { parts.append(reasonSpoken(reason) + ".") }
         parts.append("Today: \(todaySpoken).")
         if count(.unknown) == days.count {
             parts.append("Last 7 days: unknown, runs didn't load.")
@@ -228,12 +261,23 @@ struct CoachTodayRow: Identifiable, Equatable {
         }
         return parts.joined(separator: " ") + newPart
     }
+
+    /// "Pain flagged Sunday" (UX spec A.8), "2 pain flags", or the reason's own sentence.
+    private func reasonSpoken(_ reason: CoachTodayReason) -> String {
+        guard reason == .pain || reason == .somethingOff, let first = flags.first else { return reason.spoken }
+        if flags.count > 1 { return "\(flags.count) flags, oldest: \(reason.spoken.lowercased())" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return "\(reason.spoken) \(formatter.string(from: first.createdAt))"
+    }
 }
 
 struct CoachTodaySnapshot: Equatable {
     let generatedAt: Date
     let calendar: Calendar
     let runsLoaded: Bool
+    /// C7.4: false when the flags read failed. The pain group is then absent and a banner says so.
+    var flagsLoaded = true
     /// In display order: group first, then the order inside the group.
     let rows: [CoachTodayRow]
 
@@ -254,9 +298,10 @@ struct CoachTodaySnapshot: Equatable {
             let days = row.days.map(\.state.rawValue).joined(separator: ",")
             return [row.id.uuidString, row.group.rawValue.description, row.reason?.rawValue ?? "-",
                     row.secondaryReason?.rawValue ?? "-", row.todayLine, row.weekProgress ?? "-", days,
-                    String(row.newCount)]
+                    String(row.newCount), row.flags.map(\.id.uuidString).joined(separator: ","),
+                    row.milestones.map(\.id).joined(separator: ",")]
                 .joined(separator: "|")
-        } + [runsLoaded ? "runs" : "no-runs"]
+        } + [runsLoaded ? "runs" : "no-runs", flagsLoaded ? "flags" : "no-flags"]
     }
 
     /// Header line under "Today, {weekday} {d} {Mon}" (UX spec A.3, A.5, A.6).
@@ -300,11 +345,18 @@ extension CoachTodaySnapshot {
     ///     failed: every day then reads "unknown" and nobody is put in a missed or behind group.
     ///   - news: C7.2 counts from `coach_roster_summary`. An athlete with something new and nothing urgent
     ///     goes to "New to review". Empty (the call failed, or the pair is not v2) shows no markers.
+    ///   - flags: C7.4 open flags from `coach_get_athlete_flags`. An athlete with one goes to the first group.
+    ///     `flagsLoaded: false` (the call failed) shows the banner instead of the group.
+    ///   - milestones: C7.16 tags from `CoachMilestoneRules`. An athlete with something to praise and nothing
+    ///     urgent moves from the collapsed "On track" or "Rest today" to "New to review", so the tag is seen.
     static func make(
         athletes: [CoachAthleteSummary], workouts: [CoachWorkoutSummary], runs: [CoachRunSummary],
-        runsLoaded: Bool = true, news: [UUID: CoachAthleteNews] = [:], now: Date, week: CoachAthleteWeek,
-        locale: Locale = .current
+        runsLoaded: Bool = true, news: [UUID: CoachAthleteNews] = [:], flags: [CoachRunFlag] = [],
+        flagsLoaded: Bool = true, milestones: [UUID: [CoachMilestone]] = [:],
+        now: Date, week: CoachAthleteWeek, locale: Locale = .current
     ) -> CoachTodaySnapshot {
+        let flagsByAthlete = Dictionary(grouping: flags.filter(\.isOpen), by: \.athleteID)
+            .mapValues { $0.sorted { ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString) } }
         let calendar = week.calendar
         let workoutsByAthlete = Dictionary(grouping: workouts, by: \.athleteID)
         let runsByAthlete = Dictionary(grouping: runs, by: \.athleteID)
@@ -331,6 +383,10 @@ extension CoachTodaySnapshot {
             let missedThisWeek = weekDays.count { day in missedDays.contains(day.iso) }
 
             var reasons: [CoachTodayReason] = []
+            let athleteFlags = flagsByAthlete[athlete.athleteID, default: []]
+            if !athleteFlags.isEmpty {
+                reasons.append(athleteFlags.contains { $0.kind == .pain } ? .pain : .somethingOff)
+            }
             if runsLoaded && hasPlan {
                 if afterCutoff {
                     if missedDays.contains(todayISO) { reasons.append(.missedToday) }
@@ -349,7 +405,10 @@ extension CoachTodaySnapshot {
             let secondary = reasons.dropFirst().first
 
             let group: CoachTodayGroup
-            if reason?.isNew == true {
+            if reason == .pain || reason == .somethingOff {
+                // An open flag comes first whatever the plan or runs say (UX spec A.3 item 3.1).
+                group = .pain
+            } else if reason?.isNew == true {
                 // New and nothing urgent (UX spec A.3 item 3.4). No runs or no plan needed for this.
                 group = .newToReview
             } else if !hasPlan {
@@ -362,6 +421,7 @@ extension CoachTodaySnapshot {
                 case .missedYesterday: group = .missedYesterday
                 case .behind: group = .behind
                 case .reply, .newRun, .changedGoal, .changedWorkout: group = .newToReview
+                case .pain, .somethingOff: group = .pain
                 case nil: group = todayDay.workouts.isEmpty ? .restToday : .onTrack
                 }
             }
@@ -372,6 +432,9 @@ extension CoachTodaySnapshot {
             let doneThisWeek = weekItems.count { $0.state == .done }
             let focus: String
             switch reason {
+            case .pain, .somethingOff:
+                // A run-less flag shows on the day it was made (UX spec A.7 item 5).
+                focus = athleteFlags.first.map { CoachReadDay.iso($0.createdAt, calendar: calendar) } ?? todayISO
             case .missedYesterday: focus = yesterdayISO
             case .behind: focus = weekDays.last { missedDays.contains($0.iso) }?.iso ?? todayISO
             case .missedToday, .reply, .newRun, .changedGoal, .changedWorkout, nil: focus = todayISO
@@ -388,12 +451,14 @@ extension CoachTodaySnapshot {
                     spoken: CoachTodayFormat.daySentence(day, state: state, calendar: calendar, locale: locale)
                 )
             }
+            let athleteMilestones = milestones[athlete.athleteID, default: []]
             let row = CoachTodayRow(
-                athlete: athlete, group: group, reason: reason, secondaryReason: secondary, days: dayList,
+                athlete: athlete, group: Self.promoted(group, for: athleteMilestones), reason: reason, secondaryReason: secondary, days: dayList,
                 todayLine: line, todaySpoken: spoken,
                 weekProgress: runsLoaded && hasPlan ? "\(doneThisWeek) of \(plannedThisWeek) this week" : nil,
                 missedThisWeek: missedThisWeek, focusDayISO: focus,
-                newCount: newCount, oldestNewAt: newCount > 0 ? athleteNews?.oldestNewAt : nil
+                newCount: newCount, oldestNewAt: newCount > 0 ? athleteNews?.oldestNewAt : nil,
+                flags: athleteFlags, milestones: athleteMilestones
             )
             return (row, missedDays.first)
         }
@@ -402,6 +467,13 @@ extension CoachTodaySnapshot {
         // the order never depends on the server's row order.
         let ordered = built.sorted { lhs, rhs in
             if lhs.row.group != rhs.row.group { return lhs.row.group < rhs.row.group }
+            if lhs.row.group == .pain {
+                // Pain before off, then the oldest open flag first (UX spec A.3 item 6).
+                if lhs.row.reason != rhs.row.reason { return lhs.row.reason == .pain }
+                let left = lhs.row.flags.first?.createdAt ?? .distantFuture
+                let right = rhs.row.flags.first?.createdAt ?? .distantFuture
+                if left != right { return left < right }
+            }
             if lhs.row.group == .newToReview, lhs.row.oldestNewAt != rhs.row.oldestNewAt {
                 // The oldest unhandled item first (UX spec A.3 item 6).
                 return (lhs.row.oldestNewAt ?? .distantFuture) < (rhs.row.oldestNewAt ?? .distantFuture)
@@ -418,10 +490,19 @@ extension CoachTodaySnapshot {
             return compared == .orderedSame ? lhs.row.id.uuidString < rhs.row.id.uuidString : compared == .orderedAscending
         }.map(\.row)
 
-        return CoachTodaySnapshot(generatedAt: now, calendar: calendar, runsLoaded: runsLoaded, rows: ordered)
+        return CoachTodaySnapshot(
+            generatedAt: now, calendar: calendar, runsLoaded: runsLoaded, flagsLoaded: flagsLoaded, rows: ordered
+        )
     }
 
     private static func marker(of day: CoachDay) -> CoachDayMarker { day.marker }
+
+    /// C7.16: a calm row with something to praise leaves the collapsed groups, so the tag is on screen.
+    /// Urgent rows and rows already in "New to review" stay where the other rules put them.
+    private static func promoted(_ group: CoachTodayGroup, for milestones: [CoachMilestone]) -> CoachTodayGroup {
+        guard milestones.contains(where: { $0.kind.canPraise }), group == .onTrack || group == .restToday else { return group }
+        return .newToReview
+    }
 
     /// The 80% rule for the week to date: workouts that were due, each credited with how much of the
     /// plan the athlete did (a done workout counts as all of it). Below 80% on average is behind.

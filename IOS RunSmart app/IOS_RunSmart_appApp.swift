@@ -9,6 +9,9 @@ import SwiftUI
 
 @main
 struct IOS_RunSmart_appApp: App {
+    /// C7.10: APNs token callbacks and the cold-launch notification delegate.
+    @UIApplicationDelegateAdaptor(RunSmartAppDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup {
             #if DEBUG

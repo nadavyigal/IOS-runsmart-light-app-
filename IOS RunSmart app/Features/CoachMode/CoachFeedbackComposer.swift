@@ -74,6 +74,40 @@ final class CoachFeedbackStore: ObservableObject {
         monitor?.cancel()
         monitor = nil
     }
+
+    // MARK: C7.7 replies (Coach v2 only)
+
+    /// The athlete's replies to this coach's notes. Stays empty unless `enableReplies` was called.
+    @Published private(set) var replies: [CoachFeedbackReply] = []
+    private var replyFetcher: (any CoachFeedbackReplyFetching)?
+
+    /// Turns on the reply read. Called only for a Coach v2 athlete detail, so v2 off makes no reply call.
+    func enableReplies(_ fetcher: any CoachFeedbackReplyFetching = SupabaseCoachFeedbackReplyService()) {
+        replyFetcher = fetcher
+    }
+
+    func replies(for noteID: UUID) -> [CoachFeedbackReply] {
+        replies.filter { $0.feedbackID == noteID }.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    /// Reads the replies. A failed read keeps what was shown.
+    func loadReplies() async {
+        guard let replyFetcher else { return }
+        if let rows = try? await replyFetcher.replies(athleteIDs: [athleteID]) {
+            replies = rows.filter { $0.athleteID == athleteID }
+        }
+    }
+
+    /// The coach saw these replies under their note. Best effort; never blocks the screen.
+    func markRepliesRead(_ shown: [CoachFeedbackReply]) async {
+        guard let replyFetcher else { return }
+        let unread = shown.filter { $0.readAt == nil }.map(\.id)
+        guard !unread.isEmpty, (try? await replyFetcher.markRead(replyIDs: unread)) != nil else { return }
+        let now = Date()
+        for id in unread {
+            if let index = replies.firstIndex(where: { $0.id == id }) { replies[index].readAt = now }
+        }
+    }
 }
 
 // MARK: - Composer model
@@ -585,6 +619,11 @@ struct CoachFeedbackSection: View {
                 CoachFeedbackNoteRow(note: note) {
                     if let request = CoachFeedbackRequest.edit(note, weekStart: weekStart) { open(request) }
                 }
+                let replies = store.replies(for: note.id)
+                if !replies.isEmpty {
+                    CoachFeedbackRepliesList(replies: replies, athleteName: store.athleteName)
+                        .task(id: replies.map(\.id)) { await store.markRepliesRead(replies) }
+                }
             }
             Button {
                 switch target {
@@ -599,5 +638,39 @@ struct CoachFeedbackSection: View {
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+/// C7.7 AC4: the athlete's replies under the coach's note, in the day detail and week note.
+/// The coach answers by writing a new note (one level only).
+struct CoachFeedbackRepliesList: View {
+    let replies: [CoachFeedbackReply]
+    let athleteName: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(replies) { reply in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(verbatim: FeedbackReplyCopy.athlete(athleteName, time: FeedbackReplyFormat.time(reply.createdAt)))
+                        .font(.labelLG)
+                        .foregroundStyle(Color.textSecondary)
+                    // Verbatim, in the athlete's own direction.
+                    Text(verbatim: reply.text)
+                        .font(.bodyMD)
+                        .foregroundStyle(Color.textPrimary)
+                        .naturalTextDirection(reply.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(Color.accentPrimary.opacity(0.5)).frame(width: 2)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("coach-feedback-reply")
+            }
+        }
+        .padding(.leading, 12)
     }
 }

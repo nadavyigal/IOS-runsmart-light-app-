@@ -1,3 +1,66 @@
+# 2026-11-23: Coach v2 C7.10 remote push foundation, M2a (draft PR)
+
+Current Phase: Coach Experience v2, Batch B start. C7.10 PRs open in iOS and web twin; M2a written, not applied; APNs secrets not set.
+Active Story: C7.10: push_tokens + notification_prefs (M2a), _shared/apns.ts, dev-only push_selftest, T6/P10 prompts, tap router, sign-out unregister.
+Next Recommended Story: Overseer review of C7.10; then C7.5 push sender (M2b) on top of apns.ts.
+Blockers: Nadav: APNs .p8 key, Push capability on the App ID (signed builds need it), APNS_* secrets, apply M2a in Batch B.
+Last Validation: Review fixes: shared APNs signer, sign-out drops device token on failure; 61 Deno pass; full iOS suite passes; drift CLEAN 25.
+Last Updated: 2026-11-23
+
+# 2026-11-23: Coach v2 Batch A applied to production
+
+Current Phase: Coach Experience v2, R1 Batch A applied to prod (7 files); Batch B track in review (C7.10 #248, C7.14 #247).
+Active Story: Ledger update: Batch A rows applied with prod versions, pre-v2 rows verified, M13 not needed, prod-only drift logged.
+Next Recommended Story: Merge C7.10 then C7.14; add athlete_display_name_placeholder to both repos; add a pilot coach, then TF-1a.
+Blockers: v2 stays off until Nadav adds a row to coach_v2_pilot_coaches or testers run TestFlight builds; APNs setup for push.
+Last Validation: 7 prod SQL md5s match repo files; old suites pass on full schema locally; advisors show no new findings; drift CLEAN 24.
+Last Updated: 2026-11-23
+
+# 2026-11-22: Coach v2 C7.16 beginner milestones and one-tap praise (draft PR)
+
+Current Phase: Coach Experience v2, R1 last story. C7.16 draft PR open in iOS only; no migration (STEP 1 check), so no web twin.
+Active Story: C7.16: First run, First full week, Longest run, Quiet 3 days tags on Coach Today; 👏 🔥 Great job reactions via coach feedback.
+Next Recommended Story: Overseer review of C7.16; then Nadav applies Batch A and runs TF-1a on a phone.
+Blockers: Nadav applies Batch A (M0, M0b, M5a, M1a, M3, M4, M1b, M5b) before v2 shows anything; none for this PR.
+Last Validation: 9 coach test classes 210 passed, 0 failed (iPhone 17, iOS 26.5); 3 milestone screenshots; overseer review: no blockers. After C7.7 merge: 11 coach test classes 222 passed, 0 failed; drift CLEAN 24 files.
+Last Updated: 2026-11-23
+
+# 2026-11-23: Coach v2 C7.7 athlete replies to a coach note (ready PR, C7.11 catch-up)
+
+Current Phase: Coach Experience v2, R1 Batch A, C7.7. iOS #245 and web #176 ready; main merged after C7.11; M4 not applied.
+Active Story: C7.7 catch-up: CI rows list M5b, reply read in C7.11 parity test, removal case in replies test, ledger M5b merged.
+Next Recommended Story: Overseer merges C7.7 (iOS #245, then web #176); then C7.16 milestones.
+Blockers: Nadav applies Batch A (M0, M5a, M1a, M3, M1b, M5b, M4) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: SQL coach_feedback_replies, kill_switch, coach_link_end (with and without M4) PASS; drift CLEAN 24 files; coach Swift classes.
+Last Updated: 2026-11-23
+
+# 2026-11-22: Coach v2 C7.11 coach removes an athlete, M5b (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 4, lane B. C7.11 in draft PRs (iOS + web twin); M5b written, not applied.
+Active Story: C7.11: Remove {Athlete}, end_coach_link shared with leave_coach, one-time athlete line, left/removed events.
+Next Recommended Story: C7.16 milestones (lane B) after C7.1/C7.2; Batch A apply after the Grok Bot audit.
+Blockers: Nadav applies Batch A incl. M5b; Sally light copy review of the remove sheet lines.
+Last Validation: After C7.4 catch-up: SQL coach_link_end, kill_switch, athlete_run_flags, 1.5 leave_coach PASS; 20 coach classes 300 passed, 0 failed.
+Last Updated: 2026-11-22
+
+# 2026-11-22: Coach v2 C7.4 pain / something off flag (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 4, lane A. C7.4 draft PR open in iOS and web; M1b not applied.
+Active Story: C7.4: M1b flags table and RPCs, new_flags in roster summary, P7 flag row, pain group on Coach Today.
+Next Recommended Story: Overseer review of C7.4; lane B wires CoachFlagBlock into day detail; then C7.7 (lane A).
+Blockers: Nadav applies Batch A (M0, M5a, M1a, M3, M1b) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: SQL athlete_run_flags, kill_switch, coach_last_seen, athlete_run_sharing PASS; iOS full suite 1298 passed, 0 failed, 2 skipped.
+Last Updated: 2026-11-22
+
+# 2026-11-22: Coach v2 C7.3 AC4 coach day detail shows effort and note (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 4, lane B. C7.3 AC4 follow-up in a draft PR; SwiftUI only, no migration.
+Active Story: C7.3 AC4: coach day detail shows "Effort 7/10" and the athlete's quoted note under Actual, flag-gated.
+Next Recommended Story: C7.11 coach removes an athlete (lane B, M5b), after this PR merges.
+Blockers: None for this PR. Batch A (M0, M5a, M1a, M3) still waits for Nadav; effort and notes show only after M1a.
+Last Validation: 17 coach test classes 259 passed, 0 failed, 1 skipped (iPhone 17, iOS 26.5); 6 fixture screenshots. Full suite not run (23 min).
+Last Updated: 2026-11-22
+
 # 2026-11-22: Coach v2 C7.2 "New since last visit" markers and coach events merged
 
 Current Phase: Coach Experience v2, R1 wave 3, lane B. C7.2 merged in iOS and web with founder yes; M3 not applied.

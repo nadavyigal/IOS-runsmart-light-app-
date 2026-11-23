@@ -10,6 +10,12 @@ POSTHOG_API_KEY = phc_2RcjPhReYKSisINOVVehHusghrUtyyiR6sN87SzJLZ6
 SUPABASE_URL = https:/$()/dxqglotcyirxzyqaxqln.supabase.co
 SUPABASE_PUBLISHABLE_KEY = sb_publishable_PpDpqkqVaKFnOyoLR7mdyA_UNTeeoqN
 
+// C7.10 remote push: the aps-environment entitlement (RunSmart.entitlements reads this).
+// Debug builds use the APNs sandbox; Release (TestFlight and App Store) uses production.
+// The App ID needs the Push Notifications capability before a signed build accepts it.
+RUNSMART_APS_ENVIRONMENT = production
+RUNSMART_APS_ENVIRONMENT[config=Debug] = development
+
 // Strava stays off (all Strava UI hidden) until the client id is set in RunSmartSecrets.xcconfig.
 RUNSMART_STRAVA_CLIENT_ID =
 

@@ -106,10 +106,10 @@ Rules for every batch:
 | `20261121110000_coach_consent_v2.sql` (M5a) | C7.8 | `supabase/rollback/20261121110000_coach_consent_v2.sql` | written (draft PR) |
 | `20261121120000_athlete_run_sharing.sql` (M1a) | C7.3 | `supabase/rollback/20261121120000_athlete_run_sharing.sql` | merged (iOS #238, web #171); not applied |
 | `20261121130000_coach_last_seen_and_events.sql` (M3) | C7.2 | `supabase/rollback/20261121130000_coach_last_seen_and_events.sql` | merged (iOS #239, web #172); not applied |
-| `20261121140000_coach_feedback_replies.sql` (M4) | C7.7 | added by C7.7 | not written |
-| `20261121150000_athlete_run_flags.sql` (M1b) | C7.4 | added by C7.4 | not written |
-| `20261121160000_coach_link_end.sql` (M5b) | C7.11 | added by C7.11 | not written |
+| `20261121150000_athlete_run_flags.sql` (M1b) | C7.4 | `supabase/rollback/20261121150000_athlete_run_flags.sql` | merged (iOS #242, web #173); not applied |
+| `20261121160000_coach_link_end.sql` (M5b) | C7.11 | `supabase/rollback/20261121160000_coach_link_end.sql` | merged (iOS #244, web #175); not applied |
 | `20261121170000_coach_milestones.sql` (M13, only if needed) | C7.16 | added by C7.16 | not written |
+| `20261121180000_coach_feedback_replies.sql` (M4, renamed from `20261121140000`) | C7.7 | `supabase/rollback/20261121180000_coach_feedback_replies.sql` | written (draft PR) |
 
 #### M0: `20261121100000_coach_v2_gate.sql`
 
@@ -148,14 +148,55 @@ Rules for every batch:
 6. **Account deletion:** both tables reference `auth.users` with `on delete cascade`, so `delete_account` (which deletes the auth user last) removes the rows. `purge_coach_data_for_deleted_account` is not replaced by M3.
 7. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: `coach_last_seen.sql` and the M3 case in `kill_switch.sql` pass; the rollback dropped the four functions and kept a seen row and an event row; re-applying the migration restored the functions without changing either row, and `coach_last_seen.sql` passed again.
 
+#### M1b: `20261121150000_athlete_run_flags.sql`
+
+1. **Flag to flip first:** `coach_v2` to false. With it off, `coach_get_athlete_flags` returns zero rows, `coach_roster_summary` returns zero rows (so no flag count), and `athlete_flag_run` and `coach_resolve_flag` raise `v2_unavailable` and change nothing. `athlete_remove_flag` still works: removing is a privacy action, like hiding a note.
+2. **Safe with the flag off:** every flag already sent stays in `athlete_run_flags`, unreadable by any coach. New flags and "Mark handled" taps wait in the phones' outboxes and send when the flag returns, so no pain flag is lost. The athlete still sees their own flags (owner select).
+3. **Rollback file:** `supabase/rollback/20261121150000_athlete_run_flags.sql`. It restores C7.2's `coach_roster_summary` (same signature, `new_flags` 0) and C7.3's `purge_coach_data_for_deleted_account`, then drops `coach_resolve_flag`, `coach_get_athlete_flags`, `athlete_remove_flag` and `athlete_flag_run`. It keeps `athlete_run_flags` with every row, RLS on and its owner-select policy. A deleted athlete's flags still go, through the `on delete cascade` from `auth.users`.
+4. **When not to roll back:** while M5b (`20261121160000_coach_link_end.sql`) or any later file that replaces `coach_roster_summary` or the purge, or reads `athlete_run_flags`, is applied. Roll those back first, or flip `coach_v2` instead. M1a and M3 must not be rolled back while M1b is applied: M1b calls M1a's `athlete_sharing_ack_time` and `athlete_own_run_id` and replaces M3's summary.
+5. **After the rollback, the app:** v2 athlete apps get "function not found" on flag sends and removals and keep them queued (dropped after 14 days); v2 coach apps fail the flags read and show "Pain flags didn't load. Try again." on Coach Today. 1.2.6 apps see no change.
+6. **Account deletion and link end:** the purge deletes the athlete's flags and clears `resolved_by` where the deleted user was the coach. Leaving or being removed keeps the rows; every coach read needs the flag's own link to be active, so the coach sees none of them, and a rejoin (a new link row) does not bring them back. `leave_coach` is not replaced.
+7. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: `athlete_run_flags.sql` and the M1b case in `kill_switch.sql` pass, and `coach_last_seen.sql` and `athlete_run_sharing.sql` still pass with M1b applied; the rollback dropped the four functions, kept a flag row, RLS and the policy, restored C7.2's summary and C7.3's purge, and a re-apply restored the functions.
+
+#### M5b: `20261121160000_coach_link_end.sql`
+
+1. **Flag to flip first:** `coach_v2` to false. With it off, the removed athlete's one-time line is hidden (`my_coach_link_notice` returns zero rows, `mark_link_notice_seen` raises `v2_unavailable`). Removal (`coach_remove_athlete`) and leaving (`leave_coach`) keep working on purpose: the switch never blocks ending a link.
+2. **Safe with the flag off:** every ended link keeps `ended_by` and `ended_notice_seen_at`, and every `left` / `removed` event stays in `coach_athlete_events`. A line not seen while the flag is off shows once when it is back on. 1.2.6 athletes leave exactly as before.
+3. **Rollback file:** `supabase/rollback/20261121160000_coach_link_end.sql`. It restores Story 1.5's `leave_coach` body (same signature, void return, same errors), then drops `coach_remove_athlete`, `mark_link_notice_seen`, `my_coach_link_notice`, `coach_link_notice_allowed` and `end_coach_link`. It keeps both columns, their values and the `ended_by` check. Dropping the columns is a commented, optional step that deletes who ended each link; export first if you ever run it.
+4. **When not to roll back:** while M6b (`20261201110000_coach_plan_locks.sql`) or M7 is applied: both replace `end_coach_link`. Roll those back first, or flip `coach_v2` instead. M3 must stay applied while M5b is (the link end writes `coach_athlete_events`).
+5. **After the rollback, the app:** v2 coach builds get "function not found" from Remove {Athlete} and show the remove error; the athlete stays linked. v2 athlete builds fail the notice read and show nothing. 1.2.6 apps see no change.
+6. **Account deletion:** both columns live on `coach_athlete_links`, which `purge_coach_data_for_deleted_account` already deletes. M5b does not replace the purge.
+7. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: `coach_link_end.sql`, the M5b case in `kill_switch.sql` and Story 1.5's `leave_coach.sql` (run with M5b on top) pass. With a removed link in place, the rollback dropped the five functions and kept `ended_by = 'coach'`; the restored `leave_coach` ended another link with `ended_by` left null. Re-applying the migration kept the values and the unseen line showed again.
+
+#### M4: `20261121180000_coach_feedback_replies.sql`
+
+1. **Flag to flip first:** `coach_v2` to false. With it off, `coach_get_feedback_replies` returns zero rows, `coach_roster_summary` returns zero rows (so no reply count), `coach_mark_reply_read` marks nothing, and `athlete_reply_to_feedback` raises `v2_unavailable` and stores nothing. `my_feedback_replies` still works: it is the athlete's own text.
+2. **Safe with the flag off:** every reply already sent stays in `coach_feedback_replies`, unreadable by any coach. New replies wait in the athletes' outboxes ("Waiting to send") and send when the flag returns, so no reply is lost. The athlete still sees their own replies.
+3. **Rollback file:** `supabase/rollback/20261121180000_coach_feedback_replies.sql`. It restores C7.4's `coach_roster_summary` (same signature, `new_replies` 0) and C7.4's `purge_coach_data_for_deleted_account`, then drops `coach_mark_reply_read`, `coach_get_feedback_replies`, `my_feedback_replies` and `athlete_reply_to_feedback`. It keeps `coach_feedback_replies` with every row, RLS on and its owner-select policy. A deleted user's replies still go, through the `on delete cascade` from `auth.users` and from `coach_feedback`.
+4. **When not to roll back:** while any later file that replaces `coach_roster_summary` or the purge, or reads `coach_feedback_replies`, is applied. Roll those back first, or flip `coach_v2` instead. M1a, M3 and M1b must not be rolled back while M4 is applied: M4 calls M1a's `athlete_sharing_ack_time` and replaces M1b's summary and purge.
+5. **After the rollback, the app:** v2 athlete apps get "function not found" on reply sends and keep them queued (dropped after 14 days); replies already on the phone stay readable there. v2 coach apps fail the replies read and show notes without replies. 1.2.6 apps see no change.
+6. **Account deletion and link end:** the purge deletes the user's replies and the replies on a deleted coach's notes. Leaving or being removed keeps the rows; every coach read needs the reply's own link to be active, so the coach sees none of them, and a rejoin (a new link row) does not bring them back. `leave_coach` is not replaced.
+7. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: `coach_feedback_replies.sql` and the M4 case in `kill_switch.sql` pass, and `athlete_run_flags.sql`, `coach_last_seen.sql`, `athlete_run_sharing.sql`, `coach_consent_v2.sql`, `client_capabilities.sql`, `coach_feedback.sql`, `athlete_feedback_read.sql` and `coach_welcome_note.sql` still pass with M4 applied; the rollback dropped the four functions, kept a reply row, RLS and the policy, restored C7.4's summary and purge (identical function definitions), and a re-apply restored the functions and kept the row.
+
 ### Batch B (R2: coach gets told)
 
 | File | Story | Rollback file | Status |
 |---|---|---|---|
-| `20261122100000_push_tokens_and_prefs.sql` (M2a) | C7.10 | added by C7.10 | not written |
+| `20261122100000_push_tokens_and_prefs.sql` (M2a) | C7.10 | `supabase/rollback/20261122100000_push_tokens_and_prefs.sql` | written (draft PR) |
 | `20261122110000_notification_log_and_deferred.sql` (M2b) | C7.5 | added by C7.5 | not written |
 
 First move: `coach_v2_push` to false. Senders keep their queue.
+
+#### M2a: `20261122100000_push_tokens_and_prefs.sql`
+
+1. **Flag to flip first:** `coach_v2_push` to false (stops every sender; queued rows wait). For a wider problem, `coach_v2` to false: the app then shows the 1.2.6 coach UI and makes no token or prefs call at all. M2a's functions do not read the flags themselves: a token or a prefs row shares nothing with anyone, and the senders apply the switch at send time.
+2. **Safe with the flag off:** every token and every prefs row stays. Devices keep their tokens, so pushes reach them again as soon as the flag is back on, with no re-prompt.
+3. **Rollback file:** `supabase/rollback/20261122100000_push_tokens_and_prefs.sql`. It drops `register_push_token`, `unregister_push_token`, `my_notification_prefs`, `set_notification_time_zone`, `update_notification_prefs` and the internal `notification_time_zone_ok`. It keeps both tables (`push_tokens`, `notification_prefs`) with every row, RLS on and their owner-select policies. Dropping the tables is a commented, optional step that deletes every device token and every user's settings; export first if you ever run it.
+4. **When not to roll back:** while M2b (`20261122110000_notification_log_and_deferred.sql`) or any later file or Edge Function that reads `push_tokens` or `notification_prefs` is applied or deployed. Roll those back first, or flip `coach_v2_push` instead.
+5. **After the rollback, the app:** v2 apps get "function not found" on token registration and the prefs read, keep the token on the phone and retry on the next foreground. Nothing is shown to the user. Sign-out still works; the unregister call fails quietly and the stale row moves to the next account that registers that device. 1.2.6 apps see no change.
+6. **Account deletion:** both tables reference `auth.users` with `on delete cascade`, so `delete_account` (which deletes the auth user last) removes the rows. `purge_coach_data_for_deleted_account` is not replaced by M2a.
+7. **APNs secrets:** `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, `APNS_BUNDLE_ID` are Edge Function secrets Nadav sets. Removing them makes `_shared/apns.ts` refuse to send (`apns_not_configured`) without touching any row. `push_selftest` is dev-only and is not in any deploy script.
+8. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-23: `push_tokens_and_prefs.sql` passes (migration applied twice first); with a token and a changed prefs row in place, the rollback dropped the six functions and kept both rows, RLS and both policies; a re-apply restored the functions and kept both rows unchanged.
 
 ### Batch C (R3: coach builds workouts)
 

@@ -54,6 +54,31 @@ nonisolated enum CoachV2Analytics {
         case runNoteHiddenToggled(hidden: Bool)
         /// C7.3: the one-time RPE backfill after the ack queued `count` runs (D7).
         case rpeBackfillDone(count: Int)
+        /// C7.4: the athlete sent a flag. `hasRun` = it is about a run (false for Today's run-less entry).
+        /// Never the note.
+        case flagCreated(kind: RunFlagKind, hasRun: Bool)
+        /// C7.4: the athlete removed an unhandled flag.
+        case flagRemoved
+        /// C7.4: the coach's "Mark handled" reached the server. Minutes from the flag to the resolve.
+        case flagResolved(minutesOpen: Int)
+        /// C7.16: a milestone tag was on Coach Today. `kind` is a `CoachMilestoneKind` raw value. Once per
+        /// milestone per session, never the athlete.
+        case milestoneShown(kind: String)
+        /// C7.16: the coach tapped a one-tap reaction on a milestone. Never which reaction or the athlete.
+        case praiseSent(kind: String)
+        /// C7.7: the athlete's reply to a coach note reached the server. `target` says what kind of note
+        /// it answers. Never the text.
+        case coachNoteReplySent(target: FeedbackReplyTarget)
+        /// C7.11: the coach removed an athlete and the server ended the link. No properties.
+        case coachRemovedAthlete
+        /// C7.11: the athlete left their coach (A13 or P9) and the server ended the link. No properties.
+        case athleteLeftCoach
+        /// C7.10: T6 or P10 shown (once per account and role).
+        case pushPermissionPrompted(role: RemotePushRole)
+        /// C7.10: the system prompt's answer.
+        case pushPermissionResult(role: RemotePushRole, granted: Bool)
+        /// C7.10: a remote push was tapped.
+        case pushOpened(kind: RemotePushKind)
 
         var name: String {
             switch self {
@@ -68,6 +93,17 @@ nonisolated enum CoachV2Analytics {
             case .runNoteSaved: "run_note_saved"
             case .runNoteHiddenToggled: "run_note_hidden_toggled"
             case .rpeBackfillDone: "rpe_backfill_done"
+            case .flagCreated: "flag_created"
+            case .flagRemoved: "flag_removed"
+            case .flagResolved: "flag_resolved"
+            case .milestoneShown: "milestone_shown"
+            case .praiseSent: "praise_sent"
+            case .coachNoteReplySent: "coach_note_reply_sent"
+            case .coachRemovedAthlete: "coach_removed_athlete"
+            case .athleteLeftCoach: "athlete_left_coach"
+            case .pushPermissionPrompted: "push_permission_prompted"
+            case .pushPermissionResult: "push_permission_result"
+            case .pushOpened: "push_opened"
             }
         }
 
@@ -79,7 +115,7 @@ nonisolated enum CoachV2Analytics {
                 ["reason": .kind(reason)]
             case .coachAthleteSeen(let newCount):
                 ["new_count": .count(newCount)]
-            case .athleteGoalChangeLogged:
+            case .athleteGoalChangeLogged, .coachRemovedAthlete, .athleteLeftCoach:
                 [:]
             case .consentV2Shown(let surface), .consentV2Acked(let surface), .consentV2LeaveTapped(let surface):
                 ["surface": .kind(surface.rawValue)]
@@ -89,6 +125,22 @@ nonisolated enum CoachV2Analytics {
                 ["hidden": .flag(hidden)]
             case .rpeBackfillDone(let count):
                 ["count": .count(count)]
+            case .flagCreated(let kind, let hasRun):
+                ["kind": .kind(kind.rawValue), "has_run": .flag(hasRun)]
+            case .flagRemoved:
+                [:]
+            case .flagResolved(let minutesOpen):
+                ["minutes_open": .count(minutesOpen)]
+            case .milestoneShown(let kind), .praiseSent(let kind):
+                ["kind": .kind(kind)]
+            case .coachNoteReplySent(let target):
+                ["target": .kind(target.rawValue)]
+            case .pushPermissionPrompted(let role):
+                ["role": .kind(role.rawValue)]
+            case .pushPermissionResult(let role, let granted):
+                ["role": .kind(role.rawValue), "granted": .flag(granted)]
+            case .pushOpened(let kind):
+                ["kind": .kind(kind.rawValue)]
             }
         }
     }

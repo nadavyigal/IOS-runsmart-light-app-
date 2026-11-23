@@ -230,7 +230,8 @@ final class CoachSeenStateTests: XCTestCase {
         read.workoutResults = data.workouts
         read.runResults = data.runs
         let outbox = CoachV2Outbox(defaults: defaults, repository: seen, tracker: tracker ?? SeenEventSpy(), now: { self.now })
-        let list = CoachAthleteListModel(service: read, rosterStatus: { [:] }, tracker: tracker ?? SeenEventSpy(), seen: seen, outbox: outbox)
+        let list = CoachAthleteListModel(service: read, rosterStatus: { [:] }, tracker: tracker ?? SeenEventSpy(), seen: seen, outbox: outbox,
+                                         flagStore: .offline())
         return (list, outbox)
     }
 

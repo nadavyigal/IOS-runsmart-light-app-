@@ -294,10 +294,13 @@ final class CoachTodayTests: XCTestCase {
 
     func testReasonPriorityOrder() {
         let order = CoachTodayReason.allCases.sorted { $0.priority < $1.priority }
-        // C7.2 adds the four "new" reasons after the urgent ones (UX spec A.3 item 5).
-        XCTAssertEqual(order, [.missedToday, .missedYesterday, .behind, .reply, .newRun, .changedGoal, .changedWorkout])
+        // C7.4 puts pain and something off first; C7.2 adds the four "new" reasons after the urgent ones
+        // (UX spec A.3 item 5).
+        XCTAssertEqual(order, [.pain, .somethingOff, .missedToday, .missedYesterday, .behind, .reply, .newRun,
+                               .changedGoal, .changedWorkout])
         XCTAssertEqual(CoachTodayReason.allCases.map(\.chip),
-                       ["Missed today", "Missed yesterday", "Behind", "Reply", "New run", "Changed goal", "Changed your workout"])
+                       ["Pain", "Something off", "Missed today", "Missed yesterday", "Behind", "Reply", "New run",
+                        "Changed goal", "Changed your workout"])
     }
 
     func testBehindRuleTwoMissesOrBelowEightyPercent() throws {
@@ -395,10 +398,10 @@ final class CoachTodayTests: XCTestCase {
         XCTAssertEqual(result.groups, [.noPlan])
         XCTAssertNil(result.rows[0].weekProgress)
         XCTAssertEqual(result.rows[0].spokenSentence, "Yoni. Waiting for a plan.")
-        // C7.4 pain and C7.16 milestones: no group exists yet. C7.2 added "New to review", which has no
-        // header without news (CoachSeenStateTests).
-        XCTAssertEqual(CoachTodayGroup.allCases.count, 8)
-        XCTAssertFalse(CoachTodayGroup.allCases.contains { $0.title(count: 1).contains("Pain") })
+        // C7.16 milestones: no group exists yet. C7.2's "New to review" and C7.4's pain group have no header
+        // without news or open flags (CoachSeenStateTests, RunFlagTests).
+        XCTAssertEqual(CoachTodayGroup.allCases.count, 9)
+        XCTAssertFalse(result.groups.contains(.pain))
     }
 
     func testThirtyAthletesFillTheGroupsAndCollapseAtEight() {
@@ -476,7 +479,8 @@ final class CoachTodayTests: XCTestCase {
         let outbox = CoachV2Outbox(
             defaults: UserDefaults(suiteName: "CoachTodayTests-\(UUID().uuidString)")!, repository: seen
         )
-        return CoachAthleteListModel(service: service, rosterStatus: { [:] }, tracker: tracker, seen: seen, outbox: outbox)
+        return CoachAthleteListModel(service: service, rosterStatus: { [:] }, tracker: tracker, seen: seen, outbox: outbox,
+                                     flagStore: .offline())
     }
 
     private func stubWithAthlete() -> StubRead {
@@ -507,7 +511,8 @@ final class CoachTodayTests: XCTestCase {
         XCTAssertNotNil(list.today)
         let week = CoachAthleteWeek(now: now)
         let sixDaysBack = week.calendar.date(byAdding: .day, value: -6, to: week.calendar.startOfDay(for: now))!
-        XCTAssertEqual(stub.workoutWindows.last?.from, min(week.interval.start, sixDaysBack))
+        // C7.16 adds one wide history read (from 2000) for milestones; the 7-day window is still read fresh.
+        XCTAssertTrue(stub.workoutWindows.contains { $0.from == min(week.interval.start, sixDaysBack) })
         XCTAssertEqual(stub.runWindows.last?.from, min(week.interval.start, sixDaysBack))
         XCTAssertEqual(stub.runWindows.count, 1, "one runs call per refresh, no new RPC")
     }

@@ -75,6 +75,8 @@ struct PostRunSummaryView: View {
 
                     if displayRun != nil {
                         notesCard
+                        // C7.4: "Something off?" (P7). Renders nothing unless effort and notes are shared.
+                        AthleteRunFlagSection(run: displayRun)
                     }
 
                     if isShortActivity {

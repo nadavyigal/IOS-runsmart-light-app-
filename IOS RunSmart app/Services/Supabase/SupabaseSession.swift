@@ -264,6 +264,9 @@ final class SupabaseSession: ObservableObject {
             return
         }
 #endif
+        // C7.10 AC5: remove only this device's push token while the session can still call the
+        // server. Does nothing if this device never registered one (always the case with v2 off).
+        await RemotePushRegistrar.shared.signOut()
         try? await supabase.auth.signOut()
         // A different runner may sign in next: the Strava connection belongs to this one.
         StravaConnectionService.shared.forgetTokens()
