@@ -11,7 +11,15 @@ private enum CoachTodayItem: Identifiable {
     case offlineStrip(Date?)
     case refreshFailed(Date?)
     case runsBanner
+    /// C7.4: the flags read failed (UX spec A.5, partial data).
+    case flagsBanner
+    /// C7.4: "Marked handled · Undo" for 5 s after Mark handled.
+    case handledToast(UUID)
+    /// C7.4: a queued Mark handled the server refused because the link ended.
+    case actionFailed(UUID)
     case header(title: String, summary: String?, detail: String?)
+    /// C7.10 T6: the push pre-permission card, once, under the header.
+    case pushPrimer
     case skeleton(Int)
     case errorNoCache
     case empty
@@ -25,7 +33,11 @@ private enum CoachTodayItem: Identifiable {
         case .offlineStrip: "offline"
         case .refreshFailed: "refresh-failed"
         case .runsBanner: "runs-banner"
+        case .flagsBanner: "flags-banner"
+        case .handledToast: "handled-toast"
+        case .actionFailed(let id): "action-failed-\(id.uuidString)"
         case .header: "header"
+        case .pushPrimer: "push-primer"
         case .skeleton(let index): "skeleton-\(index)"
         case .errorNoCache: "error"
         case .empty: "empty"
@@ -41,6 +53,10 @@ let coachTodayGroupLimit = 8
 
 struct CoachTodayView: View {
     @ObservedObject var model: CoachAthleteListModel
+    /// C7.4: the Mark handled queue, for its toast. The same store the model reads.
+    @ObservedObject var flagStore: CoachFlagStore = .shared
+    /// C7.10: T6 shows while the registrar asks for it (never with v2 off).
+    @ObservedObject var pushRegistrar: RemotePushRegistrar = .shared
     var onShareInvite: (() -> Void)?
     let open: (CoachTodayRow) -> Void
     let retry: () async -> Void
@@ -72,9 +88,13 @@ struct CoachTodayView: View {
             list.append(model.offline ? .offlineStrip(model.updatedAt) : .refreshFailed(model.updatedAt))
         }
         if !snapshot.runsLoaded { list.append(.runsBanner) }
+        if !snapshot.flagsLoaded { list.append(.flagsBanner) }
+        list += flagStore.failedAthletes.map { .actionFailed($0) }
+        if let toast = flagStore.toastFlagID { list.append(.handledToast(toast)) }
         list.append(.header(
             title: snapshot.headerTitle(locale: locale), summary: snapshot.summaryLine, detail: snapshot.caughtUpDetail
         ))
+        if pushRegistrar.showsCoachPrimer { list.append(.pushPrimer) }
         guard snapshot.athleteCount > 0 else { return list + [.empty] }
 
         let groups = snapshot.groups
@@ -140,6 +160,34 @@ struct CoachTodayView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+        case .flagsBanner:
+            ContentCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(RunFlagCopy.flagsFailed).foregroundStyle(Color.textPrimary)
+                    tryAgain
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        case .handledToast(let flagID):
+            Button {
+                flagStore.undo(flagID)
+            } label: {
+                Text(RunFlagCopy.markedHandledToast)
+                    .font(.labelLG)
+                    .foregroundStyle(Color.textPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(Color.surfaceElevated, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Undo marks the flag open again")
+        case .actionFailed(let athleteID):
+            Button {
+                flagStore.failedAthletes.removeAll { $0 == athleteID }
+            } label: {
+                strip(RunFlagCopy.actionFailed(athlete: model.athleteName(athleteID) ?? "This athlete"))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Dismisses this message")
         case .header(let title, let summary, let detail):
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -155,6 +203,8 @@ struct CoachTodayView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
+        case .pushPrimer:
+            RemotePushCoachPrimerCard(registrar: pushRegistrar)
         case .skeleton:
             skeletonRow
         case .errorNoCache:
@@ -181,9 +231,20 @@ struct CoachTodayView: View {
         case .groupHeader(let group, let total):
             groupHeader(group, total: total)
         case .row(let row):
-            CoachTodayRowView(
-                row: row, needsLatestApp: model.athletesNeedingUpdate.contains(row.id), open: { open(row) }
-            )
+            VStack(spacing: 6) {
+                CoachTodayRowView(
+                    row: row, needsLatestApp: model.athletesNeedingUpdate.contains(row.id), open: { open(row) },
+                    markHandled: row.flags.isEmpty ? nil : { model.markHandled(row) }
+                )
+                // C7.16: under the row, outside its button, so the praise buttons are their own targets.
+                if !row.milestones.isEmpty {
+                    CoachMilestoneStrip(
+                        athleteName: row.name, milestones: row.milestones,
+                        isReacted: model.isReacted, hasFailed: model.reactionFailed,
+                        react: { model.react(to: $0, with: $1) }
+                    )
+                }
+            }
         case .showAll(let group, let total):
             Button {
                 fullGroups.insert(group)
@@ -291,7 +352,7 @@ extension CoachTodayDayState {
 extension CoachTodayReason {
     var color: Color {
         switch self {
-        case .missedToday, .missedYesterday: Color.accentHeart
+        case .pain, .somethingOff, .missedToday, .missedYesterday: Color.accentHeart
         case .behind: Color.accentEnergy
         case .reply, .newRun, .changedGoal, .changedWorkout: Color.accentPrimary
         }
@@ -302,6 +363,8 @@ struct CoachTodayRowView: View {
     let row: CoachTodayRow
     var needsLatestApp = false
     let open: () -> Void
+    /// C7.4: set only on rows with open flags (UX spec A.3 item 8).
+    var markHandled: (() -> Void)?
     @Environment(\.dynamicTypeSize) private var size
     /// The day the adjustable dots strip is on. Nil until the coach swipes up or down.
     @State private var steppedDay: Int?
@@ -327,6 +390,14 @@ struct CoachTodayRowView: View {
                         }
                     VStack(alignment: .leading, spacing: 6) {
                         nameAndChip
+                        if let preview = row.flagPreview {
+                            // The athlete's own words, coach-only, in their own direction (C7.15).
+                            Text(verbatim: preview)
+                                .font(.bodyMD)
+                                .foregroundStyle(Color.textPrimary)
+                                .naturalTextDirection(preview)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         Text(row.todayLine)
                             .font(.bodyMD)
                             .foregroundStyle(Color.textSecondary)
@@ -361,6 +432,7 @@ struct CoachTodayRowView: View {
         }
         .accessibilityAction(named: "Open \(row.name)", open)
         .accessibilityAction(named: "Write feedback", open)
+        .modifier(MarkHandledActions(markHandled: markHandled))
     }
 
     private var spokenLabel: String {
@@ -387,9 +459,9 @@ struct CoachTodayRowView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if let reason = row.reason {
+            if let reason = row.reason, let chip = row.chipText {
                 // Icon plus text: the chip never relies on color.
-                Label(reason.chip, systemImage: reason.icon)
+                Label(chip, systemImage: reason.icon)
                     .font(.labelLG)
                     .foregroundStyle(reason.color)
                     .padding(.horizontal, 8)
@@ -441,14 +513,31 @@ struct CoachTodayRowView: View {
     }
 }
 
+/// C7.4: "Mark handled" as a long-press menu item and a VoiceOver custom action, on flag rows only.
+private struct MarkHandledActions: ViewModifier {
+    let markHandled: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        if let markHandled {
+            content
+                .contextMenu {
+                    Button(RunFlagCopy.markHandled, systemImage: "checkmark.circle", action: markHandled)
+                }
+                .accessibilityAction(named: RunFlagCopy.markHandled, markHandled)
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: Previews
 
 #if DEBUG
 extension CoachTodaySnapshot {
     /// 30 fixture athletes across every group, for the previews and the simulator screenshots.
     static func previewFixture(
-        athletes count: Int = 30, runsLoaded: Bool = true, withNews: Bool = false,
-        now: Date = Date(timeIntervalSince1970: 1_795_000_000)
+        athletes count: Int = 30, runsLoaded: Bool = true, withNews: Bool = false, withFlags: Bool = false,
+        flagsLoaded: Bool = true, withMilestones: Bool = false, now: Date = Date(timeIntervalSince1970: 1_795_000_000)
     ) -> CoachTodaySnapshot {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Jerusalem")!
@@ -482,7 +571,9 @@ extension CoachTodaySnapshot {
         }
         return CoachTodaySnapshot.make(
             athletes: athletes, workouts: workouts, runs: runs, runsLoaded: runsLoaded,
-            news: withNews ? previewNews(athletes, now: now) : [:], now: now, week: week,
+            news: withNews ? previewNews(athletes, now: now) : [:],
+            flags: withFlags && flagsLoaded ? previewFlags(athletes, now: now) : [], flagsLoaded: flagsLoaded,
+            milestones: withMilestones ? previewMilestones(athletes) : [:], now: now, week: week,
             locale: Locale(identifier: "en_GB")
         )
     }
@@ -502,6 +593,51 @@ extension CoachTodaySnapshot {
             if let item = patterns[index] { news[athlete.athleteID] = item }
         }
         return news
+    }
+
+    /// C7.16: every tag once, two tags on one athlete, and a milestone on a row that is also urgent.
+    static func previewMilestones(_ athletes: [CoachAthleteSummary]) -> [UUID: [CoachMilestone]] {
+        func make(_ index: Int, _ kinds: [CoachMilestoneKind]) -> (UUID, [CoachMilestone])? {
+            guard athletes.indices.contains(index) else { return nil }
+            let id = athletes[index].athleteID
+            return (id, kinds.map { kind in
+                let target: CoachFeedbackTarget? = kind == .quiet3Days ? nil
+                    : kind == .firstFullWeek ? .week("2026-11-16") : .run(Int64(1000 + index))
+                return CoachMilestone(
+                    athleteID: id, kind: kind, subject: "preview-\(kind.rawValue)", target: target, fallbackTarget: nil
+                )
+            })
+        }
+        let pairs = [
+            make(1, [.firstRun]), make(2, [.firstFullWeek]), make(3, [.longestRun, .firstRun]),
+            make(4, [.quiet3Days]), make(5, [.firstRun]), make(0, [.longestRun])
+        ].compactMap { $0 }
+        return Dictionary(uniqueKeysWithValues: pairs)
+    }
+
+    /// C7.16: the preview milestone that already shows "Reacted".
+    static func previewReacted() -> Set<String> {
+        let id = UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", 6))!
+        return ["\(id.uuidString.lowercased())|first_run|preview-first_run"]
+    }
+
+    /// C7.4: a pain flag with a note, two flags on one athlete, a run-less "something off" and a deleted run.
+    static func previewFlags(_ athletes: [CoachAthleteSummary], now: Date) -> [CoachRunFlag] {
+        func flag(_ index: Int, _ kind: RunFlagKind, _ note: String?, hoursAgo: Double, runDeleted: Bool = false) -> CoachRunFlag? {
+            guard athletes.indices.contains(index) else { return nil }
+            return CoachRunFlag(
+                id: UUID(uuidString: String(format: "f0000000-0000-4000-8000-%012d", index * 10 + Int(hoursAgo)))!,
+                athleteID: athletes[index].athleteID, runID: runDeleted ? nil : index, runDeleted: runDeleted,
+                kind: kind, note: note, createdAt: now.addingTimeInterval(-hoursAgo * 3600)
+            )
+        }
+        return [
+            flag(0, .pain, "Knee, after Sunday's long run", hoursAgo: 30),
+            flag(3, .off, "Slept badly all week and my legs feel heavy on every easy run so far", hoursAgo: 5),
+            flag(6, .pain, "כאב בשוק השמאלית", hoursAgo: 8),
+            flag(6, .off, nil, hoursAgo: 2),
+            flag(7, .off, nil, hoursAgo: 12, runDeleted: true)
+        ].compactMap { $0 }
     }
 
     private static func previewWorkout(_ id: UUID, _ athlete: UUID, _ date: String, _ seed: Int) -> CoachWorkoutSummary {
@@ -548,6 +684,33 @@ extension CoachTodaySnapshot {
     .background(Color.surfaceBase)
 }
 
+#Preview("Coach Today, pain flags") {
+    ScrollView {
+        LazyVStack(alignment: .leading, spacing: 14) {
+            CoachTodayView(
+                model: CoachAthleteListModel.previewModel(.previewFixture(athletes: 10, withNews: true, withFlags: true)),
+                onShareInvite: nil, open: { _ in }, retry: {}
+            )
+        }
+        .padding(.horizontal, 18)
+    }
+    .background(Color.surfaceBase)
+}
+
+#Preview("Coach Today, milestones") {
+    let snapshot = CoachTodaySnapshot.previewFixture(athletes: 10, withNews: true, withMilestones: true)
+    ScrollView {
+        LazyVStack(alignment: .leading, spacing: 14) {
+            CoachTodayView(
+                model: CoachAthleteListModel.previewModel(snapshot, reacted: CoachTodaySnapshot.previewReacted()),
+                onShareInvite: nil, open: { _ in }, retry: {}
+            )
+        }
+        .padding(.horizontal, 18)
+    }
+    .background(Color.surfaceBase)
+}
+
 #Preview("Coach Today, runs failed") {
     ScrollView {
         LazyVStack(alignment: .leading, spacing: 14) {
@@ -563,9 +726,9 @@ extension CoachTodaySnapshot {
 
 extension CoachAthleteListModel {
     /// A model that already shows `snapshot`. Previews and screenshots only.
-    static func previewModel(_ snapshot: CoachTodaySnapshot) -> CoachAthleteListModel {
+    static func previewModel(_ snapshot: CoachTodaySnapshot, reacted: Set<String> = []) -> CoachAthleteListModel {
         let model = CoachAthleteListModel()
-        model.loadPreview(snapshot)
+        model.loadPreview(snapshot, reacted: reacted)
         return model
     }
 }

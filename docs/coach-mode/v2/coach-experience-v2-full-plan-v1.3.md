@@ -83,7 +83,7 @@ Batch = the group Nadav applies together (§5). Timestamps must sort in the orde
 | M5 (consent part) | **M5a** `coach_consent_v2` | C7.8 | A |
 | M1 (part A) | **M1a** `athlete_run_sharing` (RPE, notes, ack gate) | C7.3 | A |
 | M3 | **M3** `coach_last_seen_and_events`, now also creating `coach_athlete_events` + `athlete_log_goal_change` | C7.2 | A |
-| M4 | **M4** `coach_feedback_replies` | C7.7 | A |
+| M4 | **M4** `coach_feedback_replies` (file `20261121180000_coach_feedback_replies.sql`: renamed from the reserved `20261121140000` so it sorts after M1b, which also replaces `coach_roster_summary` and the purge) | C7.7 | A |
 | M1 (part B) | **M1b** `athlete_run_flags` | C7.4 | A |
 | M5 (link-end part) | **M5b** `coach_link_end` (`end_coach_link` v1, `coach_remove_athlete`, new `leave_coach`) | C7.11 | A |
 | (none) | **M13** `coach_milestones` read RPC, **only if** C7.16's check finds the existing RPCs can't answer it | C7.16 | A |

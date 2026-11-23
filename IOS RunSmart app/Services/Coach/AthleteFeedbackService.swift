@@ -466,3 +466,368 @@ final class AthleteFeedbackStore: ObservableObject {
         cache.save(confirmedOnly, userID: userID)
     }
 }
+
+// MARK: - C7.7 Athlete replies to a coach note (one level)
+//
+// Server: supabase/migrations/20261121180000_coach_feedback_replies.sql (M4). A reply is the
+// athlete's own words; the server shares it with the coach only while coach_v2_sharing_allowed
+// holds. On the phone, Reply shows only while C7.3's sharing context is sharing and the note is
+// from the coach of the current link. With Coach v2 off nothing here renders or calls the server.
+
+nonisolated enum FeedbackReplyRPC {
+    static let reply = "athlete_reply_to_feedback"
+    static let mine = "my_feedback_replies"
+    static let coachReplies = "coach_get_feedback_replies"
+    static let coachMarkRead = "coach_mark_reply_read"
+}
+
+/// Fixed strings (UX spec C.5 P6, C.6 P6, C.7 item 8). Names are direction-isolated (C7.15).
+nonisolated enum FeedbackReplyCopy {
+    static let limit = 1000
+    /// The counter shows from this many characters (UX spec C.5 P6).
+    static let counterFrom = 900
+    static let reply = "Reply"
+    static let send = "Send"
+    static let sent = "Sent"
+    static let waiting = "Waiting to send"
+    static let couldNotSend = "Couldn't send. We'll try again."
+    static let tooLong = "Keep replies under 1000 characters"
+
+    static func placeholder(coach: String) -> String { BidiText.fill("Reply to {Coach}…", ["Coach": coach]) }
+    static func composerLabel(coach: String) -> String { BidiText.fill("Reply to {Coach}", ["Coach": coach]) }
+    /// C7.7 AC7: the link ended before the outbox flushed.
+    static func notSent(coach: String) -> String {
+        BidiText.fill("You're no longer linked to {Coach}, so this reply wasn't sent.", ["Coach": coach])
+    }
+    static func counter(_ count: Int) -> String { "\(count)/\(limit)" }
+    /// "You · 14:32" under the athlete's own reply.
+    static func you(_ time: String) -> String { "You · \(BidiText.isolate(time))" }
+    /// "{Athlete} · 14:32" under a reply on the coach side.
+    static func athlete(_ name: String, time: String) -> String {
+        BidiText.fill("{Athlete} · ", ["Athlete": name]) + BidiText.isolate(time)
+    }
+}
+
+/// "14:32" for today, "12 Nov" for an earlier day.
+nonisolated enum FeedbackReplyFormat {
+    static func time(_ date: Date, now: Date = .now, calendar: Calendar = .current, locale: Locale = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = locale
+        formatter.setLocalizedDateFormatFromTemplate(calendar.isDate(date, inSameDayAs: now) ? "jmm" : "dMMM")
+        return formatter.string(from: date)
+    }
+}
+
+/// Which kind of note a reply answers. Analytics only (v1.3 section 3.8: enums, never text).
+nonisolated enum FeedbackReplyTarget: String, Codable, Sendable {
+    case run, week, welcome
+
+    init(note: AthleteFeedbackNote) {
+        if note.kind == .welcome { self = .welcome } else { self = note.isRunNote ? .run : .week }
+    }
+}
+
+/// Pure rules, unit tested.
+nonisolated enum FeedbackReplyPolicy {
+    static func trimmed(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// Server length of what would be sent (Postgres `char_length` on the trimmed text).
+    static func length(_ text: String) -> Int { BidiText.serverLength(trimmed(text)) }
+    static func showsCounter(_ text: String) -> Bool { length(text) >= FeedbackReplyCopy.counterFrom }
+    /// C7.7 AC2: over 1000 the counter turns to the error and Send is disabled.
+    static func isTooLong(_ text: String) -> Bool { length(text) > FeedbackReplyCopy.limit }
+    static func canSend(_ text: String) -> Bool { length(text) > 0 && !isTooLong(text) }
+
+    /// Reply shows only while sharing, for a note or the welcome from the coach of the current link
+    /// (C7.7 AC6: hidden after the link ends; AC8: nothing else takes a reply).
+    static func canReply(note: AthleteFeedbackNote, link: CoachLink?, context: RunSharingContext) -> Bool {
+        guard RunSharingPolicy.isSharing(context), let link, context.linkID == link.id,
+              note.coachID == link.coachID else { return false }
+        switch note.kind {
+        case .note, .welcome: return true
+        }
+    }
+}
+
+/// A reply this phone sent (or is sending), or one read back from the server.
+nonisolated struct AthleteFeedbackReply: Codable, Equatable, Identifiable, Sendable {
+    /// Client id, sent as `p_id`: two flushes store one row.
+    let id: UUID
+    let ownerID: UUID
+    let feedbackID: UUID
+    let text: String
+    let createdAt: Date
+    var sent: Bool
+    /// The last attempt failed with something other than no connection.
+    var retrying = false
+    /// For the link-gone line and analytics. Nil on rows read back from the server.
+    var coachName: String?
+    var target: FeedbackReplyTarget?
+
+    enum Status: Equatable { case waiting, retrying, sent }
+
+    var status: Status { sent ? .sent : (retrying ? .retrying : .waiting) }
+}
+
+nonisolated struct PendingFeedbackReply: Codable, Equatable, Identifiable, Sendable {
+    let id: UUID
+    let replyID: UUID
+    let ownerID: UUID
+    let createdAt: Date
+}
+
+/// What the outbox does after a failed send (v1.3 section 1.1, M4 header).
+nonisolated enum FeedbackReplyFailure: Equatable, Sendable {
+    /// No connection: keep it, "Waiting to send".
+    case offline
+    /// `v2_unavailable` (kill switch) or a server error: keep it, "Couldn't send. We'll try again."
+    case keep
+    /// The link ended: drop it and tell the athlete once (AC7).
+    case linkGone
+    /// The server will never take it: drop it.
+    case drop
+
+    static let dropTokens = [
+        "consent_required", "bad_reply_id", "reply_empty", "reply_too_long",
+        "reply_to_reply", "reply_not_allowed", "feedback_not_found",
+    ]
+
+    static func classify(_ error: Error) -> FeedbackReplyFailure {
+        if error is URLError { return .offline }
+        let message = (error as? PostgrestError)?.message ?? String(describing: error)
+        if message.contains("v2_unavailable") { return .keep }
+        if message.contains("link_inactive") { return .linkGone }
+        return dropTokens.contains { message.contains($0) } ? .drop : .keep
+    }
+}
+
+/// One row of `my_feedback_replies()`.
+nonisolated struct FeedbackReplyServerRow: Equatable, Sendable {
+    let id: UUID
+    let feedbackID: UUID
+    let text: String
+    let createdAt: Date
+}
+
+nonisolated protocol AthleteFeedbackReplyRepository: Sendable {
+    /// `athlete_reply_to_feedback(p_feedback_id, p_text, p_id)`. Idempotent by `id`.
+    func send(id: UUID, feedbackID: UUID, text: String) async throws
+    /// `my_feedback_replies()`: the signed-in athlete's replies, also after leaving.
+    func mine() async throws -> [FeedbackReplyServerRow]
+}
+
+nonisolated struct SupabaseAthleteFeedbackReplyRepository: AthleteFeedbackReplyRepository {
+    private struct SendParams: Encodable {
+        let p_feedback_id: UUID
+        let p_text: String
+        let p_id: UUID
+    }
+
+    private struct Row: Decodable {
+        let id: UUID
+        let feedbackID: UUID
+        let text: String
+        let createdAt: String
+        enum CodingKeys: String, CodingKey { case id, text, feedbackID = "feedback_id", createdAt = "created_at" }
+    }
+
+    func send(id: UUID, feedbackID: UUID, text: String) async throws {
+        let _: String = try await SupabaseManager.client
+            .rpc(FeedbackReplyRPC.reply, params: SendParams(p_feedback_id: feedbackID, p_text: text, p_id: id))
+            .execute()
+            .value
+    }
+
+    func mine() async throws -> [FeedbackReplyServerRow] {
+        let rows: [Row] = try await SupabaseManager.client.rpc(FeedbackReplyRPC.mine).execute().value
+        return rows.compactMap { row in
+            CoachSeenTimestamp.parse(row.createdAt).map {
+                FeedbackReplyServerRow(id: row.id, feedbackID: row.feedbackID, text: row.text, createdAt: $0)
+            }
+        }
+    }
+}
+
+/// Owns C7.7 on the athlete's phone. Follows C7.3's sharing context (sign-in, link or gate change and
+/// every foreground refresh) and flushes its outbox each time.
+@MainActor
+final class AthleteFeedbackReplyService: ObservableObject {
+    static let shared = AthleteFeedbackReplyService()
+    /// Queued replies older than this are dropped, like the other v2 outboxes.
+    static let maxAge: TimeInterval = 14 * 24 * 3600
+
+    @Published private(set) var context = RunSharingContext.off
+    @Published private(set) var replies: [AthleteFeedbackReply] {
+        didSet { save(replies, key: repliesKey) }
+    }
+    @Published private(set) var pending: [PendingFeedbackReply] {
+        didSet { save(pending, key: outboxKey) }
+    }
+    /// Set when a queued reply was dropped because the link ended. Shown once, under that note.
+    @Published var linkGoneNotice: (feedbackID: UUID, coachName: String)?
+
+    private let repository: any AthleteFeedbackReplyRepository
+    private let defaults: UserDefaults
+    private let analytics: () -> any AnalyticsTracking
+    private let now: () -> Date
+    private let repliesKey: String
+    private let outboxKey: String
+    private var flushing = false
+    private var subscription: AnyCancellable?
+
+    init(
+        repository: any AthleteFeedbackReplyRepository = SupabaseAthleteFeedbackReplyRepository(),
+        defaults: UserDefaults = .standard,
+        keyPrefix: String = "coachV2.feedbackReplies",
+        analytics: @escaping () -> any AnalyticsTracking = { Analytics.shared },
+        now: @escaping () -> Date = Date.init,
+        sharing: AnyPublisher<RunSharingContext, Never>? = nil
+    ) {
+        self.repository = repository
+        self.defaults = defaults
+        self.analytics = analytics
+        self.now = now
+        repliesKey = "\(keyPrefix).replies.v1"
+        outboxKey = "\(keyPrefix).outbox.v1"
+        replies = Self.load([AthleteFeedbackReply].self, defaults: defaults, key: "\(keyPrefix).replies.v1") ?? []
+        pending = Self.load([PendingFeedbackReply].self, defaults: defaults, key: "\(keyPrefix).outbox.v1") ?? []
+        let source = sharing ?? AthleteRunSharingService.shared.$context.eraseToAnyPublisher()
+        // No removeDuplicates: C7.3 republishes on every foreground, which is the outbox's retry.
+        subscription = source.sink { [weak self] next in
+            Task { @MainActor in await self?.apply(next) }
+        }
+    }
+
+    nonisolated deinit {}
+
+    // MARK: Gate
+
+    /// Replies and Reply render only while Coach v2 is on for a signed-in athlete (flag-off AC).
+    var isVisible: Bool { context.v2Enabled && context.userID != nil }
+
+    func canReply(note: AthleteFeedbackNote, link: CoachLink?) -> Bool {
+        FeedbackReplyPolicy.canReply(note: note, link: link, context: context)
+    }
+
+    func apply(_ next: RunSharingContext) async {
+        context = next
+        guard isVisible else { return }
+        await flush()
+        await refresh()
+    }
+
+    // MARK: What P6 shows
+
+    /// This athlete's replies under `note`, oldest first. They stay after the link ends (AC6).
+    func replies(for note: AthleteFeedbackNote) -> [AthleteFeedbackReply] {
+        guard isVisible, let owner = context.userID else { return [] }
+        return replies.filter { $0.ownerID == owner && $0.feedbackID == note.id }
+            .sorted { $0.createdAt < $1.createdAt }
+    }
+
+    // MARK: Actions
+
+    /// "Send". Returns false and does nothing unless Reply is allowed and the text fits (AC1, AC2).
+    @discardableResult
+    func send(_ text: String, note: AthleteFeedbackNote, link: CoachLink?) async -> Bool {
+        guard canReply(note: note, link: link), FeedbackReplyPolicy.canSend(text),
+              let owner = context.userID else { return false }
+        let reply = AthleteFeedbackReply(
+            id: UUID(), ownerID: owner, feedbackID: note.id, text: FeedbackReplyPolicy.trimmed(text),
+            createdAt: now(), sent: false, coachName: link?.coachName ?? note.coachName,
+            target: FeedbackReplyTarget(note: note)
+        )
+        replies.append(reply)
+        pending.append(PendingFeedbackReply(id: UUID(), replyID: reply.id, ownerID: owner, createdAt: now()))
+        await flush()
+        return true
+    }
+
+    /// Sends this account's queued replies in order. Stops at the first one that must wait. Runs even
+    /// when no longer sharing, so a reply queued before the link ended gets `link_inactive` (AC7).
+    func flush() async {
+        guard !flushing, isVisible, let owner = context.userID else { return }
+        flushing = true
+        defer { flushing = false }
+        let cutoff = now().addingTimeInterval(-Self.maxAge)
+        let expired = Set(pending.filter { $0.createdAt < cutoff }.map(\.replyID))
+        if !expired.isEmpty {
+            pending.removeAll { expired.contains($0.replyID) }
+            replies.removeAll { expired.contains($0.id) && !$0.sent }
+        }
+        for item in pending where item.ownerID == owner {
+            guard pending.contains(item) else { continue }
+            guard let reply = replies.first(where: { $0.id == item.replyID }) else {
+                pending.removeAll { $0.id == item.id }
+                continue
+            }
+            do {
+                try await repository.send(id: reply.id, feedbackID: reply.feedbackID, text: reply.text)
+                update(reply.id) {
+                    $0.sent = true
+                    $0.retrying = false
+                }
+                pending.removeAll { $0.id == item.id }
+                CoachV2Analytics.track(.coachNoteReplySent(target: reply.target ?? .week), to: analytics())
+            } catch {
+                if error is CancellationError { return }
+                switch FeedbackReplyFailure.classify(error) {
+                case .offline:
+                    return
+                case .keep:
+                    update(reply.id) { $0.retrying = true }
+                    return
+                case .linkGone:
+                    pending.removeAll { $0.id == item.id }
+                    replies.removeAll { $0.id == reply.id }
+                    linkGoneNotice = (reply.feedbackID, reply.coachName ?? "")
+                case .drop:
+                    pending.removeAll { $0.id == item.id }
+                    replies.removeAll { $0.id == reply.id }
+                }
+            }
+        }
+    }
+
+    /// Reads this athlete's replies from the server (another phone, a reinstall). A reply missing
+    /// from the answer is kept: an empty or partial read never wipes what the athlete wrote.
+    func refresh() async {
+        guard isVisible, let owner = context.userID,
+              let rows = try? await repository.mine() else { return }
+        for row in rows {
+            if replies.contains(where: { $0.id == row.id }) {
+                update(row.id) {
+                    $0.sent = true
+                    $0.retrying = false
+                }
+            } else {
+                replies.append(AthleteFeedbackReply(
+                    id: row.id, ownerID: owner, feedbackID: row.feedbackID, text: row.text,
+                    createdAt: row.createdAt, sent: true
+                ))
+            }
+        }
+        // A row the server stored but this phone still held as queued: nothing left to send.
+        let stored = Set(rows.map(\.id))
+        pending.removeAll { $0.ownerID == owner && stored.contains($0.replyID) }
+    }
+
+    // MARK: Private
+
+    private func update(_ id: UUID, _ change: (inout AthleteFeedbackReply) -> Void) {
+        guard let index = replies.firstIndex(where: { $0.id == id }) else { return }
+        var reply = replies[index]
+        change(&reply)
+        if replies[index] != reply { replies[index] = reply }
+    }
+
+    private func save<T: Encodable>(_ value: T, key: String) {
+        defaults.set(try? JSONEncoder().encode(value), forKey: key)
+    }
+
+    private static func load<T: Decodable>(_ type: T.Type, defaults: UserDefaults, key: String) -> T? {
+        defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(T.self, from: $0) }
+    }
+}

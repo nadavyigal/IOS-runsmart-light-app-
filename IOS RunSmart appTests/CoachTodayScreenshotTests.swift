@@ -20,9 +20,10 @@ final class CoachTodayScreenshotTests: XCTestCase {
 
     private func render(
         _ snapshot: CoachTodaySnapshot, name: String, size: DynamicTypeSize = .large, rtl: Bool = false,
-        height: CGFloat = 1400, offsetY: CGFloat = 0, viewport: CGFloat? = nil, to folder: URL
+        height: CGFloat = 1400, offsetY: CGFloat = 0, viewport: CGFloat? = nil, reacted: Set<String> = [],
+        to folder: URL
     ) throws {
-        let model = CoachAthleteListModel.previewModel(snapshot)
+        let model = CoachAthleteListModel.previewModel(snapshot, reacted: reacted)
         let content = VStack(alignment: .leading, spacing: 14) {
             CoachTodayView(model: model, onShareInvite: {}, open: { _ in }, retry: {})
         }
@@ -75,6 +76,24 @@ final class CoachTodayScreenshotTests: XCTestCase {
                    height: 4000, viewport: 1800, to: out)
         try render(.previewFixture(athletes: 10, withNews: true), name: "10-new-to-review-rtl", rtl: true,
                    height: 2400, viewport: 1400, to: out)
+        // C7.4: the pain group first, "Pain · 2", note previews (one Hebrew), a deleted run, and the flags-failed banner.
+        try render(.previewFixture(athletes: 10, withNews: true, withFlags: true), name: "11-pain-group", height: 2800,
+                   viewport: 1400, to: out)
+        try render(.previewFixture(athletes: 10, withNews: true, withFlags: true), name: "12-pain-group-rtl", rtl: true,
+                   height: 2800, viewport: 1400, to: out)
+        try render(.previewFixture(athletes: 10, withNews: true, withFlags: true), name: "13-pain-group-xxl",
+                   size: .xxxLarge, height: 4400, viewport: 1800, to: out)
+        try render(.previewFixture(athletes: 6, withFlags: true, flagsLoaded: false), name: "14-pain-flags-failed",
+                   height: 1400, to: out)
+        // C7.16: milestone tags and the one-tap praise buttons, one row already "Reacted", the coach-only
+        // "Quiet 3 days" with no buttons. Then large text and RTL.
+        let reacted = CoachTodaySnapshot.previewReacted()
+        try render(.previewFixture(athletes: 10, withMilestones: true), name: "15-milestones", height: 2600,
+                   viewport: 1500, reacted: reacted, to: out)
+        try render(.previewFixture(athletes: 10, withMilestones: true), name: "16-milestones-xxl", size: .xxxLarge,
+                   height: 4600, viewport: 2000, reacted: reacted, to: out)
+        try render(.previewFixture(athletes: 10, withMilestones: true), name: "17-milestones-rtl", rtl: true,
+                   height: 2600, viewport: 1500, reacted: reacted, to: out)
     }
 
     // MARK: Fixtures
