@@ -45,6 +45,8 @@ struct CoachTabView: View {
             }
             .onAppear(perform: openPendingPush)
             .onChange(of: router.pendingCoachDestination) { _, _ in openPendingPush() }
+            .onAppear(perform: openPendingFilter)
+            .onChange(of: router.pendingCoachTodayFilter) { _, _ in openPendingFilter() }
         }
     }
 
@@ -55,6 +57,14 @@ struct CoachTabView: View {
         var fresh = NavigationPath()
         fresh.append(destination)
         path = fresh
+    }
+
+    /// C7.6 AC5: a tapped evening summary pops to Coach Today and filters it to "Missed today" (T2).
+    private func openPendingFilter() {
+        guard let filter = router.pendingCoachTodayFilter else { return }
+        router.pendingCoachTodayFilter = nil
+        path = NavigationPath()
+        athletes.todayFilter = filter
     }
 
     private var coachScreen: some View {

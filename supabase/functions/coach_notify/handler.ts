@@ -37,6 +37,7 @@ import {
   type NotifyDeps,
   type NotifyEvent,
   notifyOne,
+  secretMatches,
   utcDay,
 } from "../_shared/notify.ts";
 
@@ -98,7 +99,7 @@ export async function handleCoachNotify(req: Request, deps: HandlerDeps): Promis
   const log = deps.log ?? ((line: Record<string, unknown>) => console.log(JSON.stringify(line)));
   if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
   if (!deps.secret) return json(500, { error: "server_configuration_missing" });
-  if (!(await sameSecret(req.headers.get("x-coach-notify-secret") ?? "", deps.secret))) {
+  if (!(await secretMatches(req.headers.get("x-coach-notify-secret") ?? "", deps.secret))) {
     return json(401, { error: "unauthorized" });
   }
 
@@ -273,21 +274,6 @@ function event(input: NotifyEvent): NotifyEvent {
 
 function isWebhookTable(table: string): table is WebhookTable {
   return (WEBHOOK_TABLES as readonly string[]).includes(table);
-}
-
-/** Compares SHA-256 digests in constant time, so the length and content of the secret do not leak. */
-async function sameSecret(given: string, expected: string): Promise<boolean> {
-  if (!given) return false;
-  const encoder = new TextEncoder();
-  const [a, b] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(given)),
-    crypto.subtle.digest("SHA-256", encoder.encode(expected)),
-  ]);
-  const x = new Uint8Array(a);
-  const y = new Uint8Array(b);
-  let diff = 0;
-  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
-  return diff === 0;
 }
 
 function json(status: number, body: Record<string, unknown>): Response {

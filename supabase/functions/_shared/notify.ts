@@ -1,6 +1,6 @@
 // Shared push pipeline for Coach Experience v2 (story C7.5). Every sender uses it:
-// coach_notify now, coach_evening_summary (C7.6), the plan digest (C8.16) and the
-// broadcast (C8.12) later. v1.3 §1.1 Push AC: every send goes through here, which
+// coach_notify (C7.5), coach_evening_summary (C7.6), and later the plan digest
+// (C8.16) and the broadcast (C8.12). v1.3 §1.1 Push AC: every send goes through here, which
 // applies prefs, quiet hours, dedupe, collapse, the link re-check and the log.
 // The kill switch is checked once per request by the caller (_shared/flags.ts,
 // exitIfFlagsOff with coach_v2 and coach_v2_push) before anything here runs.
@@ -21,6 +21,11 @@
 // quiet hours in their CURRENT zone (a zone change or DST is read at flush time),
 // the held rows are re-checked (link still the same and still v2, pref still on;
 // AC9 drops the rest) and go out as ONE collapsed push.
+//
+// The evening summary (C7.6, coach_evening_summary/summary.ts) uses the same
+// pieces: prefs, isQuietTime, localDay, copy.eveningSummary, the log and
+// deliverPush. It holds its own 'quiet' rows (kind coachEveningSummary) and flushes
+// them itself, so flushDeferred never reads them.
 //
 // Push text: no health words, no note, flag or reply text, names isolated with
 // FSI ... PDI (C7.15, _shared/text.ts). Custom data carries ids only (apns.ts
@@ -44,6 +49,8 @@ import { fill, truncateGraphemes } from "./text.ts";
 export type EventKind = "coachRunFinished" | "coachPainFlag" | "athleteCoachReply" | "athleteCoachNote";
 /** The kinds a flush sends. A single held note goes out as a plain athleteCoachNote. */
 export type DigestKind = "coachDigest" | "athleteNotesDigest" | "athleteCoachNote";
+/** C7.6: the 20:00 counts push. One per coach per local day, ref_id = that day. */
+export type SummaryKind = "coachEveningSummary";
 
 export type PrefKey =
   | "coach_run_finished"
@@ -102,7 +109,7 @@ export interface DeferInput {
 export interface DeferredRow {
   id: string;
   recipient_id: string;
-  kind: EventKind;
+  kind: EventKind | SummaryKind;
   payload: Record<string, unknown>;
   created_at: string;
   athlete_id: string;
@@ -116,7 +123,7 @@ export interface DeferredRow {
 export interface LogInput {
   recipientId: string;
   athleteId: string | null;
-  kind: EventKind | DigestKind;
+  kind: EventKind | DigestKind | SummaryKind;
   refId: string | null;
   itemCount: number;
 }
@@ -211,6 +218,25 @@ export function localMinutes(at: Date, timeZone: string): number {
   return hour * 60 + minute;
 }
 
+/** "yyyy-MM-dd" of `at` in `timeZone`. An unknown zone falls back to UTC, like localMinutes. */
+export function localDay(at: Date, timeZone: string): string {
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })
+      .formatToParts(at);
+  } catch {
+    return at.toISOString().slice(0, 10);
+  }
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("year").padStart(4, "0")}-${part("month")}-${part("day")}`;
+}
+
+/** A "yyyy-MM-dd" day plus `n` calendar days. */
+export function addDays(day: string, n: number): string {
+  const ms = Date.parse(`${day}T00:00:00Z`) + n * 24 * 60 * 60 * 1000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
 function timeToMinutes(value: string): number {
   const [h, m] = value.split(":");
   return (Number(h) % 24) * 60 + Number(m ?? 0);
@@ -278,6 +304,17 @@ export const copy = {
   /** AC3. */
   moreFinished(n: number): string {
     return n === 1 ? "1 more athlete finished a run" : `${n} more athletes finished runs`;
+  },
+  /**
+   * C7.6 AC1 and AC3: "Today: {n} missed · {k} flags open · {m} changed their plan", or
+   * "Yesterday: …" when a summary held through quiet hours goes out after the coach's
+   * midnight. Counts only, never a name. All three parts always show (the plan's
+   * template); "1 flag open" is the singular of "{k} flags open".
+   */
+  eveningSummary(missed: number, openFlags: number, planChanges: number, day: "today" | "yesterday"): string {
+    const prefix = day === "yesterday" ? "Yesterday" : "Today";
+    const flags = openFlags === 1 ? "1 flag open" : `${openFlags} flags open`;
+    return `${prefix}: ${missed} missed · ${flags} · ${planChanges} changed their plan`;
   },
 };
 
@@ -356,7 +393,7 @@ export async function notifyOne(event: NotifyEvent, deps: NotifyDeps): Promise<N
     return claim.decision;
   }
 
-  const outcome = await deliver(
+  const outcome = await deliverPush(
     event.recipientId,
     { kind: event.kind, body: event.body, target: event.target },
     claim.logId,
@@ -423,9 +460,10 @@ export async function flushDeferred(deps: NotifyDeps): Promise<FlushSummary> {
     const valid: DeferredRow[] = [];
     for (const row of due) {
       const state = await linkStateFor(row.athlete_id);
-      const rule = EVENT_RULES[row.kind];
+      const kind = row.kind as EventKind;
+      const rule = EVENT_RULES[kind];
       const ok = prefs !== null && rule !== undefined && state !== null && state.link_id === row.link_id &&
-        state.coach_id === row.coach_id && gatePasses(state, rule.gate) && prefAllows(prefs, row.kind);
+        state.coach_id === row.coach_id && gatePasses(state, rule.gate) && prefAllows(prefs, kind);
       if (ok) valid.push(row);
     }
 
@@ -434,8 +472,8 @@ export async function flushDeferred(deps: NotifyDeps): Promise<FlushSummary> {
     summary.dropped += due.filter((row) => deleted.has(row.id)).length - claimed.length;
     if (claimed.length === 0) continue;
 
-    const coachRows = claimed.filter((row) => EVENT_RULES[row.kind].side === "coach");
-    const athleteRows = claimed.filter((row) => EVENT_RULES[row.kind].side === "athlete");
+    const coachRows = claimed.filter((row) => EVENT_RULES[row.kind as EventKind].side === "coach");
+    const athleteRows = claimed.filter((row) => EVENT_RULES[row.kind as EventKind].side === "athlete");
 
     if (coachRows.length > 0) {
       const anyQuiet = coachRows.some((row) => row.reason === "quiet");
@@ -454,7 +492,7 @@ export async function flushDeferred(deps: NotifyDeps): Promise<FlushSummary> {
         itemCount: coachRows.length,
       });
       if (logId) {
-        const outcome = await deliver(recipientId, { kind: "coachDigest", body }, logId, deps);
+        const outcome = await deliverPush(recipientId, { kind: "coachDigest", body }, logId, deps);
         summary.pushes += 1;
         log({ event: "flush", kind: "coachDigest", items: coachRows.length, decision: outcome });
       }
@@ -474,7 +512,7 @@ export async function flushDeferred(deps: NotifyDeps): Promise<FlushSummary> {
         itemCount: athleteRows.length,
       });
       if (logId) {
-        const outcome = await deliver(
+        const outcome = await deliverPush(
           recipientId,
           { kind, body: copy.notes(coachName, athleteRows.length), target },
           logId,
@@ -492,7 +530,12 @@ export async function flushDeferred(deps: NotifyDeps): Promise<FlushSummary> {
 
 // Delivery ------------------------------------------------------------------------------
 
-async function deliver(
+/**
+ * Sends one push to every live device of the recipient and records the outcome on
+ * the log row the caller already wrote (claim, insertLog). Exported for the other
+ * senders (C7.6); it never decides whether to send.
+ */
+export async function deliverPush(
   recipientId: string,
   message: { kind: RemotePushKind; body: string; target?: Partial<Record<RemotePushTargetKey, string>> },
   logId: string,
@@ -548,6 +591,25 @@ export function utcDay(value: string | null | undefined): string | undefined {
   const ms = Date.parse(value);
   if (Number.isNaN(ms)) return undefined;
   return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * Compares SHA-256 digests in constant time, so the length and content of the shared
+ * secret do not leak. Used by every sender that is called by a webhook or a cron
+ * with x-coach-notify-secret (coach_notify, coach_evening_summary).
+ */
+export async function secretMatches(given: string, expected: string): Promise<boolean> {
+  if (!given || !expected) return false;
+  const encoder = new TextEncoder();
+  const [a, b] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(given)),
+    crypto.subtle.digest("SHA-256", encoder.encode(expected)),
+  ]);
+  const x = new Uint8Array(a);
+  const y = new Uint8Array(b);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
 }
 
 const defaultLogger: NotifyLogger = (line) => console.log(JSON.stringify(line));

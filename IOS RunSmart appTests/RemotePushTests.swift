@@ -550,10 +550,20 @@ final class RemotePushRouterTests: XCTestCase {
         }
     }
 
-    // coachEveningSummary -> coach Today
+    // coachEveningSummary -> coach Today, filtered to "Missed today" (C7.6 AC5, T2)
 
-    func testCoachEveningSummaryOpensCoachToday() {
-        XCTAssertEqual(route(RemotePushPayload(kind: .coachEveningSummary), coach), RemotePushRoute(destination: .coachToday))
+    func testCoachEveningSummaryOpensCoachTodayFilteredToMissed() {
+        XCTAssertEqual(
+            route(RemotePushPayload(kind: .coachEveningSummary, day: "2026-11-23"), coach),
+            RemotePushRoute(destination: .coachTodayMissed(dayISO: "2026-11-23"))
+        )
+        // No day in the payload: today's list. No athlete id, so never a "no longer linked" notice.
+        var unloaded = coach
+        unloaded.activeAthletes = nil
+        XCTAssertEqual(
+            route(RemotePushPayload(kind: .coachEveningSummary), unloaded),
+            RemotePushRoute(destination: .coachTodayMissed(dayISO: nil))
+        )
     }
 
     // coachPainFlag -> athlete detail

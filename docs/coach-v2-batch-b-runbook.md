@@ -5,8 +5,10 @@ Nadav only. Agents never run any step here: no migration, no deploy, no webhook,
 Batch B turns on remote push for v2 pairs:
 - M2a `20261122100000_push_tokens_and_prefs.sql` (C7.10): device tokens and notification prefs.
 - M2b `20261122110000_notification_log_and_deferred.sql` (C7.5): the push log and held pushes.
+- `20261122120000_workout_adherence_state.sql` (C7.6): the shared adherence rule and the evening summary counts (functions only).
 - Edge Function `coach_notify` (C7.5): sends the run, flag, reply and note pushes, and the collapsed pushes at quiet end.
-- Four Database Webhooks and one cron job that call `coach_notify`.
+- Edge Function `coach_evening_summary` (C7.6): the 20:00 coach push with counts.
+- Four Database Webhooks and one cron job that call `coach_notify`, and one hourly cron that calls `coach_evening_summary`.
 
 Kill switch for all of it: `runtime_flags.coach_v2_push` (section 7). Rollback: `docs/coach-v2-rollback.md`, Batch B.
 
@@ -27,7 +29,7 @@ Dashboard → Edge Functions → Secrets, or `supabase secrets set --project-ref
 | `APNS_TEAM_ID` | The Apple Developer team id | `_shared/apns.ts` |
 | `APNS_PRIVATE_KEY` | The .p8 file contents (PEM; `\n` escapes are fine) | `_shared/apns.ts` |
 | `APNS_BUNDLE_ID` | The app's bundle id (the `apns-topic`) | `_shared/apns.ts` |
-| `COACH_NOTIFY_SECRET` | A random value you make: `openssl rand -hex 32` | `coach_notify` checks it on every call |
+| `COACH_NOTIFY_SECRET` | A random value you make: `openssl rand -hex 32` | `coach_notify` and `coach_evening_summary` check it on every call |
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set by Supabase already.
 
@@ -35,12 +37,13 @@ Keep the `COACH_NOTIFY_SECRET` value at hand: the webhooks (section 4) and the v
 
 Without the four `APNS_*` secrets, `coach_notify` answers 503 `apns_not_configured` and touches nothing. Without `COACH_NOTIFY_SECRET`, it answers 500 and touches nothing.
 
-## 2. Apply M2a, then M2b
+## 2. Apply M2a, M2b, then the C7.6 file
 
-Same way as Batch A, in this order (M2b's functions read M2a's tables at send time):
+Same way as Batch A, in this order (M2b's functions read M2a's tables at send time; the C7.6 counts read M2a's prefs):
 
 1. `20261122100000_push_tokens_and_prefs.sql`
 2. `20261122110000_notification_log_and_deferred.sql`
+3. `20261122120000_workout_adherence_state.sql`
 
 Check:
 
@@ -49,9 +52,13 @@ select to_regclass('public.push_tokens'), to_regclass('public.notification_prefs
        to_regclass('public.coach_notification_log'), to_regclass('public.deferred_pushes');
 select proname from pg_proc where proname like 'coach_notify_%' order by 1;
 -- expect coach_notify_claim, coach_notify_defer, coach_notify_link_state
+select proname from pg_proc
+where proname in ('workout_adherence_boundary', 'workout_adherence_state', 'coach_evening_summary_counts')
+order by 1;
+-- expect all three
 ```
 
-Then mark both rows `applied` in `docs/migration-ledger.md` (both repos).
+Then mark the three rows `applied` in `docs/migration-ledger.md` (both repos).
 
 ## 3. Deploy `coach_notify`
 
@@ -62,6 +69,14 @@ supabase functions deploy coach_notify --no-verify-jwt --project-ref <ref>
 ```
 
 `--no-verify-jwt`: the callers are the webhooks and the cron, not the app. The function checks `x-coach-notify-secret` itself (constant-time compare) and refuses anything else with 401.
+
+Then the evening summary (C7.6), the same way:
+
+```bash
+supabase functions deploy coach_evening_summary --no-verify-jwt --project-ref <ref>
+```
+
+Its only caller is the hourly cron (section 5b). Same secret, same header, same 401.
 
 ## 4. Four Database Webhooks
 
@@ -115,7 +130,41 @@ select cron.schedule(
 
 Why every minute: the burst push is due at the end of a 10-minute window, and quiet end is any minute the user picked. The function sends nothing until a held row is due.
 
-C7.6 (evening summary) adds its own hourly cron for `coach_evening_summary`; it is not part of this step.
+## 5b. The evening summary cron (every hour, C7.6)
+
+Uses the same vault entry as section 5. Schedule (replace `<ref>`):
+
+```sql
+select cron.schedule(
+  'coach_evening_summary_hourly',
+  '0 * * * *',
+  $$
+  select net.http_post(
+    url := 'https://<ref>.supabase.co/functions/v1/coach_evening_summary',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-coach-notify-secret',
+      (select decrypted_secret from vault.decrypted_secrets where name = 'coach_notify_secret')
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 30000
+  );
+  $$
+);
+```
+
+What each run does: sends the summaries held through quiet hours that are now due ("Yesterday: …" after the coach's midnight), then, for every coach whose local time (their `notification_prefs.time_zone`) is in the 20:00 hour, one push "Today: {n} missed · {k} flags open · {m} changed their plan". No push when all three are 0, none with the T5 toggle off, at most one per coach per local day (the log). Every run falls in exactly one local 20:00 hour per zone, half-hour zones and DST days included, so keep it at minute 0 and hourly. A run that fails (cron down for that hour) skips that evening's summary; nothing is sent late.
+
+Check after the first evening:
+
+```sql
+select ref_id as day, outcome, count(*)
+from public.coach_notification_log
+where kind = 'coachEveningSummary' and sent_at > now() - interval '2 days'
+group by 1, 2 order by 1, 2;
+
+select count(*) from public.deferred_pushes where kind = 'coachEveningSummary';
+```
 
 ## 6. Smoke test (one pilot pair)
 
@@ -154,6 +203,7 @@ Remove the triggers (before a rollback of M2b, see `docs/coach-v2-rollback.md`):
 
 ```sql
 select cron.unschedule('coach_notify_flush');
+select cron.unschedule('coach_evening_summary_hourly');
 ```
 
 Then delete the four webhooks in Dashboard → Database → Webhooks.

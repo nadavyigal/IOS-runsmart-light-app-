@@ -14,6 +14,8 @@ final class CoachAthleteListModel: ObservableObject {
     /// C7.1: what Coach Today shows. Nil unless v2 is on and a load finished. The screen never
     /// re-sorts while visible: a background refresh waits in `pending` behind a "New updates" pill.
     @Published private(set) var today: CoachTodaySnapshot?
+    /// C7.6 AC5: T2, set by a tapped evening summary and cleared by "Show all". Nil shows all of Today.
+    @Published var todayFilter: CoachTodayFilter?
     @Published private(set) var hasPendingUpdate = false
     /// C7.16: milestone ids the coach has reacted to (set at the tap, before the send finishes).
     @Published private(set) var reactedMilestones: Set<String> = []
@@ -393,6 +395,7 @@ final class CoachAthleteListModel: ObservableObject {
     func reset(for owner: UUID?) {
         guard ownerID != owner else { return }
         ownerID = owner
+        todayFilter = nil
         generation += 1
         rows = []
         updatedAt = nil

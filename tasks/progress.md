@@ -1,3 +1,12 @@
+# 2026-11-23: Coach v2 C7.6 evening summary with counts (PR, Batch B)
+
+Current Phase: Coach Experience v2, Batch B. C7.6 iOS and web twin PRs open; 20261122120000 written, not applied.
+Active Story: C7.6: coach_evening_summary hourly cron, 20:00 counts push, quiet-hours Yesterday, T2 Missed today filter, shared adherence SQL.
+Next Recommended Story: Overseer review of C7.6; then Nadav applies Batch B and runs TF-1 with the kill-switch drill.
+Blockers: Nadav: Batch B apply (M2a, M2b, C7.6 file), secrets, webhooks, flush and hourly crons, both deploys.
+Last Validation: workout_adherence_state SQL PASS + rollback; 126 Deno pass; iOS C7.6 classes pass; drift CLEAN 27.
+Last Updated: 2026-11-23
+
 # 2026-11-23: Coach v2 C7.5 push sender, M2b (ready PR, rebased after C7.10 merged)
 
 Current Phase: Coach Experience v2, Batch B. C7.10 merged; C7.5 iOS #250 and web #180 ready, rebased on main; M2b written, not applied.

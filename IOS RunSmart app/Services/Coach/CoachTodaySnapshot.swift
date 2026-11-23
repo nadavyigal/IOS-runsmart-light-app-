@@ -143,6 +143,24 @@ enum CoachTodayReason: String, Equatable, CaseIterable {
     }
 }
 
+/// T2 (story C7.6 AC5, UX spec A.5): Coach Today filtered to the athletes who missed a day's
+/// workout. Set by a tapped evening summary; "Show all" clears it.
+struct CoachTodayFilter: Equatable, Sendable {
+    /// The summary's day, `yyyy-MM-dd`. Nil (or a day not on the strip) means today.
+    let dayISO: String?
+}
+
+/// T2 copy (UX spec A.5, exact strings).
+enum CoachTodayFilterCopy {
+    static let showAll = "Show all"
+    static let emptied = "Everyone on the 20:00 list has logged a run since."
+
+    /// "Missed today · {n}", or "Missed yesterday · {n}" when the summary was opened the next day.
+    static func chip(yesterday: Bool, count: Int) -> String {
+        "\(yesterday ? "Missed yesterday" : "Missed today") · \(count)"
+    }
+}
+
 /// The groups of T1, in screen order (UX spec A.3 item 3).
 enum CoachTodayGroup: Int, CaseIterable, Comparable {
     /// C7.4: open flags, first. Absent when nobody has an open flag or the flags read failed.
@@ -323,6 +341,26 @@ struct CoachTodaySnapshot: Equatable {
         let onTrack = rows.count { $0.group == .onTrack }
         let rest = rows.count { $0.group == .restToday }
         return "\(onTrack) on track · \(rest) rest \(rest == 1 ? "day" : "days")"
+    }
+
+    /// C7.6 AC5, T2: the rows the evening summary counted as missed on the filter's day, in screen
+    /// order. The summary counts a workout that was not 80% done by 20:00, so a missed day and a
+    /// partial day both count (plan C7.6 AC1). The list is live: an athlete who logged a run since
+    /// leaves it, and when nobody is left the view shows `CoachTodayFilterCopy.emptied`.
+    /// With the runs call failed, nobody can be told apart, so the list is empty and the runs banner
+    /// explains why.
+    func missedRows(for filter: CoachTodayFilter) -> (yesterday: Bool, rows: [CoachTodayRow]) {
+        let todayISO = CoachReadDay.iso(generatedAt, calendar: calendar)
+        let yesterdayISO = calendar.date(byAdding: .day, value: -1, to: generatedAt)
+            .map { CoachReadDay.iso($0, calendar: calendar) }
+        let dayISO = filter.dayISO.flatMap { day in
+            rows.first?.days.contains { $0.iso == day } == true ? day : nil
+        } ?? todayISO
+        guard runsLoaded else { return (dayISO == yesterdayISO, []) }
+        let missed = rows.filter { row in
+            row.days.contains { $0.iso == dayISO && ($0.state == .missed || $0.state == .partial) }
+        }
+        return (dayISO == yesterdayISO, missed)
     }
 
     /// "Today, Tue 24 Nov". The weekday and month words follow the coach's locale.

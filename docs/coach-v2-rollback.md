@@ -183,7 +183,8 @@ Rules for every batch:
 | File | Story | Rollback file | Status |
 |---|---|---|---|
 | `20261122100000_push_tokens_and_prefs.sql` (M2a) | C7.10 | `supabase/rollback/20261122100000_push_tokens_and_prefs.sql` | merged (iOS #248, web #178); not applied |
-| `20261122110000_notification_log_and_deferred.sql` (M2b) | C7.5 | `supabase/rollback/20261122110000_notification_log_and_deferred.sql` | written (draft PR) |
+| `20261122110000_notification_log_and_deferred.sql` (M2b) | C7.5 | `supabase/rollback/20261122110000_notification_log_and_deferred.sql` | merged (iOS #250, web #180); not applied |
+| `20261122120000_workout_adherence_state.sql` | C7.6 | `supabase/rollback/20261122120000_workout_adherence_state.sql` | written (draft PR) |
 
 First move: `coach_v2_push` to false. Senders keep their queue.
 
@@ -208,6 +209,17 @@ First move: `coach_v2_push` to false. Senders keep their queue.
 6. **Account deletion:** every user column (`recipient_id`, `athlete_id`, `coach_id`) references `auth.users` with `on delete cascade`, so `delete_account` (which deletes the auth user last) removes a deleted user's rows. `purge_coach_data_for_deleted_account` is not replaced by M2b.
 7. **Link end:** leaving or a removal deletes nothing here (v1.3 §3.1). The flush re-checks each held row's `link_id` against the athlete's active link and the v2 gates, and drops the rows that fail (C7.5 AC9), so a rejoin never delivers old events.
 8. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-23: `notification_log_and_deferred.sql` passes on top of the coach read fixture, every Batch A file and M2a (M2b applied twice first).
+
+#### C7.6: `20261122120000_workout_adherence_state.sql`
+
+1. **Flag to flip first:** `coach_v2_push` to false. `coach_evening_summary` then sends nothing, holds nothing new and deletes nothing: held summaries wait and go out at the next run after the flag is back on (as "Yesterday:" only until 20:00 the next day, then dropped as stale). To stop only the summary, unschedule `coach_evening_summary_hourly` (`docs/coach-v2-batch-b-runbook.md` section 7). Coaches can also turn it off themselves (T5 "Evening summary at 20:00").
+2. **Safe with the flag off:** nothing to keep beyond M2b's rows. The file adds functions only: no table, column, policy or row.
+3. **Rollback file:** `supabase/rollback/20261122120000_workout_adherence_state.sql`. Unschedule `coach_evening_summary_hourly` first. It drops `coach_evening_summary_counts`, `workout_adherence_state` and `workout_adherence_boundary`. Held summary rows (`deferred_pushes`, kind `coachEveningSummary`) and summary log rows stay.
+4. **When not to roll back:** while `coach_evening_summary` is deployed with its cron scheduled; unschedule first. M2b and M2a must stay applied while this file is.
+5. **After the rollback, the app:** nothing changes. No client calls these functions. Coaches get no evening summary until the file is re-applied; a tap on an old summary push still opens Coach Today filtered to "Missed today".
+6. **Account deletion:** no user data here. A deleted coach's held summary and log rows go with M2b's `on delete cascade`.
+7. **Server-only:** the three functions are revoked from `public`, `anon` and `authenticated` and granted to `service_role` only. `coach_evening_summary_counts` is security definer with `search_path = ''` and returns three integers, never a name.
+8. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-23: `workout_adherence_state.sql` passes on top of the coach read fixture, every Batch A file, M2a and M2b (this file applied twice first).
 
 ### Batch C (R3: coach builds workouts)
 

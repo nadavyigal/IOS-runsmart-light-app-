@@ -41,6 +41,8 @@ final class AppRouter: ObservableObject {
     @Published var planFocusDate: Date?
     /// C7.10: a tapped coach push opens this athlete on the Coach tab. CoachTabView consumes it.
     @Published var pendingCoachDestination: CoachAthleteDestination?
+    /// C7.6 AC5: a tapped evening summary opens Coach Today filtered to this (T2).
+    @Published var pendingCoachTodayFilter: CoachTodayFilter?
 
     private static func initialTab() -> RunSmartTab {
 #if DEBUG
@@ -122,6 +124,15 @@ final class AppRouter: ObservableObject {
             activeSheet = nil
             pendingCoachDestination = nil
             selectedTab = coachModeEnabled ? .coach : .today
+        case .coachTodayMissed(let dayISO):
+            activeSheet = nil
+            pendingCoachDestination = nil
+            guard coachModeEnabled else {
+                selectedTab = .today
+                return
+            }
+            selectedTab = .coach
+            pendingCoachTodayFilter = CoachTodayFilter(dayISO: dayISO)
         case .coachAthlete(let id, let name, let dayISO):
             activeSheet = nil
             guard coachModeEnabled else {
