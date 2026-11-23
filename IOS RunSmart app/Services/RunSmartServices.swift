@@ -107,6 +107,8 @@ protocol WebParityProviding {
     func generateRunReportIfMissing(for run: RecordedRun) async -> RunReportDetail?
     func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail?
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome
+    /// Same, saying why the run is being processed (only `.liveRun` may use the on-device debrief).
+    func processCompletedActivity(_ run: RecordedRun, trigger: RunDebriefTrigger) async -> PostActivityOutcome
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult?
     func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison?
     func trainingLoadSnapshot() async -> TrainingLoadSnapshot
@@ -134,6 +136,9 @@ extension WebParityProviding {
     func generateRunReportIfMissing(forRunID runID: String) async -> RunReportDetail? { nil }
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
         PostActivityOutcome(canonicalRun: run, report: nil, completedWorkout: nil, didCompletePlannedWorkout: false, debrief: nil)
+    }
+    func processCompletedActivity(_ run: RecordedRun, trigger: RunDebriefTrigger) async -> PostActivityOutcome {
+        await processCompletedActivity(run)
     }
     func matchRoute(for run: RecordedRun) async -> RouteMatchResult? { nil }
     func benchmarkComparison(for run: RecordedRun) async -> BenchmarkRouteComparison? { nil }

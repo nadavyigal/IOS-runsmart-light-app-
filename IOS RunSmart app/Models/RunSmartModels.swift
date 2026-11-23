@@ -1815,6 +1815,7 @@ struct RunReportDetail: Identifiable, Codable, Hashable {
 struct PostRunDebriefModel: Hashable {
     enum Source: String, Hashable {
         case ai
+        case onDevice = "on_device"
         case fallback
     }
 
