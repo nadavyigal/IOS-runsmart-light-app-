@@ -13,7 +13,8 @@ import Foundation
 // does not know yet (roster not loaded), it opens the nearest safe screen with no notice, so it
 // never claims something is gone that may not be.
 
-/// The §3.5 kinds, plus `selfTest` (push_selftest). Raw values match `REMOTE_PUSH_KINDS` in apns.ts.
+/// The §3.5 kinds, C7.5's two collapsed kinds, plus `selfTest` (push_selftest). Raw values match
+/// `REMOTE_PUSH_KINDS` in apns.ts.
 nonisolated enum RemotePushKind: String, CaseIterable, Sendable {
     case coachRunFinished
     case coachEveningSummary
@@ -24,6 +25,11 @@ nonisolated enum RemotePushKind: String, CaseIterable, Sendable {
     case athletePlanPublished
     case athletePlanUpdated
     case athleteBroadcast
+    /// C7.5, coach receives: one collapsed push, "While you were away: {r} runs · {f} flags · {p} replies"
+    /// at quiet end, or "{n} more athletes finished runs" after a burst. Opens Coach Today.
+    case coachDigest
+    /// C7.5, athlete receives: "{Coach} left you {n} notes" at quiet end. Opens My coach.
+    case athleteNotesDigest
     case selfTest
 }
 
@@ -162,7 +168,8 @@ nonisolated enum RemotePushRouter {
             return RemotePushRoute(destination: .today)
 
         // Coach side ----------------------------------------------------------------
-        case .coachEveningSummary:
+        case .coachEveningSummary, .coachDigest:
+            // A collapsed push is about several athletes: Coach Today, where each one shows.
             return RemotePushRoute(destination: context.isCoach ? .coachToday : .today)
 
         case .coachRunFinished:
@@ -191,6 +198,17 @@ nonisolated enum RemotePushRouter {
                 if let id = payload.feedbackID, let notes = context.feedbackIDs, !notes.contains(id) {
                     return RemotePushRoute(destination: .myCoach, notice: RemotePushCopy.noteGone)
                 }
+                return RemotePushRoute(destination: .myCoach)
+            }
+
+        case .athleteNotesDigest:
+            // Several notes: My coach lists them all. No single note to check.
+            switch context.hasActiveCoachLink {
+            case false?:
+                return RemotePushRoute(destination: .today, notice: RemotePushCopy.coachLinkEnded(context.coachName))
+            case nil:
+                return RemotePushRoute(destination: .today)
+            case true?:
                 return RemotePushRoute(destination: .myCoach)
             }
 

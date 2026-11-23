@@ -43,7 +43,7 @@ export const APNS_HOSTS: Record<PushEnvironment, string> = {
   production: "https://api.push.apple.com",
 };
 
-/** §3.5 kinds, plus selfTest for push_selftest. The app's router knows each one. */
+/** §3.5 kinds, C7.5's two collapsed kinds, plus selfTest for push_selftest. The app's router knows each one. */
 export const REMOTE_PUSH_KINDS = [
   "coachRunFinished",
   "coachEveningSummary",
@@ -53,6 +53,11 @@ export const REMOTE_PUSH_KINDS = [
   "athletePlanPublished",
   "athletePlanUpdated",
   "athleteBroadcast",
+  // C7.5: the collapsed pushes. coachDigest is "While you were away: ..." or
+  // "{n} more athletes finished runs" (coach Today); athleteNotesDigest is
+  // "{Coach} left you {n} notes" (My coach).
+  "coachDigest",
+  "athleteNotesDigest",
   "selfTest",
 ] as const;
 export type RemotePushKind = typeof REMOTE_PUSH_KINDS[number];

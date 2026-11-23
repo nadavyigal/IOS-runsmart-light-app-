@@ -545,7 +545,7 @@ final class RemotePushRouterTests: XCTestCase {
     func testCoachPushOnANonCoachAccountOpensToday() {
         var context = coach
         context.isCoach = false
-        for kind in [RemotePushKind.coachRunFinished, .coachPainFlag, .athleteCoachReply, .coachEveningSummary] {
+        for kind in [RemotePushKind.coachRunFinished, .coachPainFlag, .athleteCoachReply, .coachEveningSummary, .coachDigest] {
             XCTAssertEqual(route(RemotePushPayload(kind: kind, athleteID: dana), context), RemotePushRoute(destination: .today), "\(kind)")
         }
     }
@@ -593,6 +593,52 @@ final class RemotePushRouterTests: XCTestCase {
         let result = route(RemotePushPayload(kind: .athleteCoachReply, athleteID: gone, feedbackID: note), coach)
         XCTAssertEqual(result.destination, .coachToday)
         XCTAssertEqual(result.notice, RemotePushCopy.athleteGone(nil))
+    }
+
+    // C7.5 coachDigest ("While you were away: ...", "{n} more athletes finished runs") -> coach Today
+
+    func testCoachDigestOpensCoachToday() {
+        XCTAssertEqual(route(RemotePushPayload(kind: .coachDigest), coach), RemotePushRoute(destination: .coachToday))
+        // No athlete id, so no roster check and no "no longer linked" notice, even with the roster unloaded.
+        var unloaded = coach
+        unloaded.activeAthletes = nil
+        XCTAssertEqual(route(RemotePushPayload(kind: .coachDigest), unloaded), RemotePushRoute(destination: .coachToday))
+    }
+
+    // C7.5 athleteNotesDigest ("{Coach} left you {n} notes") -> My coach
+
+    func testAthleteNotesDigestOpensMyCoach() {
+        let result = route(RemotePushPayload(kind: .athleteNotesDigest, coachID: UUID()), athlete)
+        XCTAssertEqual(result, RemotePushRoute(destination: .myCoach))
+    }
+
+    func testAthleteNotesDigestAfterTheLinkEnded() {
+        var context = athlete
+        context.hasActiveCoachLink = false
+        let result = route(RemotePushPayload(kind: .athleteNotesDigest), context)
+        XCTAssertEqual(result, RemotePushRoute(destination: .today, notice: "You're no longer linked to \u{2068}Ron\u{2069}."))
+    }
+
+    func testAthleteNotesDigestBeforeTheLinkLoadedClaimsNothing() {
+        var context = athlete
+        context.hasActiveCoachLink = nil
+        XCTAssertEqual(route(RemotePushPayload(kind: .athleteNotesDigest), context), RemotePushRoute(destination: .today))
+    }
+
+    func testCollapsedKindsParseFromTheServerPayload() {
+        let coachID = UUID()
+        XCTAssertEqual(RemotePushPayload(userInfo: ["rs": ["v": 1, "kind": "coachDigest"]]), RemotePushPayload(kind: .coachDigest))
+        XCTAssertEqual(
+            RemotePushPayload(userInfo: ["rs": ["v": 1, "kind": "athleteNotesDigest", "coach_id": coachID.uuidString.lowercased()]]),
+            RemotePushPayload(kind: .athleteNotesDigest, coachID: coachID)
+        )
+    }
+
+    func testFlagOffCollapsedKindsOpenToday() {
+        let off = RemotePushRouteContext(v2Enabled: false, isCoach: true, hasActiveCoachLink: true)
+        for kind in [RemotePushKind.coachDigest, .athleteNotesDigest] {
+            XCTAssertEqual(route(RemotePushPayload(kind: kind), off), RemotePushRoute(destination: .today), "\(kind)")
+        }
     }
 
     // athleteCoachNote -> the note on My coach
@@ -703,7 +749,8 @@ final class RemotePushRouterTests: XCTestCase {
         // supabase/functions/_shared/apns.ts REMOTE_PUSH_KINDS
         XCTAssertEqual(RemotePushKind.allCases.map(\.rawValue), [
             "coachRunFinished", "coachEveningSummary", "coachPainFlag", "athleteCoachNote", "athleteCoachReply",
-            "athletePlanPublished", "athletePlanUpdated", "athleteBroadcast", "selfTest",
+            "athletePlanPublished", "athletePlanUpdated", "athleteBroadcast", "coachDigest", "athleteNotesDigest",
+            "selfTest",
         ])
     }
 }

@@ -1,3 +1,12 @@
+# 2026-11-23: Coach v2 C7.5 push sender, M2b (ready PR, rebased after C7.10 merged)
+
+Current Phase: Coach Experience v2, Batch B. C7.10 merged; C7.5 iOS #250 and web #180 ready, rebased on main; M2b written, not applied.
+Active Story: C7.5: coach_notify (runs, flags, notes, replies), _shared/notify.ts, quiet hours, dedupe, burst collapse, M2b log and deferred tables.
+Next Recommended Story: Founder yes to merge C7.5 (#250, #180); then C7.6 evening summary on notify.ts.
+Blockers: Nadav: Batch B apply (M2a, M2b), APNs and COACH_NOTIFY_SECRET secrets, four webhooks, flush cron, coach_notify deploy.
+Last Validation: After rebase: M2b + M2a SQL PASS; 105 Deno pass (45 new); RemotePush iOS 61 run, 0 failed; drift CLEAN 26.
+Last Updated: 2026-11-23
+
 # 2026-11-23: Coach v2 C7.10 remote push foundation, M2a (draft PR)
 
 Current Phase: Coach Experience v2, Batch B start. C7.10 PRs open in iOS and web twin; M2a written, not applied; APNs secrets not set.

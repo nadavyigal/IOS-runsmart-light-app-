@@ -85,7 +85,7 @@ struct RemotePushHooks: View {
 
     private static func isCoachKind(_ kind: RemotePushKind) -> Bool {
         switch kind {
-        case .coachRunFinished, .coachPainFlag, .athleteCoachReply, .coachEveningSummary: true
+        case .coachRunFinished, .coachPainFlag, .athleteCoachReply, .coachEveningSummary, .coachDigest: true
         default: false
         }
     }
