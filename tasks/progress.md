@@ -7,6 +7,15 @@ Blockers: Nadav: Batch B apply (M2a, M2b), APNs and COACH_NOTIFY_SECRET secrets,
 Last Validation: After rebase: M2b + M2a SQL PASS; 105 Deno pass (45 new); RemotePush iOS 61 run, 0 failed; drift CLEAN 26.
 Last Updated: 2026-11-23
 
+# 2026-11-23: Coach v2 C7.14 notification settings, coach and athlete (ready PR)
+
+Current Phase: Coach Experience v2, Batch B. C7.14 PR #247 ready; no migration. C7.10 merged; turnOn wired to its T6/P10 flow.
+Active Story: C7.14: coach T5 (Coach tab menu) and athlete (My coach) toggles, quiet hours, permission line, v2-gated.
+Next Recommended Story: Overseer merge of C7.14; then C7.5 push sender and C7.6 evening summary.
+Blockers: Sally light copy review of the athlete section header; APNs setup for device tests.
+Last Validation: 20 coach test classes 327 passed, 0 failed (iPhone 17 Pro, iOS 26.5); 12 fixture screenshots (default, XXL, AX3, RTL, denied).
+Last Updated: 2026-11-23
+
 # 2026-11-23: Coach v2 C7.10 remote push foundation, M2a (draft PR)
 
 Current Phase: Coach Experience v2, Batch B start. C7.10 PRs open in iOS and web twin; M2a written, not applied; APNs secrets not set.
@@ -132,6 +141,15 @@ Next Recommended Story: C0.2 migration mirror check plus C7.0 gate, kill switch 
 Blockers: Founder plan approval; confirm 6 v1 coach migrations applied in production; APNs setup.
 Last Validation: Docs only. Claims checked against origin/main 4a016b4 by code read; no build or tests run.
 Last Updated: 2026-11-20
+
+# 2026-11-21: Debrief generator protocol (draft PR, no behavior change)
+
+Current Phase: 1.2.6 (46) live on the App Store; Apple membership plan PR 1 of the on-device debrief experiment.
+Active Story: `RunDebriefGenerating` protocol and `RunDebriefPipeline`; cloud debrief moved into `CloudRunDebriefGenerator`, same order and fallback.
+Next Recommended Story: PR 2, on-device generator as a small opt-in (English, eligible devices); needs Nadav's call on the opt-in surface.
+Blockers: none for this PR; draft only, Nadav merges.
+Last Validation: 2026-11-21 full suite 1150 passed, 0 failed, 1 opt-in skip; new RunDebriefPipelineTests 5/0; iPhone 17 iOS 26.5 sim.
+Last Updated: 2026-11-21
 
 # 2026-11-20: RunSmart 1.2.6 (46) submitted to App Review
 
