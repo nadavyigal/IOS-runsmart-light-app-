@@ -17,8 +17,10 @@
 --   * AC3 parity: after a removal and after a leave, every coach read that exists
 --     at this point returns zero rows for that athlete (get_coach_welcome raises
 --     not_linked, as it does for any unlinked athlete). C7.4's
---     coach_get_athlete_flags is included. Each read is checked
---     non-empty first, so a zero means the link end did it.
+--     coach_get_athlete_flags is included. C7.7's coach_get_feedback_replies is
+--     included when 20261121180000 is applied (this suite's CI row runs before it;
+--     coach_feedback_replies.sql covers a removal through coach_remove_athlete).
+--     Each read is checked non-empty first, so a zero means the link end did it.
 --   * AC7: a queued coach write for the removed athlete raises link_inactive.
 --   * AC5: the removed v2 athlete sees one notice with the coach's name, once.
 --     An athlete who left sees none. A 1.2.6 athlete (no v2 capability row) sees
@@ -174,6 +176,12 @@ begin
   perform pg_temp.expect_count(
     'select 1 where exists (select 1 from public.coach_get_athlete_flags(array[' || a || '], true))',
     want, label || ': coach_get_athlete_flags');
+  -- C7.7 (M4): only when 20261121180000 is applied.
+  if to_regprocedure('public.coach_get_feedback_replies(uuid[])') is not null then
+    perform pg_temp.expect_count(
+      'select 1 where exists (select 1 from public.coach_get_feedback_replies(array[' || a || ']))',
+      want, label || ': coach_get_feedback_replies');
+  end if;
   perform pg_temp.expect_count(
     'select 1 where exists (select 1 from public.coach_get_athlete_events(' || a || '))', want, label || ': coach_get_athlete_events');
   perform pg_temp.expect_count(
@@ -279,6 +287,22 @@ begin
     insert into public.coach_athlete_events (coach_id, athlete_id, kind)
     values (coach, ath, 'goal_change');
   end loop;
+end $$;
+
+-- C7.7 (M4), when applied: each athlete has replied to their coach's run note.
+do $$
+begin
+  if to_regprocedure('public.coach_get_feedback_replies(uuid[])') is not null then
+    execute $q$
+      insert into public.coach_feedback_replies (id, feedback_id, author_id, link_id, text)
+      select gen_random_uuid(), f.id, f.athlete_id, l.id, 'Thanks'
+      from public.coach_feedback f
+      join public.coach_athlete_links l
+        on l.coach_id = f.coach_id and l.athlete_id = f.athlete_id and l.status = 'active'
+      where f.kind = 'note'
+        and f.athlete_id in ('bbbbbbbb-0000-4000-8000-00000000000b', 'eeeeeeee-0000-4000-8000-00000000000e')
+    $q$;
+  end if;
 end $$;
 
 -- Baseline: every read sees B (as Dana) and E (as Ron).

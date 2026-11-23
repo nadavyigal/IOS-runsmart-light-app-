@@ -61,6 +61,9 @@ nonisolated enum CoachV2Analytics {
         case flagRemoved
         /// C7.4: the coach's "Mark handled" reached the server. Minutes from the flag to the resolve.
         case flagResolved(minutesOpen: Int)
+        /// C7.7: the athlete's reply to a coach note reached the server. `target` says what kind of note
+        /// it answers. Never the text.
+        case coachNoteReplySent(target: FeedbackReplyTarget)
         /// C7.11: the coach removed an athlete and the server ended the link. No properties.
         case coachRemovedAthlete
         /// C7.11: the athlete left their coach (A13 or P9) and the server ended the link. No properties.
@@ -82,6 +85,7 @@ nonisolated enum CoachV2Analytics {
             case .flagCreated: "flag_created"
             case .flagRemoved: "flag_removed"
             case .flagResolved: "flag_resolved"
+            case .coachNoteReplySent: "coach_note_reply_sent"
             case .coachRemovedAthlete: "coach_removed_athlete"
             case .athleteLeftCoach: "athlete_left_coach"
             }
@@ -111,6 +115,8 @@ nonisolated enum CoachV2Analytics {
                 [:]
             case .flagResolved(let minutesOpen):
                 ["minutes_open": .count(minutesOpen)]
+            case .coachNoteReplySent(let target):
+                ["target": .kind(target.rawValue)]
             }
         }
     }

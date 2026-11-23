@@ -159,15 +159,24 @@ struct CoachAthleteDetailView: View {
 
     init(destination: CoachAthleteDestination, service: any CoachReadServing = CoachReadService(),
          feedbackService: any CoachFeedbackServing = SupabaseCoachFeedbackService(),
+         replyService: any CoachFeedbackReplyFetching = SupabaseCoachFeedbackReplyService(),
          onRemoved: @escaping () -> Void = {}) {
         self.destination = destination
         self.onRemoved = onRemoved
         _model = StateObject(wrappedValue: CoachAthleteDetailModel(
             athleteID: destination.athleteID, service: service, coachV2: destination.coachV2
         ))
-        _feedback = StateObject(wrappedValue: CoachFeedbackStore(
-            athleteID: destination.athleteID, athleteName: destination.name, service: feedbackService
+        _feedback = StateObject(wrappedValue: Self.feedbackStore(
+            destination: destination, service: feedbackService, replies: replyService
         ))
+    }
+
+    /// C7.7: replies under the notes, only for a Coach v2 athlete (no reply call otherwise).
+    private static func feedbackStore(destination: CoachAthleteDestination, service: any CoachFeedbackServing,
+                                      replies: any CoachFeedbackReplyFetching) -> CoachFeedbackStore {
+        let store = CoachFeedbackStore(athleteID: destination.athleteID, athleteName: destination.name, service: service)
+        if destination.coachV2 { store.enableReplies(replies) }
+        return store
     }
 
     var body: some View {
@@ -218,10 +227,14 @@ struct CoachAthleteDetailView: View {
             }
         }
         .task { await model.load() }
-        .task { await feedback.load() }
+        .task {
+            await feedback.load()
+            await feedback.loadReplies()
+        }
         .refreshable {
             await model.load()
             await feedback.load()
+            await feedback.loadReplies()
         }
         .onAppear { feedback.startReachability() }
         .onDisappear { feedback.stopReachability() }
