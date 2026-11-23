@@ -1,3 +1,12 @@
+# 2026-11-23: Coach v2 Batch B database applied to production
+
+Current Phase: Coach Experience v2, Phase 1 code complete; Batch A and Batch B migrations applied to prod (3 Batch B files).
+Active Story: Ledger update: M2a, M2b and workout_adherence_state applied with prod versions.
+Next Recommended Story: Nadav: APNs key and secrets, deploy coach_notify and coach_evening_summary, webhooks, crons; then TF-1.
+Blockers: Push stays silent until APNS_* and COACH_NOTIFY_SECRET are set and the functions, webhooks and crons exist.
+Last Validation: 3 prod SQL md5s match repo files; internal functions not client-callable; RLS on 4 new tables; counts query runs.
+Last Updated: 2026-11-23
+
 # 2026-11-23: Coach v2 C7.6 evening summary with counts (PR, Batch B)
 
 Current Phase: Coach Experience v2, Batch B. C7.6 iOS and web twin PRs open; 20261122120000 written, not applied.
