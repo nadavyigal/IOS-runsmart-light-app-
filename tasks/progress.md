@@ -4,7 +4,16 @@ Current Phase: Coach Experience v2, R1 last story. C7.16 draft PR open in iOS on
 Active Story: C7.16: First run, First full week, Longest run, Quiet 3 days tags on Coach Today; 👏 🔥 Great job reactions via coach feedback.
 Next Recommended Story: Overseer review of C7.16; then Nadav applies Batch A and runs TF-1a on a phone.
 Blockers: Nadav applies Batch A (M0, M0b, M5a, M1a, M3, M4, M1b, M5b) before v2 shows anything; none for this PR.
-Last Validation: 9 coach test classes 210 passed, 0 failed (iPhone 17, iOS 26.5); 3 milestone screenshots; full suite left to CI; overseer review: no blockers.
+Last Validation: 9 coach test classes 210 passed, 0 failed (iPhone 17, iOS 26.5); 3 milestone screenshots; overseer review: no blockers. After C7.11 merge: 10 coach test classes 206 passed, 0 failed.
+Last Updated: 2026-11-23
+
+# 2026-11-22: Coach v2 C7.11 coach removes an athlete, M5b (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 4, lane B. C7.11 in draft PRs (iOS + web twin); M5b written, not applied.
+Active Story: C7.11: Remove {Athlete}, end_coach_link shared with leave_coach, one-time athlete line, left/removed events.
+Next Recommended Story: C7.16 milestones (lane B) after C7.1/C7.2; Batch A apply after the Grok Bot audit.
+Blockers: Nadav applies Batch A incl. M5b; Sally light copy review of the remove sheet lines.
+Last Validation: After C7.4 catch-up: SQL coach_link_end, kill_switch, athlete_run_flags, 1.5 leave_coach PASS; 20 coach classes 300 passed, 0 failed.
 Last Updated: 2026-11-22
 
 # 2026-11-22: Coach v2 C7.4 pain / something off flag (draft PR)

@@ -66,6 +66,10 @@ nonisolated enum CoachV2Analytics {
         case milestoneShown(kind: String)
         /// C7.16: the coach tapped a one-tap reaction on a milestone. Never which reaction or the athlete.
         case praiseSent(kind: String)
+        /// C7.11: the coach removed an athlete and the server ended the link. No properties.
+        case coachRemovedAthlete
+        /// C7.11: the athlete left their coach (A13 or P9) and the server ended the link. No properties.
+        case athleteLeftCoach
 
         var name: String {
             switch self {
@@ -85,6 +89,8 @@ nonisolated enum CoachV2Analytics {
             case .flagResolved: "flag_resolved"
             case .milestoneShown: "milestone_shown"
             case .praiseSent: "praise_sent"
+            case .coachRemovedAthlete: "coach_removed_athlete"
+            case .athleteLeftCoach: "athlete_left_coach"
             }
         }
 
@@ -96,7 +102,7 @@ nonisolated enum CoachV2Analytics {
                 ["reason": .kind(reason)]
             case .coachAthleteSeen(let newCount):
                 ["new_count": .count(newCount)]
-            case .athleteGoalChangeLogged:
+            case .athleteGoalChangeLogged, .coachRemovedAthlete, .athleteLeftCoach:
                 [:]
             case .consentV2Shown(let surface), .consentV2Acked(let surface), .consentV2LeaveTapped(let surface):
                 ["surface": .kind(surface.rawValue)]
