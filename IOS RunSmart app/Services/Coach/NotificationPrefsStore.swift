@@ -264,15 +264,39 @@ nonisolated protocol NotificationPermissionFlow: Sendable {
     func turnOn(for audience: NotificationSettingsAudience) async -> NotificationPermissionStatus
 }
 
-/// Reads the system status. `turnOn` waits for C7.10's T6/P10 flow (`RemotePushRegistrar`): until
-/// that lands it changes nothing and shows no prompt. The catch-up after C7.10 merges replaces this
-/// type's `turnOn` with a call into that flow; the screens and the model stay as they are.
+/// The live flow. `turnOn` is C7.10's "Turn on" action (`RemotePushRegistrar.turnOn`, the same one T6 and
+/// P10 run): it records the answer, shows the system prompt only while iOS has not asked yet, tracks the
+/// result, and registers the device on a yes. After a denial it does nothing, so there is never a second
+/// prompt. This screen never calls the system prompt itself.
 nonisolated struct SystemNotificationPermissionFlow: NotificationPermissionFlow {
+    private let statusProvider: @Sendable () async -> NotificationPermissionStatus
+    private let turnOnAction: @Sendable (RemotePushRole) async -> Void
+
+    init(
+        statusProvider: @escaping @Sendable () async -> NotificationPermissionStatus = {
+            NotificationPermissionStatus(await UNUserNotificationCenter.current().notificationSettings().authorizationStatus)
+        },
+        turnOnAction: @escaping @Sendable (RemotePushRole) async -> Void = { role in
+            await RemotePushRegistrar.shared.turnOn(role)
+        }
+    ) {
+        self.statusProvider = statusProvider
+        self.turnOnAction = turnOnAction
+    }
+
     func status() async -> NotificationPermissionStatus {
-        NotificationPermissionStatus(await UNUserNotificationCenter.current().notificationSettings().authorizationStatus)
+        await statusProvider()
     }
 
     func turnOn(for audience: NotificationSettingsAudience) async -> NotificationPermissionStatus {
-        await status()
+        await turnOnAction(Self.role(for: audience))
+        return await statusProvider()
+    }
+
+    static func role(for audience: NotificationSettingsAudience) -> RemotePushRole {
+        switch audience {
+        case .coach: .coach
+        case .athlete: .athlete
+        }
     }
 }

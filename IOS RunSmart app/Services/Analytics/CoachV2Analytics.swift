@@ -75,6 +75,12 @@ nonisolated enum CoachV2Analytics {
         case athleteLeftCoach
         /// C7.14: a notification toggle saved. `kind` is a `NotificationPrefKind` raw value. Never a name.
         case notificationPrefChanged(kind: NotificationPrefKind, enabled: Bool)
+        /// C7.10: T6 or P10 shown (once per account and role).
+        case pushPermissionPrompted(role: RemotePushRole)
+        /// C7.10: the system prompt's answer.
+        case pushPermissionResult(role: RemotePushRole, granted: Bool)
+        /// C7.10: a remote push was tapped.
+        case pushOpened(kind: RemotePushKind)
 
         var name: String {
             switch self {
@@ -98,6 +104,9 @@ nonisolated enum CoachV2Analytics {
             case .coachRemovedAthlete: "coach_removed_athlete"
             case .athleteLeftCoach: "athlete_left_coach"
             case .notificationPrefChanged: "notification_pref_changed"
+            case .pushPermissionPrompted: "push_permission_prompted"
+            case .pushPermissionResult: "push_permission_result"
+            case .pushOpened: "push_opened"
             }
         }
 
@@ -131,6 +140,12 @@ nonisolated enum CoachV2Analytics {
                 ["target": .kind(target.rawValue)]
             case .notificationPrefChanged(let kind, let enabled):
                 ["kind": .kind(kind.rawValue), "enabled": .flag(enabled)]
+            case .pushPermissionPrompted(let role):
+                ["role": .kind(role.rawValue)]
+            case .pushPermissionResult(let role, let granted):
+                ["role": .kind(role.rawValue), "granted": .flag(granted)]
+            case .pushOpened(let kind):
+                ["kind": .kind(kind.rawValue)]
             }
         }
     }

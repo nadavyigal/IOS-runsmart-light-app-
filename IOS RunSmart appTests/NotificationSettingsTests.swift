@@ -383,4 +383,40 @@ final class NotificationSettingsTests: XCTestCase {
         XCTAssertEqual(NotificationPermissionStatus(.authorized), .granted)
         XCTAssertEqual(NotificationPermissionStatus(.provisional), .granted)
     }
+
+    // MARK: Live flow (C7.10's T6/P10 action)
+
+    func testLiveFlowRunsTheRegistrarTurnOnForTheRightRole() async {
+        actor Calls {
+            var roles: [RemotePushRole] = []
+            func add(_ role: RemotePushRole) { roles.append(role) }
+        }
+        let calls = Calls()
+        let flow = SystemNotificationPermissionFlow(
+            statusProvider: { .granted },
+            turnOnAction: { role in await calls.add(role) }
+        )
+        let coachStatus = await flow.turnOn(for: .coach)
+        let athleteStatus = await flow.turnOn(for: .athlete(coachName: "Dana"))
+        let roles = await calls.roles
+        XCTAssertEqual(roles, [.coach, .athlete])
+        XCTAssertEqual(coachStatus, .granted, "the status is read again after the flow")
+        XCTAssertEqual(athleteStatus, .granted)
+    }
+
+    func testLiveFlowReadsStatusWithoutRunningTheFlow() async {
+        actor Calls {
+            var count = 0
+            func add() { count += 1 }
+        }
+        let calls = Calls()
+        let flow = SystemNotificationPermissionFlow(
+            statusProvider: { .denied },
+            turnOnAction: { _ in await calls.add() }
+        )
+        let status = await flow.status()
+        let count = await calls.count
+        XCTAssertEqual(status, .denied)
+        XCTAssertEqual(count, 0, "reading the status never prompts")
+    }
 }

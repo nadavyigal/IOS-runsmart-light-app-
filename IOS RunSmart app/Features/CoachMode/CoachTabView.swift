@@ -12,6 +12,8 @@ struct CoachTabView: View {
     /// C7.1: Today rows open the athlete from code, so the analytics event fires for a tap and for VoiceOver alike.
     @State private var path = NavigationPath()
     @Environment(\.scenePhase) private var scenePhase
+    /// C7.10: a tapped coach push sets `pendingCoachDestination`.
+    @EnvironmentObject private var router: AppRouter
 
     private let welcomeService = SupabaseCoachWelcomeService()
     private let welcomeHint = CoachWelcomeHint()
@@ -41,7 +43,18 @@ struct CoachTabView: View {
                     }
                     .toolbar(.hidden, for: .navigationBar)
             }
+            .onAppear(perform: openPendingPush)
+            .onChange(of: router.pendingCoachDestination) { _, _ in openPendingPush() }
         }
+    }
+
+    /// C7.10 AC8: a tapped coach push opens that athlete (day detail when the push names a day).
+    private func openPendingPush() {
+        guard let destination = router.pendingCoachDestination else { return }
+        router.pendingCoachDestination = nil
+        var fresh = NavigationPath()
+        fresh.append(destination)
+        path = fresh
     }
 
     private var coachScreen: some View {

@@ -1,10 +1,28 @@
-# 2026-11-23: Coach v2 C7.14 notification settings, coach and athlete (draft PR)
+# 2026-11-23: Coach v2 C7.14 notification settings, coach and athlete (ready PR)
 
-Current Phase: Coach Experience v2, Batch B. C7.14 in a draft PR; no migration. Codes against C7.10's M2a RPCs, merges after C7.10.
+Current Phase: Coach Experience v2, Batch B. C7.14 PR #247 ready; no migration. C7.10 merged; turnOn wired to its T6/P10 flow.
 Active Story: C7.14: coach T5 (Coach tab menu) and athlete (My coach) toggles, quiet hours, permission line, v2-gated.
-Next Recommended Story: Overseer review; after C7.10 merges, wire turnOn to its T6/P10 flow; then C7.5 sender and C7.6.
-Blockers: C7.10 must merge first (turnOn is a no-op stub until then); Sally light copy review of the athlete section header.
+Next Recommended Story: Overseer merge of C7.14; then C7.5 push sender and C7.6 evening summary.
+Blockers: Sally light copy review of the athlete section header; APNs setup for device tests.
 Last Validation: 20 coach test classes 327 passed, 0 failed (iPhone 17 Pro, iOS 26.5); 12 fixture screenshots (default, XXL, AX3, RTL, denied).
+Last Updated: 2026-11-23
+
+# 2026-11-23: Coach v2 C7.10 remote push foundation, M2a (draft PR)
+
+Current Phase: Coach Experience v2, Batch B start. C7.10 PRs open in iOS and web twin; M2a written, not applied; APNs secrets not set.
+Active Story: C7.10: push_tokens + notification_prefs (M2a), _shared/apns.ts, dev-only push_selftest, T6/P10 prompts, tap router, sign-out unregister.
+Next Recommended Story: Overseer review of C7.10; then C7.5 push sender (M2b) on top of apns.ts.
+Blockers: Nadav: APNs .p8 key, Push capability on the App ID (signed builds need it), APNS_* secrets, apply M2a in Batch B.
+Last Validation: Review fixes: shared APNs signer, sign-out drops device token on failure; 61 Deno pass; full iOS suite passes; drift CLEAN 25.
+Last Updated: 2026-11-23
+
+# 2026-11-23: Coach v2 Batch A applied to production
+
+Current Phase: Coach Experience v2, R1 Batch A applied to prod (7 files); Batch B track in review (C7.10 #248, C7.14 #247).
+Active Story: Ledger update: Batch A rows applied with prod versions, pre-v2 rows verified, M13 not needed, prod-only drift logged.
+Next Recommended Story: Merge C7.10 then C7.14; add athlete_display_name_placeholder to both repos; add a pilot coach, then TF-1a.
+Blockers: v2 stays off until Nadav adds a row to coach_v2_pilot_coaches or testers run TestFlight builds; APNs setup for push.
+Last Validation: 7 prod SQL md5s match repo files; old suites pass on full schema locally; advisors show no new findings; drift CLEAN 24.
 Last Updated: 2026-11-23
 
 # 2026-11-22: Coach v2 C7.16 beginner milestones and one-tap praise (draft PR)
