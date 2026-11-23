@@ -553,3 +553,63 @@ nonisolated enum CoachFeedbackText {
         text.components(separatedBy: .newlines)
     }
 }
+
+// MARK: - C7.7 Athlete replies, coach side
+
+/// One row of `coach_get_feedback_replies`. `text` is the athlete's words, shown to the coach only.
+nonisolated struct CoachFeedbackReply: Equatable, Identifiable, Sendable {
+    let id: UUID
+    let feedbackID: UUID
+    let athleteID: UUID
+    let text: String
+    let createdAt: Date
+    var readAt: Date?
+}
+
+nonisolated protocol CoachFeedbackReplyFetching: Sendable {
+    /// Replies on the coach's active, sharing links only. Zero rows otherwise (M4).
+    func replies(athleteIDs: [UUID]) async throws -> [CoachFeedbackReply]
+    /// Best-effort read receipt. Returns how many the server marked.
+    func markRead(replyIDs: [UUID]) async throws -> Int
+}
+
+nonisolated struct SupabaseCoachFeedbackReplyService: CoachFeedbackReplyFetching {
+    private struct ListParams: Encodable { let p_athlete_ids: [UUID] }
+    private struct ReadParams: Encodable { let p_reply_ids: [UUID] }
+
+    private struct Row: Decodable {
+        let id: UUID
+        let feedbackID: UUID
+        let athleteID: UUID
+        let text: String
+        let createdAt: String
+        let readAt: String?
+        enum CodingKeys: String, CodingKey {
+            case id, text
+            case feedbackID = "feedback_id"
+            case athleteID = "athlete_id"
+            case createdAt = "created_at"
+            case readAt = "read_at"
+        }
+    }
+
+    func replies(athleteIDs: [UUID]) async throws -> [CoachFeedbackReply] {
+        let rows: [Row] = try await SupabaseManager.client
+            .rpc(FeedbackReplyRPC.coachReplies, params: ListParams(p_athlete_ids: athleteIDs))
+            .execute()
+            .value
+        return rows.compactMap { row in
+            guard let created = CoachSeenTimestamp.parse(row.createdAt) else { return nil }
+            return CoachFeedbackReply(id: row.id, feedbackID: row.feedbackID, athleteID: row.athleteID, text: row.text,
+                                      createdAt: created, readAt: row.readAt.flatMap(CoachSeenTimestamp.parse))
+        }
+    }
+
+    func markRead(replyIDs: [UUID]) async throws -> Int {
+        guard !replyIDs.isEmpty else { return 0 }
+        return try await SupabaseManager.client
+            .rpc(FeedbackReplyRPC.coachMarkRead, params: ReadParams(p_reply_ids: replyIDs))
+            .execute()
+            .value
+    }
+}

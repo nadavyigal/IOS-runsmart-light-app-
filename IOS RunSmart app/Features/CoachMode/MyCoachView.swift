@@ -85,6 +85,8 @@ struct MyCoachView: View {
                                 .frame(minWidth: 44, minHeight: 44)
                                 .accessibilityHint("Marks the welcome as read")
                         }
+                        // C7.7: the welcome is a coach_feedback row, so it takes replies (v2 only).
+                        FeedbackReplyThread(note: note, link: link)
                     }
                 } else {
                     Button { open(note) } label: {
