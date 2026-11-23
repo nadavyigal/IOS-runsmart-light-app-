@@ -1,3 +1,12 @@
+# 2026-11-23: Coach v2 C7.14 notification settings, coach and athlete (ready PR)
+
+Current Phase: Coach Experience v2, Batch B. C7.14 PR #247 ready; no migration. C7.10 merged; turnOn wired to its T6/P10 flow.
+Active Story: C7.14: coach T5 (Coach tab menu) and athlete (My coach) toggles, quiet hours, permission line, v2-gated.
+Next Recommended Story: Overseer merge of C7.14; then C7.5 push sender and C7.6 evening summary.
+Blockers: Sally light copy review of the athlete section header; APNs setup for device tests.
+Last Validation: 20 coach test classes 327 passed, 0 failed (iPhone 17 Pro, iOS 26.5); 12 fixture screenshots (default, XXL, AX3, RTL, denied).
+Last Updated: 2026-11-23
+
 # 2026-11-23: Coach v2 C7.10 remote push foundation, M2a (draft PR)
 
 Current Phase: Coach Experience v2, Batch B start. C7.10 PRs open in iOS and web twin; M2a written, not applied; APNs secrets not set.

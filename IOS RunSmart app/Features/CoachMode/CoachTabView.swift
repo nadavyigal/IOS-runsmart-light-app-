@@ -7,6 +7,8 @@ struct CoachTabView: View {
 
     @State private var showsWelcomeEditor = false
     @State private var showsWelcomeHint = false
+    /// C7.14: T5, the coach's notification settings.
+    @State private var showsNotifications = false
     /// C7.1: Today rows open the athlete from code, so the analytics event fires for a tap and for VoiceOver alike.
     @State private var path = NavigationPath()
     @Environment(\.scenePhase) private var scenePhase
@@ -160,6 +162,9 @@ struct CoachTabView: View {
         .sheet(isPresented: $showsWelcomeEditor) {
             CoachWelcomeEditor(service: welcomeService)
         }
+        .sheet(isPresented: $showsNotifications) {
+            CoachNotificationSettingsView()
+        }
         .task(id: model.showsInvite) {
             if model.showsInvite { await athletes.refresh(owner: ownerID) }
         }
@@ -196,6 +201,10 @@ struct CoachTabView: View {
                     Button("Group plan settings") { model.openGroupSettings() }
                 }
                 Button("Welcome note", action: openWelcomeEditor)
+                // C7.14 (T5): v2 only. Flag-off keeps the 1.2.6 menu.
+                if athletes.coachV2 == .on {
+                    Button(NotificationSettingsCopy.title) { showsNotifications = true }
+                }
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.title3)
