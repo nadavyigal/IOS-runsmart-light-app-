@@ -1,3 +1,12 @@
+# 2026-11-23: Coach v2 Batch A applied to production
+
+Current Phase: Coach Experience v2, R1 Batch A applied to prod (7 files); Batch B track in review (C7.10 #248, C7.14 #247).
+Active Story: Ledger update: Batch A rows applied with prod versions, pre-v2 rows verified, M13 not needed, prod-only drift logged.
+Next Recommended Story: Merge C7.10 then C7.14; add athlete_display_name_placeholder to both repos; add a pilot coach, then TF-1a.
+Blockers: v2 stays off until Nadav adds a row to coach_v2_pilot_coaches or testers run TestFlight builds; APNs setup for push.
+Last Validation: 7 prod SQL md5s match repo files; old suites pass on full schema locally; advisors show no new findings; drift CLEAN 24.
+Last Updated: 2026-11-23
+
 # 2026-11-22: Coach v2 C7.16 beginner milestones and one-tap praise (draft PR)
 
 Current Phase: Coach Experience v2, R1 last story. C7.16 draft PR open in iOS only; no migration (STEP 1 check), so no web twin.
