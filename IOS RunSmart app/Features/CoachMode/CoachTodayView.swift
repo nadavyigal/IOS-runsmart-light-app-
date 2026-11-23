@@ -223,10 +223,20 @@ struct CoachTodayView: View {
         case .groupHeader(let group, let total):
             groupHeader(group, total: total)
         case .row(let row):
-            CoachTodayRowView(
-                row: row, needsLatestApp: model.athletesNeedingUpdate.contains(row.id), open: { open(row) },
-                markHandled: row.flags.isEmpty ? nil : { model.markHandled(row) }
-            )
+            VStack(spacing: 6) {
+                CoachTodayRowView(
+                    row: row, needsLatestApp: model.athletesNeedingUpdate.contains(row.id), open: { open(row) },
+                    markHandled: row.flags.isEmpty ? nil : { model.markHandled(row) }
+                )
+                // C7.16: under the row, outside its button, so the praise buttons are their own targets.
+                if !row.milestones.isEmpty {
+                    CoachMilestoneStrip(
+                        athleteName: row.name, milestones: row.milestones,
+                        isReacted: model.isReacted, hasFailed: model.reactionFailed,
+                        react: { model.react(to: $0, with: $1) }
+                    )
+                }
+            }
         case .showAll(let group, let total):
             Button {
                 fullGroups.insert(group)
@@ -519,7 +529,7 @@ extension CoachTodaySnapshot {
     /// 30 fixture athletes across every group, for the previews and the simulator screenshots.
     static func previewFixture(
         athletes count: Int = 30, runsLoaded: Bool = true, withNews: Bool = false, withFlags: Bool = false,
-        flagsLoaded: Bool = true, now: Date = Date(timeIntervalSince1970: 1_795_000_000)
+        flagsLoaded: Bool = true, withMilestones: Bool = false, now: Date = Date(timeIntervalSince1970: 1_795_000_000)
     ) -> CoachTodaySnapshot {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Jerusalem")!
@@ -554,7 +564,8 @@ extension CoachTodaySnapshot {
         return CoachTodaySnapshot.make(
             athletes: athletes, workouts: workouts, runs: runs, runsLoaded: runsLoaded,
             news: withNews ? previewNews(athletes, now: now) : [:],
-            flags: withFlags && flagsLoaded ? previewFlags(athletes, now: now) : [], flagsLoaded: flagsLoaded, now: now, week: week,
+            flags: withFlags && flagsLoaded ? previewFlags(athletes, now: now) : [], flagsLoaded: flagsLoaded,
+            milestones: withMilestones ? previewMilestones(athletes) : [:], now: now, week: week,
             locale: Locale(identifier: "en_GB")
         )
     }
@@ -574,6 +585,32 @@ extension CoachTodaySnapshot {
             if let item = patterns[index] { news[athlete.athleteID] = item }
         }
         return news
+    }
+
+    /// C7.16: every tag once, two tags on one athlete, and a milestone on a row that is also urgent.
+    static func previewMilestones(_ athletes: [CoachAthleteSummary]) -> [UUID: [CoachMilestone]] {
+        func make(_ index: Int, _ kinds: [CoachMilestoneKind]) -> (UUID, [CoachMilestone])? {
+            guard athletes.indices.contains(index) else { return nil }
+            let id = athletes[index].athleteID
+            return (id, kinds.map { kind in
+                let target: CoachFeedbackTarget? = kind == .quiet3Days ? nil
+                    : kind == .firstFullWeek ? .week("2026-11-16") : .run(Int64(1000 + index))
+                return CoachMilestone(
+                    athleteID: id, kind: kind, subject: "preview-\(kind.rawValue)", target: target, fallbackTarget: nil
+                )
+            })
+        }
+        let pairs = [
+            make(1, [.firstRun]), make(2, [.firstFullWeek]), make(3, [.longestRun, .firstRun]),
+            make(4, [.quiet3Days]), make(5, [.firstRun]), make(0, [.longestRun])
+        ].compactMap { $0 }
+        return Dictionary(uniqueKeysWithValues: pairs)
+    }
+
+    /// C7.16: the preview milestone that already shows "Reacted".
+    static func previewReacted() -> Set<String> {
+        let id = UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", 6))!
+        return ["\(id.uuidString.lowercased())|first_run|preview-first_run"]
     }
 
     /// C7.4: a pain flag with a note, two flags on one athlete, a run-less "something off" and a deleted run.
@@ -652,6 +689,20 @@ extension CoachTodaySnapshot {
     .background(Color.surfaceBase)
 }
 
+#Preview("Coach Today, milestones") {
+    let snapshot = CoachTodaySnapshot.previewFixture(athletes: 10, withNews: true, withMilestones: true)
+    ScrollView {
+        LazyVStack(alignment: .leading, spacing: 14) {
+            CoachTodayView(
+                model: CoachAthleteListModel.previewModel(snapshot, reacted: CoachTodaySnapshot.previewReacted()),
+                onShareInvite: nil, open: { _ in }, retry: {}
+            )
+        }
+        .padding(.horizontal, 18)
+    }
+    .background(Color.surfaceBase)
+}
+
 #Preview("Coach Today, runs failed") {
     ScrollView {
         LazyVStack(alignment: .leading, spacing: 14) {
@@ -667,9 +718,9 @@ extension CoachTodaySnapshot {
 
 extension CoachAthleteListModel {
     /// A model that already shows `snapshot`. Previews and screenshots only.
-    static func previewModel(_ snapshot: CoachTodaySnapshot) -> CoachAthleteListModel {
+    static func previewModel(_ snapshot: CoachTodaySnapshot, reacted: Set<String> = []) -> CoachAthleteListModel {
         let model = CoachAthleteListModel()
-        model.loadPreview(snapshot)
+        model.loadPreview(snapshot, reacted: reacted)
         return model
     }
 }

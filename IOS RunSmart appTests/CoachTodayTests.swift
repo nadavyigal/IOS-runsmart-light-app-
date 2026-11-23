@@ -511,7 +511,8 @@ final class CoachTodayTests: XCTestCase {
         XCTAssertNotNil(list.today)
         let week = CoachAthleteWeek(now: now)
         let sixDaysBack = week.calendar.date(byAdding: .day, value: -6, to: week.calendar.startOfDay(for: now))!
-        XCTAssertEqual(stub.workoutWindows.last?.from, min(week.interval.start, sixDaysBack))
+        // C7.16 adds one wide history read (from 2000) for milestones; the 7-day window is still read fresh.
+        XCTAssertTrue(stub.workoutWindows.contains { $0.from == min(week.interval.start, sixDaysBack) })
         XCTAssertEqual(stub.runWindows.last?.from, min(week.interval.start, sixDaysBack))
         XCTAssertEqual(stub.runWindows.count, 1, "one runs call per refresh, no new RPC")
     }

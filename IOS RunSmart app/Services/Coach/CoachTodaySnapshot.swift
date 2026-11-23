@@ -7,8 +7,9 @@ import Foundation
 // `coach_get_athletes_workouts` and `coach_get_athletes_runs` results, plus `coach_roster_summary`
 // for the "new since last visit" counts (C7.2).
 //
-// C7.4 adds the "Pain or something off" group from `coach_get_athlete_flags`. Left for a later
-// story, so nothing here renders an empty header for it: milestone tags (C7.16).
+// C7.4 adds the "Pain or something off" group from `coach_get_athlete_flags`. C7.16 adds the milestone
+// tags ("First run", "First full week", "Longest run", "Quiet 3 days"); a row only has them when
+// the coach passes milestones in, so nothing renders an empty header or strip.
 
 /// One day of the 7-day strip. Each state has its own shape and a text label. Color is the second channel.
 enum CoachTodayDayState: String, CaseIterable, Equatable {
@@ -204,6 +205,8 @@ struct CoachTodayRow: Identifiable, Equatable {
     var oldestNewAt: Date?
     /// C7.4: this athlete's open flags, oldest first. Each is listed separately in the day detail.
     var flags: [CoachRunFlag] = []
+    /// C7.16: milestone tags, in tag order. Empty when none, and always empty with Coach v2 off.
+    var milestones: [CoachMilestone] = []
     var id: UUID { athlete.athleteID }
 
     /// "Pain", "Something off", or "Pain · 2" with several open flags (UX spec A.7 item 6).
@@ -295,7 +298,8 @@ struct CoachTodaySnapshot: Equatable {
             let days = row.days.map(\.state.rawValue).joined(separator: ",")
             return [row.id.uuidString, row.group.rawValue.description, row.reason?.rawValue ?? "-",
                     row.secondaryReason?.rawValue ?? "-", row.todayLine, row.weekProgress ?? "-", days,
-                    String(row.newCount), row.flags.map(\.id.uuidString).joined(separator: ",")]
+                    String(row.newCount), row.flags.map(\.id.uuidString).joined(separator: ","),
+                    row.milestones.map(\.id).joined(separator: ",")]
                 .joined(separator: "|")
         } + [runsLoaded ? "runs" : "no-runs", flagsLoaded ? "flags" : "no-flags"]
     }
@@ -343,10 +347,13 @@ extension CoachTodaySnapshot {
     ///     goes to "New to review". Empty (the call failed, or the pair is not v2) shows no markers.
     ///   - flags: C7.4 open flags from `coach_get_athlete_flags`. An athlete with one goes to the first group.
     ///     `flagsLoaded: false` (the call failed) shows the banner instead of the group.
+    ///   - milestones: C7.16 tags from `CoachMilestoneRules`. An athlete with something to praise and nothing
+    ///     urgent moves from the collapsed "On track" or "Rest today" to "New to review", so the tag is seen.
     static func make(
         athletes: [CoachAthleteSummary], workouts: [CoachWorkoutSummary], runs: [CoachRunSummary],
         runsLoaded: Bool = true, news: [UUID: CoachAthleteNews] = [:], flags: [CoachRunFlag] = [],
-        flagsLoaded: Bool = true, now: Date, week: CoachAthleteWeek, locale: Locale = .current
+        flagsLoaded: Bool = true, milestones: [UUID: [CoachMilestone]] = [:],
+        now: Date, week: CoachAthleteWeek, locale: Locale = .current
     ) -> CoachTodaySnapshot {
         let flagsByAthlete = Dictionary(grouping: flags.filter(\.isOpen), by: \.athleteID)
             .mapValues { $0.sorted { ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString) } }
@@ -444,13 +451,14 @@ extension CoachTodaySnapshot {
                     spoken: CoachTodayFormat.daySentence(day, state: state, calendar: calendar, locale: locale)
                 )
             }
+            let athleteMilestones = milestones[athlete.athleteID, default: []]
             let row = CoachTodayRow(
-                athlete: athlete, group: group, reason: reason, secondaryReason: secondary, days: dayList,
+                athlete: athlete, group: Self.promoted(group, for: athleteMilestones), reason: reason, secondaryReason: secondary, days: dayList,
                 todayLine: line, todaySpoken: spoken,
                 weekProgress: runsLoaded && hasPlan ? "\(doneThisWeek) of \(plannedThisWeek) this week" : nil,
                 missedThisWeek: missedThisWeek, focusDayISO: focus,
                 newCount: newCount, oldestNewAt: newCount > 0 ? athleteNews?.oldestNewAt : nil,
-                flags: athleteFlags
+                flags: athleteFlags, milestones: athleteMilestones
             )
             return (row, missedDays.first)
         }
@@ -488,6 +496,13 @@ extension CoachTodaySnapshot {
     }
 
     private static func marker(of day: CoachDay) -> CoachDayMarker { day.marker }
+
+    /// C7.16: a calm row with something to praise leaves the collapsed groups, so the tag is on screen.
+    /// Urgent rows and rows already in "New to review" stay where the other rules put them.
+    private static func promoted(_ group: CoachTodayGroup, for milestones: [CoachMilestone]) -> CoachTodayGroup {
+        guard milestones.contains(where: { $0.kind.canPraise }), group == .onTrack || group == .restToday else { return group }
+        return .newToReview
+    }
 
     /// The 80% rule for the week to date: workouts that were due, each credited with how much of the
     /// plan the athlete did (a done workout counts as all of it). Below 80% on average is behind.
