@@ -125,6 +125,8 @@ protocol RemotePushSystem {
     /// Shows the system prompt. Callers only call it while the status is `.notDetermined`.
     func requestAuthorization() async throws -> Bool
     func registerForRemoteNotifications()
+    /// Drops this device's APNs token, so a push already addressed to it can no longer arrive.
+    func unregisterForRemoteNotifications()
 }
 
 struct LiveRemotePushSystem: RemotePushSystem {
@@ -140,6 +142,10 @@ struct LiveRemotePushSystem: RemotePushSystem {
     func registerForRemoteNotifications() {
         UIApplication.shared.registerForRemoteNotifications()
     }
+
+    func unregisterForRemoteNotifications() {
+        UIApplication.shared.unregisterForRemoteNotifications()
+    }
 }
 
 // MARK: Device state
@@ -152,12 +158,20 @@ nonisolated struct RemotePushDeviceState: Codable, Equatable, Sendable {
         var sentAt: Date
     }
 
+    /// A token whose server row a sign-out could not remove (offline, error or timeout).
+    struct PendingUnregister: Codable, Equatable, Sendable {
+        var userID: UUID
+        var token: String
+    }
+
     /// T6 / P10 answered ("Turn on" or "Not now"), per account. Never shown again after that.
     var answered: [String: Set<RemotePushRole>] = [:]
     /// T6 / P10 shown at least once, per account (for `push_permission_prompted`).
     var shown: [String: Set<RemotePushRole>] = [:]
     /// The token this device registered, and for whom.
     var registration: Registration?
+    /// Retried when that same account is signed in again (only its own session may remove it).
+    var pendingUnregister: PendingUnregister?
     /// The time zone last stored in `notification_prefs`, per account. Present once the row exists.
     var prefsTimeZone: [String: String] = [:]
 
@@ -226,6 +240,7 @@ final class RemotePushRegistrar: ObservableObject {
     private(set) var v2Enabled = false
     /// A token iOS handed over that the server has not stored yet.
     private(set) var pendingToken: String?
+    private var isRetryingUnregister = false
 
     init(
         repository: any RemotePushRepository = SupabaseRemotePushRepository(),
@@ -378,6 +393,8 @@ final class RemotePushRegistrar: ObservableObject {
         pendingToken = nil
         state = store.load()
         state.registration = .init(userID: user, token: token, sentAt: now())
+        // The server moved this token's row to this account, so an old removal no longer applies.
+        if state.pendingUnregister?.token == token { state.pendingUnregister = nil }
         store.save(state)
         await ensurePrefs(for: user)
     }
@@ -409,6 +426,7 @@ final class RemotePushRegistrar: ObservableObject {
     /// Every foreground with v2 on: send a token that failed, refresh this device's token, and
     /// update the stored time zone when it changed.
     func foreground() async {
+        await retryPendingUnregister()
         guard v2Enabled, let user = userID else { return }
         if let token = pendingToken {
             await send(token: token, for: user)
@@ -440,8 +458,11 @@ final class RemotePushRegistrar: ObservableObject {
     }
 
     /// AC5: before the session ends. Removes only this device's token, bounded so an offline
-    /// sign-out never waits long. The local record goes either way: if the call failed, the next
-    /// account that registers this device takes the row over on the server.
+    /// sign-out never waits long. The local record goes either way.
+    /// When the server call fails or times out, the old account's row stays live, and the next
+    /// person on this phone would get its coach pushes (pain flags included). So the device drops
+    /// its APNs token: pushes to the old row then fail at Apple (410) instead of arriving here.
+    /// The removal is kept and retried the next time that same account is signed in.
     func signOut() async {
         showsCoachPrimer = false
         athletePrimer = nil
@@ -449,26 +470,65 @@ final class RemotePushRegistrar: ObservableObject {
         pendingToken = nil
         var state = store.load()
         guard let registration = state.registration else { return }
+        let removed = await unregisterBounded(token: registration.token)
+        state = store.load()
+        state.registration = nil
+        if removed {
+            if state.pendingUnregister?.token == registration.token { state.pendingUnregister = nil }
+        } else {
+            system.unregisterForRemoteNotifications()
+            state.pendingUnregister = .init(userID: registration.userID, token: registration.token)
+        }
+        store.save(state)
+    }
+
+    /// The server half of a sign-out that failed earlier. Runs only while that same account is
+    /// signed in, since `unregister_push_token` removes the caller's own rows only.
+    func retryPendingUnregister() async {
+        guard !isRetryingUnregister, let user = userID,
+              let pending = store.load().pendingUnregister, pending.userID == user else { return }
+        var state = store.load()
+        if let registration = state.registration, registration.userID == user, registration.token == pending.token {
+            // The same account registered this token again since: the row is live on purpose.
+            state.pendingUnregister = nil
+            store.save(state)
+            return
+        }
+        isRetryingUnregister = true
+        defer { isRetryingUnregister = false }
+        guard await unregisterBounded(token: pending.token) else { return }
+        state = store.load()
+        if state.pendingUnregister == pending { state.pendingUnregister = nil }
+        if let registration = state.registration, registration.userID == user, registration.token == pending.token {
+            // Registered again while the removal ran: send it once more on the next foreground.
+            state.registration = nil
+            if userID == user { pendingToken = pending.token }
+        }
+        store.save(state)
+    }
+
+    /// True only when the server call finished without an error inside the timeout.
+    private func unregisterBounded(token: String) async -> Bool {
         let repository = repository
-        let token = registration.token
         let timeout = unregisterTimeout
-        await withTaskGroup(of: Void.self) { group in
+        return await withTaskGroup(of: Bool.self) { group in
             group.addTask {
                 do {
                     try await repository.unregister(token: token)
+                    return true
                 } catch {
                     if !(error is CancellationError) { print("[RemotePush] unregister failed:", error) }
+                    return false
                 }
             }
             group.addTask {
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                return false
             }
-            await group.next()
+            let first = await group.next() ?? false
             group.cancelAll()
+            return first
         }
-        state = store.load()
-        state.registration = nil
-        store.save(state)
     }
 
     // MARK: Taps

@@ -11,6 +11,7 @@ private struct Offline: Error {}
 private final class FakePushRepository: RemotePushRepository, @unchecked Sendable {
     var registerResult: Result<Void, Error> = .success(())
     var unregisterDelay: UInt64 = 0
+    var unregisterError: Error?
     var prefsZone: String?
     private(set) var registered: [(token: String, environment: RemotePushEnvironment, bundleID: String?)] = []
     private(set) var unregistered: [String] = []
@@ -27,6 +28,7 @@ private final class FakePushRepository: RemotePushRepository, @unchecked Sendabl
     func unregister(token: String) async throws {
         unregistered.append(token)
         if unregisterDelay > 0 { try await Task.sleep(nanoseconds: unregisterDelay) }
+        if let unregisterError { throw unregisterError }
     }
 
     func prefs(timeZone: String) async throws -> RemoteNotificationPrefs {
@@ -47,6 +49,7 @@ private final class FakePushSystem: RemotePushSystem {
     private(set) var statusReads = 0
     private(set) var prompts = 0
     private(set) var registrations = 0
+    private(set) var deviceUnregistrations = 0
 
     func authorizationStatus() async -> UNAuthorizationStatus {
         statusReads += 1
@@ -61,6 +64,10 @@ private final class FakePushSystem: RemotePushSystem {
 
     func registerForRemoteNotifications() {
         registrations += 1
+    }
+
+    func unregisterForRemoteNotifications() {
+        deviceUnregistrations += 1
     }
 }
 
@@ -399,6 +406,76 @@ final class RemotePushRegistrarTests: XCTestCase {
         // The local record goes anyway; a second sign-out sends nothing.
         await registrar.signOut()
         XCTAssertEqual(repository.unregistered.count, 1)
+    }
+
+    // A sign-out whose server call fails must not leave the old account's coach pushes
+    // (pain flags) reaching the next person on this phone.
+
+    func testFailedUnregisterDropsTheDeviceToken() async {
+        repository.unregisterError = Offline()
+        let registrar = makeRegistrar()
+        registrar.update(userID: user, v2Enabled: true)
+        await registrar.didRegister(deviceToken: tokenBytes)
+        await registrar.signOut()
+        XCTAssertEqual(repository.unregistered, [tokenHex])
+        XCTAssertEqual(system.deviceUnregistrations, 1)
+    }
+
+    func testTimedOutUnregisterDropsTheDeviceToken() async {
+        repository.unregisterDelay = 5_000_000_000
+        let registrar = makeRegistrar(timeout: 0.2)
+        registrar.update(userID: user, v2Enabled: true)
+        await registrar.didRegister(deviceToken: tokenBytes)
+        await registrar.signOut()
+        XCTAssertEqual(system.deviceUnregistrations, 1)
+    }
+
+    func testSuccessfulUnregisterKeepsTheDeviceToken() async {
+        let registrar = makeRegistrar()
+        registrar.update(userID: user, v2Enabled: true)
+        await registrar.didRegister(deviceToken: tokenBytes)
+        await registrar.signOut()
+        XCTAssertEqual(repository.unregistered, [tokenHex])
+        XCTAssertEqual(system.deviceUnregistrations, 0)
+    }
+
+    func testPendingUnregisterIsRetriedOnTheSameAccountsNextSignInAndClearedOnSuccess() async {
+        repository.unregisterError = Offline()
+        let registrar = makeRegistrar()
+        registrar.update(userID: user, v2Enabled: true)
+        await registrar.didRegister(deviceToken: tokenBytes)
+        await registrar.signOut()
+        registrar.update(userID: nil, v2Enabled: false)
+        XCTAssertEqual(repository.unregistered, [tokenHex])
+
+        // Another account on this phone: its session may not remove the first account's row.
+        repository.unregisterError = nil
+        registrar.update(userID: otherUser, v2Enabled: true)
+        await registrar.foreground()
+        XCTAssertEqual(repository.unregistered, [tokenHex], "not retried for another account")
+        await registrar.signOut()
+        registrar.update(userID: nil, v2Enabled: false)
+
+        // The same account signs in again: the removal is retried once and then forgotten.
+        registrar.update(userID: user, v2Enabled: true)
+        await registrar.foreground()
+        XCTAssertEqual(repository.unregistered, [tokenHex, tokenHex])
+        await registrar.foreground()
+        XCTAssertEqual(repository.unregistered, [tokenHex, tokenHex], "cleared after success")
+    }
+
+    func testPendingUnregisterRetriesEvenWithV2Off() async {
+        repository.unregisterError = Offline()
+        let registrar = makeRegistrar()
+        registrar.update(userID: user, v2Enabled: true)
+        await registrar.didRegister(deviceToken: tokenBytes)
+        await registrar.signOut()
+        registrar.update(userID: nil, v2Enabled: false)
+
+        repository.unregisterError = nil
+        registrar.update(userID: user, v2Enabled: false)
+        await registrar.foreground()
+        XCTAssertEqual(repository.unregistered, [tokenHex, tokenHex], "cleanup of a live coach-push row")
     }
 
     // MARK: AC8: taps

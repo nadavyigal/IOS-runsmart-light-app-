@@ -21,6 +21,7 @@ final class RemotePushScreenshotTests: XCTestCase {
         func authorizationStatus() async -> UNAuthorizationStatus { .notDetermined }
         func requestAuthorization() async throws -> Bool { false }
         func registerForRemoteNotifications() {}
+        func unregisterForRemoteNotifications() {}
     }
 
     private nonisolated final class NoAnalytics: AnalyticsTracking, @unchecked Sendable {

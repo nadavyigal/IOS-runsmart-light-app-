@@ -4,7 +4,7 @@ Current Phase: Coach Experience v2, Batch B start. C7.10 PRs open in iOS and web
 Active Story: C7.10: push_tokens + notification_prefs (M2a), _shared/apns.ts, dev-only push_selftest, T6/P10 prompts, tap router, sign-out unregister.
 Next Recommended Story: Overseer review of C7.10; then C7.5 push sender (M2b) on top of apns.ts.
 Blockers: Nadav: APNs .p8 key, Push capability on the App ID (signed builds need it), APNS_* secrets, apply M2a in Batch B.
-Last Validation: SQL push_tokens_and_prefs PASS; 42 Deno tests pass; iOS 49 new tests + 473 related pass; drift CLEAN 25 files.
+Last Validation: Review fixes: shared APNs signer, sign-out drops device token on failure; 61 Deno pass; full iOS suite passes; drift CLEAN 25.
 Last Updated: 2026-11-23
 
 # 2026-11-23: Coach v2 Batch A applied to production

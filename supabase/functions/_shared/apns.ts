@@ -10,8 +10,11 @@
 // Nadav sets them as Edge Function secrets. Agents never handle the key.
 //
 // The provider token is an ES256 JWT signed with WebCrypto (no dependency). It is
-// cached for 50 minutes: Apple rejects tokens older than an hour and refreshes
-// more often than every 20 minutes. Deno's fetch speaks HTTP/2 to APNs.
+// cached for 50 minutes: Apple rejects tokens older than an hour and answers 429
+// TooManyProviderTokenUpdates when the token changes more often than every 20
+// minutes. So one signer per key lives at module level and is reused by every
+// invocation in the same isolate (sharedApnsSigner). Deno's fetch speaks HTTP/2
+// to APNs.
 //
 // Each token row carries its environment: 'sandbox' tokens (Debug builds) go to
 // api.sandbox.push.apple.com, 'production' tokens (TestFlight, App Store) to
@@ -136,6 +139,8 @@ export function apnsConfigFromEnv(
 export class ApnsJwtSigner {
   private key: Promise<CryptoKey> | null = null;
   private cached: { jwt: string; issuedAtMs: number } | null = null;
+  /** A signing in progress. Concurrent sends wait for it instead of signing again. */
+  private pending: Promise<string> | null = null;
 
   constructor(
     private readonly config: ApnsConfig,
@@ -147,6 +152,28 @@ export class ApnsJwtSigner {
     if (this.cached && nowMs - this.cached.issuedAtMs < JWT_REUSE_MS && nowMs >= this.cached.issuedAtMs) {
       return this.cached.jwt;
     }
+    if (!this.pending) {
+      const signing: Promise<string> = this.sign(nowMs)
+        .then((jwt) => {
+          // An invalidate() during the signing drops this result.
+          if (this.pending === signing) this.cached = { jwt, issuedAtMs: nowMs };
+          return jwt;
+        })
+        .finally(() => {
+          if (this.pending === signing) this.pending = null;
+        });
+      this.pending = signing;
+    }
+    return await this.pending;
+  }
+
+  /** Drops the cached JWT, after APNs said it is expired or invalid. */
+  invalidate(): void {
+    this.cached = null;
+    this.pending = null;
+  }
+
+  private async sign(nowMs: number): Promise<string> {
     const header = { alg: "ES256", kid: this.config.keyId };
     const claims = { iss: this.config.teamId, iat: Math.floor(nowMs / 1000) };
     const signingInput = `${base64UrlJson(header)}.${base64UrlJson(claims)}`;
@@ -155,14 +182,7 @@ export class ApnsJwtSigner {
       await this.signingKey(),
       new TextEncoder().encode(signingInput),
     );
-    const jwt = `${signingInput}.${base64Url(new Uint8Array(signature))}`;
-    this.cached = { jwt, issuedAtMs: nowMs };
-    return jwt;
-  }
-
-  /** Drops the cached JWT, after APNs said it is expired or invalid. */
-  invalidate(): void {
-    this.cached = null;
+    return `${signingInput}.${base64Url(new Uint8Array(signature))}`;
   }
 
   private signingKey(): Promise<CryptoKey> {
@@ -181,6 +201,29 @@ export class ApnsJwtSigner {
     }
     return this.key;
   }
+}
+
+/** One signer per `${keyId}:${teamId}`, kept for the life of the isolate. */
+const sharedSigners = new Map<string, { privateKey: string; signer: ApnsJwtSigner }>();
+
+/**
+ * The signer every send uses unless a test passes its own. Reusing it across invocations
+ * keeps the provider token stable for 50 minutes (Apple's 429 TooManyProviderTokenUpdates).
+ * A changed private key (a rotated secret) replaces the signer. `now` is used only when the
+ * signer is created.
+ */
+export function sharedApnsSigner(config: ApnsConfig, now?: () => number): ApnsJwtSigner {
+  const cacheKey = `${config.keyId}:${config.teamId}`;
+  const entry = sharedSigners.get(cacheKey);
+  if (entry && entry.privateKey === config.privateKey) return entry.signer;
+  const signer = new ApnsJwtSigner(config, now);
+  sharedSigners.set(cacheKey, { privateKey: config.privateKey, signer });
+  return signer;
+}
+
+/** Tests only: forget every shared signer. */
+export function resetSharedApnsSigners(): void {
+  sharedSigners.clear();
 }
 
 // Payload ------------------------------------------------------------------------
@@ -233,7 +276,7 @@ export async function sendApns(
   const doFetch = deps.fetch ?? fetch;
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const now = deps.now ?? (() => Date.now());
-  const signer = deps.signer ?? new ApnsJwtSigner(deps.config, now);
+  const signer = deps.signer ?? sharedApnsSigner(deps.config, now);
   const base = { event: "", kind: message.kind, environment: target.environment, token_suffix: tokenSuffix(target.token) };
 
   const host = APNS_HOSTS[target.environment];
@@ -316,13 +359,13 @@ export async function sendApns(
   return { status: "failed", httpStatus: null, reason: "unreachable" };
 }
 
-/** Sends to every device of one user. One signer is shared, so the JWT is signed once. */
+/** Sends to every device of one user. All sends share one signer, so the JWT is signed once. */
 export async function sendApnsToAll(
   targets: readonly ApnsTarget[],
   message: ApnsMessage,
   deps: ApnsSendDeps,
 ): Promise<ApnsOutcome[]> {
-  const shared: ApnsSendDeps = { ...deps, signer: deps.signer ?? new ApnsJwtSigner(deps.config, deps.now) };
+  const shared: ApnsSendDeps = { ...deps, signer: deps.signer ?? sharedApnsSigner(deps.config, deps.now) };
   return await Promise.all(targets.map((target) => sendApns(target, message, shared)));
 }
 

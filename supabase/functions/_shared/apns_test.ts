@@ -8,8 +8,10 @@ import {
   disableTokenIn,
   liveTokensFor,
   type PushTokenStore,
+  resetSharedApnsSigners,
   sendApns,
   sendApnsToAll,
+  sharedApnsSigner,
   summarizeOutcomes,
 } from "./apns.ts";
 
@@ -323,6 +325,87 @@ Deno.test("AC5: two devices get one push each, with one shared JWT", async () =>
   assertEquals(h.apns.calls.length, 2);
   assertEquals(h.apns.calls[0].headers.authorization, h.apns.calls[1].headers.authorization);
   assertEquals(h.disabled.length, 1);
+});
+
+// Shared signer across invocations ------------------------------------------------------
+// Apple answers 429 TooManyProviderTokenUpdates when the provider token changes more often
+// than every 20 minutes, so separate invocations in one isolate must reuse one JWT.
+
+/** Counts real ECDSA signings while `body` runs. */
+async function countingSigns<T>(body: () => Promise<T>): Promise<{ result: T; signs: number }> {
+  const subtle = crypto.subtle as SubtleCrypto & { sign: SubtleCrypto["sign"] };
+  const original = subtle.sign;
+  let signs = 0;
+  subtle.sign = ((...args: Parameters<SubtleCrypto["sign"]>) => {
+    signs++;
+    return original.apply(subtle, args);
+  }) as SubtleCrypto["sign"];
+  try {
+    return { result: await body(), signs };
+  } finally {
+    subtle.sign = original;
+  }
+}
+
+function iatOf(authorization: string): number {
+  const jwt = authorization.replace(/^bearer /, "");
+  return decodePart(jwt.split(".")[1]).iat as number;
+}
+
+const TWO_DEVICES = [
+  { token: TOKEN, environment: "production" as const },
+  { token: TOKEN_2, environment: "production" as const },
+];
+
+Deno.test("shared signer: two sendApnsToAll calls within 50 minutes sign once", async () => {
+  resetSharedApnsSigners();
+  const { config } = await testConfig();
+  let nowMs = Date.UTC(2026, 10, 23, 10, 0, 0);
+  const firstIat = Math.floor(nowMs / 1000);
+  const h = harness(config, [{ status: 200 }, { status: 200 }, { status: 200 }, { status: 200 }]);
+  const deps = { ...h.deps, now: () => nowMs };
+  const { signs } = await countingSigns(async () => {
+    await sendApnsToAll(TWO_DEVICES, message, deps);
+    nowMs += 40 * 60 * 1000;
+    // A second invocation: a fresh deps object, as a new request would build.
+    await sendApnsToAll(TWO_DEVICES, message, { ...deps });
+  });
+  assertEquals(signs, 1, "one signing for two invocations and four sends");
+  assertEquals(h.apns.calls.length, 4);
+  assertEquals(new Set(h.apns.calls.map((call) => call.headers.authorization)).size, 1);
+  assertEquals(iatOf(h.apns.calls[3].headers.authorization), firstIat);
+  resetSharedApnsSigners();
+});
+
+Deno.test("shared signer: after a 403 ExpiredProviderToken the next call signs a new JWT", async () => {
+  resetSharedApnsSigners();
+  const { config } = await testConfig();
+  let nowMs = Date.UTC(2026, 10, 23, 10, 0, 0);
+  const h = harness(config, [{ status: 403, reason: "ExpiredProviderToken" }, { status: 200 }]);
+  const deps = { ...h.deps, now: () => nowMs };
+  const { signs } = await countingSigns(async () => {
+    const first = await sendApnsToAll([TWO_DEVICES[0]], message, deps);
+    assertEquals(first, [{ status: "rejected", httpStatus: 403, reason: "ExpiredProviderToken" }]);
+    nowMs += 60 * 1000;
+    await sendApnsToAll([TWO_DEVICES[0]], message, { ...deps });
+  });
+  assertEquals(signs, 2);
+  assert(h.apns.calls[0].headers.authorization !== h.apns.calls[1].headers.authorization);
+  assertEquals(iatOf(h.apns.calls[1].headers.authorization), Math.floor(nowMs / 1000));
+  resetSharedApnsSigners();
+});
+
+Deno.test("shared signer: one per key id and team, replaced when the private key changes", async () => {
+  resetSharedApnsSigners();
+  const { config } = await testConfig();
+  const { config: rotated } = await testConfig();
+  const signer = sharedApnsSigner(config);
+  assert(sharedApnsSigner({ ...config }) === signer, "same key: same signer");
+  assert(sharedApnsSigner({ ...config, bundleId: "other" }) === signer, "the topic is not part of the JWT");
+  const afterRotation = sharedApnsSigner({ ...config, privateKey: rotated.privateKey });
+  assert(afterRotation !== signer, "a rotated key gets a new signer");
+  assert(sharedApnsSigner({ ...config, keyId: "KEY7654321" }) !== afterRotation, "another key id");
+  resetSharedApnsSigners();
 });
 
 // Token store ---------------------------------------------------------------------------
