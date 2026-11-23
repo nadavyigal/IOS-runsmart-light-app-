@@ -1,4 +1,5 @@
 import Combine
+import Network
 import SwiftUI
 
 /// C5 data for one athlete: this week and last week, read through Story 2.2's consent-checked RPCs.
@@ -150,11 +151,18 @@ struct CoachAthleteDetailView: View {
     /// C7.1: set once, after the first load, to open on the day the Today row was urgent for.
     @State private var focusedDayISO: String?
     @State private var didFocus = false
+    /// C7.11: "Remove {Athlete}". v2 only (flag-off AC); the server does not need the athlete on v2.
+    @StateObject private var removeModel = RemoveAthleteModel()
+    @State private var showsRemoveSheet = false
+    /// Called after the link ended, before the detail closes, so the roster reloads.
+    private let onRemoved: () -> Void
 
     init(destination: CoachAthleteDestination, service: any CoachReadServing = CoachReadService(),
          feedbackService: any CoachFeedbackServing = SupabaseCoachFeedbackService(),
-         replyService: any CoachFeedbackReplyFetching = SupabaseCoachFeedbackReplyService()) {
+         replyService: any CoachFeedbackReplyFetching = SupabaseCoachFeedbackReplyService(),
+         onRemoved: @escaping () -> Void = {}) {
         self.destination = destination
+        self.onRemoved = onRemoved
         _model = StateObject(wrappedValue: CoachAthleteDetailModel(
             athleteID: destination.athleteID, service: service, coachV2: destination.coachV2
         ))
@@ -190,6 +198,14 @@ struct CoachAthleteDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button("Welcome note for \(destination.name)") { showsWelcomeEditor = true }
+                        if destination.coachV2 {
+                            Button(role: .destructive) {
+                                removeModel.cancel()
+                                showsRemoveSheet = true
+                            } label: {
+                                Text(verbatim: CoachRemovalCopy.menuItem(athlete: destination.name))
+                            }
+                        }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .frame(width: 44, height: 44)
@@ -200,6 +216,15 @@ struct CoachAthleteDetailView: View {
         }
         .sheet(isPresented: $showsWelcomeEditor) {
             CoachWelcomeEditor(athlete: destination)
+        }
+        .sheet(isPresented: $showsRemoveSheet) {
+            RemoveAthleteSheet(athleteName: destination.name, model: removeModel) {
+                guard await removeModel.confirm(athleteID: destination.athleteID,
+                                                athleteName: destination.name) else { return }
+                showsRemoveSheet = false
+                onRemoved()
+                dismiss()
+            }
         }
         .task { await model.load() }
         .task {
@@ -694,5 +719,101 @@ struct CoachDayDetailContent: View {
 
     private func dayText(_ date: Date) -> String {
         CoachMetricFormat.isolate(date.formatted(Date.FormatStyle(calendar: calendar).day().month(.abbreviated)))
+    }
+}
+
+// MARK: C7.11 remove confirm
+
+/// "Remove {Athlete}?" Lists the effects, with Cancel and Remove the same size and no timer,
+/// like the athlete's A13 leave sheet. Cancel calls nothing.
+struct RemoveAthleteSheet: View {
+    let athleteName: String
+    @ObservedObject var model: RemoveAthleteModel
+    var onConfirm: () async -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var pathMonitor: NWPathMonitor?
+
+    var body: some View {
+        ScrollView {
+            RemoveAthleteSheetContent(athleteName: athleteName, model: model, onCancel: {
+                model.cancel()
+                dismiss()
+            }, onConfirm: onConfirm)
+            .padding(20)
+        }
+        .presentationDetents([.large])
+        .interactiveDismissDisabled(model.isWorking)
+        .onAppear(perform: startReachability)
+        .onDisappear {
+            pathMonitor?.cancel()
+            pathMonitor = nil
+        }
+    }
+
+    private func startReachability() {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { path in
+            Task { @MainActor in model.isOnline = path.status == .satisfied }
+        }
+        monitor.start(queue: DispatchQueue(label: "remove-athlete-path"))
+        pathMonitor = monitor
+    }
+}
+
+/// The sheet's content, split out so the screenshot test renders it without a sheet.
+struct RemoveAthleteSheetContent: View {
+    let athleteName: String
+    @ObservedObject var model: RemoveAthleteModel
+    var onCancel: () -> Void
+    var onConfirm: () async -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(verbatim: CoachRemovalCopy.title(athlete: athleteName))
+                .font(.headingLG)
+                .foregroundStyle(Color.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            Text(verbatim: CoachRemovalCopy.sheet(athlete: athleteName))
+                .font(.bodyMD)
+                .foregroundStyle(Color.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let message = model.isOnline ? model.errorMessage : CoachRemovalCopy.offline {
+                Text(verbatim: message)
+                    .font(.bodyMD.weight(.semibold))
+                    .foregroundStyle(Color.accentAmber)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 12) {
+                // Same size on purpose: the labels fill each half, so neither action looks preferred.
+                Button(action: onCancel) {
+                    Text(CoachRemovalCopy.cancel)
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                }
+                .buttonStyle(.bordered)
+                .disabled(model.isWorking)
+
+                Button {
+                    Task { await onConfirm() }
+                } label: {
+                    Group {
+                        if model.isWorking {
+                            ProgressView()
+                        } else {
+                            Text(verbatim: CoachRemovalCopy.menuItem(athlete: athleteName))
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 36)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .disabled(!model.isOnline || model.isWorking)
+            }
+            .frame(maxWidth: .infinity)
+        }
     }
 }

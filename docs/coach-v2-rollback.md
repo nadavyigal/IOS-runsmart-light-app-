@@ -106,8 +106,8 @@ Rules for every batch:
 | `20261121110000_coach_consent_v2.sql` (M5a) | C7.8 | `supabase/rollback/20261121110000_coach_consent_v2.sql` | written (draft PR) |
 | `20261121120000_athlete_run_sharing.sql` (M1a) | C7.3 | `supabase/rollback/20261121120000_athlete_run_sharing.sql` | merged (iOS #238, web #171); not applied |
 | `20261121130000_coach_last_seen_and_events.sql` (M3) | C7.2 | `supabase/rollback/20261121130000_coach_last_seen_and_events.sql` | merged (iOS #239, web #172); not applied |
-| `20261121150000_athlete_run_flags.sql` (M1b) | C7.4 | `supabase/rollback/20261121150000_athlete_run_flags.sql` | written (draft PR) |
-| `20261121160000_coach_link_end.sql` (M5b) | C7.11 | added by C7.11 | not written |
+| `20261121150000_athlete_run_flags.sql` (M1b) | C7.4 | `supabase/rollback/20261121150000_athlete_run_flags.sql` | merged (iOS #242, web #173); not applied |
+| `20261121160000_coach_link_end.sql` (M5b) | C7.11 | `supabase/rollback/20261121160000_coach_link_end.sql` | merged (iOS #244, web #175); not applied |
 | `20261121170000_coach_milestones.sql` (M13, only if needed) | C7.16 | added by C7.16 | not written |
 | `20261121180000_coach_feedback_replies.sql` (M4, renamed from `20261121140000`) | C7.7 | `supabase/rollback/20261121180000_coach_feedback_replies.sql` | written (draft PR) |
 
@@ -157,6 +157,16 @@ Rules for every batch:
 5. **After the rollback, the app:** v2 athlete apps get "function not found" on flag sends and removals and keep them queued (dropped after 14 days); v2 coach apps fail the flags read and show "Pain flags didn't load. Try again." on Coach Today. 1.2.6 apps see no change.
 6. **Account deletion and link end:** the purge deletes the athlete's flags and clears `resolved_by` where the deleted user was the coach. Leaving or being removed keeps the rows; every coach read needs the flag's own link to be active, so the coach sees none of them, and a rejoin (a new link row) does not bring them back. `leave_coach` is not replaced.
 7. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: `athlete_run_flags.sql` and the M1b case in `kill_switch.sql` pass, and `coach_last_seen.sql` and `athlete_run_sharing.sql` still pass with M1b applied; the rollback dropped the four functions, kept a flag row, RLS and the policy, restored C7.2's summary and C7.3's purge, and a re-apply restored the functions.
+
+#### M5b: `20261121160000_coach_link_end.sql`
+
+1. **Flag to flip first:** `coach_v2` to false. With it off, the removed athlete's one-time line is hidden (`my_coach_link_notice` returns zero rows, `mark_link_notice_seen` raises `v2_unavailable`). Removal (`coach_remove_athlete`) and leaving (`leave_coach`) keep working on purpose: the switch never blocks ending a link.
+2. **Safe with the flag off:** every ended link keeps `ended_by` and `ended_notice_seen_at`, and every `left` / `removed` event stays in `coach_athlete_events`. A line not seen while the flag is off shows once when it is back on. 1.2.6 athletes leave exactly as before.
+3. **Rollback file:** `supabase/rollback/20261121160000_coach_link_end.sql`. It restores Story 1.5's `leave_coach` body (same signature, void return, same errors), then drops `coach_remove_athlete`, `mark_link_notice_seen`, `my_coach_link_notice`, `coach_link_notice_allowed` and `end_coach_link`. It keeps both columns, their values and the `ended_by` check. Dropping the columns is a commented, optional step that deletes who ended each link; export first if you ever run it.
+4. **When not to roll back:** while M6b (`20261201110000_coach_plan_locks.sql`) or M7 is applied: both replace `end_coach_link`. Roll those back first, or flip `coach_v2` instead. M3 must stay applied while M5b is (the link end writes `coach_athlete_events`).
+5. **After the rollback, the app:** v2 coach builds get "function not found" from Remove {Athlete} and show the remove error; the athlete stays linked. v2 athlete builds fail the notice read and show nothing. 1.2.6 apps see no change.
+6. **Account deletion:** both columns live on `coach_athlete_links`, which `purge_coach_data_for_deleted_account` already deletes. M5b does not replace the purge.
+7. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-22: `coach_link_end.sql`, the M5b case in `kill_switch.sql` and Story 1.5's `leave_coach.sql` (run with M5b on top) pass. With a removed link in place, the rollback dropped the five functions and kept `ended_by = 'coach'`; the restored `leave_coach` ended another link with `ended_by` left null. Re-applying the migration kept the values and the unseen line showed again.
 
 #### M4: `20261121180000_coach_feedback_replies.sql`
 

@@ -28,7 +28,8 @@
 --   * coach_roster_summary (AC4): new_replies counts replies after the baseline, only
 --     for a sharing pair, drops after the coach opens the athlete, and C7.2's run
 --     count and C7.4's flag count are unchanged.
---   * Link ended (AC6, AC7): the athlete's queued reply gets link_inactive; a retry of
+--   * Link ended (AC6, AC7): the coach removes H through C7.11's coach_remove_athlete
+--     and reads none of H's replies; the athlete's queued reply gets link_inactive; a retry of
 --     a reply stored before the end returns 'sent' and stores nothing new; the
 --     athlete still reads their replies.
 --   * Account deletion: the purge deletes the athlete's replies, the replies on a
@@ -56,6 +57,7 @@
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121120000_athlete_run_sharing.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121130000_coach_last_seen_and_events.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121150000_athlete_run_flags.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121160000_coach_link_end.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121180000_coach_feedback_replies.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121180000_coach_feedback_replies.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/coach_feedback_replies.sql
@@ -462,10 +464,13 @@ select pg_temp.expect_count(
 reset role;
 
 -- Link ended, then a rejoin (AC6, AC7) ----------------------------------------------------
-update public.coach_athlete_links set status = 'revoked', revoked_at = now()
-where id = '11111111-0000-4000-8000-000000000008';
+-- The coach removes H (C7.11, M5b): the coach then reads none of H's replies.
 set local role authenticated;
 select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
+select pg_temp.expect_count(
+  $q$select 1 from public.coach_get_feedback_replies(array['88888888-0000-4000-8000-000000000008']::uuid[])$q$,
+  1, 'H''s reply before the removal');
+select pg_temp.expect_text(public.coach_remove_athlete('88888888-0000-4000-8000-000000000008'), 'removed', 'A removes H');
 select pg_temp.expect_count(
   $q$select 1 from public.coach_get_feedback_replies(array['88888888-0000-4000-8000-000000000008']::uuid[])$q$,
   0, 'revoked link: no replies');

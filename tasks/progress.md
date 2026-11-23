@@ -1,11 +1,20 @@
-# 2026-11-23: Coach v2 C7.7 athlete replies to a coach note (draft PR)
+# 2026-11-23: Coach v2 C7.7 athlete replies to a coach note (ready PR, C7.11 catch-up)
 
-Current Phase: Coach Experience v2, R1 Batch A, C7.7. Draft PR open in iOS and web; M4 not applied.
-Active Story: C7.7: M4 replies table and RPCs (renamed to 20261121180000), new_replies in roster summary, P6 reply UI, coach replies under notes.
-Next Recommended Story: Overseer review of C7.7; add coach_get_feedback_replies to C7.11's parity test when both are merged.
+Current Phase: Coach Experience v2, R1 Batch A, C7.7. iOS #245 and web #176 ready; main merged after C7.11; M4 not applied.
+Active Story: C7.7 catch-up: CI rows list M5b, reply read in C7.11 parity test, removal case in replies test, ledger M5b merged.
+Next Recommended Story: Overseer merges C7.7 (iOS #245, then web #176); then C7.16 milestones.
 Blockers: Nadav applies Batch A (M0, M5a, M1a, M3, M1b, M5b, M4) after the Grok Bot audit and the 1.2.6 regression.
-Last Validation: SQL coach_feedback_replies, kill_switch and 8 earlier suites PASS with M4; rollback verified; coach Swift tests (see PR).
+Last Validation: SQL coach_feedback_replies, kill_switch, coach_link_end (with and without M4) PASS; drift CLEAN 24 files; coach Swift classes.
 Last Updated: 2026-11-23
+
+# 2026-11-22: Coach v2 C7.11 coach removes an athlete, M5b (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 4, lane B. C7.11 in draft PRs (iOS + web twin); M5b written, not applied.
+Active Story: C7.11: Remove {Athlete}, end_coach_link shared with leave_coach, one-time athlete line, left/removed events.
+Next Recommended Story: C7.16 milestones (lane B) after C7.1/C7.2; Batch A apply after the Grok Bot audit.
+Blockers: Nadav applies Batch A incl. M5b; Sally light copy review of the remove sheet lines.
+Last Validation: After C7.4 catch-up: SQL coach_link_end, kill_switch, athlete_run_flags, 1.5 leave_coach PASS; 20 coach classes 300 passed, 0 failed.
+Last Updated: 2026-11-22
 
 # 2026-11-22: Coach v2 C7.4 pain / something off flag (draft PR)
 
