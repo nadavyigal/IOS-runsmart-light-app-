@@ -73,6 +73,12 @@ nonisolated enum CoachV2Analytics {
         case coachRemovedAthlete
         /// C7.11: the athlete left their coach (A13 or P9) and the server ended the link. No properties.
         case athleteLeftCoach
+        /// C7.10: T6 or P10 shown (once per account and role).
+        case pushPermissionPrompted(role: RemotePushRole)
+        /// C7.10: the system prompt's answer.
+        case pushPermissionResult(role: RemotePushRole, granted: Bool)
+        /// C7.10: a remote push was tapped.
+        case pushOpened(kind: RemotePushKind)
 
         var name: String {
             switch self {
@@ -95,6 +101,9 @@ nonisolated enum CoachV2Analytics {
             case .coachNoteReplySent: "coach_note_reply_sent"
             case .coachRemovedAthlete: "coach_removed_athlete"
             case .athleteLeftCoach: "athlete_left_coach"
+            case .pushPermissionPrompted: "push_permission_prompted"
+            case .pushPermissionResult: "push_permission_result"
+            case .pushOpened: "push_opened"
             }
         }
 
@@ -126,6 +135,12 @@ nonisolated enum CoachV2Analytics {
                 ["kind": .kind(kind)]
             case .coachNoteReplySent(let target):
                 ["target": .kind(target.rawValue)]
+            case .pushPermissionPrompted(let role):
+                ["role": .kind(role.rawValue)]
+            case .pushPermissionResult(let role, let granted):
+                ["role": .kind(role.rawValue), "granted": .flag(granted)]
+            case .pushOpened(let kind):
+                ["kind": .kind(kind.rawValue)]
             }
         }
     }

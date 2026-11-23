@@ -18,6 +18,8 @@ private enum CoachTodayItem: Identifiable {
     /// C7.4: a queued Mark handled the server refused because the link ended.
     case actionFailed(UUID)
     case header(title: String, summary: String?, detail: String?)
+    /// C7.10 T6: the push pre-permission card, once, under the header.
+    case pushPrimer
     case skeleton(Int)
     case errorNoCache
     case empty
@@ -35,6 +37,7 @@ private enum CoachTodayItem: Identifiable {
         case .handledToast: "handled-toast"
         case .actionFailed(let id): "action-failed-\(id.uuidString)"
         case .header: "header"
+        case .pushPrimer: "push-primer"
         case .skeleton(let index): "skeleton-\(index)"
         case .errorNoCache: "error"
         case .empty: "empty"
@@ -52,6 +55,8 @@ struct CoachTodayView: View {
     @ObservedObject var model: CoachAthleteListModel
     /// C7.4: the Mark handled queue, for its toast. The same store the model reads.
     @ObservedObject var flagStore: CoachFlagStore = .shared
+    /// C7.10: T6 shows while the registrar asks for it (never with v2 off).
+    @ObservedObject var pushRegistrar: RemotePushRegistrar = .shared
     var onShareInvite: (() -> Void)?
     let open: (CoachTodayRow) -> Void
     let retry: () async -> Void
@@ -89,6 +94,7 @@ struct CoachTodayView: View {
         list.append(.header(
             title: snapshot.headerTitle(locale: locale), summary: snapshot.summaryLine, detail: snapshot.caughtUpDetail
         ))
+        if pushRegistrar.showsCoachPrimer { list.append(.pushPrimer) }
         guard snapshot.athleteCount > 0 else { return list + [.empty] }
 
         let groups = snapshot.groups
@@ -197,6 +203,8 @@ struct CoachTodayView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
+        case .pushPrimer:
+            RemotePushCoachPrimerCard(registrar: pushRegistrar)
         case .skeleton:
             skeletonRow
         case .errorNoCache:

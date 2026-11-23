@@ -39,6 +39,8 @@ final class AppRouter: ObservableObject {
     @Published var pendingDebriefRunStartedAt: Date?
     /// Set to open Plan on the week that contains this date (Story 3.2: a week note from My coach).
     @Published var planFocusDate: Date?
+    /// C7.10: a tapped coach push opens this athlete on the Coach tab. CoachTabView consumes it.
+    @Published var pendingCoachDestination: CoachAthleteDestination?
 
     private static func initialTab() -> RunSmartTab {
 #if DEBUG
@@ -105,6 +107,35 @@ final class AppRouter: ObservableObject {
         plannedRoute = route
         activeSheet = nil
         selectedTab = .run
+    }
+
+    /// C7.10 AC8: opens a tapped remote push's destination.
+    func openRemotePush(_ destination: RemotePushDestination) {
+        switch destination {
+        case .today:
+            activeSheet = nil
+            selectedTab = .today
+        case .plan:
+            activeSheet = nil
+            selectedTab = .plan
+        case .coachToday:
+            activeSheet = nil
+            pendingCoachDestination = nil
+            selectedTab = coachModeEnabled ? .coach : .today
+        case .coachAthlete(let id, let name, let dayISO):
+            activeSheet = nil
+            guard coachModeEnabled else {
+                selectedTab = .today
+                return
+            }
+            selectedTab = .coach
+            pendingCoachDestination = CoachAthleteDestination(
+                athleteID: id, name: name, focusDayISO: dayISO, coachV2: true
+            )
+        case .myCoach:
+            selectedTab = .today
+            activeSheet = coachModeEnabled ? .secondary(.myCoach) : nil
+        }
     }
 
     func openNotificationDestination(_ destination: RunSmartNotificationDestination) {
@@ -226,6 +257,13 @@ struct RunSmartLiteAppShell: View {
             CoachV2GateHooks(gate: coachV2Gate, athletes: coachAthletes, coachLinks: coachLinks, userID: coachRoleCheckUserID)
             // C7.3: effort and note sharing follow the gate, the link and the consent.
             AthleteRunSharingHooks(gate: coachV2Gate, links: coachLinks, userID: coachRoleCheckUserID, services: services)
+            // C7.10: remote push permission moments, token refresh, time zone and tap routing.
+            RemotePushHooks(
+                gate: coachV2Gate, router: router, coachMode: coachMode, athletes: coachAthletes,
+                coachLinks: coachLinks, feedback: athleteFeedback, userID: coachRoleCheckUserID
+            )
+            RemotePushNoticeHost(registrar: .shared)
+                .zIndex(9)
 
             if isShowingLaunch {
                 RunSmartLaunchView()

@@ -198,6 +198,12 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
     private let authorizationRequester: @MainActor (UNAuthorizationOptions) async throws -> Bool
     private var authorizationTask: Task<Bool, Error>?
     private var navigationHandler: ((RunSmartNotificationDestination) -> Void)?
+    /// C7.10: remote coach pushes ("rs" payload). The app delegate sets this object as the
+    /// notification delegate at launch, so a cold-launch tap can arrive before the shell has
+    /// configured its handlers: it waits here until they are set.
+    private var remoteTapHandler: ((RemotePushPayload) -> Void)?
+    private var pendingRemoteTap: RemotePushPayload?
+    private var pendingDestination: RunSmartNotificationDestination?
 
     init(
         center: UNUserNotificationCenter = .current(),
@@ -217,6 +223,20 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
     func configureNavigation(_ handler: @escaping (RunSmartNotificationDestination) -> Void) {
         navigationHandler = handler
         center.delegate = self
+        if let destination = pendingDestination {
+            pendingDestination = nil
+            handler(destination)
+        }
+    }
+
+    /// C7.10 AC8: taps on remote pushes go here instead of the local destination handler.
+    func configureRemoteTaps(_ handler: @escaping (RemotePushPayload) -> Void) {
+        remoteTapHandler = handler
+        center.delegate = self
+        if let payload = pendingRemoteTap {
+            pendingRemoteTap = nil
+            handler(payload)
+        }
     }
 
     func requestAuthorization() async throws -> Bool {
@@ -388,11 +408,35 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        let destinationValue = response.notification.request.content.userInfo["destination"] as? String
+        let userInfo = response.notification.request.content.userInfo
+        if let payload = RemotePushPayload(userInfo: userInfo) {
+            await MainActor.run {
+                if let remoteTapHandler {
+                    remoteTapHandler(payload)
+                } else {
+                    pendingRemoteTap = payload
+                }
+            }
+            return
+        }
+        let destinationValue = userInfo["destination"] as? String
         let destination = destinationValue.flatMap(RunSmartNotificationDestination.init(rawValue:)) ?? .today
         await MainActor.run {
-            navigationHandler?(destination)
+            if let navigationHandler {
+                navigationHandler(destination)
+            } else {
+                pendingDestination = destination
+            }
         }
+    }
+
+    /// C7.10: a remote coach push that arrives while the app is open still shows as a banner.
+    /// Local reminders keep their behavior (not shown in the foreground).
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        RemotePushPayload(userInfo: notification.request.content.userInfo) == nil ? [] : [.banner, .list, .sound]
     }
 }
 
