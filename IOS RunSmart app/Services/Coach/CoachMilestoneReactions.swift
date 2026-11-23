@@ -4,8 +4,8 @@ import Supabase
 
 // C7.16 one-tap praise. A reaction is an ordinary coach note on the run or week (the existing
 // `coach_add_feedback` RPC and `CoachFeedbackOutbox`), so it is stored with the coach's own words,
-// shown to the athlete as a coach note, and never AI-written. `coach_feedback` has no `kind`
-// column, so nothing is added to it: the milestone key lives on the phone.
+// shown to the athlete as a coach note, and never AI-written. It is stored as kind 'note' (the
+// existing default of `coach_feedback.kind`), so there is no schema change: the milestone key lives on the phone.
 
 nonisolated enum CoachMilestoneReactions {
     /// The note id for one reaction. It depends only on the coach and the milestone, so a double tap,
