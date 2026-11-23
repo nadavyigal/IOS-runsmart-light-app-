@@ -1,3 +1,102 @@
+# 2026-11-23: Coach v2 C7.7 athlete replies to a coach note (ready PR, C7.11 catch-up)
+
+Current Phase: Coach Experience v2, R1 Batch A, C7.7. iOS #245 and web #176 ready; main merged after C7.11; M4 not applied.
+Active Story: C7.7 catch-up: CI rows list M5b, reply read in C7.11 parity test, removal case in replies test, ledger M5b merged.
+Next Recommended Story: Overseer merges C7.7 (iOS #245, then web #176); then C7.16 milestones.
+Blockers: Nadav applies Batch A (M0, M5a, M1a, M3, M1b, M5b, M4) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: SQL coach_feedback_replies, kill_switch, coach_link_end (with and without M4) PASS; drift CLEAN 24 files; coach Swift classes.
+Last Updated: 2026-11-23
+
+# 2026-11-22: Coach v2 C7.11 coach removes an athlete, M5b (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 4, lane B. C7.11 in draft PRs (iOS + web twin); M5b written, not applied.
+Active Story: C7.11: Remove {Athlete}, end_coach_link shared with leave_coach, one-time athlete line, left/removed events.
+Next Recommended Story: C7.16 milestones (lane B) after C7.1/C7.2; Batch A apply after the Grok Bot audit.
+Blockers: Nadav applies Batch A incl. M5b; Sally light copy review of the remove sheet lines.
+Last Validation: After C7.4 catch-up: SQL coach_link_end, kill_switch, athlete_run_flags, 1.5 leave_coach PASS; 20 coach classes 300 passed, 0 failed.
+Last Updated: 2026-11-22
+
+# 2026-11-22: Coach v2 C7.4 pain / something off flag (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 4, lane A. C7.4 draft PR open in iOS and web; M1b not applied.
+Active Story: C7.4: M1b flags table and RPCs, new_flags in roster summary, P7 flag row, pain group on Coach Today.
+Next Recommended Story: Overseer review of C7.4; lane B wires CoachFlagBlock into day detail; then C7.7 (lane A).
+Blockers: Nadav applies Batch A (M0, M5a, M1a, M3, M1b) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: SQL athlete_run_flags, kill_switch, coach_last_seen, athlete_run_sharing PASS; iOS full suite 1298 passed, 0 failed, 2 skipped.
+Last Updated: 2026-11-22
+
+# 2026-11-22: Coach v2 C7.3 AC4 coach day detail shows effort and note (draft PR)
+
+Current Phase: Coach Experience v2, R1 wave 4, lane B. C7.3 AC4 follow-up in a draft PR; SwiftUI only, no migration.
+Active Story: C7.3 AC4: coach day detail shows "Effort 7/10" and the athlete's quoted note under Actual, flag-gated.
+Next Recommended Story: C7.11 coach removes an athlete (lane B, M5b), after this PR merges.
+Blockers: None for this PR. Batch A (M0, M5a, M1a, M3) still waits for Nadav; effort and notes show only after M1a.
+Last Validation: 17 coach test classes 259 passed, 0 failed, 1 skipped (iPhone 17, iOS 26.5); 6 fixture screenshots. Full suite not run (23 min).
+Last Updated: 2026-11-22
+
+# 2026-11-22: Coach v2 C7.2 "New since last visit" markers and coach events merged
+
+Current Phase: Coach Experience v2, R1 wave 3, lane B. C7.2 merged in iOS and web with founder yes; M3 not applied.
+Active Story: C7.2: M3 seen and events tables, four RPCs, New to review group, "{n} new" markers, outbox, analytics.
+Next Recommended Story: C7.11 (lane B); it logs left/removed events into M3.
+Blockers: Nadav applies Batch A (M0, M5a, M1a, M3) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: SQL 5 suites pass on local Postgres; iOS full suite 1255 passed, 0 failed, 1 skipped (iPhone 17, iOS 26.5).
+Last Updated: 2026-11-22
+
+# 2026-11-22: Coach v2 C7.3 RPE and note sharing merged
+
+Current Phase: Coach Experience v2, R1 wave 3, lane A. C7.3 merged in iOS and web with founder yes; M1a not applied.
+Active Story: C7.3 sync RPE and notes to the coach behind consent v2, hide toggle, 14-day RPE backfill, bidi helpers.
+Next Recommended Story: C7.4 (lane A); lane B wires "Effort 7/10" and the note into coach day detail.
+Blockers: Nadav applies Batch A (gate, M5a, M1a) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: iOS full suite 1255/0 (2 skips); SQL athlete_run_sharing, kill_switch, consent, coach_read PASS; Deno 6/6.
+Last Updated: 2026-11-22
+
+# 2026-11-22: Coach v2 C7.1 Coach Today with 7-day dots merged
+
+Current Phase: Coach Experience v2, wave 2 (lane B). C7.1 merged with founder yes; SwiftUI only, no migration, no new RPC.
+Active Story: C7.1 built: dots, groups, chips, no re-sort pill, states, VoiceOver, RTL; passed overseer review.
+Next Recommended Story: Wave 3: C7.2 "New since last visit" (lane B, writes M3) and C7.3 (lane A, writes M1a).
+Blockers: None for lane B; C7.2 needs Batch A M3 written, not applied.
+Last Validation: Full suite 1209 passed, 0 failed on iPhone 17 simulator (iOS 26.5); 40 new C7.1 tests.
+Last Updated: 2026-11-22
+
+# 2026-11-22: Coach v2 C7.8 consent v2 and one-time notice merged
+
+Current Phase: Coach Experience v2, R1 wave 2, lane A. C7.8 merged in iOS and web with founder yes; M5a not applied.
+Active Story: C7.8 consent v2: M5a migration, ack and status RPCs, P8 and P9 sheets, leave sheet lines, analytics.
+Next Recommended Story: C7.3 (lane A), gated by coach_v2_sharing_allowed.
+Blockers: Nadav applies Batch A (gate, then M5a) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: SQL 8 suites pass on local Postgres; iOS targeted 104/0; full suite 1187/0 before simulator died at 24 min.
+Last Updated: 2026-11-22
+
+# 2026-11-22: Coach v2 C7.0 gate, kill switch and pilot allowlist merged
+
+Current Phase: Coach Experience v2, wave 1 (Gate lane). C7.0 merged in iOS and web with founder yes; M0 not applied.
+Active Story: C7.0 passed overseer review after round 1 (capability report, no report before flags read).
+Next Recommended Story: Wave 2 after C7.0 merges: C7.8 (lane A), C7.1 (lane B), C7.10 (lane C).
+Blockers: Nadav applies M0 in Batch A after the Grok Bot audit and 1.2.6 regression.
+Last Validation: iOS full suite 1169/0 (1 skip) on iOS 26.5 after round 1; SQL and Deno unchanged and passing.
+Last Updated: 2026-11-22
+
+# 2026-11-21: Coach v2 C0.2 migration ledger, drift script, metrics doc
+
+Current Phase: Coach Experience v2, R0 ground truth. C0.2 docs-only draft PR open; no product code or SQL.
+Active Story: C0.2 done: ledger, drift script (17 files, 0 drift), metrics doc. Reviewed; merging with founder yes.
+Next Recommended Story: C7.0 gate plus kill switch (PR #234, reviewed), then wave 2: C7.8 and C7.1.
+Blockers: N2: 6 v1 coach migrations (20261118100000 to 180000) possibly unapplied in prod.
+Last Validation: drift script exit 0 on both origin/main trees; scratch-copy test exits 1; 0 em dashes in new docs.
+Last Updated: 2026-11-21
+
+# 2026-11-20: Coach Experience v2 refined plan (C0.1)
+
+Current Phase: 1.2.6 (46) in App Review; Coach v2 refined plan written as a docs-only draft PR.
+Active Story: C0.1 refined plan; N1 decided B (dark App Store build, per-coach allowlist table). Waiting for plan approval.
+Next Recommended Story: C0.2 migration mirror check plus C7.0 gate, kill switch and pilot-coach allowlist, after plan approval.
+Blockers: Founder plan approval; confirm 6 v1 coach migrations applied in production; APNs setup.
+Last Validation: Docs only. Claims checked against origin/main 4a016b4 by code read; no build or tests run.
+Last Updated: 2026-11-20
+
 # 2026-11-21: Xcode Cloud archive backend check (draft PR)
 
 Current Phase: 1.2.6 (46) live on the App Store since 2026-11-20; Apple membership follow-ups.

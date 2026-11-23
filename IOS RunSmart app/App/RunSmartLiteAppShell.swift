@@ -169,6 +169,8 @@ struct RunSmartLiteAppShell: View {
     @StateObject private var guestJourney = GuestJourneyStore()
     @StateObject private var coachMode = CoachModeStore()
     @StateObject private var coachAthletes = CoachAthleteListModel()
+    /// C7.0: `coachV2Enabled`, the server kill switch and the capability report.
+    @StateObject private var coachV2Gate = CoachV2Gate()
     @StateObject private var coachLinks = CoachLinkStore(publishesAssistantContext: true)
     @StateObject private var athleteFeedback = AthleteFeedbackStore()
     /// Story 3.3: the one gate every coach element on Today and the Plan reads.
@@ -220,6 +222,11 @@ struct RunSmartLiteAppShell: View {
             }
             #endif
 
+            // C7.0 hooks live in their own view so this body's modifier chain stays type-checkable.
+            CoachV2GateHooks(gate: coachV2Gate, athletes: coachAthletes, coachLinks: coachLinks, userID: coachRoleCheckUserID)
+            // C7.3: effort and note sharing follow the gate, the link and the consent.
+            AthleteRunSharingHooks(gate: coachV2Gate, links: coachLinks, userID: coachRoleCheckUserID, services: services)
+
             if isShowingLaunch {
                 RunSmartLaunchView()
                     .transition(.opacity)
@@ -245,6 +252,8 @@ struct RunSmartLiteAppShell: View {
         .environmentObject(coachLinks)
         .environmentObject(athleteFeedback)
         .environmentObject(coachPresence)
+        // C7.8: Today's P9 notice reads `coachV2Enabled` from the gate.
+        .environmentObject(coachV2Gate)
         .environment(\.coachAssistantActive, assistantContext.linkActive)
         .environment(\.coachAssistantName, assistantContext.coachDisplayName)
         .environment(\.runSmartServices, services)
@@ -796,6 +805,89 @@ struct RunSmartLiteAppShell: View {
 
     private var activationFirstFrameTrackingKey: String {
         "\(isAnalyticsReady)-\(isShowingLaunch)-\(resolvedActivationFirstFrameScreen?.rawValue ?? "loading")"
+    }
+}
+
+/// C7.0: syncs the v2 gate on sign-in, sign-out and every foreground (flags, then one
+/// capability report), and passes its state to the coach roster. Renders nothing.
+/// C7.2: also sends the v2 outbox on those moments, and queues a goal change after a goal save.
+private struct CoachV2GateHooks: View {
+    @ObservedObject var gate: CoachV2Gate
+    let athletes: CoachAthleteListModel
+    @ObservedObject var coachLinks: CoachLinkStore
+    let userID: UUID?
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .task(id: userID) {
+                guard !RunSmartDemoMode.isEnabled else { return }
+                await gate.sync(userID: userID)
+                await flushOutbox()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active, !RunSmartDemoMode.isEnabled, RunSmartFeatures.coachModeEnabled else { return }
+                Task {
+                    await gate.sync(userID: userID)
+                    await flushOutbox()
+                }
+            }
+            // C7.2 AC3: every goal-save caller ends in SupabaseRunSmartServices.saveTrainingGoal, which posts
+            // `.generating` only after the goal is saved. One hook covers them all.
+            .onReceive(NotificationCenter.default.publisher(for: .runSmartPlanGenerationStatusDidChange)) { note in
+                guard case .generating? = note.object as? RunSmartPlanGenerationStatus,
+                      !RunSmartDemoMode.isEnabled, gate.state == .on, let userID else { return }
+                // Skip only when the link store has loaded and found no coach. The server checks again.
+                guard !(coachLinks.didAttemptLoad && coachLinks.currentLink == nil) else { return }
+                Task { await CoachV2Outbox.shared.logGoalChange(userID: userID) }
+            }
+            .onChange(of: gate.state) { _, state in
+                Task { await athletes.applyCoachV2(state) }
+            }
+    }
+
+    /// Flag-off and paused keep the queue and send nothing (v1.3 §1.1 offline AC).
+    private func flushOutbox() async {
+        guard gate.state == .on, let userID else { return }
+        await CoachV2Outbox.shared.flush(userID: userID)
+    }
+}
+
+/// C7.3: refreshes effort and note sharing on sign-in, when the v2 gate or the coach link
+/// changes, and on every foreground. With v2 off it makes no call.
+private struct AthleteRunSharingHooks: View {
+    @ObservedObject var gate: CoachV2Gate
+    @ObservedObject var links: CoachLinkStore
+    let userID: UUID?
+    let services: any RunSmartServiceProviding
+    @Environment(\.scenePhase) private var scenePhase
+
+    private var key: String {
+        "\(userID?.uuidString ?? "-").\(gate.isEnabled).\(links.currentLink?.id.uuidString ?? "-")"
+    }
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .task(id: key) { await refresh() }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task { await refresh() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .coachConsentV2Acked)) { _ in
+                Task { await refresh() }
+            }
+    }
+
+    private func refresh() async {
+        guard !RunSmartDemoMode.isEnabled, RunSmartFeatures.coachModeEnabled else { return }
+        let link = links.currentLink
+        await (services as? SupabaseRunSmartServices)?.refreshRunSharing(
+            v2Enabled: gate.isEnabled, linkID: link?.id, coachName: link?.coachName
+        )
     }
 }
 

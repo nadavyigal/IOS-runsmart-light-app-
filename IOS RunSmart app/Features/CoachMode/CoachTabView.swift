@@ -7,6 +7,9 @@ struct CoachTabView: View {
 
     @State private var showsWelcomeEditor = false
     @State private var showsWelcomeHint = false
+    /// C7.1: Today rows open the athlete from code, so the analytics event fires for a tap and for VoiceOver alike.
+    @State private var path = NavigationPath()
+    @Environment(\.scenePhase) private var scenePhase
 
     private let welcomeService = SupabaseCoachWelcomeService()
     private let welcomeHint = CoachWelcomeHint()
@@ -23,10 +26,16 @@ struct CoachTabView: View {
 
     var body: some View {
         if RunSmartFeatures.coachModeEnabled {
-            NavigationStack {
+            NavigationStack(path: $path) {
                 coachScreen
                     .navigationDestination(for: CoachAthleteDestination.self) { athlete in
-                        CoachAthleteDetailView(destination: athlete)
+                        // C7.11: a removed athlete leaves the roster as soon as the detail closes.
+                        CoachAthleteDetailView(destination: athlete, onRemoved: {
+                            Task { await athletes.refresh(owner: ownerID) }
+                        })
+                            // C7.2: opening the detail marks the athlete seen, from Today or the roster.
+                            // `markSeen` does nothing unless v2 is on.
+                            .onAppear { if athlete.coachV2 { athletes.markSeen(athlete.athleteID) } }
                     }
                     .toolbar(.hidden, for: .navigationBar)
             }
@@ -34,6 +43,17 @@ struct CoachTabView: View {
     }
 
     private var coachScreen: some View {
+        ScrollViewReader { proxy in
+            coachContent(scrollTo: proxy)
+        }
+    }
+
+    private func openToday(_ destination: CoachAthleteDestination, _ row: CoachTodayRow) {
+        athletes.trackRowOpened(row)
+        path.append(destination)
+    }
+
+    private func coachContent(scrollTo proxy: ScrollViewProxy) -> some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 14) {
                 header
@@ -52,7 +72,10 @@ struct CoachTabView: View {
                 if model.loadFailed {
                     loadFailure
                     if athletes.ownerID == ownerID, athletes.updatedAt != nil {
-                        CoachAthleteList(model: athletes, ownerID: ownerID, planSetupUnavailable: true) {
+                        CoachAthleteList(
+                            model: athletes, ownerID: ownerID, planSetupUnavailable: true, open: openToday,
+                            onShareInvite: { withAnimation { proxy.scrollTo("coach-invite", anchor: .top) } }
+                        ) {
                             await athletes.refresh(owner: ownerID)
                         }
                     }
@@ -94,10 +117,13 @@ struct CoachTabView: View {
                     }
 
                     if model.showsInvite {
-                        CoachAthleteList(model: athletes, ownerID: ownerID) {
+                        CoachAthleteList(
+                            model: athletes, ownerID: ownerID, open: openToday,
+                            onShareInvite: { withAnimation { proxy.scrollTo("coach-invite", anchor: .top) } }
+                        ) {
                             await athletes.refresh(owner: ownerID)
                         }
-                        CoachInviteSection()
+                        CoachInviteSection().id("coach-invite")
                     }
 
                     if let savedMessage = model.savedMessage, model.showsInvite {
@@ -127,6 +153,26 @@ struct CoachTabView: View {
         .refreshable {
             if model.showsInvite { await athletes.refresh(owner: ownerID) }
         }
+        // C7.1. Everything below does nothing unless Coach Today is on (`athletes.coachV2 == .on`).
+        .onChange(of: scenePhase) { _, phase in
+            // Back from the background: refresh and show it. Flag-off keeps the 1.2.6 behavior.
+            if phase == .active, athletes.coachV2 == .on, model.showsInvite {
+                Task { await athletes.refresh(owner: ownerID) }
+            }
+        }
+        .task(id: athletes.coachV2) {
+            // While Today is on screen, check for news every 5 minutes. A result that would move rows
+            // waits behind the "New updates · Refresh" pill (UX spec A.3 item 7).
+            guard athletes.coachV2 == .on else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(300))
+                guard !Task.isCancelled, model.showsInvite else { continue }
+                await athletes.refresh(owner: ownerID, style: .quiet)
+            }
+        }
+        .onChange(of: athletes.today?.generatedAt) { _, _ in athletes.trackTodayViewed() }
+        .onAppear { athletes.trackTodayViewed() }
+        .onDisappear { athletes.todayDidDisappear() }
     }
 
     private var header: some View {
