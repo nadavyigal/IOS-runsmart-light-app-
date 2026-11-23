@@ -31,7 +31,9 @@ enum RunDebriefSession {
         }
 
         // A cancelled debrief (the run screen closed) is not a result: no event, no compare.
-        if Task.isCancelled { return result }
+        // A generator can also throw CancellationError without the task being cancelled,
+        // so a `.cancelled` attempt counts too. Ordinary failures still send a fallback event.
+        if Task.isCancelled || attempts.contains(where: { $0.outcome == .cancelled }) { return result }
 
         Analytics.trackRunDebriefGenerated(
             trigger: trigger,

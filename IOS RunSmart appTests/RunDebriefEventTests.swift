@@ -13,7 +13,7 @@ final class RunDebriefEventTests: XCTestCase {
     }
 
     private struct Fake: RunDebriefGenerating {
-        enum Behavior { case skip, fail, timeout, incomplete, generate }
+        enum Behavior { case skip, fail, cancel, timeout, incomplete, generate }
         let attemptName: String
         let behavior: Behavior
 
@@ -21,6 +21,7 @@ final class RunDebriefEventTests: XCTestCase {
             switch behavior {
             case .skip: return nil
             case .fail: throw SomeError()
+            case .cancel: throw CancellationError()
             case .timeout: throw RunDebriefTimeoutError()
             case .incomplete: return PostRunDebriefModel(headline: " ", debrief: "x", tomorrow: "y", planImpact: nil, source: .ai)
             case .generate: return PostRunDebriefModel(headline: "Steady", debrief: "Even pace.", tomorrow: "Rest.", planImpact: nil, source: .onDevice)
@@ -198,6 +199,28 @@ final class RunDebriefEventTests: XCTestCase {
         XCTAssertEqual(result.source, .fallback)
         XCTAssertTrue(spy.events.isEmpty)
         XCTAssertEqual(compared, 0)
+    }
+
+    func testGeneratorCancellationWithoutTaskCancelSendsNoEventAndNoCompare() async {
+        var compared = 0
+        let (result, events) = await produce(
+            generators: [Fake(attemptName: "on_device", behavior: .cancel), Fake(attemptName: "cloud", behavior: .generate)],
+            compared: &compared
+        )
+        XCTAssertEqual(result.source, .fallback)
+        XCTAssertTrue(events.isEmpty)
+        XCTAssertEqual(compared, 0)
+    }
+
+    func testOrdinaryFailureStillSendsAFallbackEvent() async {
+        var compared = 0
+        let (result, events) = await produce(
+            generators: [Fake(attemptName: "cloud", behavior: .fail)],
+            compared: &compared
+        )
+        XCTAssertEqual(result.source, .fallback)
+        XCTAssertEqual(events.map(\.name), ["run_debrief_generated"])
+        XCTAssertEqual(events.first?.properties["cloud_outcome"] as? String, "failed")
     }
 
     func testCompareRunsOnlyForLiveRunsWithBothGenerators() async {
