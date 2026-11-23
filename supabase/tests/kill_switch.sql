@@ -29,6 +29,11 @@
 --     raise v2_unavailable and change nothing (the app's outbox keeps them), and
 --     athlete_remove_flag still works (a privacy action). Back on, the queued flag
 --     lands, the coach reads it and resolves the open one.
+--   * C7.7 (M4): with the flag off, coach_get_feedback_replies returns zero rows,
+--     coach_mark_reply_read marks nothing, athlete_reply_to_feedback raises
+--     v2_unavailable and stores nothing (the app's outbox keeps it), and the athlete
+--     still reads their own replies. Back on, the queued reply lands and the coach
+--     reads both.
 --
 -- Every later v2 RPC adds its own case to this file (C7.12 DoD): with the flag
 -- off, write RPCs raise v2_unavailable and read RPCs return zero rows.
@@ -50,8 +55,13 @@
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121120000_athlete_run_sharing.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121130000_coach_last_seen_and_events.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121150000_athlete_run_flags.sql
---   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121150000_athlete_run_flags.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121180000_coach_feedback_replies.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121180000_coach_feedback_replies.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/kill_switch.sql
+-- (C7.7 also needs Story 1.8, 3.1, 3.2, 3.3 and 3.4 before the v2 files:
+-- 20261117130000_coach_plan_mode_group_settings, 20261118100000_coach_feedback,
+-- 20261118120000_athlete_feedback_read, 20261118160000_get_my_coach and
+-- 20261118180000_coach_welcome_note, as in CI's prerequisite list.)
 
 begin;
 
@@ -464,6 +474,52 @@ select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
 select public.coach_resolve_flag('f1000000-0000-4000-8000-0000000000e1');
 select pg_temp.expect_count('select 1 from public.coach_get_athlete_flags()', 1, 'flag back on: the queued flag is open');
 select pg_temp.expect_count('select 1 from public.coach_get_athlete_flags(null, true)', 2, 'flag back on: with the resolved one');
+reset role;
+
+-- C7.7 (M4): replies with the switch off ---------------------------------------------------
+-- C (listed App Store coach) wrote E a note. E replies while the flag is on.
+insert into public.coach_feedback (id, coach_id, athlete_id, week_start, kind, text) values
+  ('d7000000-0000-4000-8000-0000000000e7', 'cccccccc-0000-4000-8000-00000000000c', 'eeeeeeee-0000-4000-8000-00000000000e',
+   current_date, 'note', 'Nice week.');
+set local role authenticated;
+select pg_temp.act_as('eeeeeeee-0000-4000-8000-00000000000e');
+select public.athlete_reply_to_feedback('d7000000-0000-4000-8000-0000000000e7', 'Thanks', 'e7100000-0000-4000-8000-0000000000e7');
+select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
+select pg_temp.expect_count('select 1 from public.coach_get_feedback_replies()', 1, 'C reads a reply with the flag on');
+reset role;
+
+update public.runtime_flags set enabled = false, updated_at = now() where key = 'coach_v2';
+
+set local role authenticated;
+select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
+select pg_temp.expect_count('select 1 from public.coach_get_feedback_replies()', 0, 'replies with the kill switch on');
+select pg_temp.expect_count(
+  $q$select 1 where public.coach_mark_reply_read(array['e7100000-0000-4000-8000-0000000000e7']::uuid[]) = 0$q$,
+  1, 'mark read with the kill switch on');
+select pg_temp.expect_count('select 1 from public.coach_roster_summary()', 0, 'summary (replies) with the kill switch on');
+select pg_temp.act_as('eeeeeeee-0000-4000-8000-00000000000e');
+select pg_temp.expect_error_msg(
+  $q$select public.athlete_reply_to_feedback('d7000000-0000-4000-8000-0000000000e7', 'queued', 'e7200000-0000-4000-8000-0000000000e7')$q$,
+  'P0001', 'v2_unavailable', 'reply with the kill switch on');
+-- The athlete's own replies stay readable.
+select pg_temp.expect_count('select 1 from public.my_feedback_replies()', 1, 'own replies with the kill switch on');
+reset role;
+do $$
+begin
+  if exists (select 1 from public.coach_feedback_replies where id = 'e7200000-0000-4000-8000-0000000000e7')
+     or exists (select 1 from public.coach_feedback_replies where read_at is not null) then
+    raise exception 'FAIL: a reply write with the kill switch on changed the wrong rows';
+  end if;
+end $$;
+
+update public.runtime_flags set enabled = true, updated_at = now() where key = 'coach_v2';
+
+-- The outbox retries after the switch is back on.
+set local role authenticated;
+select pg_temp.act_as('eeeeeeee-0000-4000-8000-00000000000e');
+select public.athlete_reply_to_feedback('d7000000-0000-4000-8000-0000000000e7', 'queued', 'e7200000-0000-4000-8000-0000000000e7');
+select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
+select pg_temp.expect_count('select 1 from public.coach_get_feedback_replies()', 2, 'flag back on: the queued reply lands');
 reset role;
 
 do $$ begin raise notice 'kill_switch: PASS'; end $$;

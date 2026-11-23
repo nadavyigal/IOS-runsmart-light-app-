@@ -61,6 +61,9 @@ nonisolated enum CoachV2Analytics {
         case flagRemoved
         /// C7.4: the coach's "Mark handled" reached the server. Minutes from the flag to the resolve.
         case flagResolved(minutesOpen: Int)
+        /// C7.7: the athlete's reply to a coach note reached the server. `target` says what kind of note
+        /// it answers. Never the text.
+        case coachNoteReplySent(target: FeedbackReplyTarget)
 
         var name: String {
             switch self {
@@ -78,6 +81,7 @@ nonisolated enum CoachV2Analytics {
             case .flagCreated: "flag_created"
             case .flagRemoved: "flag_removed"
             case .flagResolved: "flag_resolved"
+            case .coachNoteReplySent: "coach_note_reply_sent"
             }
         }
 
@@ -105,6 +109,8 @@ nonisolated enum CoachV2Analytics {
                 [:]
             case .flagResolved(let minutesOpen):
                 ["minutes_open": .count(minutesOpen)]
+            case .coachNoteReplySent(let target):
+                ["target": .kind(target.rawValue)]
             }
         }
     }

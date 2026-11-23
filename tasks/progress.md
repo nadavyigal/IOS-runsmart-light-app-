@@ -1,3 +1,12 @@
+# 2026-11-23: Coach v2 C7.7 athlete replies to a coach note (draft PR)
+
+Current Phase: Coach Experience v2, R1 Batch A, C7.7. Draft PR open in iOS and web; M4 not applied.
+Active Story: C7.7: M4 replies table and RPCs (renamed to 20261121180000), new_replies in roster summary, P6 reply UI, coach replies under notes.
+Next Recommended Story: Overseer review of C7.7; add coach_get_feedback_replies to C7.11's parity test when both are merged.
+Blockers: Nadav applies Batch A (M0, M5a, M1a, M3, M1b, M5b, M4) after the Grok Bot audit and the 1.2.6 regression.
+Last Validation: SQL coach_feedback_replies, kill_switch and 8 earlier suites PASS with M4; rollback verified; coach Swift tests (see PR).
+Last Updated: 2026-11-23
+
 # 2026-11-22: Coach v2 C7.4 pain / something off flag (draft PR)
 
 Current Phase: Coach Experience v2, R1 wave 4, lane A. C7.4 draft PR open in iOS and web; M1b not applied.
