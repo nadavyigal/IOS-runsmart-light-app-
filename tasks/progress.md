@@ -1,3 +1,12 @@
+# 2026-11-23: coach_message OpenAI model tiers (draft PR, not deployed)
+
+Current Phase: OpenAI model migration before the 2027-01-14 shutdown of gpt-4.1-mini.
+Active Story: coach_message reads OPENAI_MODEL_FAST, then OPENAI_MODEL, then gpt-4.1-mini; reasoning effort env; usage logs.
+Next Recommended Story: fix flex_week 4 s timeout and 900-token cap (falls back on every model today), then set OPENAI_MODEL_FAST.
+Blockers: function not deployed (by design); needs founder yes to merge and deploy.
+Last Validation: deno test 22 passed; smoke debrief 5/5 on gpt-4.1-mini, gpt-6-luna, gpt-6.2-sol; flex_week 0/3 live on all.
+Last Updated: 2026-11-23
+
 # 2026-11-23: Coach v2 Batch B database applied to production
 
 Current Phase: Coach Experience v2, Phase 1 code complete; Batch A and Batch B migrations applied to prod (3 Batch B files).

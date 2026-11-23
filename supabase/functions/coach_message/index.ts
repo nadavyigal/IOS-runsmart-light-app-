@@ -4,6 +4,7 @@ import {
   sanitizeFlexWeekRequest,
 } from "./flex_week.ts";
 import { corsHeaders, isOriginAllowed } from "../_shared/cors.ts";
+import { logModelUsage, reasoningParam, selectCoachModel } from "./openai_model.ts";
 import {
   instructionsFor,
   resolveCoachContext,
@@ -62,13 +63,15 @@ async function generateRunDebrief(context: JsonRecord, coach: CoachPromptContext
   }
 
   const apiKey = Deno.env.get("OPENAI_API_KEY");
-  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  const selection = selectCoachModel("FAST");
+  const model = selection.model;
   if (!apiKey) {
     return fallbackRunDebrief(context);
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
+  const startedAt = Date.now();
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -76,6 +79,7 @@ async function generateRunDebrief(context: JsonRecord, coach: CoachPromptContext
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
+        ...reasoningParam(selection),
         instructions: instructionsFor(RUN_DEBRIEF_SYSTEM_PROMPT, coach),
         input: [{
           role: "user",
@@ -86,6 +90,7 @@ async function generateRunDebrief(context: JsonRecord, coach: CoachPromptContext
     });
     if (!response.ok) throw new Error(`OpenAI ${response.status}`);
     const json = await response.json();
+    logModelUsage("run_debrief", selection, json, Date.now() - startedAt);
     const text = extractResponseText(json).trim();
     if (!text) {
       throw new Error("run_debrief: OpenAI returned empty text");
@@ -137,13 +142,15 @@ async function generateWeeklySummary(context: JsonRecord, coach: CoachPromptCont
   source: CoachSource;
 }> {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
-  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  const selection = selectCoachModel("FAST");
+  const model = selection.model;
   if (!apiKey) {
     return fallbackWeeklySummary(context);
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
+  const startedAt = Date.now();
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -151,6 +158,7 @@ async function generateWeeklySummary(context: JsonRecord, coach: CoachPromptCont
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
+        ...reasoningParam(selection),
         instructions: instructionsFor(WEEKLY_SUMMARY_SYSTEM_PROMPT, coach),
         input: [{
           role: "user",
@@ -161,6 +169,7 @@ async function generateWeeklySummary(context: JsonRecord, coach: CoachPromptCont
     });
     if (!response.ok) throw new Error(`OpenAI ${response.status}`);
     const json = await response.json();
+    logModelUsage("weekly_summary", selection, json, Date.now() - startedAt);
     const text = extractResponseText(json).trim();
     if (!text) {
       throw new Error("weekly_summary: OpenAI returned empty text");
@@ -661,7 +670,8 @@ async function liveCoachResponse(
   coach: CoachPromptContext | null = null,
 ) {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
-  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  const selection = selectCoachModel("FAST");
+  const model = selection.model;
   if (!apiKey) {
     return {
       content: fallbackCoachResponse(message, context, safetyFlags),
@@ -674,6 +684,7 @@ async function liveCoachResponse(
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
+  const startedAt = Date.now();
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -684,6 +695,7 @@ async function liveCoachResponse(
       },
       body: JSON.stringify({
         model,
+        ...reasoningParam(selection),
         instructions: instructionsFor(SYSTEM_PROMPT, coach),
         input: [
           {
@@ -705,6 +717,7 @@ async function liveCoachResponse(
     }
 
     const json = await response.json();
+    logModelUsage("coach_chat", selection, json, Date.now() - startedAt);
     const content = extractResponseText(json).trim();
     if (!content) {
       throw new Error("OpenAI returned empty text");
