@@ -18,6 +18,8 @@ struct MyCoachView: View {
     @State private var unavailableNoteID: UUID?
     /// C7.8 AC8: the leave sheet adds its v2 lines only while v2 is on and the link is v2.
     @State private var leaveIncludesV2Lines = false
+    /// C7.14: the athlete's notification settings.
+    @State private var showsNotifications = false
 
     var body: some View {
         Group {
@@ -35,6 +37,11 @@ struct MyCoachView: View {
             // A report must not open after My coach is closed.
             openTask?.cancel()
             openTask = nil
+        }
+        .sheet(isPresented: $showsNotifications) {
+            if let link = coachLinks.currentLink {
+                AthleteCoachNotificationSettingsView(coachName: link.coachName)
+            }
         }
         .sheet(isPresented: $showLeaveSheet) {
             if let link = coachLinks.currentLink {
@@ -186,6 +193,27 @@ struct MyCoachView: View {
                 }
             }
             feedbackList(link)
+
+            // C7.14: only a linked v2 athlete has coach notifications. v2 off, or a link without v2, shows no row.
+            if leaveIncludesV2Lines {
+                Button {
+                    showsNotifications = true
+                } label: {
+                    HStack {
+                        Text(NotificationSettingsCopy.title)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.textPrimary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: "chevron.forward").foregroundStyle(Color.textSecondary)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(12)
+                    .frame(minHeight: 44)
+                    .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("my-coach-notifications")
+            }
 
             Button("Leave coach") {
                 model.cancel()
