@@ -4,7 +4,7 @@ Current Phase: Coach Experience v2, R1 last story. C7.16 draft PR open in iOS on
 Active Story: C7.16: First run, First full week, Longest run, Quiet 3 days tags on Coach Today; 👏 🔥 Great job reactions via coach feedback.
 Next Recommended Story: Overseer review of C7.16; then Nadav applies Batch A and runs TF-1a on a phone.
 Blockers: Nadav applies Batch A (M0, M0b, M5a, M1a, M3, M4, M1b, M5b) before v2 shows anything; none for this PR.
-Last Validation: 9 coach test classes 210 passed, 0 failed (iPhone 17, iOS 26.5); 3 milestone screenshots; full suite left to CI.
+Last Validation: 9 coach test classes 210 passed, 0 failed (iPhone 17, iOS 26.5); 3 milestone screenshots; full suite left to CI; overseer review: no blockers.
 Last Updated: 2026-11-22
 
 # 2026-11-22: Coach v2 C7.4 pain / something off flag (draft PR)
