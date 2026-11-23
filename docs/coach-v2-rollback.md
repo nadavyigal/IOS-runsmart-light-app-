@@ -182,10 +182,21 @@ Rules for every batch:
 
 | File | Story | Rollback file | Status |
 |---|---|---|---|
-| `20261122100000_push_tokens_and_prefs.sql` (M2a) | C7.10 | added by C7.10 | not written |
+| `20261122100000_push_tokens_and_prefs.sql` (M2a) | C7.10 | `supabase/rollback/20261122100000_push_tokens_and_prefs.sql` | written (draft PR) |
 | `20261122110000_notification_log_and_deferred.sql` (M2b) | C7.5 | added by C7.5 | not written |
 
 First move: `coach_v2_push` to false. Senders keep their queue.
+
+#### M2a: `20261122100000_push_tokens_and_prefs.sql`
+
+1. **Flag to flip first:** `coach_v2_push` to false (stops every sender; queued rows wait). For a wider problem, `coach_v2` to false: the app then shows the 1.2.6 coach UI and makes no token or prefs call at all. M2a's functions do not read the flags themselves: a token or a prefs row shares nothing with anyone, and the senders apply the switch at send time.
+2. **Safe with the flag off:** every token and every prefs row stays. Devices keep their tokens, so pushes reach them again as soon as the flag is back on, with no re-prompt.
+3. **Rollback file:** `supabase/rollback/20261122100000_push_tokens_and_prefs.sql`. It drops `register_push_token`, `unregister_push_token`, `my_notification_prefs`, `set_notification_time_zone`, `update_notification_prefs` and the internal `notification_time_zone_ok`. It keeps both tables (`push_tokens`, `notification_prefs`) with every row, RLS on and their owner-select policies. Dropping the tables is a commented, optional step that deletes every device token and every user's settings; export first if you ever run it.
+4. **When not to roll back:** while M2b (`20261122110000_notification_log_and_deferred.sql`) or any later file or Edge Function that reads `push_tokens` or `notification_prefs` is applied or deployed. Roll those back first, or flip `coach_v2_push` instead.
+5. **After the rollback, the app:** v2 apps get "function not found" on token registration and the prefs read, keep the token on the phone and retry on the next foreground. Nothing is shown to the user. Sign-out still works; the unregister call fails quietly and the stale row moves to the next account that registers that device. 1.2.6 apps see no change.
+6. **Account deletion:** both tables reference `auth.users` with `on delete cascade`, so `delete_account` (which deletes the auth user last) removes the rows. `purge_coach_data_for_deleted_account` is not replaced by M2a.
+7. **APNs secrets:** `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, `APNS_BUNDLE_ID` are Edge Function secrets Nadav sets. Removing them makes `_shared/apns.ts` refuse to send (`apns_not_configured`) without touching any row. `push_selftest` is dev-only and is not in any deploy script.
+8. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-23: `push_tokens_and_prefs.sql` passes (migration applied twice first); with a token and a changed prefs row in place, the rollback dropped the six functions and kept both rows, RLS and both policies; a re-apply restored the functions and kept both rows unchanged.
 
 ### Batch C (R3: coach builds workouts)
 

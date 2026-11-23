@@ -170,6 +170,8 @@ final class CoachConsentNoticeModel: ObservableObject {
             if notice == shown { notice = nil }
             // C7.3: sharing starts now, and the one-time RPE backfill runs right after the ack.
             NotificationCenter.default.post(name: .coachConsentV2Acked, object: nil)
+            // C7.10 AC3: P10 follows P9's OK.
+            NotificationCenter.default.post(name: .remotePushAthleteContext, object: shown.coachName)
             return true
         } catch {
             // Nothing was shared. P9 comes back on the next open.
