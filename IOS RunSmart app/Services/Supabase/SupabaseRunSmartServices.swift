@@ -1362,8 +1362,9 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     private func fetchRunDebrief(for run: RecordedRun, trigger: RunDebriefTrigger) async -> PostRunDebriefModel {
         // Opt-in on-device debrief first (live runs only), then the cloud coach, then the fixed fallback.
         let authSession = try? await supabase.auth.session
+        let optedIn = OnDeviceDebrief.isOptedIn()
         let plan = OnDeviceDebrief.generatorPlan(
-            optedIn: OnDeviceDebrief.isOptedIn(),
+            optedIn: optedIn,
             ready: OnDeviceDebrief.isReady,
             remoteEnabled: OnDeviceDebrief.remoteEnabled,
             coachLinked: CoachContextSource.shared.context(for: currentUserID).linkActive,
@@ -1379,11 +1380,20 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 return CloudRunDebriefGenerator(authUserID: authSession.user.id, accessToken: authSession.accessToken)
             }
         }
-        guard !generators.isEmpty else { return .fallback(for: run) }
-        let input = await runDebriefInput(for: run)
-        return await RunDebriefPipeline.debrief(for: input, run: run, generators: generators) { model in
-            await self.persistDebrief(model, for: run)
-        }
+        return await RunDebriefSession.produce(
+            run: run,
+            trigger: trigger,
+            generators: generators,
+            onDeviceOptedIn: optedIn,
+            onDeviceUnavailable: OnDeviceDebrief.unavailableReason,
+            makeInput: { await self.runDebriefInput(for: run) },
+            persist: { model in await self.persistDebrief(model, for: run) },
+            compare: { input in
+                #if DEBUG
+                Task { await RunDebriefCompare.record(run: run, input: input, generators: generators) }
+                #endif
+            }
+        )
     }
 
     private func runDebriefInput(for run: RecordedRun) async -> RunDebriefInput {

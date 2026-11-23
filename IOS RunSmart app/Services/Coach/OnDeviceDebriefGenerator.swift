@@ -168,6 +168,7 @@ nonisolated struct OnDeviceDebriefOutput {
 
 @available(iOS 26.0, *)
 struct OnDeviceDebriefGenerator: RunDebriefGenerating {
+    let attemptName = "on_device"
     /// 8 s, not the cloud's 12 s: the worst case before the fixed fallback stays near 20 s
     /// (8 s on device, then 12 s cloud). The first call also loads the model, so 6 s would
     /// time out more often and skew the experiment.

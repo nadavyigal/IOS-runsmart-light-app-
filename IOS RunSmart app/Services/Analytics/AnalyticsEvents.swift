@@ -704,3 +704,38 @@ extension Analytics {
         return "\(completedRunKeyPrefix)\(run.source.rawValue).local.\(run.id.uuidString)"
     }
 }
+
+// MARK: - Post-run debrief
+
+extension Analytics {
+    /// One event per post-run debrief. Measures the opt-in on-device experiment
+    /// against the cloud coach. Never carries the debrief text.
+    static func trackRunDebriefGenerated(
+        trigger: RunDebriefTrigger,
+        result: PostRunDebriefModel.Source,
+        totalLatencyMs: Int,
+        attempts: [RunDebriefAttempt],
+        onDeviceOptedIn: Bool,
+        onDeviceUnavailable: OnDeviceDebrief.Unavailable?
+    ) {
+        let onDevice = attempts.first { $0.generator == "on_device" }
+        let cloud = attempts.first { $0.generator == "cloud" }
+        var props: [String: Any] = [
+            "trigger": trigger.rawValue,
+            "source": result.rawValue,
+            "latency_ms": totalLatencyMs,
+            "on_device_opted_in": onDeviceOptedIn,
+            "on_device_ready": onDeviceUnavailable == nil,
+            "on_device_unavailable_reason": onDeviceUnavailable?.rawValue ?? "none",
+            "on_device_outcome": onDevice?.outcome.rawValue ?? "not_tried",
+            "cloud_outcome": cloud?.outcome.rawValue ?? "not_tried",
+        ]
+        if let onDevice {
+            props["on_device_latency_ms"] = onDevice.latencyMs
+            if let errorType = onDevice.errorType {
+                props["on_device_error_type"] = errorType
+            }
+        }
+        shared.track("run_debrief_generated", properties: props)
+    }
+}

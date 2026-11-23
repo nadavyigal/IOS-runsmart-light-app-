@@ -13,43 +13,93 @@ struct RunDebriefInput: Hashable {
 
 /// One way to write a post-run debrief.
 /// Return nil to be skipped (no session, model not ready). Throw on failure.
-protocol RunDebriefGenerating {
+protocol RunDebriefGenerating: Sendable {
+    /// Short stable name for analytics, for example "cloud" or "on_device".
+    var attemptName: String { get }
     func generateDebrief(for input: RunDebriefInput) async throws -> PostRunDebriefModel?
+}
+
+extension RunDebriefGenerating {
+    var attemptName: String { String(describing: type(of: self)) }
+}
+
+/// What happened when one generator was asked for a debrief. Never carries the text.
+struct RunDebriefAttempt: Equatable {
+    enum Outcome: String {
+        case generated
+        case skipped
+        case incomplete
+        case timedOut = "timed_out"
+        case failed
+        case cancelled
+    }
+
+    let generator: String
+    let outcome: Outcome
+    let latencyMs: Int
+    let errorType: String?
 }
 
 enum RunDebriefPipeline {
     /// Tries each generator in order and returns the first complete debrief.
     /// A skipped, failed or incomplete result moves on to the next generator.
     /// When none works, the fixed fallback text is returned.
+    /// `report` gets one attempt per generator that was asked.
     /// `persist` runs only for a generated debrief, never for the fallback.
     static func debrief(
         for input: RunDebriefInput,
         run: RecordedRun,
         generators: [any RunDebriefGenerating],
+        report: (RunDebriefAttempt) -> Void = { _ in },
         persist: (PostRunDebriefModel) async -> Void = { _ in }
     ) async -> PostRunDebriefModel {
         for generator in generators {
             // A cancelled task (the run screen closed) stops here instead of asking the next generator.
             if Task.isCancelled { return .fallback(for: run) }
+            let started = ContinuousClock.now
+            func record(_ outcome: RunDebriefAttempt.Outcome, _ error: Error? = nil) {
+                report(RunDebriefAttempt(
+                    generator: generator.attemptName,
+                    outcome: outcome,
+                    latencyMs: RunDebriefPipeline.milliseconds(since: started),
+                    errorType: error.map { String(describing: type(of: $0)) }
+                ))
+            }
             do {
-                guard let candidate = try await generator.generateDebrief(for: input) else { continue }
-                guard let complete = candidate.trimmedIfComplete else {
-                    print("[RunDebrief] \(type(of: generator)) returned an incomplete debrief, trying next")
+                guard let candidate = try await generator.generateDebrief(for: input) else {
+                    record(.skipped)
                     continue
                 }
+                guard let complete = candidate.trimmedIfComplete else {
+                    print("[RunDebrief] \(generator.attemptName) returned an incomplete debrief, trying next")
+                    record(.incomplete)
+                    continue
+                }
+                record(.generated)
                 await persist(complete)
                 return complete
             } catch is CancellationError {
+                record(.cancelled)
                 return .fallback(for: run)
-            } catch is RunDebriefTimeoutError {
-                print("[RunDebrief] \(type(of: generator)) timed out, trying next")
+            } catch let error as RunDebriefTimeoutError {
+                print("[RunDebrief] \(generator.attemptName) timed out, trying next")
+                record(.timedOut, error)
             } catch {
                 // URLError(.cancelled) is not a CancellationError; treat a cancelled task the same way.
-                if Task.isCancelled { return .fallback(for: run) }
-                print("[RunDebrief] \(type(of: generator)) failed, trying next:", error)
+                if Task.isCancelled {
+                    record(.cancelled)
+                    return .fallback(for: run)
+                }
+                print("[RunDebrief] \(generator.attemptName) failed, trying next:", error)
+                record(.failed, error)
             }
         }
         return .fallback(for: run)
+    }
+
+    static func milliseconds(since start: ContinuousClock.Instant) -> Int {
+        let elapsed = start.duration(to: .now).components
+        return Int(elapsed.seconds) * 1_000 + Int(elapsed.attoseconds / 1_000_000_000_000_000)
     }
 }
 
@@ -74,6 +124,7 @@ extension PostRunDebriefModel {
 
 /// Today's path: the `coach_message` edge function (`intent: run_debrief`), 12 s timeout.
 struct CloudRunDebriefGenerator: RunDebriefGenerating {
+    let attemptName = "cloud"
     let authUserID: UUID
     let accessToken: String
     var timeoutNanoseconds: UInt64 = 12_000_000_000
