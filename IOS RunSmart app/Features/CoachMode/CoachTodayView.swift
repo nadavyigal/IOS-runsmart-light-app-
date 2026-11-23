@@ -26,6 +26,10 @@ private enum CoachTodayItem: Identifiable {
     case groupHeader(CoachTodayGroup, total: Int)
     case row(CoachTodayRow)
     case showAll(CoachTodayGroup, total: Int)
+    /// C7.6 T2: "Missed today · {n}" with ✕ "Show all".
+    case filterChip(String)
+    /// C7.6 T2: everyone on the 20:00 list has logged a run since.
+    case filterEmptied
 
     var id: String {
         switch self {
@@ -44,6 +48,8 @@ private enum CoachTodayItem: Identifiable {
         case .groupHeader(let group, _): "group-\(group.rawValue)"
         case .row(let row): "row-\(row.id.uuidString)"
         case .showAll(let group, _): "show-all-\(group.rawValue)"
+        case .filterChip: "filter-chip"
+        case .filterEmptied: "filter-emptied"
         }
     }
 }
@@ -96,6 +102,18 @@ struct CoachTodayView: View {
         ))
         if pushRegistrar.showsCoachPrimer { list.append(.pushPrimer) }
         guard snapshot.athleteCount > 0 else { return list + [.empty] }
+
+        if let filter = model.todayFilter {
+            // T2 (C7.6 AC5): the summary's list only, no groups.
+            let missed = snapshot.missedRows(for: filter)
+            list.append(.filterChip(CoachTodayFilterCopy.chip(yesterday: missed.yesterday, count: missed.rows.count)))
+            if missed.rows.isEmpty {
+                if snapshot.runsLoaded { list.append(.filterEmptied) }
+            } else {
+                list += missed.rows.map { .row($0) }
+            }
+            return list
+        }
 
         let groups = snapshot.groups
         for group in groups {
@@ -245,6 +263,16 @@ struct CoachTodayView: View {
                     )
                 }
             }
+        case .filterChip(let title):
+            filterChip(title)
+        case .filterEmptied:
+            ContentCard {
+                Text(CoachTodayFilterCopy.emptied)
+                    .font(.bodyLG)
+                    .foregroundStyle(Color.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .accessibilityIdentifier("coach-today-filter-emptied")
         case .showAll(let group, let total):
             Button {
                 fullGroups.insert(group)
@@ -256,6 +284,31 @@ struct CoachTodayView: View {
             }
             .buttonStyle(.plain)
         }
+    }
+
+    private func filterChip(_ title: String) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.labelLG)
+                .foregroundStyle(Color.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            Button {
+                model.todayFilter = nil
+            } label: {
+                Label(CoachTodayFilterCopy.showAll, systemImage: "xmark")
+                    .font(.labelLG)
+                    .foregroundStyle(Color.accentPrimary)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 44)
+                    .background(Color.surfaceElevated, in: Capsule())
+                    .overlay(Capsule().stroke(Color.accentPrimary.opacity(0.5), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("coach-today-filter-show-all")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("coach-today-filter-chip")
     }
 
     private var tryAgain: some View {

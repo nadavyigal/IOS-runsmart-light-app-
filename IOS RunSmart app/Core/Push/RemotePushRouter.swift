@@ -115,6 +115,9 @@ nonisolated enum RemotePushDestination: Equatable, Sendable {
     case today
     case plan
     case coachToday
+    /// C7.6 AC5: Coach Today filtered to the athletes who missed the summary's day (T2), with
+    /// "Show all". `dayISO` is the summary's day (the coach's local date at 20:00).
+    case coachTodayMissed(dayISO: String?)
     /// The athlete detail, opened on `dayISO` when given.
     case coachAthlete(id: UUID, name: String, dayISO: String?)
     case myCoach
@@ -168,7 +171,11 @@ nonisolated enum RemotePushRouter {
             return RemotePushRoute(destination: .today)
 
         // Coach side ----------------------------------------------------------------
-        case .coachEveningSummary, .coachDigest:
+        case .coachEveningSummary:
+            // C7.6 AC5: T2, Coach Today filtered to "Missed today". No athlete id, so nothing to call gone.
+            return RemotePushRoute(destination: context.isCoach ? .coachTodayMissed(dayISO: payload.day) : .today)
+
+        case .coachDigest:
             // A collapsed push is about several athletes: Coach Today, where each one shows.
             return RemotePushRoute(destination: context.isCoach ? .coachToday : .today)
 

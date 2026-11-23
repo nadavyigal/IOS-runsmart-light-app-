@@ -3,7 +3,7 @@
 --   * supabase/tests/workout_adherence_state.sql includes this file (\ir) and checks
 --     workout_adherence_boundary and workout_adherence_state on every case.
 --   * IOS RunSmart appTests/WorkoutAdherenceParityTests.swift reads the JSON
---     between the two $fixtures$ markers and checks WorkoutAdherence.missedBoundary
+--     array inside the dollar-quoted block below and checks WorkoutAdherence.missedBoundary
 --     and WorkoutAdherence.classify / counts on the same cases.
 -- Change a case here and both tests run it. Keep the JSON plain (no comments).
 --
