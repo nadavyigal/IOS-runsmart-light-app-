@@ -61,6 +61,11 @@ nonisolated enum CoachV2Analytics {
         case flagRemoved
         /// C7.4: the coach's "Mark handled" reached the server. Minutes from the flag to the resolve.
         case flagResolved(minutesOpen: Int)
+        /// C7.16: a milestone tag was on Coach Today. `kind` is a `CoachMilestoneKind` raw value. Once per
+        /// milestone per session, never the athlete.
+        case milestoneShown(kind: String)
+        /// C7.16: the coach tapped a one-tap reaction on a milestone. Never which reaction or the athlete.
+        case praiseSent(kind: String)
 
         var name: String {
             switch self {
@@ -78,6 +83,8 @@ nonisolated enum CoachV2Analytics {
             case .flagCreated: "flag_created"
             case .flagRemoved: "flag_removed"
             case .flagResolved: "flag_resolved"
+            case .milestoneShown: "milestone_shown"
+            case .praiseSent: "praise_sent"
             }
         }
 
@@ -105,6 +112,8 @@ nonisolated enum CoachV2Analytics {
                 [:]
             case .flagResolved(let minutesOpen):
                 ["minutes_open": .count(minutesOpen)]
+            case .milestoneShown(let kind), .praiseSent(let kind):
+                ["kind": .kind(kind)]
             }
         }
     }

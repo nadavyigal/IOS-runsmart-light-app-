@@ -15,12 +15,21 @@ final class CoachAthleteListModel: ObservableObject {
     /// re-sorts while visible: a background refresh waits in `pending` behind a "New updates" pill.
     @Published private(set) var today: CoachTodaySnapshot?
     @Published private(set) var hasPendingUpdate = false
+    /// C7.16: milestone ids the coach has reacted to (set at the tap, before the send finishes).
+    @Published private(set) var reactedMilestones: Set<String> = []
+    /// C7.16: reactions the server refused. The strip says "Couldn't send" and the buttons come back.
+    @Published private(set) var failedReactions: Set<String> = []
     private let service: any CoachReadServing
     private let rosterStatus: @Sendable () async throws -> [UUID: Bool]
     private let tracker: any AnalyticsTracking
     /// C7.2: "new since last visit" counts, and the queue the seen write goes through.
     private let seen: any CoachSeenRepository
     private let outbox: CoachV2Outbox
+    /// C7.16: one-tap praise goes through the existing coach feedback queue.
+    private let feedbackService: any CoachFeedbackServing
+    private let feedbackOutbox: CoachFeedbackOutbox
+    private let reactionStore: CoachMilestoneReactionStore
+    private let reactionReader: any CoachMilestoneReactionReading
     /// C7.4: the coach's open flags and the "Mark handled" queue. Coach Today shows its toast.
     let flagStore: CoachFlagStore
     /// C7.2: athletes opened on this phone, and when. Their markers stay cleared until the server's
@@ -50,9 +59,23 @@ final class CoachAthleteListModel: ObservableObject {
         let news: [UUID: CoachAthleteNews]
         var flags: [CoachRunFlag] = []
         var flagsLoaded = true
+        var milestones: [UUID: [CoachMilestone]] = [:]
         let now: Date
         let week: CoachAthleteWeek
     }
+
+    /// Workouts from before the 7-day window, for milestones. Old workouts change rarely, so they are read
+    /// again only after 30 minutes or when the athletes change. The recent window is always read fresh.
+    private struct MilestoneHistory {
+        let owner: UUID
+        let athleteIDs: Set<UUID>
+        let before: String
+        let fetchedAt: Date
+        let workouts: [CoachWorkoutSummary]
+    }
+    private var milestoneHistory: MilestoneHistory?
+    private var milestonesTracked: Set<String> = []
+    static let milestoneHistoryMaxAge: TimeInterval = 1800
 
     /// How a refresh meets the screen. `replace`: pull to refresh, re-entry, foreground, retry.
     /// `quiet`: a timer while Today is on screen. A quiet result that would move rows waits for the pill.
@@ -66,7 +89,11 @@ final class CoachAthleteListModel: ObservableObject {
         tracker: (any AnalyticsTracking)? = nil,
         seen: any CoachSeenRepository = SupabaseCoachSeenRepository(),
         outbox: CoachV2Outbox? = nil,
-        flagStore: CoachFlagStore? = nil
+        flagStore: CoachFlagStore? = nil,
+        feedbackService: any CoachFeedbackServing = SupabaseCoachFeedbackService(),
+        feedbackOutbox: CoachFeedbackOutbox? = nil,
+        reactionStore: CoachMilestoneReactionStore = CoachMilestoneReactionStore(),
+        reactionReader: any CoachMilestoneReactionReading = SupabaseCoachMilestoneReactionReader()
     ) {
         self.service = service
         self.rosterStatus = rosterStatus
@@ -74,6 +101,10 @@ final class CoachAthleteListModel: ObservableObject {
         self.seen = seen
         self.outbox = outbox ?? .shared
         self.flagStore = flagStore ?? .shared
+        self.feedbackService = feedbackService
+        self.feedbackOutbox = feedbackOutbox ?? .shared
+        self.reactionStore = reactionStore
+        self.reactionReader = reactionReader
         // A queued, undone or answered "Mark handled" moves the row at once (it is the coach's own action).
         self.flagStore.onChange = { [weak self] in
             guard let self, let inputs = self.todayInputs else { return }
@@ -90,6 +121,7 @@ final class CoachAthleteListModel: ObservableObject {
             pending = nil
             hasPendingUpdate = false
             viewedTracked = false
+            milestonesTracked = []
         }
         guard state == .on, ownerID != nil, updatedAt != nil else {
             athletesNeedingUpdate = []
@@ -119,6 +151,7 @@ final class CoachAthleteListModel: ObservableObject {
 
     /// Once per visit, when Today first has data on screen.
     func trackTodayViewed() {
+        trackMilestonesShown()
         guard coachV2 == .on, let today, !viewedTracked else { return }
         viewedTracked = true
         CoachV2Analytics.track(
@@ -130,8 +163,9 @@ final class CoachAthleteListModel: ObservableObject {
 
     #if DEBUG
     /// Previews and screenshots only: show `snapshot` as if a load had finished.
-    func loadPreview(_ snapshot: CoachTodaySnapshot) {
+    func loadPreview(_ snapshot: CoachTodaySnapshot, reacted: Set<String> = []) {
         ownerID = UUID()
+        reactedMilestones = reacted
         coachV2 = .on
         today = snapshot
         updatedAt = snapshot.generatedAt
@@ -159,8 +193,129 @@ final class CoachAthleteListModel: ObservableObject {
         CoachTodaySnapshot.make(
             athletes: inputs.athletes, workouts: inputs.workouts, runs: inputs.runs, runsLoaded: inputs.runsLoaded,
             news: effectiveNews(inputs.news), flags: flagStore.openFlags(inputs.flags), flagsLoaded: inputs.flagsLoaded,
-            now: inputs.now, week: inputs.week
+            milestones: inputs.milestones, now: inputs.now, week: inputs.week
         )
+    }
+
+    // MARK: C7.16 milestones and one-tap praise
+
+    func isReacted(_ milestone: CoachMilestone) -> Bool { reactedMilestones.contains(milestone.id) }
+    func reactionFailed(_ milestone: CoachMilestone) -> Bool { failedReactions.contains(milestone.id) }
+
+    /// Fires `milestone_shown` once per milestone per session. Flag-off and paused have no milestones.
+    func trackMilestonesShown() {
+        guard coachV2 == .on, let today else { return }
+        for milestone in today.rows.flatMap(\.milestones) where milestonesTracked.insert(milestone.id).inserted {
+            CoachV2Analytics.track(.milestoneShown(kind: milestone.kind.rawValue), to: tracker)
+        }
+    }
+
+    /// The coach tapped 👏, 🔥 or "Great job". It is saved as coach feedback on the run (or the week), with
+    /// an id that depends only on the coach and the milestone, so a double tap or a retry never stores a
+    /// second reaction. The note is the coach's own tap, never AI-assisted. Flag-off and paused do nothing.
+    func react(to milestone: CoachMilestone, with reaction: CoachReaction) {
+        guard coachV2 == .on, let owner = ownerID, milestone.kind.canPraise, let target = milestone.target,
+              !reactedMilestones.contains(milestone.id) else { return }
+        reactedMilestones.insert(milestone.id)
+        failedReactions.remove(milestone.id)
+        reactionStore.add(milestone.id, coachID: owner)
+        CoachV2Analytics.track(.praiseSent(kind: milestone.kind.rawValue), to: tracker)
+        let id = CoachMilestoneReactions.feedbackID(coachID: owner, milestoneID: milestone.id)
+        Task { await sendReaction(milestone, reaction, id: id, target: target, owner: owner) }
+    }
+
+    private func sendReaction(
+        _ milestone: CoachMilestone, _ reaction: CoachReaction, id: UUID, target: CoachFeedbackTarget, owner: UUID
+    ) async {
+        var attempt = target
+        while true {
+            let item = PendingCoachFeedback(
+                id: id, coachID: owner, athleteID: milestone.athleteID, target: attempt, text: reaction.text, kind: .add
+            )
+            switch await feedbackOutbox.send(item, using: feedbackService) {
+            case .stored:
+                return
+            case .failed(.notSent), .skipped:
+                // No connection (or another coach is signed in): the outbox keeps it and sends it later.
+                return
+            case .failed(.rejected):
+                // The run is gone by now. Fall back to the week once, then give up.
+                if case .run = attempt, let fallback = milestone.fallbackTarget, fallback != attempt {
+                    attempt = fallback
+                    continue
+                }
+                revertReaction(milestone, owner: owner)
+                return
+            case .failed(.notLinked), .failed(.conflict):
+                revertReaction(milestone, owner: owner)
+                return
+            }
+        }
+    }
+
+    private func revertReaction(_ milestone: CoachMilestone, owner: UUID) {
+        guard ownerID == owner else { return }
+        reactedMilestones.remove(milestone.id)
+        failedReactions.insert(milestone.id)
+        reactionStore.remove(milestone.id, coachID: owner)
+    }
+
+    /// Sends queued reactions, then reads which milestones the coach has already answered: from this phone,
+    /// and from the server, so a note written in the composer or on another phone counts. A failed read
+    /// falls back to this phone's own record.
+    private func loadReactedMilestones(
+        owner: UUID, milestones: [UUID: [CoachMilestone]], enabled: Bool
+    ) async -> Set<String> {
+        guard enabled else { return [] }
+        if feedbackOutbox.pending.contains(where: { $0.coachID == owner }) {
+            await feedbackOutbox.flush(using: feedbackService, coachID: owner)
+        }
+        var reacted = reactionStore.reacted(coachID: owner)
+        let praisable = milestones.filter { $0.value.contains { $0.kind.canPraise } }
+        guard !praisable.isEmpty else { return reacted }
+        do {
+            let targets = try await reactionReader.feedbackTargets(athleteIDs: Array(praisable.keys))
+            for (athleteID, list) in praisable {
+                for milestone in list {
+                    if let target = milestone.target, targets[athleteID]?.contains(target.key) == true {
+                        reacted.insert(milestone.id)
+                    }
+                }
+            }
+        } catch {
+            if !(error is CancellationError) { print("[CoachToday] reactions read failed:", error) }
+        }
+        return reacted
+    }
+
+    /// Workouts for the milestone rules: the old part from a cached wide read, plus the fresh recent window.
+    /// A failed read gives only what is already known, so milestones that need history are simply absent.
+    private func loadMilestoneWorkouts(
+        owner: UUID, athleteIDs: [UUID], recent: [CoachWorkoutSummary], windowStart: Date, week: CoachAthleteWeek,
+        now: Date, enabled: Bool
+    ) async -> [CoachWorkoutSummary] {
+        guard enabled else { return recent }
+        let calendar = week.calendar
+        let before = CoachReadDay.iso(windowStart, calendar: calendar)
+        let ids = Set(athleteIDs)
+        if let cached = milestoneHistory, cached.owner == owner, cached.athleteIDs == ids, cached.before == before,
+           now.timeIntervalSince(cached.fetchedAt) < Self.milestoneHistoryMaxAge {
+            return cached.workouts + recent
+        }
+        guard let dayBefore = calendar.date(byAdding: .day, value: -1, to: windowStart) else { return recent }
+        do {
+            // Both reads take any date range, so no migration. The server filters by scheduled date.
+            let old = try await service.workouts(
+                from: Date(timeIntervalSince1970: 946_684_800), to: dayBefore, athleteIDs: athleteIDs, calendar: calendar
+            ).filter { $0.scheduledDate < before }
+            milestoneHistory = MilestoneHistory(
+                owner: owner, athleteIDs: ids, before: before, fetchedAt: now, workouts: old
+            )
+            return old + recent
+        } catch {
+            if !(error is CancellationError) { print("[CoachToday] milestone history read failed:", error) }
+            return (milestoneHistory?.owner == owner ? milestoneHistory?.workouts ?? [] : []) + recent
+        }
     }
 
     // MARK: C7.4 flags
@@ -251,6 +406,10 @@ final class CoachAthleteListModel: ObservableObject {
         pending = nil
         hasPendingUpdate = false
         viewedTracked = false
+        milestoneHistory = nil
+        milestonesTracked = []
+        reactedMilestones = []
+        failedReactions = []
     }
 
     func refresh(owner: UUID, now: Date = .now, style: RefreshStyle = .replace) async {
@@ -337,12 +496,23 @@ final class CoachAthleteListModel: ObservableObject {
             ) : rows
             let news = await fetchedNews
             let flagResult = await fetchedFlags
+            // C7.16: milestones come from completed workouts. Flag-off and paused make no extra call.
+            let milestoneWorkouts = await loadMilestoneWorkouts(
+                owner: owner, athleteIDs: ids, recent: workouts, windowStart: windowStart, week: week,
+                now: now, enabled: v2
+            )
+            let milestones = v2 ? CoachMilestoneRules.milestones(
+                athletes: athletes, workouts: milestoneWorkouts, runs: runs.filter { $0.completedAt <= now },
+                now: now, week: week
+            ) : [:]
+            let reacted = await loadReactedMilestones(owner: owner, milestones: milestones, enabled: v2)
             try Task.checkCancellation()
             guard current == generation else { return }
+            if v2 { reactedMilestones.formUnion(reacted) }
             let inputs = v2 ? TodayInputs(
                 athletes: athletes, workouts: workouts, runs: runs.filter { $0.completedAt <= now },
                 runsLoaded: runsLoaded, news: news, flags: flagResult.flags, flagsLoaded: flagResult.loaded,
-                now: now, week: week
+                milestones: milestones, now: now, week: week
             ) : nil
 
             guard commit(rows: newRows, inputs: inputs, now: now, style: style) else { return }
