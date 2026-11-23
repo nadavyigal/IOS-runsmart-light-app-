@@ -133,14 +133,14 @@ Blockers: Founder plan approval; confirm 6 v1 coach migrations applied in produc
 Last Validation: Docs only. Claims checked against origin/main 4a016b4 by code read; no build or tests run.
 Last Updated: 2026-11-20
 
-# 2026-11-22: Debrief event and debug compare (draft PR, stacked on #237)
+# 2026-11-23: Debrief event and debug compare (#240, base main)
 
-Current Phase: 1.2.6 (46) live; Apple membership plan PR 3, last of the on-device debrief stack (#232, #237, this).
-Active Story: PostHog `run_debrief_generated` per debrief (no text); debug-only `Documents/debrief-compare.jsonl` with both texts.
-Next Recommended Story: Nadav reviews #232, #237, this; then a signed-in English iPhone run with the toggle on and the 10-run rating.
-Blockers: real event and compare line need a device run with Apple Intelligence on.
-Last Validation: 2026-11-22 full suite 1165 passed, 0 failed, 1 skip (parallel off); Release build clean; iPhone 17 iOS 26.5 sim.
-Last Updated: 2026-11-22
+Current Phase: debrief stack: #232 and #237 merged to main; #240 retargeted to main, last of the stack.
+Active Story: #240 `run_debrief_generated` with trigger, no event on cancel, live-only compare; CodeRabbit finding fixed (cancelled attempt skips event).
+Next Recommended Story: Nadav merges #240 when CI is green; then PostHog flag `runsmart-on-device-debrief` and the device test.
+Blockers: CI needs a macOS runner (one run was cancelled for GitHub capacity).
+Last Validation: 2026-11-23 debrief tests 35/0 local; earlier full suite 1310 passed, 0 failed, 2 skipped.
+Last Updated: 2026-11-23
 
 # 2026-11-22: On-device debrief, opt-in Settings toggle (draft PR, stacked on #232)
 
