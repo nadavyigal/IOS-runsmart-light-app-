@@ -604,8 +604,18 @@ final class LeaveCoachModel: ObservableObject {
     @Published private(set) var isWorking = false
     @Published var isOnline: Bool
 
-    init(isOnline: Bool = true) {
+    /// C7.11: `athlete_left_coach` is a v2 event, so it is sent only while v2 is on.
+    private let coachV2Enabled: () -> Bool
+    private let analytics: () -> any AnalyticsTracking
+
+    init(
+        isOnline: Bool = true,
+        coachV2Enabled: @escaping () -> Bool = { RunSmartFeatures.coachV2Enabled },
+        analytics: @escaping () -> any AnalyticsTracking = { Analytics.shared }
+    ) {
         self.isOnline = isOnline
+        self.coachV2Enabled = coachV2Enabled
+        self.analytics = analytics
     }
 
     var leaveDisabledReason: String? {
@@ -631,6 +641,9 @@ final class LeaveCoachModel: ObservableObject {
             guard store.currentLink == nil else { return nil }
             let toast = LeaveCoachCopy.toast(coach: coachName)
             store.leaveNotice = toast
+            if coachV2Enabled() {
+                CoachV2Analytics.track(.athleteLeftCoach, to: analytics())
+            }
             return toast
         } catch {
             errorMessage = LeaveCoachCopy.failure
@@ -1039,5 +1052,213 @@ final class JoinCoachViewModel: ObservableObject {
             return CoachConsentCopy.offline
         }
         return CoachConsentCopy.offline
+    }
+}
+
+// MARK: C7.11, the coach removes an athlete (D8)
+
+/// What `coach_remove_athlete` reported. Both mean the link is gone.
+enum CoachRemoveOutcome: String, Equatable, Sendable {
+    case removed
+    /// The link had already ended (a retried tap, a lost response, or the athlete left first).
+    case alreadyEnded = "already_ended"
+}
+
+/// The one removal line the athlete still has to see (`my_coach_link_notice`).
+struct CoachLinkNotice: Equatable, Sendable, Identifiable {
+    let linkID: UUID
+    let coachName: String
+    var id: UUID { linkID }
+}
+
+/// C7.11 RPCs. The coach removes; the removed athlete reads and clears the one-time line.
+nonisolated protocol CoachLinkEndServing: Sendable {
+    /// `coach_remove_athlete(p_athlete)`. No v2 gate on the server: any build can be removed.
+    func removeAthlete(_ athleteID: UUID) async throws -> CoachRemoveOutcome
+    /// `my_coach_link_notice()`. Nil when there is nothing to show.
+    func linkNotice() async throws -> CoachLinkNotice?
+    /// `mark_link_notice_seen(p_link_id)`.
+    func markLinkNoticeSeen(linkID: UUID) async throws
+}
+
+nonisolated struct SupabaseCoachLinkEndService: CoachLinkEndServing {
+    private struct NoticeRow: Decodable {
+        let linkId: UUID
+        let coachName: String
+
+        enum CodingKeys: String, CodingKey {
+            case linkId = "link_id"
+            case coachName = "coach_name"
+        }
+    }
+
+    func removeAthlete(_ athleteID: UUID) async throws -> CoachRemoveOutcome {
+        let raw: String = try await SupabaseManager.client
+            .rpc("coach_remove_athlete", params: ["p_athlete": athleteID])
+            .execute()
+            .value
+        return CoachRemoveOutcome(rawValue: raw) ?? .removed
+    }
+
+    func linkNotice() async throws -> CoachLinkNotice? {
+        let rows: [NoticeRow] = try await SupabaseManager.client
+            .rpc("my_coach_link_notice")
+            .execute()
+            .value
+        return rows.first.map { CoachLinkNotice(linkID: $0.linkId, coachName: $0.coachName) }
+    }
+
+    func markLinkNoticeSeen(linkID: UUID) async throws {
+        try await SupabaseManager.client
+            .rpc("mark_link_notice_seen", params: ["p_link_id": linkID])
+            .execute()
+    }
+}
+
+/// C7.11 copy. The athlete line is fixed by the UX spec (G16). The coach sheet lists the
+/// same effects as the athlete's A13 leave sheet, from the coach's side (light copy review).
+/// Names are filled with `BidiText.fill`, never concatenated (C7.15).
+enum CoachRemovalCopy {
+    static let offline = LeaveCoachCopy.offline
+    static let cancel = "Cancel"
+    static let noticeOK = "OK"
+
+    /// The athlete's one-time line. No push carries it.
+    static func notice(coach: String) -> String {
+        BidiText.fill("You're no longer coached by {Coach}. Your plan stays and RunSmart keeps adapting it.",
+                      ["Coach": coach])
+    }
+
+    static func menuItem(athlete: String) -> String {
+        BidiText.fill("Remove {Athlete}", ["Athlete": athlete])
+    }
+
+    static func title(athlete: String) -> String {
+        BidiText.fill("Remove {Athlete}?", ["Athlete": athlete])
+    }
+
+    static func failure(athlete: String) -> String {
+        BidiText.fill("Couldn't remove {Athlete} right now. {Athlete} is still linked. Try again.",
+                      ["Athlete": athlete])
+    }
+
+    /// Sheet body below the title.
+    static func sheet(athlete: String) -> String {
+        BidiText.fill("""
+        {Athlete} will no longer be coached by you.
+
+        What stops:
+        • You won't see {Athlete}'s plan, runs or maps.
+        • You won't see {Athlete}'s effort, notes or flags.
+        • You can't review {Athlete}'s runs, send feedback or change their workouts.
+
+        What stays:
+        • {Athlete}'s plan, which RunSmart keeps adapting.
+        • Feedback you already gave. {Athlete} can still read it.
+
+        {Athlete} sees one line in the app. No notification is sent.
+        {Athlete} can join you again with your code.
+        """, ["Athlete": athlete])
+    }
+}
+
+/// Remove confirm. Cancel calls nothing. A failed RPC keeps the athlete linked and shows the
+/// error in the sheet. `already_ended` counts as done: the link is gone either way.
+@MainActor
+final class RemoveAthleteModel: ObservableObject {
+    @Published private(set) var errorMessage: String?
+    @Published private(set) var isWorking = false
+    @Published var isOnline: Bool
+
+    private let service: any CoachLinkEndServing
+    private let analytics: () -> any AnalyticsTracking
+
+    init(
+        isOnline: Bool = true,
+        service: any CoachLinkEndServing = SupabaseCoachLinkEndService(),
+        analytics: @escaping () -> any AnalyticsTracking = { Analytics.shared }
+    ) {
+        self.isOnline = isOnline
+        self.service = service
+        self.analytics = analytics
+    }
+
+    func cancel() {
+        errorMessage = nil
+    }
+
+    /// True when the link is gone. False keeps the sheet open with `errorMessage`.
+    func confirm(athleteID: UUID, athleteName: String) async -> Bool {
+        guard !isWorking else { return false }
+        errorMessage = nil
+        guard isOnline else {
+            errorMessage = CoachRemovalCopy.offline
+            return false
+        }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let outcome = try await service.removeAthlete(athleteID)
+            if outcome == .removed {
+                CoachV2Analytics.track(.coachRemovedAthlete, to: analytics())
+            }
+            return true
+        } catch {
+            errorMessage = CoachRemovalCopy.failure(athlete: athleteName)
+            return false
+        }
+    }
+}
+
+/// The removed athlete's one-time line (C7.11 AC5). With v2 off, while linked, or before the
+/// link read finished, it shows nothing and calls nothing. It is marked seen when shown, so it
+/// appears once; a failed mark shows it again on the next open.
+@MainActor
+final class CoachLinkNoticeModel: ObservableObject {
+    @Published private(set) var notice: CoachLinkNotice?
+
+    private let service: any CoachLinkEndServing
+    private var userID: UUID?
+    private var marked: Set<UUID> = []
+    private var generation = 0
+
+    init(service: any CoachLinkEndServing = SupabaseCoachLinkEndService()) {
+        self.service = service
+    }
+
+    /// `noLink` is true only once the link read finished and found no active link.
+    func evaluate(v2Enabled: Bool, userID: UUID?, noLink: Bool) async {
+        if userID != self.userID {
+            self.userID = userID
+            notice = nil
+            marked = []
+        }
+        generation += 1
+        guard v2Enabled, userID != nil, noLink else {
+            notice = nil
+            return
+        }
+        guard notice == nil else { return }
+        let current = generation
+        let fetched = try? await service.linkNotice()
+        guard current == generation, self.userID == userID else { return }
+        if let fetched, !marked.contains(fetched.linkID) {
+            notice = fetched
+        }
+    }
+
+    /// Call when the line is on screen.
+    func shown() async {
+        guard let notice, !marked.contains(notice.linkID) else { return }
+        marked.insert(notice.linkID)
+        do {
+            try await service.markLinkNoticeSeen(linkID: notice.linkID)
+        } catch {
+            marked.remove(notice.linkID)
+        }
+    }
+
+    func dismiss() {
+        notice = nil
     }
 }

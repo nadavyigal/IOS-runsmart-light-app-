@@ -61,6 +61,10 @@ nonisolated enum CoachV2Analytics {
         case flagRemoved
         /// C7.4: the coach's "Mark handled" reached the server. Minutes from the flag to the resolve.
         case flagResolved(minutesOpen: Int)
+        /// C7.11: the coach removed an athlete and the server ended the link. No properties.
+        case coachRemovedAthlete
+        /// C7.11: the athlete left their coach (A13 or P9) and the server ended the link. No properties.
+        case athleteLeftCoach
 
         var name: String {
             switch self {
@@ -78,6 +82,8 @@ nonisolated enum CoachV2Analytics {
             case .flagCreated: "flag_created"
             case .flagRemoved: "flag_removed"
             case .flagResolved: "flag_resolved"
+            case .coachRemovedAthlete: "coach_removed_athlete"
+            case .athleteLeftCoach: "athlete_left_coach"
             }
         }
 
@@ -89,7 +95,7 @@ nonisolated enum CoachV2Analytics {
                 ["reason": .kind(reason)]
             case .coachAthleteSeen(let newCount):
                 ["new_count": .count(newCount)]
-            case .athleteGoalChangeLogged:
+            case .athleteGoalChangeLogged, .coachRemovedAthlete, .athleteLeftCoach:
                 [:]
             case .consentV2Shown(let surface), .consentV2Acked(let surface), .consentV2LeaveTapped(let surface):
                 ["surface": .kind(surface.rawValue)]

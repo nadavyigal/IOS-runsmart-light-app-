@@ -29,7 +29,10 @@ struct CoachTabView: View {
             NavigationStack(path: $path) {
                 coachScreen
                     .navigationDestination(for: CoachAthleteDestination.self) { athlete in
-                        CoachAthleteDetailView(destination: athlete)
+                        // C7.11: a removed athlete leaves the roster as soon as the detail closes.
+                        CoachAthleteDetailView(destination: athlete, onRemoved: {
+                            Task { await athletes.refresh(owner: ownerID) }
+                        })
                             // C7.2: opening the detail marks the athlete seen, from Today or the roster.
                             // `markSeen` does nothing unless v2 is on.
                             .onAppear { if athlete.coachV2 { athletes.markSeen(athlete.athleteID) } }
