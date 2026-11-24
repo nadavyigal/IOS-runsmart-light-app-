@@ -5,7 +5,7 @@
  *   OPENAI_API_KEY=... deno run --allow-env --allow-net smoke_live.ts
  *   OPENAI_MODEL_FAST=gpt-6-luna deno run --allow-env --allow-net smoke_live.ts
  *
- * Flex week goes through the real generateFlexWeek (prompt, 4 s timeout,
+ * Flex week goes through the real generateFlexWeek (prompt, 10 s timeout,
  * validation, fallback). The run debrief request mirrors index.ts
  * (generateRunDebrief is not exported; index.ts starts the server on import).
  */
@@ -101,7 +101,7 @@ for (const req of FLEX) {
   console.log(JSON.stringify({ site: "flex_week", reason: req.reason, source: out.source, ms, changes: out.changes.length }));
 }
 
-// Same request as generateFlexWeek, without its 4 s abort, to compare model quality.
+// Same request as generateFlexWeek, without its 10 s abort, to compare model quality.
 const flexNoTimeout: { ok: boolean; ms: number; u: Usage }[] = [];
 for (const req of FLEX) {
   const t = Date.now();
@@ -130,5 +130,5 @@ function summary(name: string, rows: { ok: boolean; ms: number; u: Usage }[]) {
 }
 console.log("| Site | Model | Valid (live AI) | p50 ms | max ms | in tok | out tok | reasoning tok |");
 summary("run_debrief", debriefRows);
-summary("flex_week (prod 4 s timeout)", flexRows);
+summary("flex_week (prod 10 s timeout)", flexRows);
 summary("flex_week (no timeout)", flexNoTimeout);

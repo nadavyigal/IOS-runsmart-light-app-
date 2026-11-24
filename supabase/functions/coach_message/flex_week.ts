@@ -66,8 +66,8 @@ export type FlexWeekResponsePayload = {
 const HARD_KINDS = new Set(["Tempo Run", "Intervals", "Hills", "Long Run", "Race", "tempo", "intervals", "hills", "long", "race"]);
 const MAX_CHANGES = 6;
 
-export const FLEX_WEEK_TIMEOUT_MS = 4_000;
-export const FLEX_WEEK_MAX_OUTPUT_TOKENS = 900;
+export const FLEX_WEEK_TIMEOUT_MS = 10_000;
+export const FLEX_WEEK_MAX_OUTPUT_TOKENS = 2_000;
 
 /**
  * The iOS app's full WorkoutKind vocabulary (RunSmartModels.swift). One fixed
