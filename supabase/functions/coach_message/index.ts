@@ -13,6 +13,13 @@ import {
   WEEKLY_SUMMARY_SYSTEM_PROMPT,
   type CoachPromptContext,
 } from "./coach_prompts.ts";
+import {
+  type CoachLanguage,
+  INJURY_DEBRIEF,
+  medicalCautionFallback,
+  resolveLanguage,
+  safetyFlagsFor,
+} from "./safety.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -44,7 +51,11 @@ const forbiddenContextKeys = new Set([
   "points",
 ]);
 
-async function generateRunDebrief(context: JsonRecord, coach: CoachPromptContext | null = null): Promise<{
+async function generateRunDebrief(
+  context: JsonRecord,
+  coach: CoachPromptContext | null = null,
+  language: CoachLanguage = "en",
+): Promise<{
   headline: string;
   debrief: string;
   tomorrow: string;
@@ -54,9 +65,7 @@ async function generateRunDebrief(context: JsonRecord, coach: CoachPromptContext
   const injurySignal = Boolean(context.injurySignal);
   if (injurySignal) {
     return {
-      headline: "Rest up — listen to your body",
-      debrief: "Any pain or discomfort after a run needs rest first. Check in with a professional before your next session.",
-      tomorrow: "Take a full rest day tomorrow.",
+      ...INJURY_DEBRIEF[language],
       planImpact: null,
       source: "fallback",
     };
@@ -293,7 +302,7 @@ Deno.serve(async (req) => {
       effortRating: typeof body.effortRating === "number" ? body.effortRating : null,
       limitations: Array.isArray(body.limitations) ? (body.limitations as unknown[]).slice(0, 5).map(l => limitString(l, 160)) : [],
     };
-    const debrief = await generateRunDebrief(safeContext, coach);
+    const debrief = await generateRunDebrief(safeContext, coach, resolveLanguage(body));
     return jsonResponse(req,debrief);
   }
 
@@ -562,15 +571,6 @@ function limitString(value: unknown, max: number): string {
   return value.trim().slice(0, max);
 }
 
-function safetyFlagsFor(message: string): string[] {
-  const lower = message.toLowerCase();
-  const flags: string[] = [];
-  if (/(pain|injur|dizzi|chest pain|faint|fainting|severe|shortness of breath)/i.test(lower)) {
-    flags.push("medical_caution");
-  }
-  return flags;
-}
-
 async function resolveConversation(client: SupabaseDbClient, userId: string, conversationId: string | null): Promise<ConversationRow> {
   if (conversationId) {
     const { data, error } = await client
@@ -770,7 +770,7 @@ function extractResponseText(json: JsonRecord): string {
 
 function fallbackCoachResponse(message: string, context: JsonRecord, safetyFlags: string[]): string {
   if (safetyFlags.includes("medical_caution")) {
-    return "If you are feeling pain, dizziness, chest pain, fainting, or severe symptoms, stop the activity and speak with a qualified professional. Keep today's decision conservative. Once you are safe and symptoms are resolved, use the next easy planned session as the next best step.";
+    return medicalCautionFallback(message);
   }
 
   const today = asRecord(context.today) ?? {};
