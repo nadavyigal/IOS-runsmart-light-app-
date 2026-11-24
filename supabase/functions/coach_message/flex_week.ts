@@ -1,3 +1,4 @@
+import { logModelUsage, reasoningParam, selectCoachModel } from "./openai_model.ts";
 import {
   carefulPathWarning,
   FLEX_WEEK_SYSTEM_PROMPT,
@@ -221,13 +222,16 @@ export async function generateFlexWeek(
   }
 
   const apiKey = Deno.env.get("OPENAI_API_KEY");
-  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  // FAST tier: flex week used gpt-4.1-mini, a small-model task.
+  const selection = selectCoachModel("FAST");
+  const model = selection.model;
   if (!apiKey) {
     return fallbackFlexWeek(request, coach);
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4_000);
+  const startedAt = Date.now();
   try {
     const response = await fetchImpl("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -235,6 +239,7 @@ export async function generateFlexWeek(
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
+        ...reasoningParam(selection),
         instructions: instructionsFor(FLEX_WEEK_SYSTEM_PROMPT, coach),
         input: [{
           role: "user",
@@ -245,6 +250,7 @@ export async function generateFlexWeek(
     });
     if (!response.ok) throw new Error(`OpenAI ${response.status}`);
     const json = await response.json();
+    logModelUsage("flex_week", selection, json, Date.now() - startedAt);
     const text = extractResponseText(json).trim();
     if (!text) throw new Error("flex_week: OpenAI returned empty text");
     const parsed = JSON.parse(text);
