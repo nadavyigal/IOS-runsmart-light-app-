@@ -1,10 +1,10 @@
 # 2026-11-24: coach_message prompt upgrade and Hebrew safety (draft PR, not deployed)
 
 Current Phase: OpenAI prompt upgrade on top of the merged model tiers (#253); Phase 2 approved by Nadav.
-Active Story: Stories 1-4 done: Hebrew safety, flex week (schema, guard, 10 s / 2000), debrief and weekly, shared chat safety core.
-Next Recommended Story: Live evals old vs new prompts within the $5 cap, then open the draft PR.
-Blockers: Paid evals need an OpenAI key on this machine; none found for RunSmart. Function not deployed (by design).
-Last Validation: deno test 40 passed; deno check clean on all coach_message modules; deno lint shows only 2 pre-existing any errors in index.ts.
+Active Story: Prompt upgrade done in a draft PR: Hebrew safety, flex week, debrief, weekly, shared chat core; live eval run.
+Next Recommended Story: Nadav reviews the draft PR; then deploy coach_message (live AI flex weeks start) and set OPENAI_MODEL_FAST.
+Blockers: Draft only; needs founder yes to merge and deploy. Eval key (Resumely) ran out of credits at about $0.43 total spend.
+Last Validation: deno test 41 passed; live eval on gpt-6-luna: Hebrew 6/6 vs 0/6, flex week 11/18 valid vs 0/18 under prod timeout.
 Last Updated: 2026-11-24
 
 # 2026-11-23: coach_message OpenAI model tiers (draft PR, not deployed)
