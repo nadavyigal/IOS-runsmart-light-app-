@@ -49,7 +49,11 @@ export function selectCoachModel(tier: CoachModelTier, env: EnvReader = denoEnv)
   if (!isReasoningModel(model)) return { tier, model };
   const envEffort = read(env, `OPENAI_REASONING_EFFORT_${tier}`) as ReasoningEffort | undefined;
   let effort = envEffort && EFFORTS.includes(envEffort) ? envEffort : DEFAULT_EFFORT[tier];
-  if ((effort === "none" || effort === "minimal") && /^gpt-6\.2-sol/i.test(model)) effort = "low";
+  // Lowest effort each family accepts: gpt-6.2-sol and o-series reject none and
+  // minimal; gpt-5 / -mini / -nano reject none (gpt-5.1 and later accept it).
+  const id = model.trim().toLowerCase();
+  if ((effort === "none" || effort === "minimal") && (/^gpt-6\.2-sol/.test(id) || /^o\d/.test(id))) effort = "low";
+  if (effort === "none" && /^gpt-5(-|$)/.test(id)) effort = "minimal";
   return { tier, model, reasoningEffort: effort };
 }
 

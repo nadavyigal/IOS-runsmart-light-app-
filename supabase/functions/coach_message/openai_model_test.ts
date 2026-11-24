@@ -30,3 +30,9 @@ Deno.test("gpt-6.2-sol never gets effort none", () => {
 Deno.test("non-reasoning models send no reasoning param", () => {
   assertEquals(reasoningParam(selectCoachModel("FAST", env({}))), {});
 });
+
+Deno.test("OPENAI_MODEL=gpt-5 gets minimal, never none; o-series gets low", () => {
+  assertEquals(selectCoachModel("FAST", env({ OPENAI_MODEL: "gpt-5" })).reasoningEffort, "minimal");
+  assertEquals(selectCoachModel("FAST", env({ OPENAI_MODEL_FAST: "o4-mini" })).reasoningEffort, "low");
+  assertEquals(selectCoachModel("FAST", env({ OPENAI_MODEL_FAST: "gpt-5.1" })).reasoningEffort, "none");
+});
