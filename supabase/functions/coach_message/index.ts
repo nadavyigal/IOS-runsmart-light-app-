@@ -4,14 +4,12 @@ import {
   sanitizeFlexWeekRequest,
 } from "./flex_week.ts";
 import { corsHeaders, isOriginAllowed } from "../_shared/cors.ts";
-import { logModelUsage, reasoningParam, selectCoachModel } from "./openai_model.ts";
+import { logModelUsage, selectCoachModel } from "./openai_model.ts";
 import {
-  instructionsFor,
   resolveCoachContext,
-  SYSTEM_PROMPT,
   type CoachPromptContext,
 } from "./coach_prompts.ts";
-import { buildRunDebriefRequestBody, buildWeeklySummaryRequestBody } from "./requests.ts";
+import { buildCoachChatRequestBody, buildRunDebriefRequestBody, buildWeeklySummaryRequestBody } from "./requests.ts";
 import { responseFailureReason } from "./response_format.ts";
 import {
   type CoachLanguage,
@@ -681,23 +679,7 @@ async function liveCoachResponse(
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        ...reasoningParam(selection),
-        instructions: instructionsFor(SYSTEM_PROMPT, coach),
-        input: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: `Runner message: ${message}\n\nSanitized training context:\n${JSON.stringify(context)}`,
-              },
-            ],
-          },
-        ],
-        max_output_tokens: 260,
-      }),
+      body: JSON.stringify(buildCoachChatRequestBody(message, context, selection, coach)),
     });
 
     if (!response.ok) {

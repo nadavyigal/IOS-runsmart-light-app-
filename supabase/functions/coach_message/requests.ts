@@ -2,7 +2,13 @@
 // index.ts. index.ts starts the server on import, so the bodies are built here
 // where tests and the live smoke harness can import them.
 
-import { instructionsFor, runDebriefInstructions, weeklySummaryInstructions, type CoachPromptContext } from "./coach_prompts.ts";
+import {
+  instructionsFor,
+  runDebriefInstructions,
+  SYSTEM_PROMPT,
+  weeklySummaryInstructions,
+  type CoachPromptContext,
+} from "./coach_prompts.ts";
 import { reasoningParam, type CoachModelSelection } from "./openai_model.ts";
 import { RUN_DEBRIEF_SCHEMA, strictJsonText, WEEKLY_SUMMARY_SCHEMA } from "./response_format.ts";
 import type { CoachLanguage } from "./safety.ts";
@@ -13,6 +19,7 @@ type JsonRecord = Record<string, unknown>;
 // truncation (status "incomplete").
 export const RUN_DEBRIEF_MAX_OUTPUT_TOKENS = 180;
 export const WEEKLY_SUMMARY_MAX_OUTPUT_TOKENS = 220;
+export const COACH_CHAT_MAX_OUTPUT_TOKENS = 260;
 
 function userInput(label: string, data: unknown) {
   return [{ role: "user", content: [{ type: "input_text", text: `${label}:\n${JSON.stringify(data)}` }] }];
@@ -47,5 +54,27 @@ export function buildWeeklySummaryRequestBody(
     input: userInput("Week data", context),
     text: strictJsonText("weekly_summary", WEEKLY_SUMMARY_SCHEMA),
     max_output_tokens: WEEKLY_SUMMARY_MAX_OUTPUT_TOKENS,
+  };
+}
+
+/** Ask Coach chat: free text. The reply language follows the runner's message. */
+export function buildCoachChatRequestBody(
+  message: string,
+  context: JsonRecord,
+  selection: CoachModelSelection,
+  coach: CoachPromptContext | null,
+): JsonRecord {
+  return {
+    model: selection.model,
+    ...reasoningParam(selection),
+    instructions: instructionsFor(SYSTEM_PROMPT, coach),
+    input: [{
+      role: "user",
+      content: [{
+        type: "input_text",
+        text: `Runner message: ${message}\n\nSanitized training context:\n${JSON.stringify(context)}`,
+      }],
+    }],
+    max_output_tokens: COACH_CHAT_MAX_OUTPUT_TOKENS,
   };
 }

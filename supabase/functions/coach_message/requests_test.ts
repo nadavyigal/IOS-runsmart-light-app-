@@ -1,7 +1,8 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { HEBREW_STYLE, type CoachPromptContext } from "./coach_prompts.ts";
+import { COACH_CHAT_CORE, HEBREW_STYLE, type CoachPromptContext } from "./coach_prompts.ts";
 import { FLEX_WEEK_SCHEMA } from "./flex_week.ts";
 import {
+  buildCoachChatRequestBody,
   buildRunDebriefRequestBody,
   buildWeeklySummaryRequestBody,
   RUN_DEBRIEF_MAX_OUTPUT_TOKENS,
@@ -66,4 +67,12 @@ Deno.test("responseFailureReason spots truncation and refusals", () => {
     responseFailureReason({ status: "completed", output: [{ content: [{ type: "refusal", refusal: "no" }] }] }),
     "refusal",
   );
+});
+
+Deno.test("chat body: shared core, coach rules, unchanged cap, no schema", () => {
+  const body = buildCoachChatRequestBody("כואב לי בברך", { today: {} }, fast, dana);
+  assertEquals(String(body.instructions).startsWith(COACH_CHAT_CORE), true);
+  assertEquals(String(body.instructions).includes("Never write as or on behalf of Dana."), true);
+  assertEquals(body.max_output_tokens, 260);
+  assertEquals(body.text, undefined);
 });

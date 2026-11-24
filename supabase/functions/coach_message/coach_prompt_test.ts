@@ -1,6 +1,7 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   carefulPathWarning,
+  COACH_CHAT_CORE,
   FLEX_WEEK_SYSTEM_PROMPT,
   flexWeekInstructions,
   HEBREW_STYLE,
@@ -45,7 +46,25 @@ function assertLinkedDefers(base: string) {
 Deno.test("chat prompt: solo is unchanged and linked defers to the coach", () => {
   assertSoloUnchanged(SYSTEM_PROMPT);
   assertLinkedDefers(SYSTEM_PROMPT);
-  assertEquals(SYSTEM_PROMPT.startsWith("You are RunSmart Coach, a calm AI running coach"), true);
+  assertEquals(SYSTEM_PROMPT.startsWith(COACH_CHAT_CORE), true);
+  assertEquals(SYSTEM_PROMPT.includes("mostly beginner and intermediate"), true);
+  assertEquals(COACH_CHAT_CORE.includes("beginner"), false);
+});
+
+// The same phrases are pinned in the web repo (v0/lib/ai/coach-chat-core.test.ts).
+Deno.test("chat safety core keeps every safety line", () => {
+  for (const phrase of [
+    "This is not medical advice. Do not diagnose injuries or illness.",
+    "tell them to stop the activity and talk to a qualified professional",
+    "For chest pain, fainting or trouble breathing, tell them to get urgent medical help.",
+    "pain, dizziness, chest pain, fainting, shortness of breath",
+    "When unsure, choose the more conservative option.",
+    "Do not say you changed the training plan unless a change was actually applied.",
+    "Do not reveal raw GPS data, coordinates or private route details.",
+    "Reply in the language of the runner's latest message (Hebrew or English).",
+  ]) {
+    assertEquals(COACH_CHAT_CORE.includes(phrase), true, phrase);
+  }
 });
 
 Deno.test("run debrief prompt: solo is unchanged and linked defers to the coach", () => {
