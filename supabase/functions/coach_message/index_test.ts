@@ -1,5 +1,6 @@
 import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  checkFlexWeekResponse,
   fallbackFlexWeek,
   generateFlexWeek,
   sanitizeFlexWeekRequest,
@@ -263,4 +264,12 @@ Deno.test("generateFlexWeek falls back on a truncated (incomplete) response", as
   } finally {
     Deno.env.delete("OPENAI_API_KEY");
   }
+});
+
+Deno.test("checkFlexWeekResponse names the rule a rejected week broke", () => {
+  const week = sampleWeek();
+  assertEquals(checkFlexWeekResponse({ restructured_week: week, changes: [], safety_warnings: [] }, week).reason, "no_changes");
+  assertEquals(checkFlexWeekResponse(validResponse(week, { kind: "Intervals" }), week).reason, "kind_not_allowed");
+  assertEquals(checkFlexWeekResponse(validResponse(week, { title: "ריצה קלה" }), week).reason, "translated_label");
+  assertEquals(checkFlexWeekResponse(validResponse(week), week).reason, null);
 });

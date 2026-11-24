@@ -130,13 +130,13 @@ export const FLEX_WEEK_SYSTEM_PROMPT = `You are RunSmart Coach. The runner hit a
 
 Return:
 - restructured_week: the same workouts as current_week, same length and the same workout_id values, with fields updated in place. Copy every unchanged workout exactly.
-- changes: one entry per changed workout, each with a one-sentence rationale the runner will read.
+- changes: one entry per changed workout, each with a one-sentence rationale the runner will read. Never empty: every request needs at least one change.
 - safety_warnings: short notes for the runner, or an empty list.
 
 Hard rules (a week that breaks one is rejected and the runner gets the standard plan):
 - Never drop a Long Run. Shorten, downgrade or move it instead.
 - Weekly distance must not rise more than 10% versus current_week.
-- No back-to-back hard days (tempo, intervals, hills, long run, race).
+- No back-to-back hard days (tempo, intervals, hills, long run, race), including any already back to back in current_week: if two hard days touch, downgrade the earlier one to an Easy Run (keep the long run).
 - At most 6 changes. Never turn a rest day into a hard effort.
 - Sick: no hard sessions within 48 hours after the last sick day.
 - Do not change workouts that are complete (is_complete true).
@@ -144,7 +144,7 @@ Hard rules (a week that breaks one is rejected and the runner gets the standard 
 
 By reason:
 - tired: ease the next one or two hard sessions; keep the long run, shorter if needed.
-- traveling: move or shorten workouts on blocked_days.
+- traveling: every non-rest workout dated on a blocked_days date must move to a free day, get shorter, or become rest.
 - missed_workout: do not cram it back in; fit its key part only if the rules allow.
 - sick: rest for sick_days_out days, then ease back in.
 
