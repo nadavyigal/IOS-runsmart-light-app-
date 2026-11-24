@@ -1,6 +1,8 @@
 import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  checkFlexWeekResponse,
   fallbackFlexWeek,
+  generateFlexWeek,
   sanitizeFlexWeekRequest,
   validateFlexWeekResponse,
   type FlexWeekWorkoutDTO,
@@ -188,4 +190,86 @@ Deno.test("validateFlexWeekResponse rejects long-run removal", () => {
     source: "live_ai",
   }, week);
   assertEquals(validated, null);
+});
+
+function validResponse(week: FlexWeekWorkoutDTO[], patch: Partial<FlexWeekWorkoutDTO> = {}, rationale = "Eased the tempo while you recover.") {
+  const mutated = week.map((workout) => ({ ...workout }));
+  mutated[1] = { ...mutated[1], kind: "Easy Run", title: "Easy Run", intensity: "easy", ...patch };
+  return {
+    restructured_week: mutated,
+    changes: [{ workout_id: mutated[1].workout_id, change_type: "downgraded", rationale, original_workout_id: null }],
+    safety_warnings: [],
+  };
+}
+
+Deno.test("validateFlexWeekResponse accepts a downgrade with a Hebrew rationale", () => {
+  const week = sampleWeek();
+  const validated = validateFlexWeekResponse(validResponse(week, {}, "הורדנו את הטמפו כדי לתת לגוף להתאושש."), week);
+  assertExists(validated);
+});
+
+Deno.test("validateFlexWeekResponse rejects a kind outside current_week and downgrades", () => {
+  const week = sampleWeek();
+  assertEquals(validateFlexWeekResponse(validResponse(week, { kind: "Intervals" }), week), null);
+});
+
+Deno.test("validateFlexWeekResponse rejects Hebrew workout labels (long-run bypass)", () => {
+  const week = sampleWeek();
+  const mutated = week.map((workout) => ({ ...workout }));
+  // A translated long run would no longer count as a long run.
+  mutated[4] = { ...mutated[4], title: "ריצה ארוכה", distance_label: "5.0 km" };
+  const validated = validateFlexWeekResponse({
+    restructured_week: mutated,
+    changes: [{ workout_id: mutated[4].workout_id, change_type: "downgraded", rationale: "קיצרנו", original_workout_id: null }],
+    safety_warnings: [],
+  }, week);
+  assertEquals(validated, null);
+  assertEquals(validateFlexWeekResponse(validResponse(week, { title: "ריצה קלה" }), week), null);
+});
+
+function captureFetch(reply: Record<string, unknown>, sink: { body?: Record<string, unknown> }): typeof fetch {
+  return (_input, init) => {
+    sink.body = JSON.parse(String(init?.body));
+    return Promise.resolve(new Response(JSON.stringify(reply), { status: 200 }));
+  };
+}
+
+Deno.test("generateFlexWeek sends the strict schema and the language line, and returns live_ai", async () => {
+  Deno.env.set("OPENAI_API_KEY", "test-key");
+  try {
+    const week = sampleWeek({ hardToday: true });
+    const request = sanitizeFlexWeekRequest({ reason: "tired", currentWeek: week })!;
+    const sink: { body?: Record<string, unknown> } = {};
+    const reply = { status: "completed", output_text: JSON.stringify(validResponse(request.current_week)) };
+    const outcome = await generateFlexWeek(request, captureFetch(reply, sink), null, "he");
+    assertEquals(outcome.source, "live_ai");
+    const text = sink.body?.text as { format: { type: string; strict: boolean; name: string } };
+    assertEquals(text.format.type, "json_schema");
+    assertEquals(text.format.strict, true);
+    assertEquals(text.format.name, "flex_week");
+    assertEquals(String(sink.body?.instructions).includes("rationale and safety_warnings in Hebrew."), true);
+  } finally {
+    Deno.env.delete("OPENAI_API_KEY");
+  }
+});
+
+Deno.test("generateFlexWeek falls back on a truncated (incomplete) response", async () => {
+  Deno.env.set("OPENAI_API_KEY", "test-key");
+  try {
+    const week = sampleWeek({ hardToday: true });
+    const request = sanitizeFlexWeekRequest({ reason: "tired", currentWeek: week })!;
+    const reply = { status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, output_text: "{\"restructured_week\": [" };
+    const outcome = await generateFlexWeek(request, captureFetch(reply, {}), null, "en");
+    assertEquals(outcome.source, "fallback");
+  } finally {
+    Deno.env.delete("OPENAI_API_KEY");
+  }
+});
+
+Deno.test("checkFlexWeekResponse names the rule a rejected week broke", () => {
+  const week = sampleWeek();
+  assertEquals(checkFlexWeekResponse({ restructured_week: week, changes: [], safety_warnings: [] }, week).reason, "no_changes");
+  assertEquals(checkFlexWeekResponse(validResponse(week, { kind: "Intervals" }), week).reason, "kind_not_allowed");
+  assertEquals(checkFlexWeekResponse(validResponse(week, { title: "ריצה קלה" }), week).reason, "translated_label");
+  assertEquals(checkFlexWeekResponse(validResponse(week), week).reason, null);
 });
