@@ -51,14 +51,16 @@ Deno.test("chat prompt: solo is unchanged and linked defers to the coach", () =>
 Deno.test("run debrief prompt: solo is unchanged and linked defers to the coach", () => {
   assertSoloUnchanged(RUN_DEBRIEF_SYSTEM_PROMPT);
   assertLinkedDefers(RUN_DEBRIEF_SYSTEM_PROMPT);
-  assertEquals(RUN_DEBRIEF_SYSTEM_PROMPT.startsWith("You are RunSmart Coach. Given a completed run's data"), true);
+  assertEquals(RUN_DEBRIEF_SYSTEM_PROMPT.startsWith("You are RunSmart Coach writing a short debrief right after a run."), true);
+  assertEquals(RUN_DEBRIEF_SYSTEM_PROMPT.includes("This is not medical advice; do not diagnose."), true);
+  assertEquals(RUN_DEBRIEF_SYSTEM_PROMPT.includes("suggest a qualified professional"), true);
 });
 
 Deno.test("weekly summary prompt: solo is unchanged and linked defers to the coach", () => {
   assertSoloUnchanged(WEEKLY_SUMMARY_SYSTEM_PROMPT);
   assertLinkedDefers(WEEKLY_SUMMARY_SYSTEM_PROMPT);
   assertEquals(
-    WEEKLY_SUMMARY_SYSTEM_PROMPT.startsWith("You are RunSmart Coach. Given a runner's week summary data"),
+    WEEKLY_SUMMARY_SYSTEM_PROMPT.startsWith("You are RunSmart Coach writing a short end-of-week summary"),
     true,
   );
 });
