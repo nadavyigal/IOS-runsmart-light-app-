@@ -2,6 +2,8 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   carefulPathWarning,
   FLEX_WEEK_SYSTEM_PROMPT,
+  flexWeekInstructions,
+  HEBREW_STYLE,
   instructionsFor,
   readCoachContext,
   resolveCoachContext,
@@ -65,9 +67,27 @@ Deno.test("flex week prompt: solo is unchanged and linked defers to the coach", 
   assertSoloUnchanged(FLEX_WEEK_SYSTEM_PROMPT);
   assertLinkedDefers(FLEX_WEEK_SYSTEM_PROMPT);
   assertEquals(
-    FLEX_WEEK_SYSTEM_PROMPT.startsWith("You are RunSmart Coach. Restructure the runner's current ISO week"),
+    FLEX_WEEK_SYSTEM_PROMPT.startsWith("You are RunSmart Coach. The runner hit a life disruption"),
     true,
   );
+  for (const rule of [
+    "Never drop a Long Run.",
+    "Weekly distance must not rise more than 10% versus current_week.",
+    "No back-to-back hard days",
+    "At most 6 changes. Never turn a rest day into a hard effort.",
+    "Sick: no hard sessions within 48 hours after the last sick day.",
+    "Do not diagnose illness or injury.",
+    "same English vocabulary used in current_week",
+  ]) {
+    assertEquals(FLEX_WEEK_SYSTEM_PROMPT.includes(rule), true, rule);
+  }
+  assertLinkedDefers(flexWeekInstructions("he"));
+  assertEquals(
+    flexWeekInstructions("en").endsWith("Language: write rationale and safety_warnings in English."),
+    true,
+  );
+  assertEquals(flexWeekInstructions("he").includes("rationale and safety_warnings in Hebrew."), true);
+  assertEquals(flexWeekInstructions("he").includes(HEBREW_STYLE), true);
   assertEquals(carefulPathWarning(null), SOLO_CAREFUL_PATH);
   assertEquals(
     carefulPathWarning(dana),

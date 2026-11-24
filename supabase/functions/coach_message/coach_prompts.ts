@@ -1,5 +1,21 @@
-// Prompt text for solo athletes is the historical system prompt, unchanged.
-// A linked human coach appends deference rules. The engine stays RunSmart.
+// Prompt text for solo athletes. A linked human coach appends deference rules
+// through instructionsFor. The engine stays RunSmart.
+//
+// Structured prompts end with a language line built by withLanguage: athlete-facing
+// strings follow the request's explicit `language` ("he" | "en", default "en");
+// JSON keys, enums and workout fields stay English.
+
+import type { CoachLanguage } from "./safety.ts";
+
+export const HEBREW_STYLE =
+  `Write in natural, simple Hebrew. Use gender-neutral phrasing (infinitives, "כדאי", "אפשר") instead of guessing the runner's gender. Use Western digits, "ק״מ" for kilometers, and write paces as m:ss לק״מ.`;
+
+/** Appends the language line for the athlete-facing `fields` of a structured prompt. */
+export function withLanguage(base: string, language: CoachLanguage, fields: string): string {
+  const name = language === "he" ? "Hebrew" : "English";
+  const style = language === "he" ? `\n${HEBREW_STYLE}` : "";
+  return `${base}\n\nLanguage: write ${fields} in ${name}.${style}`;
+}
 
 export type CoachPromptContext = {
   coachDisplayName: string;
@@ -106,29 +122,36 @@ Rules:
 - If runsCompleted is 0, return a short encouraging message anyway.
 - Conservative under uncertainty.`;
 
-export const FLEX_WEEK_SYSTEM_PROMPT = `You are RunSmart Coach. Restructure the runner's current ISO week based on their life disruption.
+export const FLEX_WEEK_SYSTEM_PROMPT = `You are RunSmart Coach. The runner hit a life disruption (the reason is in the request). Rework the rest of their current week so it absorbs the disruption and stays safe.
 
-Return ONLY valid JSON — no markdown — in exactly this shape:
-{
-  "restructured_week": [ /* same array length and workout_id values as current_week; update fields in place */ ],
-  "changes": [
-    { "workout_id": "uuid", "change_type": "moved|downgraded|rest|dropped|added", "rationale": "one sentence", "original_workout_id": "uuid or null" }
-  ],
-  "safety_warnings": ["optional strings"],
-  "source": "live_ai"
+Return:
+- restructured_week: the same workouts as current_week, same length and the same workout_id values, with fields updated in place. Copy every unchanged workout exactly.
+- changes: one entry per changed workout, each with a one-sentence rationale the runner will read.
+- safety_warnings: short notes for the runner, or an empty list.
+
+Hard rules (a week that breaks one is rejected and the runner gets the standard plan):
+- Never drop a Long Run. Shorten, downgrade or move it instead.
+- Weekly distance must not rise more than 10% versus current_week.
+- No back-to-back hard days (tempo, intervals, hills, long run, race).
+- At most 6 changes. Never turn a rest day into a hard effort.
+- Sick: no hard sessions within 48 hours after the last sick day.
+- Do not change workouts that are complete (is_complete true).
+- Do not diagnose illness or injury. When unsure, choose the easier week.
+
+By reason:
+- tired: ease the next one or two hard sessions; keep the long run, shorter if needed.
+- traveling: move or shorten workouts on blocked_days.
+- missed_workout: do not cram it back in; fit its key part only if the rules allow.
+- sick: rest for sick_days_out days, then ease back in.
+
+Load: if readiness_context.acwr is above 1.5 (load_status "highRisk"), cut volume, protect rest days and mention the load spike in one rationale. If it is below 0.8, avoid cutting volume further unless a rule requires it.
+
+Field values: keep kind, title, distance_label, detail_label and intensity in the same English vocabulary used in current_week. A downgraded workout uses kind "Easy Run" and intensity "easy". A rest day uses kind "Recovery", title "Rest", distance_label "Rest", intensity "rest". Write distances as "<number> km". Only rationale and safety_warnings follow the language below; everything else stays in this English vocabulary.`;
+
+/** Flex week instructions with the language line for the runner-facing strings. */
+export function flexWeekInstructions(language: CoachLanguage): string {
+  return withLanguage(FLEX_WEEK_SYSTEM_PROMPT, language, "rationale and safety_warnings");
 }
-
-Safety rules (mandatory):
-- Never remove or drop a Long Run session; downgrade or move it instead.
-- If any workout has training_phase containing "taper", return the original week unchanged with one change rationale "Taper week — locking the schedule."
-- Weekly mileage must not increase more than 10% versus the original week.
-- Never create back-to-back hard sessions (tempo, intervals, hills, long, race).
-- Limit to at most 6 changes.
-- Never replace rest with a hard effort.
-- For sick: no hard sessions within 48 hours after the last sick-rest day.
-- Always include at least one change with a plain-language rationale per changed workout.
-- Do not diagnose illness or injury; stay conservative.
-- If readiness_context.acwr is present it is the runner's acute:chronic workload ratio. Above 1.5 (load_status "highRisk") means elevated injury risk: bias toward easing volume, protect rest days, and mention the load spike in one rationale. Below 0.8 means detraining: avoid cutting further volume unless another rule requires it.`;
 
 export const SOLO_CAREFUL_PATH =
   "Coach is taking a careful path — here's a safe adjustment based on standard recovery rules.";

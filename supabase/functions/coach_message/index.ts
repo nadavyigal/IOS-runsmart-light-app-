@@ -335,7 +335,7 @@ Deno.serve(async (req) => {
     if (!request) {
       return jsonResponse(req,{ error: "Invalid flex_week payload" }, 400);
     }
-    const outcome = await generateFlexWeek(request, fetch, coach);
+    const outcome = await generateFlexWeek(request, fetch, coach, resolveLanguage(body));
     return jsonResponse(req,{
       restructuredWeek: outcome.restructured_week,
       changes: outcome.changes.map((change) => ({

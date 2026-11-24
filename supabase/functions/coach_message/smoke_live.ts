@@ -9,8 +9,8 @@
  * validation, fallback). The run debrief request mirrors index.ts
  * (generateRunDebrief is not exported; index.ts starts the server on import).
  */
-import { FLEX_WEEK_SYSTEM_PROMPT, RUN_DEBRIEF_SYSTEM_PROMPT, instructionsFor } from "./coach_prompts.ts";
-import { generateFlexWeek, validateFlexWeekResponse, type FlexWeekRequestPayload, type FlexWeekWorkoutDTO } from "./flex_week.ts";
+import { RUN_DEBRIEF_SYSTEM_PROMPT, instructionsFor } from "./coach_prompts.ts";
+import { buildFlexWeekRequestBody, generateFlexWeek, validateFlexWeekResponse, type FlexWeekRequestPayload, type FlexWeekWorkoutDTO } from "./flex_week.ts";
 import { reasoningParam, selectCoachModel } from "./openai_model.ts";
 
 const apiKey = Deno.env.get("OPENAI_API_KEY");
@@ -108,13 +108,7 @@ for (const req of FLEX) {
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: sel.model,
-      ...reasoningParam(sel),
-      instructions: instructionsFor(FLEX_WEEK_SYSTEM_PROMPT, null),
-      input: [{ role: "user", content: [{ type: "input_text", text: `Flex week request:\n${JSON.stringify(req)}` }] }],
-      max_output_tokens: 900,
-    }),
+    body: JSON.stringify(buildFlexWeekRequestBody(req, sel, null, "en")),
   });
   const json = await res.json();
   const text = typeof json.output_text === "string" ? json.output_text : (json.output ?? []).flatMap((o: any) => o.content ?? []).map((c: any) => c.text ?? "").join("");
