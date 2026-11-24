@@ -1,10 +1,10 @@
 # 2026-11-24: coach_message prompt upgrade and Hebrew safety (draft PR, not deployed)
 
 Current Phase: OpenAI prompt upgrade on top of the merged model tiers (#253); Phase 2 approved by Nadav.
-Active Story: Stories 1-2 done: Hebrew safety; flex week prompt, strict schema, label guard; timeout 10 s and cap 2000 (own commit).
-Next Recommended Story: Debrief and weekly summary prompts with strict schemas and explicit language; then the shared chat safety core.
+Active Story: Stories 1-4 done: Hebrew safety, flex week (schema, guard, 10 s / 2000), debrief and weekly, shared chat safety core.
+Next Recommended Story: Live evals old vs new prompts within the $5 cap, then open the draft PR.
 Blockers: Paid evals need an OpenAI key on this machine; none found for RunSmart. Function not deployed (by design).
-Last Validation: deno test 34 passed (5 new flex week tests: Hebrew-label bypass, allowed kinds, strict schema, incomplete fallback).
+Last Validation: deno test 40 passed; deno check clean on all coach_message modules; deno lint shows only 2 pre-existing any errors in index.ts.
 Last Updated: 2026-11-24
 
 # 2026-11-23: coach_message OpenAI model tiers (draft PR, not deployed)
