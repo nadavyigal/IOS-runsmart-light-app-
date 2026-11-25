@@ -1,10 +1,10 @@
 # 2026-11-25: Coach v2 TF-1a candidate 1.2.7 (47)
 
-Current Phase: Coach Experience v2, TF-1a build 47 processed and available for internal testing.
-Active Story: Upgraded the linked iPhone 13 athlete to build 47 and verified the existing-link consent gate.
-Next Recommended Story: Wait for the athlete to review and acknowledge the v2 sharing notice before testing post-consent flows.
-Blockers: Athlete acknowledgment is pending. Full two-phone acceptance and write tests remain pending.
-Last Validation: Both phones run build 47. The athlete saw the v2 notice. The live pair gate was true and the consent-dependent sharing gate false.
+Current Phase: Coach Experience v2, TF-1a build 47 blocked by an iPhone crash while leaving a coach.
+Active Story: Verified the sharing gate and recorded the build 47 leave crash with its symbolicated stack.
+Next Recommended Story: Fix the CoachPresence main-actor crash, then retest on a new candidate using an approved linked QA pair.
+Blockers: Build 47 crashes after successful revocation. The athlete account is now unlinked. Full TF-1a remains pending.
+Last Validation: Verified pre-consent sharing blocked, durable revocation, and athlete recovery after relaunch. Matched dSYM for the leave crash.
 Last Updated: 2026-11-25
 
 # 2026-11-24: coach_message prompt upgrade and Hebrew safety (draft PR, not deployed)
