@@ -31,7 +31,9 @@ Record the TestFlight version and build, archive source commit, test date, iOS v
 
 ## Physical test setup
 
-The iPhone 13 was verified on RunSmart 1.2.6 (44). Keep it on build 44 for the initial mixed-version check. The iPhone 17 is the coach phone and needs build 47 from TestFlight. TF-1a device results are pending.
+- The iPhone 13 still has RunSmart 1.2.6 (44). Keep it on build 44 for the mixed-version check.
+- The iPhone 17 has RunSmart 1.2.7 (47). CoreDevice launched the app and confirmed the process remained running. Production received an authenticated build 47 capability report with channel `testflight` and Coach v2 capability enabled.
+- The reporting account has an active athlete link and no coach profile. Complete the coach test account sign-in on the iPhone 17 and unlock iPhone Mirroring. The mixed-version UI check and remaining TF-1a acceptance checks are pending.
 
 ## Legacy 1.2.6 regression
 
