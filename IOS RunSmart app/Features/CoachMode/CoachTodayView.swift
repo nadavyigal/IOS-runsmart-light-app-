@@ -18,12 +18,18 @@ private enum CoachTodayItem: Identifiable {
     /// C7.4: a queued Mark handled the server refused because the link ended.
     case actionFailed(UUID)
     case header(title: String, summary: String?, detail: String?)
+    /// C7.10 T6: the push pre-permission card, once, under the header.
+    case pushPrimer
     case skeleton(Int)
     case errorNoCache
     case empty
     case groupHeader(CoachTodayGroup, total: Int)
     case row(CoachTodayRow)
     case showAll(CoachTodayGroup, total: Int)
+    /// C7.6 T2: "Missed today · {n}" with ✕ "Show all".
+    case filterChip(String)
+    /// C7.6 T2: everyone on the 20:00 list has logged a run since.
+    case filterEmptied
 
     var id: String {
         switch self {
@@ -35,12 +41,15 @@ private enum CoachTodayItem: Identifiable {
         case .handledToast: "handled-toast"
         case .actionFailed(let id): "action-failed-\(id.uuidString)"
         case .header: "header"
+        case .pushPrimer: "push-primer"
         case .skeleton(let index): "skeleton-\(index)"
         case .errorNoCache: "error"
         case .empty: "empty"
         case .groupHeader(let group, _): "group-\(group.rawValue)"
         case .row(let row): "row-\(row.id.uuidString)"
         case .showAll(let group, _): "show-all-\(group.rawValue)"
+        case .filterChip: "filter-chip"
+        case .filterEmptied: "filter-emptied"
         }
     }
 }
@@ -52,6 +61,8 @@ struct CoachTodayView: View {
     @ObservedObject var model: CoachAthleteListModel
     /// C7.4: the Mark handled queue, for its toast. The same store the model reads.
     @ObservedObject var flagStore: CoachFlagStore = .shared
+    /// C7.10: T6 shows while the registrar asks for it (never with v2 off).
+    @ObservedObject var pushRegistrar: RemotePushRegistrar = .shared
     var onShareInvite: (() -> Void)?
     let open: (CoachTodayRow) -> Void
     let retry: () async -> Void
@@ -89,7 +100,20 @@ struct CoachTodayView: View {
         list.append(.header(
             title: snapshot.headerTitle(locale: locale), summary: snapshot.summaryLine, detail: snapshot.caughtUpDetail
         ))
+        if pushRegistrar.showsCoachPrimer { list.append(.pushPrimer) }
         guard snapshot.athleteCount > 0 else { return list + [.empty] }
+
+        if let filter = model.todayFilter {
+            // T2 (C7.6 AC5): the summary's list only, no groups.
+            let missed = snapshot.missedRows(for: filter)
+            list.append(.filterChip(CoachTodayFilterCopy.chip(yesterday: missed.yesterday, count: missed.rows.count)))
+            if missed.rows.isEmpty {
+                if snapshot.runsLoaded { list.append(.filterEmptied) }
+            } else {
+                list += missed.rows.map { .row($0) }
+            }
+            return list
+        }
 
         let groups = snapshot.groups
         for group in groups {
@@ -197,6 +221,8 @@ struct CoachTodayView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
+        case .pushPrimer:
+            RemotePushCoachPrimerCard(registrar: pushRegistrar)
         case .skeleton:
             skeletonRow
         case .errorNoCache:
@@ -223,10 +249,30 @@ struct CoachTodayView: View {
         case .groupHeader(let group, let total):
             groupHeader(group, total: total)
         case .row(let row):
-            CoachTodayRowView(
-                row: row, needsLatestApp: model.athletesNeedingUpdate.contains(row.id), open: { open(row) },
-                markHandled: row.flags.isEmpty ? nil : { model.markHandled(row) }
-            )
+            VStack(spacing: 6) {
+                CoachTodayRowView(
+                    row: row, needsLatestApp: model.athletesNeedingUpdate.contains(row.id), open: { open(row) },
+                    markHandled: row.flags.isEmpty ? nil : { model.markHandled(row) }
+                )
+                // C7.16: under the row, outside its button, so the praise buttons are their own targets.
+                if !row.milestones.isEmpty {
+                    CoachMilestoneStrip(
+                        athleteName: row.name, milestones: row.milestones,
+                        isReacted: model.isReacted, hasFailed: model.reactionFailed,
+                        react: { model.react(to: $0, with: $1) }
+                    )
+                }
+            }
+        case .filterChip(let title):
+            filterChip(title)
+        case .filterEmptied:
+            ContentCard {
+                Text(CoachTodayFilterCopy.emptied)
+                    .font(.bodyLG)
+                    .foregroundStyle(Color.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .accessibilityIdentifier("coach-today-filter-emptied")
         case .showAll(let group, let total):
             Button {
                 fullGroups.insert(group)
@@ -238,6 +284,31 @@ struct CoachTodayView: View {
             }
             .buttonStyle(.plain)
         }
+    }
+
+    private func filterChip(_ title: String) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.labelLG)
+                .foregroundStyle(Color.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            Button {
+                model.todayFilter = nil
+            } label: {
+                Label(CoachTodayFilterCopy.showAll, systemImage: "xmark")
+                    .font(.labelLG)
+                    .foregroundStyle(Color.accentPrimary)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 44)
+                    .background(Color.surfaceElevated, in: Capsule())
+                    .overlay(Capsule().stroke(Color.accentPrimary.opacity(0.5), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("coach-today-filter-show-all")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("coach-today-filter-chip")
     }
 
     private var tryAgain: some View {
@@ -519,7 +590,7 @@ extension CoachTodaySnapshot {
     /// 30 fixture athletes across every group, for the previews and the simulator screenshots.
     static func previewFixture(
         athletes count: Int = 30, runsLoaded: Bool = true, withNews: Bool = false, withFlags: Bool = false,
-        flagsLoaded: Bool = true, now: Date = Date(timeIntervalSince1970: 1_795_000_000)
+        flagsLoaded: Bool = true, withMilestones: Bool = false, now: Date = Date(timeIntervalSince1970: 1_795_000_000)
     ) -> CoachTodaySnapshot {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Jerusalem")!
@@ -554,7 +625,8 @@ extension CoachTodaySnapshot {
         return CoachTodaySnapshot.make(
             athletes: athletes, workouts: workouts, runs: runs, runsLoaded: runsLoaded,
             news: withNews ? previewNews(athletes, now: now) : [:],
-            flags: withFlags && flagsLoaded ? previewFlags(athletes, now: now) : [], flagsLoaded: flagsLoaded, now: now, week: week,
+            flags: withFlags && flagsLoaded ? previewFlags(athletes, now: now) : [], flagsLoaded: flagsLoaded,
+            milestones: withMilestones ? previewMilestones(athletes) : [:], now: now, week: week,
             locale: Locale(identifier: "en_GB")
         )
     }
@@ -574,6 +646,32 @@ extension CoachTodaySnapshot {
             if let item = patterns[index] { news[athlete.athleteID] = item }
         }
         return news
+    }
+
+    /// C7.16: every tag once, two tags on one athlete, and a milestone on a row that is also urgent.
+    static func previewMilestones(_ athletes: [CoachAthleteSummary]) -> [UUID: [CoachMilestone]] {
+        func make(_ index: Int, _ kinds: [CoachMilestoneKind]) -> (UUID, [CoachMilestone])? {
+            guard athletes.indices.contains(index) else { return nil }
+            let id = athletes[index].athleteID
+            return (id, kinds.map { kind in
+                let target: CoachFeedbackTarget? = kind == .quiet3Days ? nil
+                    : kind == .firstFullWeek ? .week("2026-11-16") : .run(Int64(1000 + index))
+                return CoachMilestone(
+                    athleteID: id, kind: kind, subject: "preview-\(kind.rawValue)", target: target, fallbackTarget: nil
+                )
+            })
+        }
+        let pairs = [
+            make(1, [.firstRun]), make(2, [.firstFullWeek]), make(3, [.longestRun, .firstRun]),
+            make(4, [.quiet3Days]), make(5, [.firstRun]), make(0, [.longestRun])
+        ].compactMap { $0 }
+        return Dictionary(uniqueKeysWithValues: pairs)
+    }
+
+    /// C7.16: the preview milestone that already shows "Reacted".
+    static func previewReacted() -> Set<String> {
+        let id = UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", 6))!
+        return ["\(id.uuidString.lowercased())|first_run|preview-first_run"]
     }
 
     /// C7.4: a pain flag with a note, two flags on one athlete, a run-less "something off" and a deleted run.
@@ -652,6 +750,20 @@ extension CoachTodaySnapshot {
     .background(Color.surfaceBase)
 }
 
+#Preview("Coach Today, milestones") {
+    let snapshot = CoachTodaySnapshot.previewFixture(athletes: 10, withNews: true, withMilestones: true)
+    ScrollView {
+        LazyVStack(alignment: .leading, spacing: 14) {
+            CoachTodayView(
+                model: CoachAthleteListModel.previewModel(snapshot, reacted: CoachTodaySnapshot.previewReacted()),
+                onShareInvite: nil, open: { _ in }, retry: {}
+            )
+        }
+        .padding(.horizontal, 18)
+    }
+    .background(Color.surfaceBase)
+}
+
 #Preview("Coach Today, runs failed") {
     ScrollView {
         LazyVStack(alignment: .leading, spacing: 14) {
@@ -667,9 +779,9 @@ extension CoachTodaySnapshot {
 
 extension CoachAthleteListModel {
     /// A model that already shows `snapshot`. Previews and screenshots only.
-    static func previewModel(_ snapshot: CoachTodaySnapshot) -> CoachAthleteListModel {
+    static func previewModel(_ snapshot: CoachTodaySnapshot, reacted: Set<String> = []) -> CoachAthleteListModel {
         let model = CoachAthleteListModel()
-        model.loadPreview(snapshot)
+        model.loadPreview(snapshot, reacted: reacted)
         return model
     }
 }

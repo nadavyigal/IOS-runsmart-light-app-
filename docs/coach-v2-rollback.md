@@ -182,10 +182,44 @@ Rules for every batch:
 
 | File | Story | Rollback file | Status |
 |---|---|---|---|
-| `20261122100000_push_tokens_and_prefs.sql` (M2a) | C7.10 | added by C7.10 | not written |
-| `20261122110000_notification_log_and_deferred.sql` (M2b) | C7.5 | added by C7.5 | not written |
+| `20261122100000_push_tokens_and_prefs.sql` (M2a) | C7.10 | `supabase/rollback/20261122100000_push_tokens_and_prefs.sql` | merged (iOS #248, web #178); not applied |
+| `20261122110000_notification_log_and_deferred.sql` (M2b) | C7.5 | `supabase/rollback/20261122110000_notification_log_and_deferred.sql` | merged (iOS #250, web #180); not applied |
+| `20261122120000_workout_adherence_state.sql` | C7.6 | `supabase/rollback/20261122120000_workout_adherence_state.sql` | written (draft PR) |
 
 First move: `coach_v2_push` to false. Senders keep their queue.
+
+#### M2a: `20261122100000_push_tokens_and_prefs.sql`
+
+1. **Flag to flip first:** `coach_v2_push` to false (stops every sender; queued rows wait). For a wider problem, `coach_v2` to false: the app then shows the 1.2.6 coach UI and makes no token or prefs call at all. M2a's functions do not read the flags themselves: a token or a prefs row shares nothing with anyone, and the senders apply the switch at send time.
+2. **Safe with the flag off:** every token and every prefs row stays. Devices keep their tokens, so pushes reach them again as soon as the flag is back on, with no re-prompt.
+3. **Rollback file:** `supabase/rollback/20261122100000_push_tokens_and_prefs.sql`. It drops `register_push_token`, `unregister_push_token`, `my_notification_prefs`, `set_notification_time_zone`, `update_notification_prefs` and the internal `notification_time_zone_ok`. It keeps both tables (`push_tokens`, `notification_prefs`) with every row, RLS on and their owner-select policies. Dropping the tables is a commented, optional step that deletes every device token and every user's settings; export first if you ever run it.
+4. **When not to roll back:** while M2b (`20261122110000_notification_log_and_deferred.sql`) or any later file or Edge Function that reads `push_tokens` or `notification_prefs` is applied or deployed. Roll those back first, or flip `coach_v2_push` instead.
+5. **After the rollback, the app:** v2 apps get "function not found" on token registration and the prefs read, keep the token on the phone and retry on the next foreground. Nothing is shown to the user. Sign-out still works; the unregister call fails quietly and the stale row moves to the next account that registers that device. 1.2.6 apps see no change.
+6. **Account deletion:** both tables reference `auth.users` with `on delete cascade`, so `delete_account` (which deletes the auth user last) removes the rows. `purge_coach_data_for_deleted_account` is not replaced by M2a.
+7. **APNs secrets:** `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`, `APNS_BUNDLE_ID` are Edge Function secrets Nadav sets. Removing them makes `_shared/apns.ts` refuse to send (`apns_not_configured`) without touching any row. `push_selftest` is dev-only and is not in any deploy script.
+8. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-23: `push_tokens_and_prefs.sql` passes (migration applied twice first); with a token and a changed prefs row in place, the rollback dropped the six functions and kept both rows, RLS and both policies; a re-apply restored the functions and kept both rows unchanged.
+
+#### M2b: `20261122110000_notification_log_and_deferred.sql`
+
+1. **Flag to flip first:** `coach_v2_push` to false. `coach_notify` then sends nothing, holds nothing new and deletes nothing: every row in `deferred_pushes` waits, and goes out at the next flush after the flag is back on if its link is still active and v2. With `coach_v2` off the result is the same (the function needs both flags), so held rows are never dropped by the kill switch.
+2. **Safe with the flag off:** both tables keep every row. No client reads them. Webhook events that arrive while the flag is off are not held (the function returns `skipped_kill_switch`); the app still shows the runs, flags, notes and replies as "new" (C7.2).
+3. **Rollback file:** `supabase/rollback/20261122110000_notification_log_and_deferred.sql`. Unschedule `coach_notify_flush` and delete the four `coach_notify_*` webhooks first (`docs/coach-v2-batch-b-runbook.md` section 7). It drops `coach_notify_claim`, `coach_notify_defer` and `coach_notify_link_state`. It keeps `coach_notification_log` and `deferred_pushes` with every row, RLS on, no policy and no client grant. Dropping the tables is a commented, optional step that deletes the push metrics and every held push.
+4. **When not to roll back:** while C7.6 (`coach_evening_summary`) or any later sender that writes `coach_notification_log` is deployed. Undeploy those first, or flip `coach_v2_push` instead. M2a must stay applied while M2b is.
+5. **After the rollback, the app:** nothing changes. No client calls these functions or reads these tables. Coaches and athletes get no coach push until the file is re-applied.
+6. **Account deletion:** every user column (`recipient_id`, `athlete_id`, `coach_id`) references `auth.users` with `on delete cascade`, so `delete_account` (which deletes the auth user last) removes a deleted user's rows. `purge_coach_data_for_deleted_account` is not replaced by M2b.
+7. **Link end:** leaving or a removal deletes nothing here (v1.3 §3.1). The flush re-checks each held row's `link_id` against the athlete's active link and the v2 gates, and drops the rows that fail (C7.5 AC9), so a rejoin never delivers old events.
+8. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-23: `notification_log_and_deferred.sql` passes on top of the coach read fixture, every Batch A file and M2a (M2b applied twice first).
+
+#### C7.6: `20261122120000_workout_adherence_state.sql`
+
+1. **Flag to flip first:** `coach_v2_push` to false. `coach_evening_summary` then sends nothing, holds nothing new and deletes nothing: held summaries wait and go out at the next run after the flag is back on (as "Yesterday:" only until 20:00 the next day, then dropped as stale). To stop only the summary, unschedule `coach_evening_summary_hourly` (`docs/coach-v2-batch-b-runbook.md` section 7). Coaches can also turn it off themselves (T5 "Evening summary at 20:00").
+2. **Safe with the flag off:** nothing to keep beyond M2b's rows. The file adds functions only: no table, column, policy or row.
+3. **Rollback file:** `supabase/rollback/20261122120000_workout_adherence_state.sql`. Unschedule `coach_evening_summary_hourly` first. It drops `coach_evening_summary_counts`, `workout_adherence_state` and `workout_adherence_boundary`. Held summary rows (`deferred_pushes`, kind `coachEveningSummary`) and summary log rows stay.
+4. **When not to roll back:** while `coach_evening_summary` is deployed with its cron scheduled; unschedule first. M2b and M2a must stay applied while this file is.
+5. **After the rollback, the app:** nothing changes. No client calls these functions. Coaches get no evening summary until the file is re-applied; a tap on an old summary push still opens Coach Today filtered to "Missed today".
+6. **Account deletion:** no user data here. A deleted coach's held summary and log rows go with M2b's `on delete cascade`.
+7. **Server-only:** the three functions are revoked from `public`, `anon` and `authenticated` and granted to `service_role` only. `coach_evening_summary_counts` is security definer with `search_path = ''` and returns three integers, never a name.
+8. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-23: `workout_adherence_state.sql` passes on top of the coach read fixture, every Batch A file, M2a and M2b (this file applied twice first).
 
 ### Batch C (R3: coach builds workouts)
 

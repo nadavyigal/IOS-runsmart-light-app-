@@ -474,7 +474,7 @@ struct RunTabView: View {
         StravaUploadCoordinator.shared.holdAutoUpload(for: run)
         heldStravaRunID = StravaUploadCoordinator.shared.isHeld(run.id) ? run.id : nil
         Task {
-            let outcome = await services.processCompletedActivity(run)
+            let outcome = await services.processCompletedActivity(run, trigger: .liveRun)
             Task { await (services as? SupabaseRunSmartServices)?.retryCoachRoutes(coachLinks: coachLinks) }
             await MainActor.run {
                 postActivityOutcome = outcome
@@ -500,7 +500,7 @@ struct RunTabView: View {
         Task {
             // Silent: no Health permission sheet while a new run is starting, and no summary to wait for.
             await services.saveToHealth(run, allowPermissionPrompt: false)
-            _ = await services.processCompletedActivity(run)
+            _ = await services.processCompletedActivity(run, trigger: .recovered)
             await StravaUploadCoordinator.shared.autoUploadIfEnabled(run)
         }
     }

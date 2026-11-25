@@ -4,14 +4,20 @@ import {
   sanitizeFlexWeekRequest,
 } from "./flex_week.ts";
 import { corsHeaders, isOriginAllowed } from "../_shared/cors.ts";
+import { logModelUsage, selectCoachModel } from "./openai_model.ts";
 import {
-  instructionsFor,
   resolveCoachContext,
-  RUN_DEBRIEF_SYSTEM_PROMPT,
-  SYSTEM_PROMPT,
-  WEEKLY_SUMMARY_SYSTEM_PROMPT,
   type CoachPromptContext,
 } from "./coach_prompts.ts";
+import { buildCoachChatRequestBody, buildRunDebriefRequestBody, buildWeeklySummaryRequestBody } from "./requests.ts";
+import { responseFailureReason } from "./response_format.ts";
+import {
+  type CoachLanguage,
+  INJURY_DEBRIEF,
+  medicalCautionFallback,
+  resolveLanguage,
+  safetyFlagsFor,
+} from "./safety.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -43,7 +49,11 @@ const forbiddenContextKeys = new Set([
   "points",
 ]);
 
-async function generateRunDebrief(context: JsonRecord, coach: CoachPromptContext | null = null): Promise<{
+async function generateRunDebrief(
+  context: JsonRecord,
+  coach: CoachPromptContext | null = null,
+  language: CoachLanguage = "en",
+): Promise<{
   headline: string;
   debrief: string;
   tomorrow: string;
@@ -53,39 +63,33 @@ async function generateRunDebrief(context: JsonRecord, coach: CoachPromptContext
   const injurySignal = Boolean(context.injurySignal);
   if (injurySignal) {
     return {
-      headline: "Rest up — listen to your body",
-      debrief: "Any pain or discomfort after a run needs rest first. Check in with a professional before your next session.",
-      tomorrow: "Take a full rest day tomorrow.",
+      ...INJURY_DEBRIEF[language],
       planImpact: null,
       source: "fallback",
     };
   }
 
   const apiKey = Deno.env.get("OPENAI_API_KEY");
-  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  const selection = selectCoachModel("FAST");
   if (!apiKey) {
     return fallbackRunDebrief(context);
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
+  const startedAt = Date.now();
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       signal: controller.signal,
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        instructions: instructionsFor(RUN_DEBRIEF_SYSTEM_PROMPT, coach),
-        input: [{
-          role: "user",
-          content: [{ type: "input_text", text: `Run data:\n${JSON.stringify(context)}` }],
-        }],
-        max_output_tokens: 180,
-      }),
+      body: JSON.stringify(buildRunDebriefRequestBody(context, selection, coach, language)),
     });
     if (!response.ok) throw new Error(`OpenAI ${response.status}`);
     const json = await response.json();
+    logModelUsage("run_debrief", selection, json, Date.now() - startedAt);
+    const failure = responseFailureReason(json);
+    if (failure) throw new Error(`run_debrief: ${failure}`);
     const text = extractResponseText(json).trim();
     if (!text) {
       throw new Error("run_debrief: OpenAI returned empty text");
@@ -129,7 +133,11 @@ function fallbackRunDebrief(context: JsonRecord): {
   };
 }
 
-async function generateWeeklySummary(context: JsonRecord, coach: CoachPromptContext | null = null): Promise<{
+async function generateWeeklySummary(
+  context: JsonRecord,
+  coach: CoachPromptContext | null = null,
+  language: CoachLanguage = "en",
+): Promise<{
   headline: string;
   narrative: string;
   forwardLook: string;
@@ -137,30 +145,26 @@ async function generateWeeklySummary(context: JsonRecord, coach: CoachPromptCont
   source: CoachSource;
 }> {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
-  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  const selection = selectCoachModel("FAST");
   if (!apiKey) {
     return fallbackWeeklySummary(context);
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
+  const startedAt = Date.now();
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       signal: controller.signal,
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        instructions: instructionsFor(WEEKLY_SUMMARY_SYSTEM_PROMPT, coach),
-        input: [{
-          role: "user",
-          content: [{ type: "input_text", text: `Week data:\n${JSON.stringify(context)}` }],
-        }],
-        max_output_tokens: 220,
-      }),
+      body: JSON.stringify(buildWeeklySummaryRequestBody(context, selection, coach, language)),
     });
     if (!response.ok) throw new Error(`OpenAI ${response.status}`);
     const json = await response.json();
+    logModelUsage("weekly_summary", selection, json, Date.now() - startedAt);
+    const failure = responseFailureReason(json);
+    if (failure) throw new Error(`weekly_summary: ${failure}`);
     const text = extractResponseText(json).trim();
     if (!text) {
       throw new Error("weekly_summary: OpenAI returned empty text");
@@ -284,7 +288,7 @@ Deno.serve(async (req) => {
       effortRating: typeof body.effortRating === "number" ? body.effortRating : null,
       limitations: Array.isArray(body.limitations) ? (body.limitations as unknown[]).slice(0, 5).map(l => limitString(l, 160)) : [],
     };
-    const debrief = await generateRunDebrief(safeContext, coach);
+    const debrief = await generateRunDebrief(safeContext, coach, resolveLanguage(body));
     return jsonResponse(req,debrief);
   }
 
@@ -305,7 +309,7 @@ Deno.serve(async (req) => {
       isRecoveryWeek: Boolean(context.isRecoveryWeek),
       readinessAverage: typeof context.readinessAverage === "number" ? context.readinessAverage : null,
     };
-    const summary = await generateWeeklySummary(safeContext, coach);
+    const summary = await generateWeeklySummary(safeContext, coach, resolveLanguage(body));
     return jsonResponse(req,summary);
   }
 
@@ -317,7 +321,7 @@ Deno.serve(async (req) => {
     if (!request) {
       return jsonResponse(req,{ error: "Invalid flex_week payload" }, 400);
     }
-    const outcome = await generateFlexWeek(request, fetch, coach);
+    const outcome = await generateFlexWeek(request, fetch, coach, resolveLanguage(body));
     return jsonResponse(req,{
       restructuredWeek: outcome.restructured_week,
       changes: outcome.changes.map((change) => ({
@@ -553,15 +557,6 @@ function limitString(value: unknown, max: number): string {
   return value.trim().slice(0, max);
 }
 
-function safetyFlagsFor(message: string): string[] {
-  const lower = message.toLowerCase();
-  const flags: string[] = [];
-  if (/(pain|injur|dizzi|chest pain|faint|fainting|severe|shortness of breath)/i.test(lower)) {
-    flags.push("medical_caution");
-  }
-  return flags;
-}
-
 async function resolveConversation(client: SupabaseDbClient, userId: string, conversationId: string | null): Promise<ConversationRow> {
   if (conversationId) {
     const { data, error } = await client
@@ -661,7 +656,8 @@ async function liveCoachResponse(
   coach: CoachPromptContext | null = null,
 ) {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
-  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  const selection = selectCoachModel("FAST");
+  const model = selection.model;
   if (!apiKey) {
     return {
       content: fallbackCoachResponse(message, context, safetyFlags),
@@ -674,6 +670,7 @@ async function liveCoachResponse(
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
+  const startedAt = Date.now();
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -682,22 +679,7 @@ async function liveCoachResponse(
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        instructions: instructionsFor(SYSTEM_PROMPT, coach),
-        input: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: `Runner message: ${message}\n\nSanitized training context:\n${JSON.stringify(context)}`,
-              },
-            ],
-          },
-        ],
-        max_output_tokens: 260,
-      }),
+      body: JSON.stringify(buildCoachChatRequestBody(message, context, selection, coach)),
     });
 
     if (!response.ok) {
@@ -705,6 +687,7 @@ async function liveCoachResponse(
     }
 
     const json = await response.json();
+    logModelUsage("coach_chat", selection, json, Date.now() - startedAt);
     const content = extractResponseText(json).trim();
     if (!content) {
       throw new Error("OpenAI returned empty text");
@@ -757,7 +740,7 @@ function extractResponseText(json: JsonRecord): string {
 
 function fallbackCoachResponse(message: string, context: JsonRecord, safetyFlags: string[]): string {
   if (safetyFlags.includes("medical_caution")) {
-    return "If you are feeling pain, dizziness, chest pain, fainting, or severe symptoms, stop the activity and speak with a qualified professional. Keep today's decision conservative. Once you are safe and symptoms are resolved, use the next easy planned session as the next best step.";
+    return medicalCautionFallback(message);
   }
 
   const today = asRecord(context.today) ?? {};

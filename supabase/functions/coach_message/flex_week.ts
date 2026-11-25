@@ -1,9 +1,13 @@
+import { logModelUsage, reasoningParam, selectCoachModel } from "./openai_model.ts";
 import {
   carefulPathWarning,
-  FLEX_WEEK_SYSTEM_PROMPT,
+  flexWeekInstructions,
   instructionsFor,
   type CoachPromptContext,
 } from "./coach_prompts.ts";
+import { responseFailureReason, strictJsonText } from "./response_format.ts";
+import type { CoachLanguage } from "./safety.ts";
+import type { CoachModelSelection } from "./openai_model.ts";
 
 export type FlexWeekReasonKind = "tired" | "traveling" | "missed_workout" | "sick";
 
@@ -62,6 +66,112 @@ export type FlexWeekResponsePayload = {
 const HARD_KINDS = new Set(["Tempo Run", "Intervals", "Hills", "Long Run", "Race", "tempo", "intervals", "hills", "long", "race"]);
 const MAX_CHANGES = 6;
 
+export const FLEX_WEEK_TIMEOUT_MS = 10_000;
+export const FLEX_WEEK_MAX_OUTPUT_TOKENS = 2_000;
+
+/**
+ * The iOS app's full WorkoutKind vocabulary (RunSmartModels.swift). One fixed
+ * enum keeps the schema identical on every request. The server separately
+ * checks that each returned kind is one current_week already used, or a
+ * downgrade to "Easy Run" / "Recovery".
+ */
+export const FLEX_WEEK_KINDS = [
+  "Easy Run",
+  "Intervals",
+  "Tempo Run",
+  "Hills",
+  "Strength",
+  "Recovery",
+  "Long Run",
+  "Race",
+  "parkrun",
+] as const;
+const DOWNGRADE_KINDS = ["Easy Run", "Recovery"];
+const HEBREW_LETTER = /[\u0590-\u05FF]/;
+const WORKOUT_TEXT_FIELDS = ["kind", "title", "distance_label", "detail_label", "intensity"] as const;
+
+const nullableString = { type: ["string", "null"] };
+
+export const FLEX_WEEK_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  required: ["restructured_week", "changes", "safety_warnings"],
+  properties: {
+    restructured_week: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "workout_id",
+          "scheduled_date",
+          "weekday",
+          "date_label",
+          "kind",
+          "title",
+          "distance_label",
+          "detail_label",
+          "intensity",
+          "training_phase",
+          "is_today",
+          "is_complete",
+          "original_workout_id",
+        ],
+        properties: {
+          workout_id: { type: "string" },
+          scheduled_date: { type: "string" },
+          weekday: { type: "string" },
+          date_label: { type: "string" },
+          kind: { type: "string", enum: [...FLEX_WEEK_KINDS] },
+          title: { type: "string" },
+          distance_label: { type: "string" },
+          detail_label: { type: "string" },
+          intensity: nullableString,
+          training_phase: nullableString,
+          is_today: { type: "boolean" },
+          is_complete: { type: "boolean" },
+          original_workout_id: nullableString,
+        },
+      },
+    },
+    changes: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["workout_id", "change_type", "rationale", "original_workout_id"],
+        properties: {
+          workout_id: { type: "string" },
+          change_type: { type: "string", enum: ["moved", "downgraded", "rest", "dropped", "added"] },
+          rationale: { type: "string" },
+          original_workout_id: nullableString,
+        },
+      },
+    },
+    safety_warnings: { type: "array", items: { type: "string" } },
+  },
+};
+
+/** Responses API body for a flex week request. The smoke harness uses the same builder. */
+export function buildFlexWeekRequestBody(
+  request: FlexWeekRequestPayload,
+  selection: CoachModelSelection,
+  coach: CoachPromptContext | null,
+  language: CoachLanguage,
+): Record<string, unknown> {
+  return {
+    model: selection.model,
+    ...reasoningParam(selection),
+    instructions: instructionsFor(flexWeekInstructions(language), coach),
+    input: [{
+      role: "user",
+      content: [{ type: "input_text", text: `Flex week request:\n${JSON.stringify(request)}` }],
+    }],
+    text: strictJsonText("flex_week", FLEX_WEEK_SCHEMA),
+    max_output_tokens: FLEX_WEEK_MAX_OUTPUT_TOKENS,
+  };
+}
+
 export function sanitizeFlexWeekRequest(body: Record<string, unknown>): FlexWeekRequestPayload | null {
   const reason = stringValue(body.reason).trim() as FlexWeekReasonKind;
   if (!["tired", "traveling", "missed_workout", "sick"].includes(reason)) {
@@ -114,8 +224,17 @@ export function validateFlexWeekResponse(
   parsed: unknown,
   originalWeek: FlexWeekWorkoutDTO[],
 ): FlexWeekResponsePayload | null {
+  return checkFlexWeekResponse(parsed, originalWeek).payload;
+}
+
+/** Same checks as validateFlexWeekResponse, plus the first rule a rejected week broke. */
+export function checkFlexWeekResponse(
+  parsed: unknown,
+  originalWeek: FlexWeekWorkoutDTO[],
+): { payload: FlexWeekResponsePayload | null; reason: string | null } {
+  const reject = (reason: string) => ({ payload: null, reason });
   const record = asRecord(parsed);
-  if (!record) return null;
+  if (!record) return reject("not_an_object");
 
   const restructuredWeek = sanitizeWorkoutList(record.restructuredWeek ?? record.restructured_week);
   const changesRaw = Array.isArray(record.changes) ? record.changes : [];
@@ -137,23 +256,24 @@ export function validateFlexWeekResponse(
     });
   }
 
-  if (restructuredWeek.length !== originalWeek.length || changes.length === 0) {
-    return null;
-  }
+  if (restructuredWeek.length !== originalWeek.length) return reject("week_length_changed");
+  if (changes.length === 0) return reject("no_changes");
 
   const safetyWarnings = stringArray(record.safetyWarnings ?? record.safety_warnings, 5);
   const sourceRaw = stringValue(record.source);
   const source: "live_ai" | "fallback" = sourceRaw === "live_ai" ? "live_ai" : "fallback";
 
-  if (violatesSafetyRules(originalWeek, restructuredWeek, changes)) {
-    return null;
-  }
+  const violation = violatesSafetyRules(originalWeek, restructuredWeek, changes);
+  if (violation) return reject(violation);
 
   return {
-    restructured_week: restructuredWeek,
-    changes,
-    safety_warnings: safetyWarnings,
-    source,
+    payload: {
+      restructured_week: restructuredWeek,
+      changes,
+      safety_warnings: safetyWarnings,
+      source,
+    },
+    reason: null,
   };
 }
 
@@ -215,41 +335,39 @@ export async function generateFlexWeek(
   request: FlexWeekRequestPayload,
   fetchImpl: typeof fetch = fetch,
   coach: CoachPromptContext | null = null,
+  language: CoachLanguage = "en",
 ): Promise<FlexWeekResponsePayload> {
   if (isTaperWeek(request.current_week)) {
     return fallbackFlexWeek(request, coach);
   }
 
   const apiKey = Deno.env.get("OPENAI_API_KEY");
-  const model = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
+  // FAST tier: flex week used gpt-4.1-mini, a small-model task.
+  const selection = selectCoachModel("FAST");
   if (!apiKey) {
     return fallbackFlexWeek(request, coach);
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4_000);
+  const timeout = setTimeout(() => controller.abort(), FLEX_WEEK_TIMEOUT_MS);
+  const startedAt = Date.now();
   try {
     const response = await fetchImpl("https://api.openai.com/v1/responses", {
       method: "POST",
       signal: controller.signal,
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        instructions: instructionsFor(FLEX_WEEK_SYSTEM_PROMPT, coach),
-        input: [{
-          role: "user",
-          content: [{ type: "input_text", text: `Flex week request:\n${JSON.stringify(request)}` }],
-        }],
-        max_output_tokens: 900,
-      }),
+      body: JSON.stringify(buildFlexWeekRequestBody(request, selection, coach, language)),
     });
     if (!response.ok) throw new Error(`OpenAI ${response.status}`);
     const json = await response.json();
+    logModelUsage("flex_week", selection, json, Date.now() - startedAt);
+    const failure = responseFailureReason(json);
+    if (failure) throw new Error(`flex_week: ${failure}`);
     const text = extractResponseText(json).trim();
     if (!text) throw new Error("flex_week: OpenAI returned empty text");
     const parsed = JSON.parse(text);
-    const validated = validateFlexWeekResponse(parsed, request.current_week);
-    if (!validated) throw new Error("flex_week: AI response failed validation");
+    const { payload: validated, reason } = checkFlexWeekResponse(parsed, request.current_week);
+    if (!validated) throw new Error(`flex_week: AI response failed validation (${reason})`);
     return { ...validated, source: "live_ai" };
   } catch (error) {
     console.error("flex_week AI fallback", error);
@@ -394,21 +512,38 @@ function violatesSafetyRules(
   originalWeek: FlexWeekWorkoutDTO[],
   restructuredWeek: FlexWeekWorkoutDTO[],
   changes: FlexWeekChangeDTO[],
-): boolean {
-  if (restructuredWeek.length !== originalWeek.length) return true;
-  if (changes.length === 0 || changes.length > MAX_CHANGES) return true;
+): string | null {
+  if (restructuredWeek.length !== originalWeek.length) return "week_length_changed";
+  if (changes.length === 0 || changes.length > MAX_CHANGES) return "change_count";
 
   const originalIds = new Set(originalWeek.map((w) => w.workout_id));
-  if (!restructuredWeek.every((w) => originalIds.has(w.workout_id))) return true;
+  if (!restructuredWeek.every((w) => originalIds.has(w.workout_id))) return "unknown_workout_id";
+
+  // Kinds must stay in the vocabulary current_week used, or be a downgrade.
+  // validateFlexWeekResponse classifies long, hard and rest days from these
+  // English labels, so a translated or invented kind could hide a dropped run.
+  const allowedKinds = new Set([...originalWeek.map((w) => w.kind), ...DOWNGRADE_KINDS]);
+  if (!restructuredWeek.every((w) => allowedKinds.has(w.kind))) return "kind_not_allowed";
+
+  // Workout labels stay English: a field may contain Hebrew only if the
+  // original workout's same field already did.
+  const originalById = new Map(originalWeek.map((w) => [w.workout_id, w]));
+  for (const workout of restructuredWeek) {
+    const original = originalById.get(workout.workout_id);
+    for (const field of WORKOUT_TEXT_FIELDS) {
+      const value = workout[field] ?? "";
+      if (HEBREW_LETTER.test(value) && !HEBREW_LETTER.test(original?.[field] ?? "")) return "translated_label";
+    }
+  }
 
   const originalLongCount = originalWeek.filter((w) => isLongRun(w)).length;
   const restructuredLongCount = restructuredWeek.filter((w) => isLongRun(w)).length;
-  if (restructuredLongCount < originalLongCount) return true;
+  if (restructuredLongCount < originalLongCount) return "long_run_dropped";
 
-  if (weeklyMileage(restructuredWeek) > weeklyMileage(originalWeek) * 1.10 + 0.01) return true;
-  if (hasBackToBackHard(restructuredWeek)) return true;
+  if (weeklyMileage(restructuredWeek) > weeklyMileage(originalWeek) * 1.10 + 0.01) return "mileage_over_10_percent";
+  if (hasBackToBackHard(restructuredWeek)) return "back_to_back_hard";
 
-  return false;
+  return null;
 }
 
 function isTaperWeek(week: FlexWeekWorkoutDTO[]): boolean {

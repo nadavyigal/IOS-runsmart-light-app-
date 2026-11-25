@@ -225,6 +225,8 @@ struct TodayTabView: View {
         .coachConsentNotice()
         // C7.11: the one-time "no longer coached" line after a coach removal. Nothing with v2 off.
         .coachLinkNotice()
+        // C7.10 P10: push pre-permission after P8 or P9 OK. Nothing with v2 off.
+        .remotePushAthletePrimer()
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await refreshCoachWelcome() } }
         }

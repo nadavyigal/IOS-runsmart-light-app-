@@ -1,3 +1,84 @@
+# 2026-11-24: coach_message prompt upgrade and Hebrew safety (draft PR, not deployed)
+
+Current Phase: OpenAI prompt upgrade on top of the merged model tiers (#253); Phase 2 approved by Nadav.
+Active Story: Prompt upgrade done in a draft PR: Hebrew safety, flex week, debrief, weekly, shared chat core; live eval run.
+Next Recommended Story: Nadav reviews the draft PR; then deploy coach_message (live AI flex weeks start) and set OPENAI_MODEL_FAST.
+Blockers: Draft only; needs founder yes to merge and deploy. Eval key (Resumely) ran out of credits at about $0.43 total spend.
+Last Validation: deno test 41 passed; live eval on gpt-6-luna: Hebrew 6/6 vs 0/6, flex week 11/18 valid vs 0/18 under prod timeout.
+Last Updated: 2026-11-24
+
+# 2026-11-23: coach_message OpenAI model tiers (draft PR, not deployed)
+
+Current Phase: OpenAI model migration before the 2027-01-14 shutdown of gpt-4.1-mini.
+Active Story: coach_message reads OPENAI_MODEL_FAST, then OPENAI_MODEL, then gpt-4.1-mini; reasoning effort env; usage logs.
+Next Recommended Story: fix flex_week 4 s timeout and 900-token cap (falls back on every model today), then set OPENAI_MODEL_FAST.
+Blockers: function not deployed (by design); needs founder yes to merge and deploy.
+Last Validation: deno test 22 passed; smoke debrief 5/5 on gpt-4.1-mini, gpt-6-luna, gpt-6.2-sol; flex_week 0/3 live on all.
+Last Updated: 2026-11-23
+
+# 2026-11-23: Coach v2 Batch B database applied to production
+
+Current Phase: Coach Experience v2, Phase 1 code complete; Batch A and Batch B migrations applied to prod (3 Batch B files).
+Active Story: Ledger update: M2a, M2b and workout_adherence_state applied with prod versions.
+Next Recommended Story: Nadav: APNs key and secrets, deploy coach_notify and coach_evening_summary, webhooks, crons; then TF-1.
+Blockers: Push stays silent until APNS_* and COACH_NOTIFY_SECRET are set and the functions, webhooks and crons exist.
+Last Validation: 3 prod SQL md5s match repo files; internal functions not client-callable; RLS on 4 new tables; counts query runs.
+Last Updated: 2026-11-23
+
+# 2026-11-23: Coach v2 C7.6 evening summary with counts (PR, Batch B)
+
+Current Phase: Coach Experience v2, Batch B. C7.6 iOS and web twin PRs open; 20261122120000 written, not applied.
+Active Story: C7.6: coach_evening_summary hourly cron, 20:00 counts push, quiet-hours Yesterday, T2 Missed today filter, shared adherence SQL.
+Next Recommended Story: Overseer review of C7.6; then Nadav applies Batch B and runs TF-1 with the kill-switch drill.
+Blockers: Nadav: Batch B apply (M2a, M2b, C7.6 file), secrets, webhooks, flush and hourly crons, both deploys.
+Last Validation: workout_adherence_state SQL PASS + rollback; 126 Deno pass; iOS C7.6 classes pass; drift CLEAN 27.
+Last Updated: 2026-11-23
+
+# 2026-11-23: Coach v2 C7.5 push sender, M2b (ready PR, rebased after C7.10 merged)
+
+Current Phase: Coach Experience v2, Batch B. C7.10 merged; C7.5 iOS #250 and web #180 ready, rebased on main; M2b written, not applied.
+Active Story: C7.5: coach_notify (runs, flags, notes, replies), _shared/notify.ts, quiet hours, dedupe, burst collapse, M2b log and deferred tables.
+Next Recommended Story: Founder yes to merge C7.5 (#250, #180); then C7.6 evening summary on notify.ts.
+Blockers: Nadav: Batch B apply (M2a, M2b), APNs and COACH_NOTIFY_SECRET secrets, four webhooks, flush cron, coach_notify deploy.
+Last Validation: After rebase: M2b + M2a SQL PASS; 105 Deno pass (45 new); RemotePush iOS 61 run, 0 failed; drift CLEAN 26.
+Last Updated: 2026-11-23
+
+# 2026-11-23: Coach v2 C7.14 notification settings, coach and athlete (ready PR)
+
+Current Phase: Coach Experience v2, Batch B. C7.14 PR #247 ready; no migration. C7.10 merged; turnOn wired to its T6/P10 flow.
+Active Story: C7.14: coach T5 (Coach tab menu) and athlete (My coach) toggles, quiet hours, permission line, v2-gated.
+Next Recommended Story: Overseer merge of C7.14; then C7.5 push sender and C7.6 evening summary.
+Blockers: Sally light copy review of the athlete section header; APNs setup for device tests.
+Last Validation: 20 coach test classes 327 passed, 0 failed (iPhone 17 Pro, iOS 26.5); 12 fixture screenshots (default, XXL, AX3, RTL, denied).
+Last Updated: 2026-11-23
+
+# 2026-11-23: Coach v2 C7.10 remote push foundation, M2a (draft PR)
+
+Current Phase: Coach Experience v2, Batch B start. C7.10 PRs open in iOS and web twin; M2a written, not applied; APNs secrets not set.
+Active Story: C7.10: push_tokens + notification_prefs (M2a), _shared/apns.ts, dev-only push_selftest, T6/P10 prompts, tap router, sign-out unregister.
+Next Recommended Story: Overseer review of C7.10; then C7.5 push sender (M2b) on top of apns.ts.
+Blockers: Nadav: APNs .p8 key, Push capability on the App ID (signed builds need it), APNS_* secrets, apply M2a in Batch B.
+Last Validation: Review fixes: shared APNs signer, sign-out drops device token on failure; 61 Deno pass; full iOS suite passes; drift CLEAN 25.
+Last Updated: 2026-11-23
+
+# 2026-11-23: Coach v2 Batch A applied to production
+
+Current Phase: Coach Experience v2, R1 Batch A applied to prod (7 files); Batch B track in review (C7.10 #248, C7.14 #247).
+Active Story: Ledger update: Batch A rows applied with prod versions, pre-v2 rows verified, M13 not needed, prod-only drift logged.
+Next Recommended Story: Merge C7.10 then C7.14; add athlete_display_name_placeholder to both repos; add a pilot coach, then TF-1a.
+Blockers: v2 stays off until Nadav adds a row to coach_v2_pilot_coaches or testers run TestFlight builds; APNs setup for push.
+Last Validation: 7 prod SQL md5s match repo files; old suites pass on full schema locally; advisors show no new findings; drift CLEAN 24.
+Last Updated: 2026-11-23
+
+# 2026-11-22: Coach v2 C7.16 beginner milestones and one-tap praise (draft PR)
+
+Current Phase: Coach Experience v2, R1 last story. C7.16 draft PR open in iOS only; no migration (STEP 1 check), so no web twin.
+Active Story: C7.16: First run, First full week, Longest run, Quiet 3 days tags on Coach Today; 👏 🔥 Great job reactions via coach feedback.
+Next Recommended Story: Overseer review of C7.16; then Nadav applies Batch A and runs TF-1a on a phone.
+Blockers: Nadav applies Batch A (M0, M0b, M5a, M1a, M3, M4, M1b, M5b) before v2 shows anything; none for this PR.
+Last Validation: 9 coach test classes 210 passed, 0 failed (iPhone 17, iOS 26.5); 3 milestone screenshots; overseer review: no blockers. After C7.7 merge: 11 coach test classes 222 passed, 0 failed; drift CLEAN 24 files.
+Last Updated: 2026-11-23
+
 # 2026-11-23: Coach v2 C7.7 athlete replies to a coach note (ready PR, C7.11 catch-up)
 
 Current Phase: Coach Experience v2, R1 Batch A, C7.7. iOS #245 and web #176 ready; main merged after C7.11; M4 not applied.
@@ -96,6 +177,32 @@ Next Recommended Story: C0.2 migration mirror check plus C7.0 gate, kill switch 
 Blockers: Founder plan approval; confirm 6 v1 coach migrations applied in production; APNs setup.
 Last Validation: Docs only. Claims checked against origin/main 4a016b4 by code read; no build or tests run.
 Last Updated: 2026-11-20
+
+# 2026-11-23: Debrief event and debug compare (#240, base main)
+
+Current Phase: debrief stack: #232 and #237 merged to main; #240 retargeted to main, last of the stack.
+Active Story: #240 `run_debrief_generated` with trigger, no event on cancel, live-only compare; CodeRabbit finding fixed (cancelled attempt skips event).
+Next Recommended Story: Nadav merges #240 when CI is green; then PostHog flag `runsmart-on-device-debrief` and the device test.
+Blockers: CI needs a macOS runner (one run was cancelled for GitHub capacity).
+Last Validation: 2026-11-23 debrief tests 35/0 local; earlier full suite 1310 passed, 0 failed, 2 skipped.
+Last Updated: 2026-11-23
+
+# 2026-11-22: On-device debrief, opt-in Settings toggle (draft PR, stacked on #232)
+
+Current Phase: 1.2.6 (46) live; Apple membership plan PR 2. Founder chose a Settings toggle on 2026-11-22.
+Active Story: `OnDeviceDebriefGenerator` (Foundation Models, English only, off by default); toggle "Post-run summary on this iPhone" in Run preferences.
+Next Recommended Story: PR 3, `run_debrief_generated` PostHog event and debug compare mode; then founder rates 10 real runs.
+Blockers: toggle not seen on screen yet: needs a signed-in English iPhone with Apple Intelligence on.
+Last Validation: 2026-11-22 full suite 1158 passed, 0 failed, 1 skip; OnDeviceDebriefTests he 9/0, en 8/0 + 1 skip; iPhone 17 iOS 26.5 sim.
+Last Updated: 2026-11-22
+
+# 2026-11-21: Debrief generator protocol (draft PR, no behavior change)
+
+Current Phase: 1.2.6 (46) live on the App Store; Apple membership plan PR 1 of the on-device debrief experiment.
+Active Story: `RunDebriefGenerating` protocol and `RunDebriefPipeline`; cloud debrief moved into `CloudRunDebriefGenerator`, same order and fallback.
+Next Recommended Story: PR 2, on-device generator as a small opt-in (English, eligible devices); needs Nadav's call on the opt-in surface.
+Blockers: none for this PR; draft only, Nadav merges.
+Last Validation: 2026-11-21 full suite 1150 passed, 0 failed, 1 opt-in skip; new RunDebriefPipelineTests 5/0; iPhone 17 iOS 26.5 sim.
 
 # 2026-11-21: Xcode Cloud archive backend check (draft PR)
 

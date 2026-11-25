@@ -1,7 +1,10 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   carefulPathWarning,
+  COACH_CHAT_CORE,
   FLEX_WEEK_SYSTEM_PROMPT,
+  flexWeekInstructions,
+  HEBREW_STYLE,
   instructionsFor,
   readCoachContext,
   resolveCoachContext,
@@ -43,20 +46,40 @@ function assertLinkedDefers(base: string) {
 Deno.test("chat prompt: solo is unchanged and linked defers to the coach", () => {
   assertSoloUnchanged(SYSTEM_PROMPT);
   assertLinkedDefers(SYSTEM_PROMPT);
-  assertEquals(SYSTEM_PROMPT.startsWith("You are RunSmart Coach, a calm AI running coach"), true);
+  assertEquals(SYSTEM_PROMPT.startsWith(COACH_CHAT_CORE), true);
+  assertEquals(SYSTEM_PROMPT.includes("mostly beginner and intermediate"), true);
+  assertEquals(COACH_CHAT_CORE.includes("beginner"), false);
+});
+
+// The same phrases are pinned in the web repo (v0/lib/ai/coach-chat-core.test.ts).
+Deno.test("chat safety core keeps every safety line", () => {
+  for (const phrase of [
+    "This is not medical advice. Do not diagnose injuries or illness.",
+    "tell them to stop the activity and talk to a qualified professional",
+    "For chest pain, fainting or trouble breathing, tell them to get urgent medical help.",
+    "pain, dizziness, chest pain, fainting, shortness of breath",
+    "When unsure, choose the more conservative option.",
+    "Do not say you changed the training plan unless a change was actually applied.",
+    "Do not reveal raw GPS data, coordinates or private route details.",
+    "Reply in the language of the runner's latest message (Hebrew or English).",
+  ]) {
+    assertEquals(COACH_CHAT_CORE.includes(phrase), true, phrase);
+  }
 });
 
 Deno.test("run debrief prompt: solo is unchanged and linked defers to the coach", () => {
   assertSoloUnchanged(RUN_DEBRIEF_SYSTEM_PROMPT);
   assertLinkedDefers(RUN_DEBRIEF_SYSTEM_PROMPT);
-  assertEquals(RUN_DEBRIEF_SYSTEM_PROMPT.startsWith("You are RunSmart Coach. Given a completed run's data"), true);
+  assertEquals(RUN_DEBRIEF_SYSTEM_PROMPT.startsWith("You are RunSmart Coach writing a short debrief right after a run."), true);
+  assertEquals(RUN_DEBRIEF_SYSTEM_PROMPT.includes("This is not medical advice; do not diagnose."), true);
+  assertEquals(RUN_DEBRIEF_SYSTEM_PROMPT.includes("suggest a qualified professional"), true);
 });
 
 Deno.test("weekly summary prompt: solo is unchanged and linked defers to the coach", () => {
   assertSoloUnchanged(WEEKLY_SUMMARY_SYSTEM_PROMPT);
   assertLinkedDefers(WEEKLY_SUMMARY_SYSTEM_PROMPT);
   assertEquals(
-    WEEKLY_SUMMARY_SYSTEM_PROMPT.startsWith("You are RunSmart Coach. Given a runner's week summary data"),
+    WEEKLY_SUMMARY_SYSTEM_PROMPT.startsWith("You are RunSmart Coach writing a short end-of-week summary"),
     true,
   );
 });
@@ -65,9 +88,29 @@ Deno.test("flex week prompt: solo is unchanged and linked defers to the coach", 
   assertSoloUnchanged(FLEX_WEEK_SYSTEM_PROMPT);
   assertLinkedDefers(FLEX_WEEK_SYSTEM_PROMPT);
   assertEquals(
-    FLEX_WEEK_SYSTEM_PROMPT.startsWith("You are RunSmart Coach. Restructure the runner's current ISO week"),
+    FLEX_WEEK_SYSTEM_PROMPT.startsWith("You are RunSmart Coach. The runner hit a life disruption"),
     true,
   );
+  for (const rule of [
+    "Never drop a Long Run.",
+    "Weekly distance must not rise more than 10% versus current_week.",
+    "No back-to-back hard days",
+    "if two hard days touch, downgrade the earlier one to an Easy Run (keep the long run).",
+    "Never empty: every request needs at least one change.",
+    "At most 6 changes. Never turn a rest day into a hard effort.",
+    "Sick: no hard sessions within 48 hours after the last sick day.",
+    "Do not diagnose illness or injury.",
+    "same English vocabulary used in current_week",
+  ]) {
+    assertEquals(FLEX_WEEK_SYSTEM_PROMPT.includes(rule), true, rule);
+  }
+  assertLinkedDefers(flexWeekInstructions("he"));
+  assertEquals(
+    flexWeekInstructions("en").endsWith("Language: write rationale and safety_warnings in English."),
+    true,
+  );
+  assertEquals(flexWeekInstructions("he").includes("rationale and safety_warnings in Hebrew."), true);
+  assertEquals(flexWeekInstructions("he").includes(HEBREW_STYLE), true);
   assertEquals(carefulPathWarning(null), SOLO_CAREFUL_PATH);
   assertEquals(
     carefulPathWarning(dana),

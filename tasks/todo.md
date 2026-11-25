@@ -1,3 +1,25 @@
+## 2026-11-22 — Debrief event + debug compare (Apple membership plan PR 3)
+
+- [x] `RunDebriefPipeline` reports each attempt (generator, outcome, latency, error type) through a `report` closure.
+- [x] PostHog `run_debrief_generated` once per debrief: `source`, `latency_ms`, `on_device_opted_in`, `on_device_ready`, `on_device_unavailable_reason`, `on_device_outcome`, `on_device_latency_ms`, `on_device_error_type`, `cloud_outcome`. No debrief text is sent.
+- [x] Debug builds only: when on-device is opted in and ready, run both generators on the same run in the background and append both texts to `Documents/debrief-compare.jsonl` for the 10-run rating. Never persisted, never sent.
+- [x] Tests: attempt reports, event properties with a spy, compare line encoding. Full suite.
+- [x] Grok Bot review fixes (2026-11-22): `trigger` on the event; no event on a cancelled debrief; compare only for `live_run` with both generators, once per run id; `RunDebriefGenerating: Sendable`; compare helpers `#if DEBUG`; `RunDebriefSession` seam with tests.
+
+## 2026-11-22 — On-device debrief, opt-in (Apple membership plan PR 2)
+
+Founder chose a Settings toggle on 2026-11-22. Off by default; shown only when the app runs in English and Apple's on-device model is ready. Hebrew users never see it.
+- [x] `Services/Coach/OnDeviceDebriefGenerator.swift`: availability gate (iOS 26, model ready, English), opt-in key, prompt built from `RunDebriefInput` (port of `RUN_DEBRIEF_SYSTEM_PROMPT`), `@Generable` output, 12 s timeout, `source: .onDevice`.
+- [x] `PostRunDebriefModel.Source.onDevice` (`on_device`); `run_debriefs.source` is free text, nothing decodes it.
+- [x] `fetchRunDebrief`: on-device first when opted in and no linked coach, then cloud, then fallback. Guests can get the on-device debrief.
+- [x] Toggle "Post-run summary on this iPhone" in Run preferences (`SecondaryFlowView.swift`, `AudioCuesScaffold`).
+- [x] Badge in `PostRunLearningCard` shows "AI" for any generated debrief.
+- [x] Tests: opt-in off by default, prompt facts and size, source raw value, clipping, Hebrew gate (`-testLanguage he`). Full suite.
+- [ ] See the toggle on a signed-in English iPhone with Apple Intelligence on, then run 10 real debriefs (not possible in the simulator: guest preview needs sign-in).
+- Risk: a linked coach's context only reaches the cloud prompt, so on-device is skipped for coach-linked runners.
+- [x] Grok Bot review fixes (2026-11-22): PostHog flag `runsmart-on-device-debrief` as remote kill switch (off when missing, on in Debug); on-device only for `live_run`; on-device timeout 8 s; caption says it's saved to the account; `generatorPlan` pure function with tests.
+- [ ] Nadav creates the PostHog flag `runsmart-on-device-debrief` when the toggle should appear in App Store builds.
+
 ## 2026-11-19 — Live Activity pace for guided workouts
 
 - [x] Send the current guide step’s target to the existing Live Activity.

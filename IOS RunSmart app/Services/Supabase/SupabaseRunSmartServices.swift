@@ -1061,7 +1061,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                 return !existingIDs.contains(providerID)
             }
             for run in newRuns {
-                _ = await processCompletedActivity(run)
+                _ = await processCompletedActivity(run, trigger: .importRun)
             }
             saveFirstSyncReviewIfNeeded(
                 provider: .garmin,
@@ -1203,7 +1203,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             },
             processNewest: { run, match in
                 guard self.currentUserID == syncingUserID else { return }
-                _ = await self.processCompletedActivity(run) { _ in match }
+                _ = await self.processCompletedActivity(run, trigger: .syncNewest) { _ in match }
             },
             refreshRuns: {
                 guard self.currentUserID == syncingUserID else { return }
@@ -1359,13 +1359,45 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         return await generateRunReportIfMissing(for: run)
     }
 
-    private func fetchRunDebrief(for run: RecordedRun) async -> PostRunDebriefModel {
-        guard let authSession = try? await supabase.auth.session else {
-            return .fallback(for: run)
+    private func fetchRunDebrief(for run: RecordedRun, trigger: RunDebriefTrigger) async -> PostRunDebriefModel {
+        // Opt-in on-device debrief first (live runs only), then the cloud coach, then the fixed fallback.
+        let authSession = try? await supabase.auth.session
+        let optedIn = OnDeviceDebrief.isOptedIn()
+        let plan = OnDeviceDebrief.generatorPlan(
+            optedIn: optedIn,
+            ready: OnDeviceDebrief.isReady,
+            remoteEnabled: OnDeviceDebrief.remoteEnabled,
+            coachLinked: CoachContextSource.shared.context(for: currentUserID).linkActive,
+            hasSession: authSession != nil,
+            trigger: trigger
+        )
+        let generators: [any RunDebriefGenerating] = plan.compactMap { kind in
+            switch kind {
+            case .onDevice:
+                return OnDeviceDebrief.makeGenerator()
+            case .cloud:
+                guard let authSession else { return nil }
+                return CloudRunDebriefGenerator(authUserID: authSession.user.id, accessToken: authSession.accessToken)
+            }
         }
+        return await RunDebriefSession.produce(
+            run: run,
+            trigger: trigger,
+            generators: generators,
+            onDeviceOptedIn: optedIn,
+            onDeviceUnavailable: OnDeviceDebrief.unavailableReason,
+            makeInput: { await self.runDebriefInput(for: run) },
+            persist: { model in await self.persistDebrief(model, for: run) },
+            compare: { input in
+                #if DEBUG
+                Task { await RunDebriefCompare.record(run: run, input: input, generators: generators) }
+                #endif
+            }
+        )
+    }
 
+    private func runDebriefInput(for run: RecordedRun) async -> RunDebriefInput {
         let distanceKm = run.distanceMeters / 1_000.0
-        let durationSec = Int(run.movingTimeSeconds)
         let paceMinPerKm: Double? = distanceKm > 0 && run.movingTimeSeconds > 0
             ? (run.movingTimeSeconds / 60.0) / distanceKm
             : nil
@@ -1385,72 +1417,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             )?.kind
         }
 
-        let request = RunSmartDTO.RunDebriefRequestDTO(
-            runDistanceKm: distanceKm,
-            runDurationSeconds: durationSec,
+        return RunDebriefInput(
+            distanceKm: distanceKm,
+            durationSeconds: Int(run.movingTimeSeconds),
             averagePaceMinPerKm: paceMinPerKm,
             averageHeartRateBPM: run.averageHeartRateBPM,
             workoutType: Self.debriefWorkoutType(planned: plannedKind, for: run),
-            planPhase: nil,
-            recentLoadDays: recentCount,
-            limitations: []
+            recentRunsLast7Days: recentCount
         )
-        guard let body = try? CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context(for: authSession.user.id)) else {
-            return .fallback(for: run)
-        }
-        let client = URLSessionRunSmartAPIClient(
-            baseURL: SupabaseManager.functionsBaseURL,
-            accessToken: authSession.accessToken,
-            additionalHeaders: ["apikey": SupabaseManager.supabasePublishableKey]
-        )
-        do {
-            let response = try await withThrowingTaskGroup(of: RunSmartDTO.RunDebriefResponseDTO.self) { group in
-                group.addTask {
-                    try await client.send(
-                        RunSmartAPI.Endpoint(path: "coach_message", method: .post, body: body),
-                        as: RunSmartDTO.RunDebriefResponseDTO.self
-                    )
-                }
-                group.addTask {
-                    try await Task.sleep(nanoseconds: 12_000_000_000)
-                    throw DebriefTimeoutError()
-                }
-                do {
-                    guard let result = try await group.next() else { throw DebriefTimeoutError() }
-                    group.cancelAll()
-                    return result
-                } catch {
-                    group.cancelAll()
-                    throw error
-                }
-            }
-            let headline = response.headline.trimmingCharacters(in: .whitespacesAndNewlines)
-            let debrief = response.debrief.trimmingCharacters(in: .whitespacesAndNewlines)
-            let tomorrow = response.tomorrow.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !headline.isEmpty, !debrief.isEmpty, !tomorrow.isEmpty else {
-                print("[SupabaseServices] run_debrief: AI response missing required fields, using fallback")
-                return .fallback(for: run)
-            }
-            let model = PostRunDebriefModel(
-                headline: headline,
-                debrief: debrief,
-                tomorrow: tomorrow,
-                planImpact: response.planImpact,
-                source: .ai
-            )
-            await persistDebrief(model, for: run)
-            return model
-        } catch {
-            switch error {
-            case is DebriefTimeoutError:
-                print("[SupabaseServices] run_debrief timed out after 12s, using fallback")
-            case is CancellationError:
-                break  // parent task was cancelled — silent
-            default:
-                print("[SupabaseServices] run_debrief fallback:", error)
-            }
-            return .fallback(for: run)
-        }
     }
 
     func generateWeeklySummary() async -> WeeklyProgressSummary? {
@@ -1682,11 +1656,16 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
     }
 
     func processCompletedActivity(_ run: RecordedRun) async -> PostActivityOutcome {
-        await processCompletedActivity(run, complete: completeMatchingWorkout)
+        await processCompletedActivity(run, trigger: .background)
+    }
+
+    func processCompletedActivity(_ run: RecordedRun, trigger: RunDebriefTrigger) async -> PostActivityOutcome {
+        await processCompletedActivity(run, trigger: trigger, complete: completeMatchingWorkout)
     }
 
     private func processCompletedActivity(
         _ run: RecordedRun,
+        trigger: RunDebriefTrigger,
         complete: (RecordedRun) async -> WorkoutSummary?
     ) async -> PostActivityOutcome {
         let canonical = saveRouteMatch(for: ActivityConsolidationService.canonicalRun(for: run, in: await recentRuns(limit: 100)))
@@ -1694,7 +1673,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         store.refreshBenchmarkStats()
         async let reportTask = generateRunReportIfMissing(for: canonical)
         async let completedTask = complete(canonical)
-        async let debriefTask = fetchRunDebrief(for: canonical)          // E6
+        async let debriefTask = fetchRunDebrief(for: canonical, trigger: trigger)          // E6
         let (report, completed, debrief) = await (reportTask, completedTask, debriefTask)
 
         Analytics.trackCompletedRunIfNeeded(
@@ -2826,7 +2805,6 @@ private struct DBWellnessCheckinUpsert: Encodable {
     }
 }
 
-private struct DebriefTimeoutError: Error {}
 private struct WeeklySummaryTimeoutError: Error {}
 private struct FlexWeekTimeoutError: Error {}
 

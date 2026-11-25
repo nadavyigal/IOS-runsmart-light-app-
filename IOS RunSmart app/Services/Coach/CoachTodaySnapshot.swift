@@ -7,8 +7,9 @@ import Foundation
 // `coach_get_athletes_workouts` and `coach_get_athletes_runs` results, plus `coach_roster_summary`
 // for the "new since last visit" counts (C7.2).
 //
-// C7.4 adds the "Pain or something off" group from `coach_get_athlete_flags`. Left for a later
-// story, so nothing here renders an empty header for it: milestone tags (C7.16).
+// C7.4 adds the "Pain or something off" group from `coach_get_athlete_flags`. C7.16 adds the milestone
+// tags ("First run", "First full week", "Longest run", "Quiet 3 days"); a row only has them when
+// the coach passes milestones in, so nothing renders an empty header or strip.
 
 /// One day of the 7-day strip. Each state has its own shape and a text label. Color is the second channel.
 enum CoachTodayDayState: String, CaseIterable, Equatable {
@@ -142,6 +143,24 @@ enum CoachTodayReason: String, Equatable, CaseIterable {
     }
 }
 
+/// T2 (story C7.6 AC5, UX spec A.5): Coach Today filtered to the athletes who missed a day's
+/// workout. Set by a tapped evening summary; "Show all" clears it.
+struct CoachTodayFilter: Equatable, Sendable {
+    /// The summary's day, `yyyy-MM-dd`. Nil (or a day not on the strip) means today.
+    let dayISO: String?
+}
+
+/// T2 copy (UX spec A.5, exact strings).
+enum CoachTodayFilterCopy {
+    static let showAll = "Show all"
+    static let emptied = "Everyone on the 20:00 list has logged a run since."
+
+    /// "Missed today · {n}", or "Missed yesterday · {n}" when the summary was opened the next day.
+    static func chip(yesterday: Bool, count: Int) -> String {
+        "\(yesterday ? "Missed yesterday" : "Missed today") · \(count)"
+    }
+}
+
 /// The groups of T1, in screen order (UX spec A.3 item 3).
 enum CoachTodayGroup: Int, CaseIterable, Comparable {
     /// C7.4: open flags, first. Absent when nobody has an open flag or the flags read failed.
@@ -204,6 +223,8 @@ struct CoachTodayRow: Identifiable, Equatable {
     var oldestNewAt: Date?
     /// C7.4: this athlete's open flags, oldest first. Each is listed separately in the day detail.
     var flags: [CoachRunFlag] = []
+    /// C7.16: milestone tags, in tag order. Empty when none, and always empty with Coach v2 off.
+    var milestones: [CoachMilestone] = []
     var id: UUID { athlete.athleteID }
 
     /// "Pain", "Something off", or "Pain · 2" with several open flags (UX spec A.7 item 6).
@@ -295,7 +316,8 @@ struct CoachTodaySnapshot: Equatable {
             let days = row.days.map(\.state.rawValue).joined(separator: ",")
             return [row.id.uuidString, row.group.rawValue.description, row.reason?.rawValue ?? "-",
                     row.secondaryReason?.rawValue ?? "-", row.todayLine, row.weekProgress ?? "-", days,
-                    String(row.newCount), row.flags.map(\.id.uuidString).joined(separator: ",")]
+                    String(row.newCount), row.flags.map(\.id.uuidString).joined(separator: ","),
+                    row.milestones.map(\.id).joined(separator: ",")]
                 .joined(separator: "|")
         } + [runsLoaded ? "runs" : "no-runs", flagsLoaded ? "flags" : "no-flags"]
     }
@@ -321,6 +343,26 @@ struct CoachTodaySnapshot: Equatable {
         return "\(onTrack) on track · \(rest) rest \(rest == 1 ? "day" : "days")"
     }
 
+    /// C7.6 AC5, T2: the rows the evening summary counted as missed on the filter's day, in screen
+    /// order. The summary counts a workout that was not 80% done by 20:00, so a missed day and a
+    /// partial day both count (plan C7.6 AC1). The list is live: an athlete who logged a run since
+    /// leaves it, and when nobody is left the view shows `CoachTodayFilterCopy.emptied`.
+    /// With the runs call failed, nobody can be told apart, so the list is empty and the runs banner
+    /// explains why.
+    func missedRows(for filter: CoachTodayFilter) -> (yesterday: Bool, rows: [CoachTodayRow]) {
+        let todayISO = CoachReadDay.iso(generatedAt, calendar: calendar)
+        let yesterdayISO = calendar.date(byAdding: .day, value: -1, to: generatedAt)
+            .map { CoachReadDay.iso($0, calendar: calendar) }
+        let dayISO = filter.dayISO.flatMap { day in
+            rows.first?.days.contains { $0.iso == day } == true ? day : nil
+        } ?? todayISO
+        guard runsLoaded else { return (dayISO == yesterdayISO, []) }
+        let missed = rows.filter { row in
+            row.days.contains { $0.iso == dayISO && ($0.state == .missed || $0.state == .partial) }
+        }
+        return (dayISO == yesterdayISO, missed)
+    }
+
     /// "Today, Tue 24 Nov". The weekday and month words follow the coach's locale.
     func headerTitle(locale: Locale = .current) -> String {
         let formatter = DateFormatter()
@@ -343,10 +385,13 @@ extension CoachTodaySnapshot {
     ///     goes to "New to review". Empty (the call failed, or the pair is not v2) shows no markers.
     ///   - flags: C7.4 open flags from `coach_get_athlete_flags`. An athlete with one goes to the first group.
     ///     `flagsLoaded: false` (the call failed) shows the banner instead of the group.
+    ///   - milestones: C7.16 tags from `CoachMilestoneRules`. An athlete with something to praise and nothing
+    ///     urgent moves from the collapsed "On track" or "Rest today" to "New to review", so the tag is seen.
     static func make(
         athletes: [CoachAthleteSummary], workouts: [CoachWorkoutSummary], runs: [CoachRunSummary],
         runsLoaded: Bool = true, news: [UUID: CoachAthleteNews] = [:], flags: [CoachRunFlag] = [],
-        flagsLoaded: Bool = true, now: Date, week: CoachAthleteWeek, locale: Locale = .current
+        flagsLoaded: Bool = true, milestones: [UUID: [CoachMilestone]] = [:],
+        now: Date, week: CoachAthleteWeek, locale: Locale = .current
     ) -> CoachTodaySnapshot {
         let flagsByAthlete = Dictionary(grouping: flags.filter(\.isOpen), by: \.athleteID)
             .mapValues { $0.sorted { ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString) } }
@@ -444,13 +489,14 @@ extension CoachTodaySnapshot {
                     spoken: CoachTodayFormat.daySentence(day, state: state, calendar: calendar, locale: locale)
                 )
             }
+            let athleteMilestones = milestones[athlete.athleteID, default: []]
             let row = CoachTodayRow(
-                athlete: athlete, group: group, reason: reason, secondaryReason: secondary, days: dayList,
+                athlete: athlete, group: Self.promoted(group, for: athleteMilestones), reason: reason, secondaryReason: secondary, days: dayList,
                 todayLine: line, todaySpoken: spoken,
                 weekProgress: runsLoaded && hasPlan ? "\(doneThisWeek) of \(plannedThisWeek) this week" : nil,
                 missedThisWeek: missedThisWeek, focusDayISO: focus,
                 newCount: newCount, oldestNewAt: newCount > 0 ? athleteNews?.oldestNewAt : nil,
-                flags: athleteFlags
+                flags: athleteFlags, milestones: athleteMilestones
             )
             return (row, missedDays.first)
         }
@@ -488,6 +534,13 @@ extension CoachTodaySnapshot {
     }
 
     private static func marker(of day: CoachDay) -> CoachDayMarker { day.marker }
+
+    /// C7.16: a calm row with something to praise leaves the collapsed groups, so the tag is on screen.
+    /// Urgent rows and rows already in "New to review" stay where the other rules put them.
+    private static func promoted(_ group: CoachTodayGroup, for milestones: [CoachMilestone]) -> CoachTodayGroup {
+        guard milestones.contains(where: { $0.kind.canPraise }), group == .onTrack || group == .restToday else { return group }
+        return .newToReview
+    }
 
     /// The 80% rule for the week to date: workouts that were due, each credited with how much of the
     /// plan the athlete did (a done workout counts as all of it). Below 80% on average is behind.

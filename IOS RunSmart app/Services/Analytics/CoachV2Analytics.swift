@@ -61,6 +61,11 @@ nonisolated enum CoachV2Analytics {
         case flagRemoved
         /// C7.4: the coach's "Mark handled" reached the server. Minutes from the flag to the resolve.
         case flagResolved(minutesOpen: Int)
+        /// C7.16: a milestone tag was on Coach Today. `kind` is a `CoachMilestoneKind` raw value. Once per
+        /// milestone per session, never the athlete.
+        case milestoneShown(kind: String)
+        /// C7.16: the coach tapped a one-tap reaction on a milestone. Never which reaction or the athlete.
+        case praiseSent(kind: String)
         /// C7.7: the athlete's reply to a coach note reached the server. `target` says what kind of note
         /// it answers. Never the text.
         case coachNoteReplySent(target: FeedbackReplyTarget)
@@ -68,6 +73,14 @@ nonisolated enum CoachV2Analytics {
         case coachRemovedAthlete
         /// C7.11: the athlete left their coach (A13 or P9) and the server ended the link. No properties.
         case athleteLeftCoach
+        /// C7.14: a notification toggle saved. `kind` is a `NotificationPrefKind` raw value. Never a name.
+        case notificationPrefChanged(kind: NotificationPrefKind, enabled: Bool)
+        /// C7.10: T6 or P10 shown (once per account and role).
+        case pushPermissionPrompted(role: RemotePushRole)
+        /// C7.10: the system prompt's answer.
+        case pushPermissionResult(role: RemotePushRole, granted: Bool)
+        /// C7.10: a remote push was tapped.
+        case pushOpened(kind: RemotePushKind)
 
         var name: String {
             switch self {
@@ -85,9 +98,15 @@ nonisolated enum CoachV2Analytics {
             case .flagCreated: "flag_created"
             case .flagRemoved: "flag_removed"
             case .flagResolved: "flag_resolved"
+            case .milestoneShown: "milestone_shown"
+            case .praiseSent: "praise_sent"
             case .coachNoteReplySent: "coach_note_reply_sent"
             case .coachRemovedAthlete: "coach_removed_athlete"
             case .athleteLeftCoach: "athlete_left_coach"
+            case .notificationPrefChanged: "notification_pref_changed"
+            case .pushPermissionPrompted: "push_permission_prompted"
+            case .pushPermissionResult: "push_permission_result"
+            case .pushOpened: "push_opened"
             }
         }
 
@@ -115,8 +134,18 @@ nonisolated enum CoachV2Analytics {
                 [:]
             case .flagResolved(let minutesOpen):
                 ["minutes_open": .count(minutesOpen)]
+            case .milestoneShown(let kind), .praiseSent(let kind):
+                ["kind": .kind(kind)]
             case .coachNoteReplySent(let target):
                 ["target": .kind(target.rawValue)]
+            case .notificationPrefChanged(let kind, let enabled):
+                ["kind": .kind(kind.rawValue), "enabled": .flag(enabled)]
+            case .pushPermissionPrompted(let role):
+                ["role": .kind(role.rawValue)]
+            case .pushPermissionResult(let role, let granted):
+                ["role": .kind(role.rawValue), "granted": .flag(granted)]
+            case .pushOpened(let kind):
+                ["kind": .kind(kind.rawValue)]
             }
         }
     }

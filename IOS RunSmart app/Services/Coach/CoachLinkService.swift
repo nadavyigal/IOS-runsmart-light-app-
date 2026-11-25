@@ -732,6 +732,8 @@ final class JoinCoachViewModel: ObservableObject {
         )
         if case .joined = outcome {
             CoachV2Analytics.track(.consentV2Acked(surface: .join), to: analytics())
+            // C7.10 AC3: P10 follows P8's Share.
+            NotificationCenter.default.post(name: .remotePushAthleteContext, object: coach.displayName)
         }
         return outcome
     }

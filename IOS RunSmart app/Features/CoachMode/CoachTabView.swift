@@ -7,9 +7,13 @@ struct CoachTabView: View {
 
     @State private var showsWelcomeEditor = false
     @State private var showsWelcomeHint = false
+    /// C7.14: T5, the coach's notification settings.
+    @State private var showsNotifications = false
     /// C7.1: Today rows open the athlete from code, so the analytics event fires for a tap and for VoiceOver alike.
     @State private var path = NavigationPath()
     @Environment(\.scenePhase) private var scenePhase
+    /// C7.10: a tapped coach push sets `pendingCoachDestination`.
+    @EnvironmentObject private var router: AppRouter
 
     private let welcomeService = SupabaseCoachWelcomeService()
     private let welcomeHint = CoachWelcomeHint()
@@ -39,7 +43,28 @@ struct CoachTabView: View {
                     }
                     .toolbar(.hidden, for: .navigationBar)
             }
+            .onAppear(perform: openPendingPush)
+            .onChange(of: router.pendingCoachDestination) { _, _ in openPendingPush() }
+            .onAppear(perform: openPendingFilter)
+            .onChange(of: router.pendingCoachTodayFilter) { _, _ in openPendingFilter() }
         }
+    }
+
+    /// C7.10 AC8: a tapped coach push opens that athlete (day detail when the push names a day).
+    private func openPendingPush() {
+        guard let destination = router.pendingCoachDestination else { return }
+        router.pendingCoachDestination = nil
+        var fresh = NavigationPath()
+        fresh.append(destination)
+        path = fresh
+    }
+
+    /// C7.6 AC5: a tapped evening summary pops to Coach Today and filters it to "Missed today" (T2).
+    private func openPendingFilter() {
+        guard let filter = router.pendingCoachTodayFilter else { return }
+        router.pendingCoachTodayFilter = nil
+        path = NavigationPath()
+        athletes.todayFilter = filter
     }
 
     private var coachScreen: some View {
@@ -147,6 +172,9 @@ struct CoachTabView: View {
         .sheet(isPresented: $showsWelcomeEditor) {
             CoachWelcomeEditor(service: welcomeService)
         }
+        .sheet(isPresented: $showsNotifications) {
+            CoachNotificationSettingsView()
+        }
         .task(id: model.showsInvite) {
             if model.showsInvite { await athletes.refresh(owner: ownerID) }
         }
@@ -183,6 +211,10 @@ struct CoachTabView: View {
                     Button("Group plan settings") { model.openGroupSettings() }
                 }
                 Button("Welcome note", action: openWelcomeEditor)
+                // C7.14 (T5): v2 only. Flag-off keeps the 1.2.6 menu.
+                if athletes.coachV2 == .on {
+                    Button(NotificationSettingsCopy.title) { showsNotifications = true }
+                }
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.title3)
