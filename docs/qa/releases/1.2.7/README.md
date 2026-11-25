@@ -1,6 +1,6 @@
 # RunSmart 1.2.7 (47) · Coach v2 TF-1a
 
-Record the TestFlight version and build, archive source commit, test date, iOS versions, and which phone is the coach. Use dedicated QA accounts for link removal, consent, and route-sharing tests. Start with both phones on the same TestFlight build, and use an existing QA link for the upgrade-consent case and a fresh invite for the join case. Keep the production App Store pilot allowlist empty through TF-1a.
+Record the TestFlight version and build, archive source commit, test date, iOS versions, and which phone is the coach. Use dedicated QA accounts for link removal, consent, and route-sharing tests. Keep the athlete on 1.2.6 until the mixed-version check is complete. Then put both phones on the candidate. Use an existing QA link for the upgrade-consent case and a fresh invite for the join case. Keep the production App Store pilot allowlist empty through TF-1a.
 
 | Check | Device actions and pass criteria | Result |
 |---|---|---|
@@ -21,6 +21,10 @@ Record the TestFlight version and build, archive source commit, test date, iOS v
 - The owner saw 1.2.6 (44) in TestFlight. Apple's delivery record confirms 46 was used for 1.2.6. The 1.2.7 candidate uses build 47.
 - The runner-name PR #229 is open with merge conflicts. Check that the QA coach can distinguish athletes in the intended pilot roster. Garmin worker recovery and push delivery have separate backend work.
 - Record the signed archive's source SHA, app and extension versions, provisioning and entitlements, and the result of `scripts/verify-release-backend.py` against the archived and exported app before upload. The upload and two-phone results are pending.
+
+## Legacy 1.2.6 regression
+
+Against the upgraded Batch A/B schema, use the legacy build to verify run upload, effort edits staying local, plan regeneration, group join, and leaving a coach. Record the legacy version and build separately. Use a dedicated QA link and preserve the legacy install until this check and the mixed-version check are complete.
 
 ## Release regression on the candidate
 

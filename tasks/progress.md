@@ -3,8 +3,8 @@
 Current Phase: Coach Experience v2, TF-1a release preparation.
 Active Story: Prepare RunSmart 1.2.7 (47) and the two-phone Coach v2 test.
 Next Recommended Story: Verify the signed archive and packaged backend, then run TF-1a on the processed TestFlight build.
-Blockers: Distribution signing and archive verification are pending. Upload requires owner approval.
-Last Validation: Main includes the saved-route benchmark and Batch A/B client changes. Related Edge Function suite passed 144 tests. Physical results pending.
+Blockers: Xcode rejected the cached profile because it lacks the Push Notifications entitlement. Upload requires owner approval.
+Last Validation: Main simulator suite 1,514 passed, 0 failed, 7 skipped. Related Edge Function suite 144 passed. Physical results pending.
 Last Updated: 2026-11-25
 
 # 2026-11-24: coach_message prompt upgrade and Hebrew safety (draft PR, not deployed)
