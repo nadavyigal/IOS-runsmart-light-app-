@@ -34,7 +34,8 @@ Record the TestFlight version and build, archive source commit, test date, iOS v
 - The iPhone 13 still has RunSmart 1.2.6 (44). Keep it on build 44 for the mixed-version check.
 - The iPhone 17 has RunSmart 1.2.7 (47). CoreDevice launched the app and confirmed the process remained running. Production received an authenticated build 47 capability report with channel `testflight` and Coach v2 capability enabled.
 - iPhone Mirroring connected to the iPhone 17. On build 47, the signed-in athlete opened Profile → Account → My coach, selected an existing build 44 QA coach note, and saw that note in Plan. This passed the legacy feedback display check on the candidate.
-- The reporting account has an active athlete link and no coach profile. The coach-side mixed-version UI check and remaining TF-1a acceptance checks require signing in to the coach test account on the iPhone 17.
+- Coach QA sign-in on the iPhone 17 succeeded. On build 47, Coach Today loaded with two roster entries, one athlete needing attention, a Missed yesterday card, a new marker, and a Quiet 3 days badge. Production reported two active links for the coach, with v2 enabled for one link and no athlete capability report for the other.
+- iPhone Mirroring locked when scrolling the roster. Opening the older athlete's entry, verifying the upgrade message and write gating, and completing the remaining two-phone checks are pending.
 - For the mixed-version check, use a linked QA athlete who has never reported v2 capability. The backend stores capability by account, so signing into the same athlete account on build 44 does not clear a previous build 47 report. A read-only check found one active link without athlete v2 capability. Confirm the intended QA pair before testing.
 
 ## Legacy 1.2.6 regression
