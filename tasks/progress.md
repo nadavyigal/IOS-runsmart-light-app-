@@ -1,10 +1,10 @@
 # 2026-11-25: Coach v2 TF-1a candidate 1.2.7 (47)
 
 Current Phase: Coach Experience v2, TF-1a build 47 processed and available for internal testing.
-Active Story: Verified the mixed-version roster warning, missed-day navigation and new marker clearing on iPhone 17 build 47.
-Next Recommended Story: Verify the linked athlete on iPhone 13 build 44, then install build 47 for the two-v2-phone checks.
-Blockers: The iPhone 13 mirror requires Mac login. Post-upgrade, write and remaining two-phone cases are pending.
-Last Validation: Coach Today displayed the legacy update message and opened the missed workout. The new marker cleared. The live legacy pair gate returned false.
+Active Story: Upgraded the linked iPhone 13 athlete to build 47 and verified the existing-link consent gate.
+Next Recommended Story: Wait for the athlete to review and acknowledge the v2 sharing notice before testing post-consent flows.
+Blockers: Athlete acknowledgment is pending. Full two-phone acceptance and write tests remain pending.
+Last Validation: Both phones run build 47. The athlete saw the v2 notice. The live pair gate was true and the consent-dependent sharing gate false.
 Last Updated: 2026-11-25
 
 # 2026-11-24: coach_message prompt upgrade and Hebrew safety (draft PR, not deployed)
