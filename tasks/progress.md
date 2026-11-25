@@ -1,10 +1,10 @@
 # 2026-11-25: Coach v2 leave crash, candidate 1.2.7 (48)
 
-Current Phase: Coach Experience v2 TF-1a crash fix and replacement candidate.
+Current Phase: Coach Experience v2 TF-1a build 48 signed and ready for TestFlight upload.
 Active Story: Observe committed coach links on the main queue without replaying a prior account’s link.
-Next Recommended Story: Complete signing and artifact checks for build 48, then verify both leave flows on a physical QA pair.
-Blockers: Build 47 crashed on iPhone 13. Build 48 signing is waiting for Mac Keychain permission before pilot testing can resume.
-Last Validation: iOS suite 1,516 passed, 0 failed, 7 skipped. All 19 CoachPresence tests and six archive-gate script tests passed. Independent review passed.
+Next Recommended Story: Upload build 48 to TestFlight after approval, then verify the consent-notice and My coach leave flows on a physical QA pair.
+Blockers: Build 47 remains blocked. Build 48 upload and physical verification are pending.
+Last Validation: Build 48 archive and exported IPA passed signing and live backend checks from dedebeb. Simulator 1,516 passed, 0 failed, 7 skipped. Independent review passed.
 Last Updated: 2026-11-25
 
 # 2026-11-24: coach_message prompt upgrade and Hebrew safety (draft PR, not deployed)
