@@ -20,7 +20,14 @@ Record the TestFlight version and build, archive source commit, test date, iOS v
 - Base source is iOS main `25704dd235cc12399b3d9c733545ebdc1b68eb03`. It contains Coach v2 Batches A and B, the saved-route benchmark fix (`5c96738`), the Live Activity and weekly widget work, and the recent coach and debrief changes. The AI prompt upgrade is also deployed separately in production as `coach_message` v12.
 - The owner saw 1.2.6 (44) in TestFlight. Apple's delivery record confirms 46 was used for 1.2.6. The 1.2.7 candidate uses build 47.
 - The runner-name PR #229 is open with merge conflicts. Check that the QA coach can distinguish athletes in the intended pilot roster. Garmin worker recovery and push delivery have separate backend work.
-- Record the signed archive's source SHA, app and extension versions, provisioning and entitlements, and the result of `scripts/verify-release-backend.py` against the archived and exported app before upload. The upload and two-phone results are pending.
+
+## Archive and export verified on 2026-11-25
+
+- Archive source `16a02f41ba9333695af09c3b8fd71026ba401bab`. The main checkout produced the archive. The source contains the required route benchmark, Batch A and Batch B merges, and recent debrief work.
+- Xcode archived and exported 1.2.7 (47). The app and Live Activity extension verify with the same Apple Distribution certificate on team `8VC4R5M425`. Verified bundle IDs, app groups, matching dSYM UUIDs, production APNs, Sign in with Apple, HealthKit, Live Activities, analytics configuration, and four privacy manifests.
+- `scripts/verify-release-backend.py` passed on the archived app and the app extracted from the IPA. The production auth settings endpoint returned HTTP 200 with Apple and email enabled.
+- Local IPA `~/Downloads/RunSmart-1.2.7-47/export/RunSmart.ipa`. SHA-256 `82aef5506b1f9cd23e8332bec2d0c7a495adfc9a16702176a33d39bcf9d866bf`.
+- The owner uploads the IPA for internal TestFlight. Record the processed build before starting the two-phone run. Upload and device results are pending.
 
 ## Legacy 1.2.6 regression
 
