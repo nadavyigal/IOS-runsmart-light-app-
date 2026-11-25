@@ -27,7 +27,11 @@ Record the TestFlight version and build, archive source commit, test date, iOS v
 - Xcode archived and exported 1.2.7 (47). The app and Live Activity extension verify with the same Apple Distribution certificate on team `8VC4R5M425`. Verified bundle IDs, app groups, matching dSYM UUIDs, production APNs, Sign in with Apple, HealthKit, Live Activities, analytics configuration, and four privacy manifests.
 - `scripts/verify-release-backend.py` passed on the archived app and the app extracted from the IPA. The production auth settings endpoint returned HTTP 200 with Apple and email enabled.
 - Local IPA `~/Downloads/RunSmart-1.2.7-47/export/RunSmart.ipa`. SHA-256 `82aef5506b1f9cd23e8332bec2d0c7a495adfc9a16702176a33d39bcf9d866bf`.
-- The owner uploads the IPA for internal TestFlight. Record the processed build before starting the two-phone run. Upload and device results are pending.
+- Apple Transporter delivered build 47 on 2026-11-25 at 12:29 Israel time. App Store Connect marked the upload Complete. The build is assigned to the owner-only RunSmart Internal group. Apple reported ITMS-90725, an SDK warning for uploads starting in April 2027. [Processed TestFlight build](https://appstoreconnect.apple.com/teams/d16e6fb5-9db7-47c9-bfb4-24d85a0980af/apps/6768297840/testflight/ios/3eb0ff9f-f910-4239-9c84-25fc2f7267f3)
+
+## Physical test setup
+
+The iPhone 13 was verified on RunSmart 1.2.6 (44). Keep it on build 44 for the initial mixed-version check. The iPhone 17 is the coach phone and needs build 47 from TestFlight. TF-1a device results are pending.
 
 ## Legacy 1.2.6 regression
 

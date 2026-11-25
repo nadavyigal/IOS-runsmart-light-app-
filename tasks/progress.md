@@ -1,10 +1,10 @@
 # 2026-11-25: Coach v2 TF-1a candidate 1.2.7 (47)
 
-Current Phase: Coach Experience v2, TF-1a signed candidate ready for owner upload.
-Active Story: Verified archive and IPA for RunSmart 1.2.7 (47).
-Next Recommended Story: Owner uploads build 47 to TestFlight. Run mixed-version checks before upgrading both phones.
-Blockers: TestFlight upload, processing, and two connected pilot phones are pending.
-Last Validation: Signed archive and exported IPA pass the live backend gate. Main simulator suite 1,514 passed, 7 skipped. Edge tests 144 passed.
+Current Phase: Coach Experience v2, TF-1a build 47 processed and available for internal testing.
+Active Story: Uploaded RunSmart 1.2.7 (47) with Transporter and added it to RunSmart Internal.
+Next Recommended Story: Install build 47 on the coach iPhone 17. Run mixed-version checks with the athlete iPhone 13 on build 44.
+Blockers: Coach phone needs build 47 and working mirroring. No physical test outcomes recorded yet.
+Last Validation: App Store Connect marked build 47 Complete; owner-only group verified. iPhone 13 has build 44. Artifact backend gates passed.
 Last Updated: 2026-11-25
 
 # 2026-11-24: coach_message prompt upgrade and Hebrew safety (draft PR, not deployed)
