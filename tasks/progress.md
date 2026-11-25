@@ -1,3 +1,12 @@
+# 2026-11-25: Coach v2 leave crash, candidate 1.2.7 (48)
+
+Current Phase: Coach Experience v2 TF-1a crash fix and replacement candidate.
+Active Story: Deliver CoachPresence link changes on the main queue so leaving does not trap in the observer.
+Next Recommended Story: Verify build 48 on a physical QA pair using the consent notice and My coach leave flows.
+Blockers: Build 47 is blocked by the iPhone 13 crash. Build 48 upload and QA are pending.
+Last Validation: Build 47 crash symbolicated to the link observer. The new simulator regression failed on the old implementation.
+Last Updated: 2026-11-25
+
 # 2026-11-24: coach_message prompt upgrade and Hebrew safety (draft PR, not deployed)
 
 Current Phase: OpenAI prompt upgrade on top of the merged model tiers (#253); Phase 2 approved by Nadav.

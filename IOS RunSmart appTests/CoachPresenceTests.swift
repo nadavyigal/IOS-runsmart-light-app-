@@ -75,6 +75,12 @@ final class CoachPresenceTests: XCTestCase {
                              calendar: utc, locale: Locale(identifier: "en_US"), now: today)
     }
 
+    private func waitForPresenceDelivery() async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+    }
+
     // MARK: Strip
 
     func testStripShowsWithAnActiveLink() {
@@ -108,9 +114,34 @@ final class CoachPresenceTests: XCTestCase {
         // The server revoked the link; the next refresh finds none.
         repository.link = nil
         await store.refresh(userID: athlete)
+        await waitForPresenceDelivery()
         XCTAssertFalse(gate.isActive)
         XCTAssertNil(gate.planMode)
         XCTAssertNil(layer(gate.coach, [note(week: "2026-11-16", minutesAfterLink: 5)]))
+    }
+
+    func testLeaveClearsPresenceAfterLinkStoreCommits() async throws {
+        let originalLink = link
+        let store = CoachLinkStore(repository: StubLinks(link: originalLink))
+        store.beginSession(userID: athlete)
+        await store.refresh(userID: athlete)
+        let (gate, _) = presence(mode: .individual)
+        gate.bind(to: store)
+        await gate.waitForPlanMode()
+        XCTAssertEqual(gate.coach, originalLink)
+
+        let cleared = expectation(description: "Coach presence cleared after leaving")
+        let observation = gate.$coach.dropFirst().sink { coach in
+            guard coach == nil else { return }
+            XCTAssertNil(store.currentLink, "Presence must read the committed link")
+            cleared.fulfill()
+        }
+        defer { observation.cancel() }
+
+        try await store.leave(userID: athlete, expectedLinkID: originalLink.id)
+        await fulfillment(of: [cleared], timeout: 2)
+        XCTAssertNil(gate.coach)
+        XCTAssertNil(gate.planMode)
     }
 
     // MARK: Plan titles
@@ -173,12 +204,14 @@ final class CoachPresenceTests: XCTestCase {
         // Back online: the foreground refresh returns the same link.
         stub.result = .success(MyCoach(coachID: coachID, displayName: "Dana", planMode: .individual))
         await store.refresh(userID: athlete)
+        await waitForPresenceDelivery()
         await gate.waitForPlanMode()
         XCTAssertEqual(gate.planMode, .individual)
         XCTAssertEqual(stub.calls, 2)
 
         // Resolved: a further refresh of the same link doesn't ask again.
         await store.refresh(userID: athlete)
+        await waitForPresenceDelivery()
         await gate.waitForPlanMode()
         XCTAssertEqual(stub.calls, 2)
     }

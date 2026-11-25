@@ -70,12 +70,16 @@ final class CoachPresence: ObservableObject {
     /// unchanged link, so an unresolved Plan Mode is retried.
     func bind(to links: CoachLinkStore) {
         guard cancellable == nil else { return }
-        // The store is main-actor bound and publishes on the main thread, so a leave
-        // clears the gate in the same update.
+        // Combine delivers on the publisher's executor. Hop to the main queue
+        // for changes, and apply the initial link immediately when binding.
         cancellable = links.$currentLink
-            .sink { [weak self] link in
-                MainActor.assumeIsolated { self?.apply(link) }
+            .dropFirst()
+            .sink { @Sendable [weak self] link in
+                DispatchQueue.main.async { [weak self] in
+                    self?.apply(link)
+                }
             }
+        apply(links.currentLink)
     }
 
     var isActive: Bool { coach != nil }
