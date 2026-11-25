@@ -1,0 +1,1 @@
+../scripts/verify-release-backend.py

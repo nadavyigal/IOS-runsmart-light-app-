@@ -203,6 +203,14 @@ Active Story: `RunDebriefGenerating` protocol and `RunDebriefPipeline`; cloud de
 Next Recommended Story: PR 2, on-device generator as a small opt-in (English, eligible devices); needs Nadav's call on the opt-in surface.
 Blockers: none for this PR; draft only, Nadav merges.
 Last Validation: 2026-11-21 full suite 1150 passed, 0 failed, 1 opt-in skip; new RunDebriefPipelineTests 5/0; iPhone 17 iOS 26.5 sim.
+
+# 2026-11-21: Xcode Cloud archive backend check (draft PR)
+
+Current Phase: 1.2.6 (46) live on the App Store since 2026-11-20; Apple membership follow-ups.
+Active Story: plan PR 5, `ci_scripts/ci_post_xcodebuild.sh` runs the release backend check on Xcode Cloud archives.
+Next Recommended Story: Nadav OKs and creates the Xcode Cloud workflow; then debrief PRs 1-3 (on-device debrief as small opt-in).
+Blockers: Xcode Cloud and App Store Connect setup need founder OK.
+Last Validation: 2026-11-21 6 script unit tests pass; Release build 1.2.6 (46) passed the backend check through the script.
 Last Updated: 2026-11-21
 
 # 2026-11-20: RunSmart 1.2.6 (46) submitted to App Review
