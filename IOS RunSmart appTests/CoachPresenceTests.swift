@@ -144,6 +144,28 @@ final class CoachPresenceTests: XCTestCase {
         XCTAssertNil(gate.planMode)
     }
 
+    func testQueuedLinkDoesNotRestorePresenceAfterASessionChange() async {
+        let originalLink = link
+        let store = CoachLinkStore(repository: StubLinks(link: originalLink))
+        store.beginSession(userID: athlete)
+        let (gate, _) = presence(mode: .individual)
+        gate.bind(to: store)
+
+        let observation = gate.$coach.dropFirst().sink { coach in
+            if coach != nil {
+                XCTAssertEqual(coach, store.currentLink, "Presence cannot resurrect a cleared link")
+            }
+        }
+        defer { observation.cancel() }
+
+        await store.refresh(userID: athlete)
+        store.beginSession(userID: UUID())
+        await waitForPresenceDelivery()
+
+        XCTAssertNil(gate.coach)
+        XCTAssertNil(gate.planMode)
+    }
+
     // MARK: Plan titles
 
     func testGroupAndIndividualTitles() async {
@@ -338,6 +360,7 @@ final class CoachPresenceTests: XCTestCase {
                        "Dana's plan: 10K")
 
         try await store.leave(userID: athlete)
+        await waitForPresenceDelivery()
         XCTAssertFalse(gate.isActive)
         XCTAssertNil(gate.planMode)
         let unread = note(week: "2026-11-16", minutesAfterLink: 1)
