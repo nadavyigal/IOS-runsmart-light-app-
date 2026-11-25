@@ -1,10 +1,10 @@
 # 2026-11-25: Coach v2 TF-1a candidate 1.2.7 (47)
 
 Current Phase: Coach Experience v2, TF-1a build 47 processed and available for internal testing.
-Active Story: Verified physical launch and TestFlight capability report from the iPhone 17 on build 47.
+Active Story: Verified physical launch, TestFlight capability, and legacy coach feedback display on iPhone 17 build 47.
 Next Recommended Story: Sign in with the coach QA account on iPhone 17 and use a linked athlete with no prior v2 capability on iPhone 13 build 44.
-Blockers: iPhone Mirroring requires Mac login. The build 47 session is currently using an athlete account.
-Last Validation: Build 47 installed and launched on iPhone 17. Backend recorded the TestFlight channel and v2 capability. iPhone 13 remains on build 44.
+Blockers: iPhone Mirroring connected. The build 47 session still uses an athlete account, so coach-side testing is pending.
+Last Validation: iPhone 17 build 47 opened a preexisting build 44 coach QA note in Plan. iPhone 13 remains on build 44.
 Last Updated: 2026-11-25
 
 # 2026-11-24: coach_message prompt upgrade and Hebrew safety (draft PR, not deployed)
