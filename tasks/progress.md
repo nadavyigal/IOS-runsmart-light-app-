@@ -1,3 +1,12 @@
+# 2026-11-26: TF-1b kill-switch drill passed
+
+Current Phase: Coach Experience v2 TF-1 complete on build 51: push delivery and kill-switch drill passed.
+Active Story: None; drill times recorded in docs/coach-v2-rollback.md section 4.
+Next Recommended Story: Founder picks the next Coach v2 step (pilot coach allowlist or remaining build plan stories).
+Blockers: None.
+Last Validation: coach_v2 off 19:32:52, push skipped for run 1434, paused UI after 19:48; on 20:08:10, v2 back after 20:23.
+Last Updated: 2026-11-26
+
 # 2026-11-26: Build 51 push delivery verified on both phones
 
 Current Phase: Coach Experience v2 TF-1b; push delivery passed on build 51, kill-switch drill next.
