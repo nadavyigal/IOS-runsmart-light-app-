@@ -1,11 +1,11 @@
 # 2026-11-25: Coach v2 leave crash, candidate 1.2.7 (48)
 
-Current Phase: Coach Experience v2 TF-1a build 48 signed and ready for TestFlight upload.
+Current Phase: Coach Experience v2 TF-1a build 48 available in RunSmart Internal.
 Active Story: Observe committed coach links on the main queue without replaying a prior account’s link.
-Next Recommended Story: Upload build 48 to TestFlight after approval, then verify the consent-notice and My coach leave flows on a physical QA pair.
-Blockers: Build 47 remains blocked. Build 48 upload and physical verification are pending.
-Last Validation: Build 48 archive and exported IPA passed signing and live backend checks from dedebeb. Simulator 1,516 passed, 0 failed, 7 skipped. Independent review passed.
-Last Updated: 2026-11-25
+Next Recommended Story: Update the coach iPhone 17 to build 48 and verify both leave flows on an approved athlete link.
+Blockers: Physical leave retest awaits the coach phone update and an approved athlete link. The previous link is revoked.
+Last Validation: Build 48 processed and Testing in the owner-only TestFlight group. iPhone 13 verified on 48, iPhone 17 on 47. Signed IPA and 1,516 simulator tests passed.
+Last Updated: 2026-11-26
 
 # 2026-11-24: coach_message prompt upgrade and Hebrew safety (draft PR, not deployed)
 
