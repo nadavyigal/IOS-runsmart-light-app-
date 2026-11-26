@@ -293,8 +293,9 @@ struct CoachReadService: CoachReadServing {
         self.client = client
     }
 
+    /// Names are labeled here, once, so every coach screen reads the same name.
     func listAthletes() async throws -> [CoachAthleteSummary] {
-        try await client.listAthletes()
+        CoachAthleteNames.labeled(try await client.listAthletes())
     }
 
     func plan(for athleteID: UUID) async throws -> [CoachPlanSummary] {

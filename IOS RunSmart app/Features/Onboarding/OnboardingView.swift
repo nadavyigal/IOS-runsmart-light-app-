@@ -167,6 +167,7 @@ struct OnboardingView: View {
 
     private var goalStep: some View {
         OnboardingStepShell(title: "Goal", subtitle: "Pick the result your RunSmart coach should build around.", symbol: "target") {
+            RunnerNameField(name: $profile.displayName)
             OnboardingChoiceGrid(options: goals, selection: $profile.goal)
             OnboardingPrimaryButton(
                 title: "Continue",
@@ -303,9 +304,7 @@ struct OnboardingView: View {
         OnboardingStepShell(title: "Ready", subtitle: "RunSmart is building your plan. Next, commit to your first run.", symbol: "checkmark.seal.fill") {
             OnboardingPrimaryButton(title: "Start RunSmart", symbol: "figure.run") {
                 var completed = profile
-                if completed.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    completed.displayName = "RunSmart Runner"
-                }
+                completed.displayName = RunnerName.forSaving(completed.displayName)
                 Analytics.trackOnboardingCompleted(
                     goal: completed.goal,
                     experience: completed.experience,

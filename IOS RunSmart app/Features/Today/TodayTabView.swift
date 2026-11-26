@@ -34,6 +34,8 @@ struct TodayTabView: View {
     // dedupes per prompt so a scroll away and back doesn't double-count.
     @AppStorage("runsmart.adaptiveCoach.lastDismissedAt") private var adaptiveCoachDismissedAt: Double = 0
     @State private var adaptiveCoachShownFor: AdaptiveCoachPrompt?
+    @State private var showNameSheet = false
+    @State private var namePromptDismissed = false
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -54,6 +56,13 @@ struct TodayTabView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 14) {
                 header
+
+                if showsNamePrompt {
+                    RunnerNamePromptCard(
+                        onAdd: { showNameSheet = true },
+                        onDismiss: dismissNamePrompt
+                    )
+                }
 
                 // A5 reading order: "Coached by" strip, coach cards, then the AI message
                 // and today's workout below. Nothing here without an active link.
@@ -218,6 +227,12 @@ struct TodayTabView: View {
         .task {
             await loadData()
         }
+        .task(id: session.currentUserID) {
+            namePromptDismissed = RunnerNamePrompt.isDismissed(userID: session.currentUserID)
+        }
+        .sheet(isPresented: $showNameSheet) {
+            RunnerNameSheet(currentName: session.onboardingProfile.displayName)
+        }
         .task(id: coachPresence.coach?.id) {
             await refreshCoachWelcome()
         }
@@ -319,11 +334,19 @@ struct TodayTabView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("\(greeting), \(displayName)")
+                Text(RunnerName.greeting(greeting, name: session.onboardingProfile.displayName))
                     .font(.displayMD)
                     .foregroundStyle(Color.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
+                // The one-time card below asks first; after it is dismissed this link stays.
+                if RunnerName.resolved(session.onboardingProfile.displayName) == nil, !showsNamePrompt {
+                    Button("Add your name") { showNameSheet = true }
+                        .font(.bodyMD.weight(.semibold))
+                        .foregroundStyle(Color.accentPrimary)
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("today.addName")
+                }
                 // WP-44 S3: backends send "12 days", "12 day streak", or even
                 // "3x/week" — bolting " day streak" onto the raw value produced
                 // "12 days day streak" and mislabeled non-streak cadences.
@@ -527,9 +550,17 @@ struct TodayTabView: View {
         }
     }
 
-    private var displayName: String {
-        let name = session.onboardingProfile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? "Runner" : name
+    private var showsNamePrompt: Bool {
+        RunnerNamePrompt.shouldShow(
+            name: session.onboardingProfile.displayName,
+            hasCompletedOnboarding: session.hasCompletedOnboarding,
+            dismissed: namePromptDismissed
+        )
+    }
+
+    private func dismissNamePrompt() {
+        RunnerNamePrompt.dismiss(userID: session.currentUserID)
+        withAnimation(.easeOut(duration: 0.2)) { namePromptDismissed = true }
     }
 
     private var weekRangeLabel: String {

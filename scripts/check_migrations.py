@@ -27,6 +27,15 @@ import sys
 TS14 = re.compile(r"^(\d{14})_([A-Za-z0-9_]+)\.sql$")
 ANY_VERSION = re.compile(r"^(\d+)_([A-Za-z0-9_]+)\.sql$")
 
+# Files added after the fact for a migration that production already has. They keep their
+# original (older) timestamp so the repo replays in the same order as production, so the
+# "new file must be newer than main" rule does not apply to them. Each entry is recorded as
+# applied in docs/migration-ledger.md. Add a file here only for an applied migration.
+BACKFILLED_APPLIED = {
+    # prod version 20261120094612, applied 2026-11-20 (ledger section 1)
+    "20261120100000_athlete_display_name_placeholder.sql",
+}
+
 errors: list[str] = []
 warnings: list[str] = []
 
@@ -112,6 +121,9 @@ def check_against_base(directory: str, base: str, allow_edit: bool) -> None:
     latest = max(base_ts) if base_ts else None
     for f in sorted(head_files - base_files):
         m = TS14.match(f)
+        if f in BACKFILLED_APPLIED:
+            print(f"note: {f} is a backfill of a migration production already has")
+            continue
         if m and latest and m.group(1) <= latest:
             err(
                 f"{f}: new migration is not newer than the latest on {base} "

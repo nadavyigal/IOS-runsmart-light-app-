@@ -457,7 +457,7 @@ struct CoachTodayRowView: View {
                             .fixedSize(horizontal: false, vertical: true)
                         if needsLatestApp {
                             // Same mixed-version line as the roster (C7.0 AC6).
-                            Text("Effort, notes and flags aren't available. \(row.name) needs the latest RunSmart.")
+                            Text(CoachAthleteUpdateCopy.needsUpdate(row.name))
                                 .font(.bodyMD)
                                 .foregroundStyle(Color.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -490,7 +490,7 @@ struct CoachTodayRowView: View {
 
     private var spokenLabel: String {
         needsLatestApp
-            ? row.spokenSentence + " Effort, notes and flags aren't available. \(row.name) needs the latest RunSmart."
+            ? row.spokenSentence + " " + CoachAthleteUpdateCopy.needsUpdate(row.name)
             : row.spokenSentence
     }
 

@@ -752,3 +752,9 @@ Removing the share-map toggle made the old mapUnavailable advice impossible to f
 ## 2026-11-17 — Use fresh DerivedData after a handoff
 
 An inherited Cursor build still held its Xcode database. Use fresh DerivedData after a handoff unless the inherited build process has been confirmed stopped.
+
+## 2026-11-20 — Never save a placeholder as user data
+
+Onboarding never asked for a name and saved "RunSmart Runner" instead. 24 of 25 production profiles had no real name, Today said "Good morning, RunSmart Runner", and every unnamed athlete looked identical in the coach list. Save an empty value and decide the fallback at display time, in one place (`Services/RunnerName.swift`). When a placeholder already shipped, treat it as empty on every read, client and server.
+
+- **A migration file added after production already ran it trips the "new file must be newer than main" CI rule.** On 2026-11-26 the `athlete_display_name_placeholder` file (applied 2026-11-20 from a PR that never merged) had to land after Batch B. Renaming it to a newer timestamp would change replay order. Rule: keep the original timestamp, add it to `BACKFILLED_APPLIED` in `scripts/check_migrations.py`, and record it as applied in the ledger. Better: never apply a migration from an unmerged PR.

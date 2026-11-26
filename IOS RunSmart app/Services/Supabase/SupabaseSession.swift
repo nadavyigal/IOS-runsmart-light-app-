@@ -126,10 +126,10 @@ final class SupabaseSession: ObservableObject {
             if let p = rows.first {
                 profile = p
                 hasCompletedOnboarding = p.onboardingComplete
-                displayName = p.name ?? ""
+                displayName = RunnerName.forSaving(p.name)
                 lastAuthError = nil
                 onboardingProfile = OnboardingProfile(
-                    displayName: p.name ?? "",
+                    displayName: RunnerName.forSaving(p.name),
                     goal: p.goal.isEmpty ? "" : p.goal,
                     experience: p.experience.isEmpty ? "" : p.experience,
                     age: p.age,
@@ -165,6 +165,27 @@ final class SupabaseSession: ObservableObject {
         await completeOnboarding(save.profile)
     }
 
+    /// Saves a new name from Settings or Today. Returns false when the name is blank or the
+    /// server did not store it; the previous name is then restored.
+    @discardableResult
+    func saveDisplayName(_ raw: String) async -> Bool {
+        guard let name = RunnerName.resolved(raw) else { return false }
+        let previousProfile = onboardingProfile
+        let previousName = displayName
+        var updated = onboardingProfile
+        updated.displayName = name
+        await completeOnboarding(updated)
+#if DEBUG
+        if RunSmartDemoMode.isEnabled { return true }
+#endif
+        guard RunnerName.resolved(profile?.name) == name else {
+            onboardingProfile = previousProfile
+            displayName = previousName
+            return false
+        }
+        return true
+    }
+
     private func normalizedCoachingTone(_ onboarding: OnboardingProfile) -> OnboardingProfile {
         var copy = onboarding
         copy.coachingTone = CoachingTone.displayLabel(for: onboarding.coachingTone)
@@ -187,9 +208,8 @@ final class SupabaseSession: ObservableObject {
             return
         }
         var completedOnboarding = normalizedCoachingTone(onboarding)
-        if completedOnboarding.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            completedOnboarding.displayName = appleDisplayNameSeed ?? "RunSmart Runner"
-        }
+        completedOnboarding.displayName = RunnerName.resolved(completedOnboarding.displayName)
+            ?? RunnerName.forSaving(appleDisplayNameSeed)
         onboardingProfile = completedOnboarding
         CoachingToneStore.save(CoachingTone.voiceTone(for: completedOnboarding.coachingTone))
         UserDefaults.standard.set(onboarding.notificationsEnabled, forKey: notificationPreferenceKey)
@@ -223,7 +243,7 @@ final class SupabaseSession: ObservableObject {
             if let p = rows.first {
                 profile = p
                 hasCompletedOnboarding = true
-                displayName = p.name ?? completedOnboarding.displayName
+                displayName = RunnerName.forSaving(p.name ?? completedOnboarding.displayName)
             }
         } catch {
             print("[SupabaseSession] completeOnboarding rich upsert error:", error)
@@ -247,7 +267,7 @@ final class SupabaseSession: ObservableObject {
                 if let p = rows.first {
                     profile = p
                     hasCompletedOnboarding = true
-                    displayName = p.name ?? completedOnboarding.displayName
+                    displayName = RunnerName.forSaving(p.name ?? completedOnboarding.displayName)
                     lastAuthError = nil
                 }
             } catch {
@@ -417,6 +437,11 @@ final class SupabaseSession: ObservableObject {
         isLoading = false
         lastAuthError = nil
         onboardingProfile = RunSmartDemoData.onboardingProfile
+        // QA: `-RUNSMART_DEMO_NO_NAME` starts the demo as a runner who never gave a name.
+        if ProcessInfo.processInfo.arguments.contains("-RUNSMART_DEMO_NO_NAME") {
+            displayName = ""
+            onboardingProfile.displayName = ""
+        }
         CoachingToneStore.save(CoachingTone.voiceTone(for: onboardingProfile.coachingTone))
         appleDisplayNameSeed = RunSmartDemoData.runner.name
         appleEmailSeed = RunSmartDemoMode.email
