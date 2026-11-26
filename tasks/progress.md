@@ -1,10 +1,10 @@
 # 2026-11-26: Coach v2 push set up in production (functions, triggers, crons)
 
-Current Phase: Coach Experience v2, TF-1a. In-app checks passed on builds 48/49; push infrastructure live except the shared secret.
+Current Phase: Coach Experience v2, TF-1b push delivery verification. The in-app pilot checks passed on builds 48/49.
 Active Story: Batch B ops: coach_notify and coach_evening_summary deployed; four insert triggers and two crons read Vault.
-Next Recommended Story: Founder sets COACH_NOTIFY_SECRET plus Vault copy; push smoke test on both phones; merge names fix #257.
-Blockers: COACH_NOTIFY_SECRET not set yet, so functions answer 500 and triggers and crons send nothing.
-Last Validation: Both functions deployed and refuse unsigned calls (500); 4 triggers present; client cannot execute the trigger function.
+Next Recommended Story: Verify a fresh run push and coach note on the paired iPhones, then test the athlete reply and evening summary.
+Blockers: Fresh delivery evidence is pending. The earlier run and note failed during APNs signing and will not be retried.
+Last Validation: Shared secret is configured, both cron jobs and two production device tokens are active, and the pilot pair has sharing enabled. With founder approval, replaced the malformed production APNs private key on November 26. The production digest matches the local key that successfully signed with the RunSmart signer. No fresh push outcome yet.
 Last Updated: 2026-11-26
 
 # 2026-11-26: Coach v2 leave and Share fixes, candidate 1.2.7 (49)
