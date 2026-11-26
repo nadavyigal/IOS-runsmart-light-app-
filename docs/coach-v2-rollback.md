@@ -261,5 +261,10 @@ Run once on TestFlight with Nadav's two phones before pilot coaches get push (re
 
 | Step | Expected | Time taken | Date |
 |---|---|---|---|
-| Off to flag-off UI | at most 15 minutes plus one foreground | not run yet | |
-| On to v2 back | at most 15 minutes plus one foreground | not run yet | |
+| Off to flag-off UI | at most 15 minutes plus one foreground | Off 19:32:52 Israel time; server gate off at once (both links `link_is_v2` false); paused roster line seen on the coach phone after 19:48 | 2026-11-26 |
+| On to v2 back | at most 15 minutes plus one foreground | On 20:08:10; pilot pair v2 again at once on the server; v2 screens back on the coach phone after 20:23 | 2026-11-26 |
+
+Drill notes (2026-11-26, build 51 on both phones, run from the overseer session on Nadav's yes):
+
+- A run saved while the switch was off (run 1434, 19:39) logged `skipped_kill_switch` in `coach_notify` 0.15 s later. Nothing went to APNs and nothing was held in `deferred_pushes`, so that run never pushes, as section 1 says. The every-minute flush also logged `skipped_kill_switch` each minute.
+- The "turn back on" line in section 1 sets `note = null`. The drill restored the original note text instead; keep that text when turning the switch back on.
