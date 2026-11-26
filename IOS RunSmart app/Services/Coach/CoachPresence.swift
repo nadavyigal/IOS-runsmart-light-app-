@@ -70,12 +70,15 @@ final class CoachPresence: ObservableObject {
     /// unchanged link, so an unresolved Plan Mode is retried.
     func bind(to links: CoachLinkStore) {
         guard cancellable == nil else { return }
-        // The store is main-actor bound and publishes on the main thread, so a leave
-        // clears the gate in the same update.
-        cancellable = links.$currentLink
-            .sink { [weak self] link in
-                MainActor.assumeIsolated { self?.apply(link) }
+        // Read the latest committed link on the main queue. A queued
+        // notification must not restore a link after an account switch.
+        cancellable = links.committedLinkChanges.sink { @Sendable [weak self, weak links] in
+            DispatchQueue.main.async { [weak self, weak links] in
+                guard let links else { return }
+                self?.apply(links.currentLink)
             }
+        }
+        apply(links.currentLink)
     }
 
     var isActive: Bool { coach != nil }

@@ -257,8 +257,18 @@ enum InviteLink {
 /// Current link plus the coach's name. Settings uses `showsJoinCoach`.
 @MainActor
 final class CoachLinkStore: ObservableObject {
+    private let linkChanges = PassthroughSubject<Void, Never>()
+
+    /// Signals after the current link has changed. The published property emits in willSet.
+    var committedLinkChanges: AnyPublisher<Void, Never> {
+        linkChanges.eraseToAnyPublisher()
+    }
+
     @Published private(set) var currentLink: CoachLink? {
-        didSet { publishAssistantContext() }
+        didSet {
+            publishAssistantContext()
+            linkChanges.send(())
+        }
     }
     @Published private(set) var didAttemptLoad = false
 

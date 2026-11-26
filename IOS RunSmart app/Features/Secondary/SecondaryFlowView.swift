@@ -241,7 +241,10 @@ private struct SecondaryContentView: View {
                 JoinCoachView()
                     .id(session.currentUserID)
                     .padding(20)
+                    // Keep the last action clear of the floating tab bar on the Account route.
+                    .padding(.bottom, CustomTabBar.contentAvoidancePadding)
             }
+            .scrollDismissesKeyboard(.interactively)
         } else if destination == .myCoach {
             ScrollView {
                 MyCoachView()

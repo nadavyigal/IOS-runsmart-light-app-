@@ -10,6 +10,7 @@ struct JoinCoachView: View {
     @EnvironmentObject private var coachLinks: CoachLinkStore
 
     @StateObject private var model: JoinCoachViewModel
+    @FocusState private var isCodeFocused: Bool
 
     init(repository: any CoachLinkRepository = SupabaseCoachLinkRepository()) {
         _model = StateObject(wrappedValue: JoinCoachViewModel(repository: repository))
@@ -60,6 +61,7 @@ struct JoinCoachView: View {
             Text("Join a coach")
                 .font(.displayMD)
             TextField("Enter code", text: $model.code)
+                .focused($isCodeFocused)
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled()
                 .padding(14)
@@ -90,6 +92,7 @@ struct JoinCoachView: View {
             }
 
             Button {
+                isCodeFocused = false
                 let athleteID = session.isAuthenticated ? session.currentUserID : nil
                 Task { await model.continueTapped(athleteID: athleteID) }
             } label: {
