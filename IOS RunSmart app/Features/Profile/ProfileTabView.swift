@@ -90,7 +90,8 @@ struct ProfileTabView: View {
         HStack(spacing: 18) {
             CoachAvatar(size: 118, showBolt: true)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(RunnerName.label(runner.name))
+                    // The session name updates the moment the runner saves one; the loaded profile can lag.
+                    Text(RunnerName.resolved(session.onboardingProfile.displayName) ?? RunnerName.label(runner.name))
                         .font(.displayMD)
                         .foregroundStyle(Color.textPrimary)
                         .lineLimit(1)
