@@ -1,3 +1,12 @@
+# 2026-11-26: Coach v2 push set up in production (functions, triggers, crons)
+
+Current Phase: Coach Experience v2, TF-1a. In-app checks passed on builds 48/49; push infrastructure live except the shared secret.
+Active Story: Batch B ops: coach_notify and coach_evening_summary deployed; four insert triggers and two crons read Vault.
+Next Recommended Story: Founder sets COACH_NOTIFY_SECRET plus Vault copy; push smoke test on both phones; merge names fix #257.
+Blockers: COACH_NOTIFY_SECRET not set yet, so functions answer 500 and triggers and crons send nothing.
+Last Validation: Both functions deployed and refuse unsigned calls (500); 4 triggers present; client cannot execute the trigger function.
+Last Updated: 2026-11-26
+
 # 2026-11-26: Coach v2 leave and Share fixes, candidate 1.2.7 (49)
 
 Current Phase: Coach Experience v2 TF-1a build 49 available in RunSmart Internal for the owner.
