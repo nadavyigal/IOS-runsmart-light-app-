@@ -8,6 +8,50 @@ import XCTest
 
 private struct Offline: Error {}
 
+@MainActor
+final class NotificationTapCompletionTests: XCTestCase {
+    func testRemoteTapCompletesOnMainThreadAndBuffersUntilHandlerIsInstalled() async {
+        let center = UNUserNotificationCenter.current()
+        let previousDelegate = center.delegate
+        defer { center.delegate = previousDelegate }
+        let service = PushService(center: center)
+        let completion = expectation(description: "Notification center completion")
+
+        await Task.detached {
+            service.handleNotificationTap(userInfo: ["rs": ["kind": "coachRunFinished"]]) {
+                XCTAssertTrue(Thread.isMainThread)
+                completion.fulfill()
+            }
+        }.value
+        await fulfillment(of: [completion], timeout: 2)
+
+        var received: RemotePushPayload?
+        service.configureRemoteTaps { received = $0 }
+        XCTAssertEqual(received?.kind, .coachRunFinished)
+    }
+
+    func testLocalTapRoutesBeforeCompletingOnMainThread() async {
+        let center = UNUserNotificationCenter.current()
+        let previousDelegate = center.delegate
+        defer { center.delegate = previousDelegate }
+        let service = PushService(center: center)
+        let routed = expectation(description: "Local destination")
+        let completion = expectation(description: "Notification center completion")
+        service.configureNavigation { destination in
+            XCTAssertEqual(destination, .plan)
+            routed.fulfill()
+        }
+
+        await Task.detached {
+            service.handleNotificationTap(userInfo: ["destination": "plan"]) {
+                XCTAssertTrue(Thread.isMainThread)
+                completion.fulfill()
+            }
+        }.value
+        await fulfillment(of: [routed, completion], timeout: 2, enforceOrder: true)
+    }
+}
+
 private final class FakePushRepository: RemotePushRepository, @unchecked Sendable {
     var registerResult: Result<Void, Error> = .success(())
     var unregisterDelay: UInt64 = 0
