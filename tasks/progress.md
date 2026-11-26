@@ -1,10 +1,19 @@
 # 2026-11-26: Real names for athletes, coach and the Today greeting (supersedes PR #229)
 
-Current Phase: Coach Experience v2 TF-1a on build 49; names fix in a PR, next archive must be build 50.
-Active Story: Names fix: Today greets by name, one-time add-name card, coach roster tells unnamed athletes apart, coach edits own name.
-Next Recommended Story: Founder applies 20261126100000_coach_display_name.sql, then archive build 50 and check names on both phones.
-Blockers: Needs founder yes to merge; coach-name save fails until the new migration is applied in production.
-Last Validation: 2026-11-26 full simulator unit suite, drift check CLEAN 29, local Postgres coach_display_name test passed.
+Current Phase: Coach Experience v2 TF-1b; names fix and push tap fix merged, next archive is build 51.
+Active Story: Names fix: Today greets by name, add-name card, roster tells unnamed athletes apart, coach edits own name.
+Next Recommended Story: Archive build 51 from main, then check names and notification taps on both phones.
+Blockers: None. 20261126100000_coach_display_name applied to production 2026-11-26 (prod 20261126140919).
+Last Validation: 2026-11-26 CI iOS build and unit tests green on 1e171df; migration hash equals the file.
+Last Updated: 2026-11-26
+
+# 2026-11-26: Coach push tap crash
+
+Current Phase: Coach Experience v2, TF-1b push delivery verification.
+Active Story: Complete iOS notification taps on the main actor.
+Next Recommended Story: Retest fresh notification taps with RunSmart closed and already open on the coach iPhone 17, then verify note and reply pushes.
+Blockers: Device verification requires a TestFlight build containing the callback change.
+Last Validation: APNs accepted the run notification at 14:56 Israel time and the owner saw the alert. The iPhone 17 crashed at 14:56:59 on build 48. Its matching distribution dSYM identifies the generated PushService notification response callback below a UIKit assertion on a cooperative background queue. Build 49 still uses that callback.
 Last Updated: 2026-11-26
 
 # 2026-11-26: Coach v2 leave and Share fixes, candidate 1.2.7 (49)

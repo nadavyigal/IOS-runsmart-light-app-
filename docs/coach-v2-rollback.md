@@ -225,7 +225,7 @@ First move: `coach_v2_push` to false. Senders keep their queue.
 
 | File | Story | Rollback file | Status |
 |---|---|---|---|
-| `20261126100000_coach_display_name.sql` | names fix | `supabase/rollback/20261126100000_coach_display_name.sql` | written (draft PR); not applied |
+| `20261126100000_coach_display_name.sql` | names fix | `supabase/rollback/20261126100000_coach_display_name.sql` | written; applied 2026-11-26 (prod 20261126140919) |
 
 #### `20261126100000_coach_display_name.sql`
 
