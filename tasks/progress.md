@@ -1,3 +1,12 @@
+# 2026-11-26: Coach push tap crash
+
+Current Phase: Coach Experience v2, TF-1b push delivery verification.
+Active Story: Complete iOS notification taps on the main actor.
+Next Recommended Story: Retest fresh notification taps with RunSmart closed and already open on the coach iPhone 17, then verify note and reply pushes.
+Blockers: Device verification requires a TestFlight build containing the callback change.
+Last Validation: APNs accepted the run notification at 14:56 Israel time and the owner saw the alert. The iPhone 17 crashed at 14:56:59 on build 48. Its matching distribution dSYM identifies the generated PushService notification response callback below a UIKit assertion on a cooperative background queue. Build 49 still uses that callback.
+Last Updated: 2026-11-26
+
 # 2026-11-26: Coach v2 leave and Share fixes, candidate 1.2.7 (49)
 
 Current Phase: Coach Experience v2 TF-1a build 49 available in RunSmart Internal for the owner.
