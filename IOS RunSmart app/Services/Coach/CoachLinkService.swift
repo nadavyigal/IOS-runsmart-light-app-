@@ -549,6 +549,7 @@ enum LeaveCoachCopy {
     static let offline = "Connect to the internet"
 
     static func monogram(for name: String) -> String {
+        if CoachAthleteNames.isUnnamedLabel(name) { return "A" }
         let parts = name.split(whereSeparator: \.isWhitespace)
         let letters = parts.prefix(2).compactMap(\.first)
         let text = String(letters).uppercased()

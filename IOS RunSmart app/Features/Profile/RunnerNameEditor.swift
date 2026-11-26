@@ -91,3 +91,48 @@ struct RunnerNameSheet: View {
         }
     }
 }
+
+/// One-time card on Today for runners with no name. Never blocks the screen.
+struct RunnerNamePromptCard: View {
+    let onAdd: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "person.crop.circle.badge.plus")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(Color.accentPrimary)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("What should we call you?")
+                    .font(.bodyLG.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                Text("Add your name for your greeting here. If you have a coach, they see it too.")
+                    .font(.bodyMD)
+                    .foregroundStyle(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Add name", action: onAdd)
+                    .font(.bodyMD.weight(.semibold))
+                    .buttonStyle(.bordered)
+                    .tint(Color.accentPrimary)
+                    .accessibilityIdentifier("today.namePrompt.add")
+            }
+            Spacer(minLength: 0)
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color.mutedText)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Not now")
+            .accessibilityIdentifier("today.namePrompt.dismiss")
+        }
+        .padding(.leading, 16)
+        .padding(.vertical, 14)
+        .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("today.namePrompt")
+    }
+}

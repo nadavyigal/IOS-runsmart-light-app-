@@ -496,7 +496,7 @@ final class CoachAthleteListModel: ObservableObject {
             // Without runs every athlete would look behind, so the roster keeps its last rows.
             let newRows = runsLoaded ? CoachAthleteRow.make(
                 athletes: athletes, workouts: weeklyWorkouts, runs: weeklyRuns, latest: latest, now: now, week: week
-            ) : rows
+            ) : rows.map { row in athletes.first { $0.athleteID == row.id }.map(row.with(athlete:)) ?? row }
             let news = await fetchedNews
             let flagResult = await fetchedFlags
             // C7.16: milestones come from completed workouts. Flag-off and paused make no extra call.
@@ -776,7 +776,7 @@ private struct CoachAthleteListRow: View {
                         Text(lastRun).font(.bodyMD)
                         if needsLatestApp {
                             // UX spec A.5, mixed versions (C7.0 AC6). Later v2 actions use this as their disabled reason.
-                            Text("Effort, notes and flags aren't available. \(row.athlete.displayName) needs the latest RunSmart.")
+                            Text(CoachAthleteUpdateCopy.needsUpdate(row.athlete.displayName))
                                 .font(.bodyMD)
                                 .foregroundStyle(Color.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -801,7 +801,7 @@ private struct CoachAthleteListRow: View {
         guard needsLatestApp else {
             return Text("\(name). \(adherence). \(lastRun). \(row.status.rawValue).")
         }
-        return Text("\(name). \(adherence). \(lastRun). \(row.status.rawValue). Effort, notes and flags aren't available. \(name) needs the latest RunSmart.")
+        return Text("\(name). \(adherence). \(lastRun). \(row.status.rawValue). \(CoachAthleteUpdateCopy.needsUpdate(name))")
     }
 
     private var chipColor: Color {

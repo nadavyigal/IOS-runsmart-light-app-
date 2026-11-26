@@ -437,6 +437,11 @@ final class SupabaseSession: ObservableObject {
         isLoading = false
         lastAuthError = nil
         onboardingProfile = RunSmartDemoData.onboardingProfile
+        // QA: `-RUNSMART_DEMO_NO_NAME` starts the demo as a runner who never gave a name.
+        if ProcessInfo.processInfo.arguments.contains("-RUNSMART_DEMO_NO_NAME") {
+            displayName = ""
+            onboardingProfile.displayName = ""
+        }
         CoachingToneStore.save(CoachingTone.voiceTone(for: onboardingProfile.coachingTone))
         appleDisplayNameSeed = RunSmartDemoData.runner.name
         appleEmailSeed = RunSmartDemoMode.email

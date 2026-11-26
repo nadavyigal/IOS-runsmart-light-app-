@@ -1,3 +1,12 @@
+# 2026-11-26: Real names for athletes, coach and the Today greeting (supersedes PR #229)
+
+Current Phase: Coach Experience v2 TF-1a on build 49; names fix in a PR, next archive must be build 50.
+Active Story: Names fix: Today greets by name, one-time add-name card, coach roster tells unnamed athletes apart, coach edits own name.
+Next Recommended Story: Founder applies 20261126100000_coach_display_name.sql, then archive build 50 and check names on both phones.
+Blockers: Needs founder yes to merge; coach-name save fails until the new migration is applied in production.
+Last Validation: 2026-11-26 full simulator unit suite, drift check CLEAN 29, local Postgres coach_display_name test passed.
+Last Updated: 2026-11-26
+
 # 2026-11-26: Coach v2 leave and Share fixes, candidate 1.2.7 (49)
 
 Current Phase: Coach Experience v2 TF-1a build 49 available in RunSmart Internal for the owner.

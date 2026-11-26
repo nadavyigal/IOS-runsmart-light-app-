@@ -9,6 +9,10 @@ struct CoachTabView: View {
     @State private var showsWelcomeHint = false
     /// C7.14: T5, the coach's notification settings.
     @State private var showsNotifications = false
+    /// The coach's own name (`coach_profiles.display_name`), read with the welcome settings.
+    /// nil until loaded; "" when the coach has no real name yet.
+    @State private var coachName: String?
+    @State private var showsNameEditor = false
     /// C7.1: Today rows open the athlete from code, so the analytics event fires for a tap and for VoiceOver alike.
     @State private var path = NavigationPath()
     @Environment(\.scenePhase) private var scenePhase
@@ -82,6 +86,10 @@ struct CoachTabView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 14) {
                 header
+                if let coachName, CoachDisplayName.resolved(coachName) == nil {
+                    CoachDisplayNameCard(onAdd: { showsNameEditor = true })
+                }
+
                 if showsWelcomeHint {
                     ContentCard {
                         Button(action: openWelcomeEditor) {
@@ -166,6 +174,7 @@ struct CoachTabView: View {
         .task { await model.load() }
         .task {
             if let settings = try? await welcomeService.settings(athleteID: nil), !Task.isCancelled {
+                coachName = CoachDisplayName.resolved(settings.coachName) ?? ""
                 showsWelcomeHint = welcomeHint.shouldShow(ownerID: ownerID, savedText: settings.savedText)
             }
         }
@@ -174,6 +183,9 @@ struct CoachTabView: View {
         }
         .sheet(isPresented: $showsNotifications) {
             CoachNotificationSettingsView()
+        }
+        .sheet(isPresented: $showsNameEditor) {
+            CoachDisplayNameSheet(currentName: coachName) { saved in coachName = saved }
         }
         .task(id: model.showsInvite) {
             if model.showsInvite { await athletes.refresh(owner: ownerID) }
@@ -210,6 +222,7 @@ struct CoachTabView: View {
                 if model.showsGroupMenu {
                     Button("Group plan settings") { model.openGroupSettings() }
                 }
+                Button("Your name") { showsNameEditor = true }
                 Button("Welcome note", action: openWelcomeEditor)
                 // C7.14 (T5): v2 only. Flag-off keeps the 1.2.6 menu.
                 if athletes.coachV2 == .on {

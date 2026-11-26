@@ -101,6 +101,12 @@ struct CoachAthleteRow: Identifiable, Equatable {
     let lastRun: Date?
     var id: UUID { athlete.athleteID }
 
+    /// The same row with a fresh roster entry, so a renamed athlete shows the new name
+    /// even when the runs read failed and the roster keeps its last rows.
+    func with(athlete fresh: CoachAthleteSummary) -> Self {
+        Self(athlete: fresh, status: status, done: done, planned: planned, missed: missed, lastRun: lastRun)
+    }
+
     static func make(
         athletes: [CoachAthleteSummary], workouts: [CoachWorkoutSummary],
         runs: [CoachRunSummary], latest: [UUID: Date], now: Date, week: CoachAthleteWeek

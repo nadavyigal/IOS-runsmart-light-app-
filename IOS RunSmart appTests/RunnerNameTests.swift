@@ -32,7 +32,7 @@ final class RunnerNameTests: XCTestCase {
     }
 
     func testGreetingDropsCommaWithoutName() {
-        XCTAssertEqual(RunnerName.greeting("Good morning", name: "Dana"), "Good morning, Dana")
+        XCTAssertEqual(RunnerName.greeting("Good morning", name: "Dana"), "Good morning, \u{2068}Dana\u{2069}")
         XCTAssertEqual(RunnerName.greeting("Good morning", name: "RunSmart Runner"), "Good morning")
         XCTAssertEqual(RunnerName.greeting("Good morning", name: nil), "Good morning")
     }
@@ -40,5 +40,29 @@ final class RunnerNameTests: XCTestCase {
     func testLabelFallsBackToRunner() {
         XCTAssertEqual(RunnerName.label(""), "Runner")
         XCTAssertEqual(RunnerName.label("Dana"), "Dana")
+    }
+
+    func testGreetingIsolatesHebrewName() {
+        XCTAssertEqual(RunnerName.greeting("Good evening", name: " נדב "), "Good evening, \u{2068}נדב\u{2069}")
+    }
+
+    // MARK: One-time name card
+
+    func testPromptShowsOnceForUnnamedOnboardedRunner() {
+        XCTAssertTrue(RunnerNamePrompt.shouldShow(name: "", hasCompletedOnboarding: true, dismissed: false))
+        XCTAssertTrue(RunnerNamePrompt.shouldShow(name: "RunSmart Runner", hasCompletedOnboarding: true, dismissed: false))
+        XCTAssertFalse(RunnerNamePrompt.shouldShow(name: "", hasCompletedOnboarding: true, dismissed: true))
+        XCTAssertFalse(RunnerNamePrompt.shouldShow(name: "Dana", hasCompletedOnboarding: true, dismissed: false))
+        XCTAssertFalse(RunnerNamePrompt.shouldShow(name: "", hasCompletedOnboarding: false, dismissed: false))
+    }
+
+    func testPromptDismissalIsPerAccount() {
+        let defaults = UserDefaults(suiteName: "RunnerNameTests.\(UUID().uuidString)")!
+        let first = UUID()
+        let second = UUID()
+        XCTAssertFalse(RunnerNamePrompt.isDismissed(userID: first, defaults: defaults))
+        RunnerNamePrompt.dismiss(userID: first, defaults: defaults)
+        XCTAssertTrue(RunnerNamePrompt.isDismissed(userID: first, defaults: defaults))
+        XCTAssertFalse(RunnerNamePrompt.isDismissed(userID: second, defaults: defaults))
     }
 }
