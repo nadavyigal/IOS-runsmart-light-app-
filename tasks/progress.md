@@ -2,9 +2,9 @@
 
 Current Phase: Coach Experience v2, TF-1b push delivery verification. The in-app pilot checks passed on builds 48/49.
 Active Story: Batch B ops: coach_notify and coach_evening_summary deployed; four insert triggers and two crons read Vault.
-Next Recommended Story: Verify a fresh run push and coach note on the paired iPhones, then test the athlete reply and evening summary.
-Blockers: Fresh delivery evidence is pending. The earlier run and note failed during APNs signing and will not be retried.
-Last Validation: Shared secret is configured, both cron jobs and two production device tokens are active, and the pilot pair has sharing enabled. With founder approval, replaced the malformed production APNs private key on November 26. The production digest matches the local key that successfully signed with the RunSmart signer. No fresh push outcome yet.
+Next Recommended Story: Confirm the coach saw the run alert, then verify a new coach note, athlete reply, and evening summary.
+Blockers: On-device receipt for the fresh run and the remaining push types is pending.
+Last Validation: Shared secret is configured, both cron jobs and two production device tokens are active, and the pilot pair has sharing enabled. The corrected production APNs key matches the locally validated key. On November 26 at 14:56 Israel time, APNs accepted the fresh coach run notification and the server recorded it as sent.
 Last Updated: 2026-11-26
 
 # 2026-11-26: Coach v2 leave and Share fixes, candidate 1.2.7 (49)
