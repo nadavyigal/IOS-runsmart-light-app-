@@ -1,3 +1,12 @@
+# 2026-11-26: Build 51 available for the Coach v2 pilot
+
+Current Phase: RunSmart 1.2.7 (51) is Testing in the owner-only RunSmart Internal TestFlight group.
+Active Story: Verify the Today greeting, coach name in My coach, cold and warm run-notification taps, coach note push, and athlete reply push on the two pilot iPhones.
+Next Recommended Story: Install build 51 on both pilot phones and complete the physical checks.
+Blockers: TestFlight shows the Update action on the mirrored phone. The Mac can view the phone, but pointer input is not reaching the Mirroring window. Device results are pending.
+Last Validation: Archived from clean main at `c575947491e4369fb9700dd6e3d26ca5d9071c96`, including both merged fixes and the saved-route benchmark fix. Distribution signing, dSYMs, both build numbers, and the live packaged-backend gate passed. Transporter delivered at 17:47 Israel time with ITMS-90725. App Store Connect shows Testing. The live coach-name RPC permits authenticated execution and denies anonymous execution.
+Last Updated: 2026-11-26
+
 # 2026-11-26: Real names for athletes, coach and the Today greeting (supersedes PR #229)
 
 Current Phase: Coach Experience v2 TF-1b; names fix and push tap fix merged, next archive is build 51.
