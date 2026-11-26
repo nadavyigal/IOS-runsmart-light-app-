@@ -1,3 +1,12 @@
+# 2026-11-26: Build 51 push delivery verified on both phones
+
+Current Phase: Coach Experience v2 TF-1b; push delivery passed on build 51, kill-switch drill next.
+Active Story: TF-1 kill-switch drill (runtime_flags.coach_v2 off, check phones, back on).
+Next Recommended Story: After the drill, plan the next Coach v2 story with the founder.
+Blockers: None. One fresh-notification tap test (app open) not separately proven.
+Last Validation: 19:24-19:27 Israel time run, note and reply pushes sent under 1 s; no build 51 crash logs on either phone.
+Last Updated: 2026-11-26
+
 # 2026-11-26: Build 51 available for the Coach v2 pilot
 
 Current Phase: RunSmart 1.2.7 (51) is Testing in the owner-only RunSmart Internal TestFlight group.
@@ -5,6 +14,15 @@ Active Story: Verify the Today greeting, coach name in My coach, cold and warm r
 Next Recommended Story: Install build 51 on both pilot phones and complete the physical checks.
 Blockers: TestFlight shows the Update action on the mirrored phone. The Mac can view the phone, but pointer input is not reaching the Mirroring window. Device results are pending.
 Last Validation: Archived from clean main at `c575947491e4369fb9700dd6e3d26ca5d9071c96`, including both merged fixes and the saved-route benchmark fix. Distribution signing, dSYMs, both build numbers, and the live packaged-backend gate passed. Transporter delivered at 17:47 Israel time with ITMS-90725. App Store Connect shows Testing. The live coach-name RPC permits authenticated execution and denies anonymous execution.
+Last Updated: 2026-11-26
+
+# 2026-11-26: Coach v2 push set up in production (functions, triggers, crons)
+
+Current Phase: Coach Experience v2, TF-1b push delivery verification. The in-app pilot checks passed on builds 48/49.
+Active Story: Batch B ops: coach_notify and coach_evening_summary deployed; four insert triggers and two crons read Vault.
+Next Recommended Story: Confirm the coach saw the run alert, then verify a new coach note, athlete reply, and evening summary.
+Blockers: On-device receipt for the fresh run and the remaining push types is pending.
+Last Validation: Shared secret is configured, both cron jobs and two production device tokens are active, and the pilot pair has sharing enabled. The corrected production APNs key matches the locally validated key. On November 26 at 14:56 Israel time, APNs accepted the fresh coach run notification and the server recorded it as sent.
 Last Updated: 2026-11-26
 
 # 2026-11-26: Real names for athletes, coach and the Today greeting (supersedes PR #229)

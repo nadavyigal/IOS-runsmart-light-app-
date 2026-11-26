@@ -12,6 +12,16 @@ Batch B turns on remote push for v2 pairs:
 
 Kill switch for all of it: `runtime_flags.coach_v2_push` (section 7). Rollback: `docs/coach-v2-rollback.md`, Batch B.
 
+> **Live state, 2026-11-26.** Applied and set up in production on the founder's yes:
+> M2a, M2b, the C7.6 file, both functions deployed (`--no-verify-jwt`), the four insert
+> triggers from `20261126110000_coach_notify_triggers.sql` (these replace the Dashboard
+> webhooks in section 4), and the two crons from sections 5 and 5b. The crons and the
+> triggers read the endpoint and the secret from Vault: `coach_notify_url`,
+> `coach_evening_summary_url` and `coach_notify_secret`. They send nothing while
+> `coach_notify_secret` is missing. The only manual step left is the shared secret:
+> set `COACH_NOTIFY_SECRET` (section 1) and put the same value in Vault as
+> `coach_notify_secret` (section 5), in one go, so neither copy is ever shown.
+
 ## 0. Before you start
 
 1. Batch A is applied (ledger: applied 2026-11-23).
@@ -79,6 +89,8 @@ supabase functions deploy coach_evening_summary --no-verify-jwt --project-ref <r
 Its only caller is the hourly cron (section 5b). Same secret, same header, same 401.
 
 ## 4. Four Database Webhooks
+
+> Superseded on 2026-11-26 by the insert triggers in `20261126110000_coach_notify_triggers.sql`. Do not also create Dashboard webhooks: every insert would push twice.
 
 Dashboard → Database → Webhooks → Create a new hook. Make four, identical except the name and table:
 
