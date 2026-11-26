@@ -1,10 +1,10 @@
 # 2026-11-25: Coach v2 leave crash, candidate 1.2.7 (48)
 
 Current Phase: Coach Experience v2 TF-1a build 48 available in RunSmart Internal.
-Active Story: Observe committed coach links on the main queue without replaying a prior account’s link.
-Next Recommended Story: Sign in to build 48 on the coach iPhone 17, then verify both leave flows on the chosen test pair.
-Blockers: Physical leave retest awaits coach sign-in and an approved athlete link. The previous link is revoked.
-Last Validation: Build 48 processed and Testing in the owner-only TestFlight group. Both iPhones verified on 48. The coach phone launched to sign-in. Signed IPA and 1,516 simulator tests passed.
+Active Story: Keep the join consent actions reachable above the floating tab bar when the sharing disclosure exceeds the viewport.
+Next Recommended Story: Verify Share and Not now on a compact phone, then run both physical leave flows using the approved athlete and coach accounts.
+Blockers: The iPhone 13 tester reported Share was hidden below the tab bar on build 48. The prior athlete link is revoked and v2 sharing is off.
+Last Validation: Both phones are on build 48. Coach sign-in on iPhone 17 and the intended athlete account on iPhone 13 were verified. The signed build 48 candidate passed 1,516 simulator tests.
 Last Updated: 2026-11-26
 
 # 2026-11-24: coach_message prompt upgrade and Hebrew safety (draft PR, not deployed)
