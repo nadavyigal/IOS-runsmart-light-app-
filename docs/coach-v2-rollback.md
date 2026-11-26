@@ -221,6 +221,22 @@ First move: `coach_v2_push` to false. Senders keep their queue.
 7. **Server-only:** the three functions are revoked from `public`, `anon` and `authenticated` and granted to `service_role` only. `coach_evening_summary_counts` is security definer with `search_path = ''` and returns three integers, never a name.
 8. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-23: `workout_adherence_state.sql` passes on top of the coach read fixture, every Batch A file, M2a and M2b (this file applied twice first).
 
+### Names fix (outside the batches, 2026-11-26)
+
+| File | Story | Rollback file | Status |
+|---|---|---|---|
+| `20261126100000_coach_display_name.sql` | names fix | `supabase/rollback/20261126100000_coach_display_name.sql` | written; applied 2026-11-26 (prod 20261126140919) |
+
+#### `20261126100000_coach_display_name.sql`
+
+1. **Flag to flip first:** none. The file adds one RPC, `set_coach_display_name(text)`, that writes only the caller's own `coach_profiles.display_name`. It is not behind `coach_v2`.
+2. **Safe with the flag off:** yes; nothing reads the flag.
+3. **Rollback file:** `supabase/rollback/20261126100000_coach_display_name.sql`. It drops the function. Every name a coach saved stays in `coach_profiles.display_name`.
+4. **When not to roll back:** while a released build shows Coach > menu > Your name; that screen then fails to save.
+5. **After the rollback, the app:** Coach > Your name shows "Couldn't save your name". Athletes keep seeing the last saved coach name.
+6. **Account deletion:** no new data. `coach_profiles` rows go with `delete_account` as before.
+7. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-26: `coach_display_name.sql` passes on top of the coach read fixture, coach_role_and_invites, coach_athlete_links, leave_coach, coach_read_rpcs and 20261120100000_athlete_display_name_placeholder (this file applied twice first); the rollback dropped the function.
+
 ### Batch C (R3: coach builds workouts)
 
 | File | Story | Rollback file | Status |

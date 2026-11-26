@@ -544,7 +544,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         let totalTime = formatTotalTime(seconds: totalSeconds)
 
         return RunnerProfile(
-            name: profile.name ?? "Runner",
+            name: RunnerName.label(profile.name),
             goal: profile.goal.capitalized,
             streak: "\(streak?.currentStreak ?? 0) day streak",
             level: profile.experience.capitalized,

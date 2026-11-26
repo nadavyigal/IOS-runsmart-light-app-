@@ -406,23 +406,31 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
-        let userInfo = response.notification.request.content.userInfo
-        if let payload = RemotePushPayload(userInfo: userInfo) {
-            await MainActor.run {
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping @Sendable () -> Void
+    ) {
+        handleNotificationTap(
+            userInfo: response.notification.request.content.userInfo, completionHandler: completionHandler
+        )
+    }
+
+    nonisolated func handleNotificationTap(
+        userInfo: [AnyHashable: Any], completionHandler: @escaping @Sendable () -> Void
+    ) {
+        let payload = RemotePushPayload(userInfo: userInfo)
+        let destination = (userInfo["destination"] as? String)
+            .flatMap(RunSmartNotificationDestination.init(rawValue:)) ?? .today
+
+        Task { @MainActor in
+            // UIKit can update its snapshot synchronously when this callback completes.
+            defer { completionHandler() }
+            if let payload {
                 if let remoteTapHandler {
                     remoteTapHandler(payload)
                 } else {
                     pendingRemoteTap = payload
                 }
-            }
-            return
-        }
-        let destinationValue = userInfo["destination"] as? String
-        let destination = destinationValue.flatMap(RunSmartNotificationDestination.init(rawValue:)) ?? .today
-        await MainActor.run {
-            if let navigationHandler {
+            } else if let navigationHandler {
                 navigationHandler(destination)
             } else {
                 pendingDestination = destination
