@@ -11,7 +11,7 @@
 -- only when the M6a functions themselves are broken. To unlock rows on purpose,
 -- run supabase/rollback/release_all_coach_locks.sql instead (or first).
 --
--- Roll back M6b (20261201110000_coach_plan_locks.sql) before this file: M6b's
+-- Roll back M6b (20261127110000_coach_plan_locks.sql) before this file: M6b's
 -- athlete RPC and end_coach_link lock release use these columns and the trigger.
 --
 -- Data-preserving:
