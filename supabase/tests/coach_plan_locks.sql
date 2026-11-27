@@ -228,8 +228,8 @@ grant execute on function pg_temp.act_as(text), pg_temp.act_as_anon(),
 -- with owner SQL, since the coach RPCs refuse them. R's and V's rows the same way.
 set local role authenticated;
 select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
-select public.coach_update_workout('b0000001-0000-4000-8000-0000000000b1', 0, 'tempo', 8, 45, 300, 'Coach tempo');
-select public.coach_update_workout('b0000002-0000-4000-8000-0000000000b2', 0, 'intervals', 6, 40, 280, 'Coach intervals');
+select public.coach_update_workout('b0000001-0000-4000-8000-0000000000b1', 0, 'tempo', 8, 45, 300, 'Coach tempo', null);
+select public.coach_update_workout('b0000002-0000-4000-8000-0000000000b2', 0, 'intervals', 6, 40, 280, 'Coach intervals', null);
 reset role;
 
 select set_config('runsmart.coach_write', 'on', true);
@@ -683,7 +683,7 @@ end $$;
 -- coach_remove_athlete also releases (through end_coach_link). W: C2 locks a row.
 set local role authenticated;
 select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
-select public.coach_update_workout('80000001-0000-4000-8000-000000000081', 0, 'tempo', 7);
+select public.coach_update_workout('80000001-0000-4000-8000-000000000081', 0, 'tempo', 7, null, null, null, null);
 select pg_temp.expect_text(public.coach_remove_athlete('88888888-0000-4000-8000-000000000008'), 'removed',
   'C2 removes W');
 reset role;
@@ -698,7 +698,7 @@ end $$;
 -- role, then deletes the auth user). C2 still coaches Y: lock and publish first.
 set local role authenticated;
 select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
-select public.coach_update_workout('13000001-0000-4000-8000-000000000131', 0, 'tempo', 7);
+select public.coach_update_workout('13000001-0000-4000-8000-000000000131', 0, 'tempo', 7, null, null, null, null);
 reset role;
 select set_config('runsmart.coach_write', 'on', true);
 update public.plans set coach_published = true, coach_id = 'cccccccc-0000-4000-8000-00000000000c'
@@ -724,7 +724,7 @@ end $$;
 -- links, and workouts.coach_id / plans.coach_id set null in the same statement).
 set local role authenticated;
 select pg_temp.act_as('99999999-0000-4000-8000-000000000009');
-select public.coach_update_workout('12000001-0000-4000-8000-000000000121', 0, 'tempo', 7);
+select public.coach_update_workout('12000001-0000-4000-8000-000000000121', 0, 'tempo', 7, null, null, null, null);
 reset role;
 select set_config('runsmart.coach_write', 'on', true);
 update public.plans set coach_published = true, coach_id = '99999999-0000-4000-8000-000000000009'
@@ -795,7 +795,7 @@ insert into public.coach_athlete_links (coach_id, athlete_id, status, consented_
 values ('aaaaaaaa-0000-4000-8000-00000000000a', '88888888-0000-4000-8000-000000000008', 'active', now());
 set local role authenticated;
 select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
-select public.coach_update_workout('80000001-0000-4000-8000-000000000081', 1, 'long', 12);
+select public.coach_update_workout('80000001-0000-4000-8000-000000000081', 1, 'long', 12, null, null, null, null);
 reset role;
 select set_config('runsmart.coach_write', 'on', true);
 update public.plans set coach_published = true where id = '81000000-0000-4000-8000-000000000081';

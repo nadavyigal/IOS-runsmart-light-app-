@@ -76,7 +76,7 @@ insert into public.workouts (id, plan_id, auth_user_id, week, day, type, distanc
   ('$W1', '$PLAN', '$B', 2, to_char(current_date + 2, 'Dy'), 'easy', 5, false, current_date + 2),
   ('$W2', '$PLAN', '$B', 2, to_char(current_date + 3, 'Dy'), 'easy', 5, false, current_date + 3);
 SQL
-  P -c "$AS_A select public.coach_update_workout('$W1', 0, 'tempo', 8); select public.coach_update_workout('$W2', 0, 'tempo', 8);" >/dev/null
+  P -c "$AS_A select public.coach_update_workout('$W1', 0, 'tempo', 8, null, null, null, null); select public.coach_update_workout('$W2', 0, 'tempo', 8, null, null, null, null);" >/dev/null
 }
 
 T=$(mktemp -d)
