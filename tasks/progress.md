@@ -1,3 +1,39 @@
+# 2026-11-27: C8.1a second-model review fixes (coach_id indexes, update defaults, bash suites in CI)
+
+Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1a PR open, migration written and not applied.
+Active Story: C8.1a M6a: coach_id partial indexes, coach_update_workout planned fields required, race and release tests in CI.
+Next Recommended Story: C8.1b rebases; coach_update_workout callers must pass duration, pace, notes, structure explicitly.
+Blockers: None. Batch C applies M6a with M6b after a read-only audit, on Nadav's yes.
+Last Validation: coach_workout_locks, kill_switch PASS; race 5/5, coach_lock_release 3/3 PASS; rollback keeps coach_id indexes.
+Last Updated: 2026-11-27
+
+# 2026-11-27: C8.1a second Codex review fixes (auth lock 0, unlock-script order and owner)
+
+Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1a PR open, migration written and not applied.
+Active Story: C8.1a M6a: gate takes auth.users KEY SHARE first; unlock script locks plans first, resolves owner via plan.
+Next Recommended Story: C8.1b (M6b) rebases on this head; end_coach_link follows lock order auth, link, plan, workout, advisory.
+Blockers: None. Batch C applies M6a with M6b after a read-only audit, on Nadav's yes.
+Last Validation: coach_workout_locks, kill_switch PASS; race 5/5, coach_lock_release 3/3 PASS; old head deadlocks in race case 5.
+Last Updated: 2026-11-27
+
+# 2026-11-27: C8.1a Codex review fixes (link and plan locks, id, unlock filter)
+
+Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1a PR open, migration written and not applied.
+Active Story: C8.1a M6a Codex fixes: lock order link, plan, workout, advisory; locked id kept; single-athlete unlock filter.
+Next Recommended Story: C8.1b (M6b) rebases on this head; end_coach_link must follow the documented lock order.
+Blockers: None. Batch C applies M6a with M6b after a read-only audit, on Nadav's yes.
+Last Validation: 07598b9 comment fix (M6b filename); suites, race 4/4, unlock variants passed at 23e1c29; drift CLEAN.
+Last Updated: 2026-11-27
+
+# 2026-11-27: C8.1a coach workout locks written (M6a, commit 4b53a35)
+
+Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1a PR open, migration written and not applied.
+Active Story: C8.1a M6a 20261127100000_coach_workout_locks.sql; PR review and web mirror PR pending founder yes.
+Next Recommended Story: C8.1b (M6b plan trigger, athlete RPCs, lock release); M6b needs a timestamp at most 24h ahead.
+Blockers: None. Batch C applies M6a with M6b after a read-only audit, on Nadav's yes.
+Last Validation: 5fc096c coach-delete FK fix; coach_workout_locks and kill_switch PASS locally; rollback and unlock verified.
+Last Updated: 2026-11-27
+
 # 2026-11-26: TF-1b kill-switch drill passed
 
 Current Phase: Coach Experience v2 TF-1 complete on build 51: push delivery and kill-switch drill passed.
