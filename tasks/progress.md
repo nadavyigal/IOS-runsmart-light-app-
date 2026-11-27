@@ -1,3 +1,12 @@
+# 2026-11-27: C8.1a coach workout locks written (M6a, commit 4b53a35)
+
+Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1a PR open, migration written and not applied.
+Active Story: C8.1a M6a 20261127100000_coach_workout_locks.sql; PR review and web mirror PR pending founder yes.
+Next Recommended Story: C8.1b (M6b plan trigger, athlete RPCs, lock release); M6b needs a timestamp at most 24h ahead.
+Blockers: None. Batch C applies M6a with M6b after a read-only audit, on Nadav's yes.
+Last Validation: Local supabase/postgres 17.6.1.158: coach_workout_locks and kill_switch PASS; rollback and unlock verified; check_migrations clean.
+Last Updated: 2026-11-27
+
 # 2026-11-26: TF-1b kill-switch drill passed
 
 Current Phase: Coach Experience v2 TF-1 complete on build 51: push delivery and kill-switch drill passed.
