@@ -19,7 +19,8 @@
 --   * The triggers plans_protect_coach_plans and
 --     coach_links_release_locks_on_delete and their functions are dropped.
 --   * athlete_replace_training_plan, athlete_change_coach_workout,
---     coach_plan_locked_future_count and coach_release_athlete_locks are dropped.
+--     athlete_request_seen, coach_plan_locked_future_count and
+--     coach_release_athlete_locks are dropped.
 --   * end_coach_link is restored to its M5b body (20261121160000) and
 --     replace_group_training_plan to its Story 1.8 body (20261117163000), same
 --     signatures and grants.
@@ -42,6 +43,7 @@ drop function if exists public.coach_links_release_locks_on_delete();
 
 drop function if exists public.athlete_replace_training_plan(uuid, jsonb, jsonb, integer);
 drop function if exists public.athlete_change_coach_workout(uuid, text, date, uuid);
+drop function if exists public.athlete_request_seen(uuid, uuid);
 
 -- end_coach_link: the M5b body (20261121160000_coach_link_end.sql), verbatim.
 create or replace function public.end_coach_link(p_link_id uuid, p_ended_by text)
