@@ -1,3 +1,12 @@
+# 2026-11-27: C8.16 bundled athlete plan-update push (athlete_plan_update_digest)
+
+Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.16 PR open, function written, not deployed, no cron.
+Active Story: C8.16 athlete_plan_update_digest: one push per coach-change batch, 10 quiet minutes, compare-and-set claim on the queue.
+Next Recommended Story: C8.2 (needs C8.5); C8.7 publish RPC must delete the athlete_plan_update_queue row (AC2).
+Blockers: Needs Batch C (M6a) applied, then Nadav deploys the function and creates the 2-minute cron.
+Last Validation: deno test supabase/functions 186 passed 0 failed (35 new); deno lint, fmt, check clean.
+Last Updated: 2026-11-27
+
 # 2026-11-27: C8.1b coach plan locks written (M6b, stacked on C8.1a)
 
 Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1b PR open stacked on C8.1a, M6b written and not applied.
