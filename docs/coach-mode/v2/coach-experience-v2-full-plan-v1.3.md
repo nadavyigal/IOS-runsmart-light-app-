@@ -857,7 +857,7 @@ Every story inherits §1.1 (the cross-cutting ACs and the DoD). "UX AC: §X" mea
      - **Given** another user calls it **Then** an error.
   3. `athlete_change_coach_workout(p_id, p_action, p_new_date, p_request_id)` (D1):
      - **Given** the owner, a locked future not-completed row and `link_is_v2` **Then** only `scheduled_date`, `original_date` (on the first move), `athlete_change` and `athlete_changed_at` change. The row **stays locked**, and an `athlete_skip`/`athlete_move` event is logged. A repeated `p_request_id` is a no-op.
-     - **Given** a past or completed row, a date in the past, or a date that already has a coach workout **Then** an error (`workout_not_editable` / `date_taken`) [ASSUMPTION].
+     - **Given** a past or completed row, a date in the past, or a date that already has a workout from any source (AI or coach) **Then** an error (`workout_not_editable` / `date_taken`) (founder decision 2026-11-27).
   4. A new `create or replace` of `end_coach_link` also clears `locked`/`coach_published` on the athlete's future rows. The workouts stay and are unlocked (G17). C7.11's parity test is still green, and a new test shows a solo plan regenerates after leaving.
   5. A new `create or replace` of `replace_group_training_plan` (a new file; `20261117163000` is never edited) returns a clear error when it's blocked.
   6. **Given** a 1.2.6-style direct `plans.update(is_active=false)` on an unlocked plan **Then** it still works. On a plan with locked rows it fails, and that is only possible after a v2 coach write, which D4 limits to v2 pairs.
@@ -884,7 +884,7 @@ Every story inherits §1.1 (the cross-cutting ACs and the DoD). "UX AC: §X" mea
   4. **Given** the change **Then** the workout stays locked against the AI: flex-week and chat still answer "That's {Coach}'s workout".
   5. **Given** the athlete **Then** distance, steps and pace can't be edited.
   6. **Given** the coach **Then** an in-app "new" marker (C7.2) and the `m` count in the 20:00 push (C7.6), with no instant push.
-  7. **Given** a move to a date in the past, or to a date that already has a coach workout **Then** the picker doesn't offer it. **Given** the server returns `date_taken` **Then** "That day already has a workout from {Coach}." [ASSUMPTION copy]
+  7. **Given** a move to a date in the past, or to a date that already has a workout from any source (AI or coach) **Then** the picker doesn't offer it. **Given** the server returns `date_taken` **Then** "That day already has a workout." (founder decision 2026-11-27)
 - Tests: Swift for the confirm, tags and outbox. UX AC: spec §C.5, G2.
 
 **C7.9 Goal change on a plan with coach workouts (counted warning, D2)**: **Sonnet (high)** | Mig: none (uses M6b) | M | Deps: C8.1b, C8.5
@@ -1293,7 +1293,7 @@ These build on PRD v7.2 SM-1…SM-9. Baselines don't exist yet, so v2 sets **no 
 - C7.16: milestones are in-app only; M13 only if needed.
 - C7.5: the burst-collapse rule.
 - C8.1a: delete becomes a locked rest row; `workout_structure` server guard ≤16 KB; one workout per day.
-- C8.1b / C8.15: `date_taken` when a coach workout already exists that day.
+- C8.1b / C8.15: `date_taken` when any workout (AI or coach) already exists that day (founder decision 2026-11-27).
 - C8.2: occupied days offer Edit, not Add.
 - C8.5: the `workout_locked` copy.
 - C7.9: goal change needs a connection.

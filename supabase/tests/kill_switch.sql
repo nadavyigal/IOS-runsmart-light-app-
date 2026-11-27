@@ -44,6 +44,13 @@
 --     nothing (no workout row, no queue row); the workouts lock trigger still keeps
 --     a locked row's planned fields and still refuses its delete. Back on, the
 --     queued edit lands.
+--   * C8.1b (M6b): with the flag off, athlete_change_coach_workout raises
+--     v2_unavailable and changes nothing (the app's outbox keeps it), and the plans
+--     trigger still refuses a direct deactivation (coach_workouts_present). Back
+--     on, the queued skip lands. With the flag off, athlete_replace_training_plan
+--     still works (not gated, so an athlete with locked rows can always
+--     regenerate) and coach_remove_athlete still ends the link and releases the
+--     locks.
 --
 -- Every later v2 RPC adds its own case to this file (C7.12 DoD): with the flag
 -- off, write RPCs raise v2_unavailable and read RPCs return zero rows.
@@ -55,8 +62,8 @@
 -- Run (the runs fixture, Stories 1.2, 1.3, 1.5 and 2.2, the gate and every earlier
 -- v2 migration, then the newest v2 migration that adds a case here, twice; CI's
 -- matrix row lists the same files):
---   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/coach_workout_locks_fixture.sql
---   (coach_read_fixture.sql plus the plans / workouts columns M6a needs)
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/coach_plan_locks_fixture.sql
+--   (coach_read_fixture.sql plus the plans / workouts columns M6a and M6b need)
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261114210000_coach_role_and_invites.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261115091000_coach_athlete_links.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261115194500_leave_coach.sql
@@ -69,7 +76,8 @@
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121160000_coach_link_end.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121180000_coach_feedback_replies.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261122100000_push_tokens_and_prefs.sql
---   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261127100000_coach_workout_locks.sql   (twice)
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261127100000_coach_workout_locks.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261127110000_coach_plan_locks.sql   (twice)
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/kill_switch.sql
 -- (C7.7 also needs Story 1.8, 3.1, 3.2, 3.3 and 3.4 before the v2 files:
 -- 20261117130000_coach_plan_mode_group_settings, 20261118100000_coach_feedback,
@@ -670,6 +678,70 @@ begin
     raise exception 'FAIL: flag back on: the queued coach edit did not land';
   end if;
 end $$;
+
+-- C8.1b (M6b): athlete skip / move, plan replacement and lock release ------------------
+-- B's plan b81 has two locked future rows (b8000001, b8000002) from the C8.1a case.
+update public.runtime_flags set enabled = false, updated_at = now() where key = 'coach_v2';
+
+set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+select pg_temp.expect_error_msg(
+  $q$select public.athlete_change_coach_workout('b8000002-0000-4000-8000-0000000000b8', 'skip', null,
+     'b8e00001-0000-4000-8000-0000000000b8')$q$,
+  'P0001', 'v2_unavailable', 'athlete_change_coach_workout with the kill switch on');
+select pg_temp.expect_error_msg(
+  $q$update public.plans set is_active = false where id = 'b8100000-0000-4000-8000-0000000000b8'$q$,
+  'P0001', 'coach_workouts_present', 'direct plan deactivation with the kill switch on');
+reset role;
+do $$
+begin
+  if exists (select 1 from public.workouts
+             where id = 'b8000002-0000-4000-8000-0000000000b8' and athlete_change is not null)
+     or exists (select 1 from public.coach_athlete_events
+                where client_id = 'b8e00001-0000-4000-8000-0000000000b8')
+     or not exists (select 1 from public.plans where id = 'b8100000-0000-4000-8000-0000000000b8' and is_active) then
+    raise exception 'FAIL: an athlete change with the kill switch on changed something';
+  end if;
+end $$;
+
+update public.runtime_flags set enabled = true, updated_at = now() where key = 'coach_v2';
+
+-- The outbox retries after the switch is back on.
+set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+select pg_temp.expect_count(
+  $q$select 1 where public.athlete_change_coach_workout('b8000002-0000-4000-8000-0000000000b8', 'skip', null,
+     'b8e00001-0000-4000-8000-0000000000b8') = 'changed'$q$, 1, 'flag back on: the queued skip lands');
+reset role;
+
+update public.runtime_flags set enabled = false, updated_at = now() where key = 'coach_v2';
+
+-- Plan replacement is not gated: the athlete acknowledges both coach rows.
+set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+select public.athlete_replace_training_plan('bbbbbbbb-0000-4000-8000-00000000000b',
+  jsonb_build_object('title', 'New goal', 'start_date', current_date, 'end_date', current_date + 28, 'total_weeks', 4),
+  jsonb_build_array(jsonb_build_object('week', 1, 'day', to_char(current_date + 1, 'Dy'), 'type', 'easy',
+                                       'distance', 5, 'scheduled_date', current_date + 1)),
+  2);
+-- Ending the link with the switch on still releases the locks.
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
+select public.coach_remove_athlete('bbbbbbbb-0000-4000-8000-00000000000b');
+reset role;
+do $$
+begin
+  if exists (select 1 from public.plans where id = 'b8100000-0000-4000-8000-0000000000b8' and is_active)
+     or not exists (select 1 from public.plans
+                    where auth_user_id = 'bbbbbbbb-0000-4000-8000-00000000000b' and is_active and title = 'New goal') then
+    raise exception 'FAIL: athlete_replace_training_plan did not work with the kill switch on';
+  end if;
+  if exists (select 1 from public.workouts
+             where auth_user_id = 'bbbbbbbb-0000-4000-8000-00000000000b' and locked) then
+    raise exception 'FAIL: coach_remove_athlete with the kill switch on did not release the locks';
+  end if;
+end $$;
+
+update public.runtime_flags set enabled = true, updated_at = now() where key = 'coach_v2';
 
 do $$ begin raise notice 'kill_switch: PASS'; end $$;
 
