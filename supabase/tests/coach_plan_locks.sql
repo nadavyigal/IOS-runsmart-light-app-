@@ -725,6 +725,37 @@ begin
   end if;
 end $$;
 
+-- An athlete deleting their own account through delete_account's purge while they
+-- still have an active link, a published plan and live locked rows (the purge runs
+-- before the auth delete): the purge succeeds, then the auth delete cascades.
+-- W joins A first (W's link to C2 was removed above).
+insert into public.coach_athlete_links (coach_id, athlete_id, status, consented_at)
+values ('aaaaaaaa-0000-4000-8000-00000000000a', '88888888-0000-4000-8000-000000000008', 'active', now());
+set local role authenticated;
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
+select public.coach_update_workout('80000001-0000-4000-8000-000000000081', 1, 'long', 12);
+reset role;
+select set_config('runsmart.coach_write', 'on', true);
+update public.plans set coach_published = true where id = '81000000-0000-4000-8000-000000000081';
+select set_config('runsmart.coach_write', 'off', true);
+set local role service_role;
+select public.purge_coach_data_for_deleted_account('88888888-0000-4000-8000-000000000008');
+reset role;
+do $$
+begin
+  if exists (select 1 from public.coach_athlete_links where athlete_id = '88888888-0000-4000-8000-000000000008')
+     or exists (select 1 from public.workouts where id = '80000001-0000-4000-8000-000000000081' and locked) then
+    raise exception 'FAIL: the athlete purge left a link or a locked row';
+  end if;
+end $$;
+delete from auth.users where id = '88888888-0000-4000-8000-000000000008';
+do $$
+begin
+  if exists (select 1 from public.plans where auth_user_id = '88888888-0000-4000-8000-000000000008') then
+    raise exception 'FAIL: the athlete auth delete did not cascade after the purge';
+  end if;
+end $$;
+
 -- AC6: an unlocked plan, 1.2.6 style. X has no coach. ------------------------------------
 insert into public.plans (id, profile_id, auth_user_id, title, start_date, end_date, is_active) values
   ('71000000-0000-4000-8000-000000000071', '77777777-0000-4000-8000-000000000007', '77777777-0000-4000-8000-000000000007',
