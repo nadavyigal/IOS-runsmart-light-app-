@@ -645,6 +645,72 @@ begin
   end if;
 end $$;
 
+-- A retried create after the link is revoked raises instead of returning the
+-- stored revision (the gate runs before the retry lookup).
+update public.coach_athlete_links set status = 'revoked', revoked_at = now()
+where coach_id = 'aaaaaaaa-0000-4000-8000-00000000000a' and athlete_id = 'bbbbbbbb-0000-4000-8000-00000000000b';
+set local role authenticated;
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_create_workout('bbbbbbbb-0000-4000-8000-00000000000b', 'c0000001-0000-4000-8000-0000000000c1',
+    current_date + 6, 'intervals', 7)$q$, 'P0001', 'link_inactive', 'create retry after the link is revoked');
+reset role;
+
+-- Deleting the coach's account: workouts.coach_id is ON DELETE SET NULL, which
+-- Postgres runs as an UPDATE one trigger level down. The account delete must
+-- succeed; the coach's rows stay locked coach rows with coach_id null (the M6b
+-- lock release at link end handles unlocking).
+delete from auth.users where id = 'aaaaaaaa-0000-4000-8000-00000000000a';
+do $$
+begin
+  if exists (select 1 from auth.users where id = 'aaaaaaaa-0000-4000-8000-00000000000a') then
+    raise exception 'FAIL: the coach account was not deleted';
+  end if;
+  if exists (select 1 from public.workouts where coach_id = 'aaaaaaaa-0000-4000-8000-00000000000a') then
+    raise exception 'FAIL: a workout still points at the deleted coach';
+  end if;
+  if not exists (select 1 from public.workouts
+                 where id = 'b0000001-0000-4000-8000-0000000000b1'
+                   and coach_id is null and locked and source = 'coach' and coach_revision = 2
+                   and type = 'tempo' and notes = 'Coach tempo') then
+    raise exception 'FAIL: deleting the coach changed the locked row beyond coach_id';
+  end if;
+  if exists (select 1 from public.athlete_plan_update_queue
+             where athlete_id = 'bbbbbbbb-0000-4000-8000-00000000000b' and coach_id is not null) then
+    raise exception 'FAIL: the queue still points at the deleted coach';
+  end if;
+end $$;
+
+-- After that cascade, a direct athlete UPDATE still cannot clear or set lock columns.
+set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+update public.workouts set locked = false, source = 'ai', coach_id = 'cccccccc-0000-4000-8000-00000000000c', type = 'easy'
+where id = 'b0000001-0000-4000-8000-0000000000b1';
+reset role;
+do $$
+begin
+  if not exists (select 1 from public.workouts
+                 where id = 'b0000001-0000-4000-8000-0000000000b1'
+                   and locked and source = 'coach' and coach_id is null and type = 'tempo') then
+    raise exception 'FAIL: an athlete UPDATE changed lock columns after the coach was deleted';
+  end if;
+end $$;
+
+-- Deleting an athlete's account cascades through their locked rows (auth_user_id
+-- and plans.auth_user_id are ON DELETE CASCADE). S gets a locked row first.
+select set_config('runsmart.coach_write', 'on', true);
+update public.workouts set locked = true, source = 'coach', coach_revision = 1
+where id = '50000001-0000-4000-8000-000000000051';
+select set_config('runsmart.coach_write', 'off', true);
+delete from auth.users where id = '55555555-0000-4000-8000-000000000005';
+do $$
+begin
+  if exists (select 1 from public.workouts where auth_user_id = '55555555-0000-4000-8000-000000000005')
+     or exists (select 1 from public.plans where auth_user_id = '55555555-0000-4000-8000-000000000005') then
+    raise exception 'FAIL: deleting an athlete account did not cascade through a locked row';
+  end if;
+end $$;
+
 -- Deleting a whole plan still cascades through locked rows (account deletion and
 -- the 1.2.6 plan delete keep working; plan-level protection is M6b's).
 delete from public.plans where id = 'b1000000-0000-4000-8000-0000000000b1';

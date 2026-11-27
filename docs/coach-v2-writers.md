@@ -15,6 +15,7 @@
 | Everyone else: the app as `authenticated`, the web sync, owner SQL without the setting | lock columns reset to `source='ai'`, `locked=false`, `coach_id=null`, `coach_revision=0` | unchanged behavior; only the lock and athlete-change columns are kept | planned fields, date and lock columns kept; completion fields (`completed`, `completed_at`, `actual_*`) change; **no error** | raises `workout_locked` |
 | Service role (`delete_account`) | as everyone else | as everyone else | as everyone else | allowed |
 | FK cascade (a plan or an auth user is deleted) | n/a | n/a | n/a | allowed |
+| FK SET NULL (a coach's auth user is deleted) | n/a | `coach_id` set to null | `coach_id` set to null, all else kept | n/a |
 
 "Planned fields" are `plan_id, auth_user_id, local_id, type, distance, duration, pace, notes, workout_structure, intensity, training_phase, created_at` (plus `scheduled_date, day, week` outside the athlete-change path).
 
@@ -52,7 +53,8 @@ Note on 11 (pre-existing, outside C8.1a, unverified in production): the only uni
 | # | Writer | Table and write | Under the trigger | Follow-up |
 |---|---|---|---|---|
 | 12 | `supabase/functions/delete_account/index.ts` (L84-L85, L123, L134) | service role DELETE on `workouts` and `plans` | Allowed (service role), then FK cascades. Account deletion is never blocked (tested). | none |
-| 13 | FK cascades: `workouts.plan_id` and `workouts.auth_user_id` are `on delete cascade` | DELETE | Allowed (trigger depth 2). | M6b guards plan delete. |
+| 13 | FK cascades: `workouts.plan_id` and `workouts.auth_user_id` are `on delete cascade` | DELETE | Allowed (trigger depth 2). Deleting an athlete account removes their locked rows (tested). | M6b guards plan delete. |
+| 13b | FK action: `workouts.coach_id` is `on delete set null` (deleting a coach account) | UPDATE at trigger depth 2 | `coach_id` becomes null; the row stays a locked coach row with its planned fields (tested). Every other lock column is still kept. A client statement runs at depth 1 and can never take this path. No other FK on `workouts` is SET NULL. | M6b's lock release at link end unlocks these rows. |
 | 14 | `coach_create_workout`, `coach_update_workout`, `coach_move_workout`, `coach_delete_workout` (M6a) | `workouts` INSERT / UPDATE as the coach | The coach path. Each checks the link, `link_is_v2`, completed / past, revision and one workout per day, then writes `source='coach'`, `locked=true`, `coach_id` and `coach_revision + 1`, and upserts `athlete_plan_update_queue`. | C8.2 / C8.3 call them. |
 | 15 | Nadav's SQL editor (owner role) | anything | Protected like any writer unless the script sets `runsmart.coach_write`. `supabase/rollback/release_all_coach_locks.sql` does, on purpose. | none |
 | 16 | `purge_coach_data_for_deleted_account`, `end_coach_link` (M5b) | none on `workouts` today | n/a | M6b adds the lock release to `end_coach_link`. |
