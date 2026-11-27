@@ -27,12 +27,15 @@ A client cannot become a coach writer by setting `runsmart.coach_write` itself: 
 
 Every coach write RPC takes its locks in this order, and anything that ends a link or releases coach locks must take them in the same order, so writers can wait on each other but never deadlock:
 
+0. The athlete's and the coach's `auth.users` rows, `FOR KEY SHARE`, in `coach_workout_gate`. The workout insert and the `athlete_plan_update_queue` upsert check foreign keys to `auth.users`, which takes `KEY SHARE` on those rows. Taken late, that deadlocks with an account delete, which holds the `auth.users` row and cascades into links, plans and workouts. Taken first, the delete waits for the coach write, or the write waits for the delete and then finds no link. `KEY SHARE` blocks only deletes and key changes of those two rows, not other coach writes or ordinary updates. The function owner `postgres` has UPDATE on `auth.users` and `rolbypassrls` (production read, 2026-11-27), so the lock works in Supabase.
 1. The `coach_athlete_links` row, `FOR SHARE`, in `coach_workout_gate`. A revoke (UPDATE of `status`) waits for the coach write to commit. If the revoke committed first, the locking read finds no active row and the RPC raises `link_inactive`.
 2. The `plans` row, `FOR SHARE` (`coach_create_workout`, and `coach_workout_for_write` for update / move / delete). A plan deactivation waits. If it committed first, `is_active` is re-checked under the lock: create raises `no_active_plan`, the others `workout_not_found`.
 3. The `workouts` row, `FOR UPDATE` (`coach_workout_for_write`).
 4. Advisory locks: key 62 (one `p_id`, create retries) and key 61 (one plan-day, one workout per day).
 
-Update, move and delete first read the workout's athlete without a lock (`coach_workout_owner`), so they can take lock 1 before locks 2 and 3. They then check that the locked row still belongs to that athlete. `supabase/tests/coach_workout_locks_race.sh` shows each wait with two real connections (manual run, not in the CI matrix).
+Update, move and delete first read the workout's athlete without a lock (`coach_workout_owner`), so they can take locks 0 and 1 before locks 2 and 3. They then check that the locked row still belongs to that athlete. `supabase/tests/coach_workout_locks_race.sh` shows each wait with real connections, including an athlete account delete during a coach create (manual run, not in the CI matrix).
+
+`supabase/rollback/release_all_coach_locks.sql` follows the same order: it locks the affected plans `FOR UPDATE` first, then updates workouts, then plans. `supabase/tests/coach_lock_release.sh` tests that (manual run).
 
 ## Writers
 

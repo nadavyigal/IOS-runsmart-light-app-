@@ -1,3 +1,12 @@
+# 2026-11-27: C8.1a second Codex review fixes (auth lock 0, unlock-script order and owner)
+
+Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1a PR open, migration written and not applied.
+Active Story: C8.1a M6a: gate takes auth.users KEY SHARE first; unlock script locks plans first, resolves owner via plan.
+Next Recommended Story: C8.1b (M6b) rebases on this head; end_coach_link follows lock order auth, link, plan, workout, advisory.
+Blockers: None. Batch C applies M6a with M6b after a read-only audit, on Nadav's yes.
+Last Validation: coach_workout_locks, kill_switch PASS; race 5/5, coach_lock_release 3/3 PASS; old head deadlocks in race case 5.
+Last Updated: 2026-11-27
+
 # 2026-11-27: C8.1a Codex review fixes (link and plan locks, id, unlock filter)
 
 Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1a PR open, migration written and not applied.
