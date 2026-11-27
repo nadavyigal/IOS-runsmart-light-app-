@@ -3,6 +3,7 @@ import {
   generateFlexWeek,
   sanitizeFlexWeekRequest,
 } from "./flex_week.ts";
+import { loadLockedWorkouts, type LockClient } from "./locks.ts";
 import { corsHeaders, isOriginAllowed } from "../_shared/cors.ts";
 import { logModelUsage, selectCoachModel } from "./openai_model.ts";
 import {
@@ -263,12 +264,17 @@ Deno.serve(async (req) => {
   const clientTimestamp = stringValue(body.clientTimestamp).trim();
   const context = asRecord(body.context);
   const intent = stringValue(body.intent) || "chat";
-  const coach = await resolveCoachContext(body, async () => {
-    const { data, error } = await userClient.rpc("my_coach_link");
-    if (error) return null;
-    const name = Array.isArray(data) ? data[0]?.display_name : null;
-    return typeof name === "string" ? name : null;
-  });
+  const coach = await resolveCoachContext(
+    body,
+    async () => {
+      const { data, error } = await userClient.rpc("my_coach_link");
+      if (error) return null;
+      const name = Array.isArray(data) ? data[0]?.display_name : null;
+      return typeof name === "string" ? name : null;
+    },
+    // C8.5: only chat lists the locked rows; flex week looks up its own week below.
+    intent === "chat" ? () => loadLockedWorkouts(userClient as unknown as LockClient) : undefined,
+  );
 
   // Route run_debrief before the chat-specific validation
   if (intent === "run_debrief") {
@@ -321,7 +327,19 @@ Deno.serve(async (req) => {
     if (!request) {
       return jsonResponse(req,{ error: "Invalid flex_week payload" }, 400);
     }
-    const outcome = await generateFlexWeek(request, fetch, coach, resolveLanguage(body));
+    // C8.5: locks are database truth, so they apply even when the phone sent no
+    // coach context (Coach Mode off on that build).
+    const locked = await loadLockedWorkouts(
+      userClient as unknown as LockClient,
+      request.current_week.map((workout) => workout.workout_id),
+    );
+    const outcome = await generateFlexWeek(
+      request,
+      fetch,
+      coach,
+      resolveLanguage(body),
+      locked.map((row) => row.id),
+    );
     return jsonResponse(req,{
       restructuredWeek: outcome.restructured_week,
       changes: outcome.changes.map((change) => ({

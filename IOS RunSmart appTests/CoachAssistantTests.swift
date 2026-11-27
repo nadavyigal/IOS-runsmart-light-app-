@@ -57,11 +57,11 @@ final class CoachAssistantTests: XCTestCase {
 
         provider.locked = ["w1"]
         let withoutNote = CoachLockReplyBuilder.replyIfLocked(coachName: "Dana", workoutID: "w1", provider: provider)
-        XCTAssertEqual(withoutNote, CoachLockReply(message: "That's Dana's workout", noteLinkTitle: nil, note: nil))
+        XCTAssertEqual(withoutNote, CoachLockReply(message: "That's Dana's workout.", noteLinkTitle: nil, note: nil))
 
         provider.notes["w1"] = "  Keep it easy.  "
         let withNote = CoachLockReplyBuilder.replyIfLocked(coachName: "Dana", workoutID: "w1", provider: provider)
-        XCTAssertEqual(withNote?.message, "That's Dana's workout")
+        XCTAssertEqual(withNote?.message, "That's Dana's workout.")
         XCTAssertEqual(withNote?.noteLinkTitle, "Read Dana's note")
         XCTAssertEqual(withNote?.note, "Keep it easy.")
         XCTAssertEqual(provider.locked, ["w1"])

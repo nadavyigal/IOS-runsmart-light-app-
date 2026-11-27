@@ -1057,8 +1057,11 @@ private struct TodayWorkoutRecommendationCard: View {
                             Button(route == nil ? "Route" : route!.name, action: onRoute)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.72)
-                            Spacer()
-                            Button("Skip", action: onSkip)
+                            // C8.5 AC 5: skip/move on a coach-set row comes with C8.15.
+                            if !workout.coachLocked {
+                                Spacer()
+                                Button("Skip", action: onSkip)
+                            }
                         }
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.textSecondary)

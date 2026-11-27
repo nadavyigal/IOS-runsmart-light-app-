@@ -91,6 +91,8 @@ struct WorkoutSummary: Identifiable, Hashable {
     var workoutStructure: String?
     var adjustedAt: Date?
     var adjustedReason: String?
+    /// C8.5: a coach-set row (`workouts.locked`). The athlete can't amend, move, remove or swap it here.
+    var coachLocked: Bool = false
 }
 
 struct TrainingGoalRequest: Hashable {

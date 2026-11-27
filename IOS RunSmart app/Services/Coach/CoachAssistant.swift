@@ -1,11 +1,14 @@
 import Foundation
 import SwiftUI
 
-/// What the AI request needs to know about the human coach. Locked ids stay empty until Story 4.1.
+/// What the AI request needs to know about the human coach. Locked ids come from the
+/// active plan's `locked = true` rows (C8.5); the server re-reads them from the database.
 struct CoachContext: Equatable, Sendable {
     var coachDisplayName: String
     var linkActive: Bool
     var lockedWorkoutIDs: [String]
+    /// C8.5 AC 8 (G21): the athlete has an open pain flag. Sent only when true.
+    var openPainFlag = false
 
     static let solo = CoachContext(coachDisplayName: "", linkActive: false, lockedWorkoutIDs: [])
 
@@ -30,17 +33,33 @@ final class CoachContextSource: @unchecked Sendable {
     private var stored = CoachContext.solo
     private var ownerID: UUID?
 
+    private var lockedIDs: [String] = []
+    private var lockedOwnerID: UUID?
+
+    /// Solo stays `.solo` (no locked ids), so a solo request's bytes never change.
     func context(for userID: UUID?) -> CoachContext {
         lock.lock()
         defer { lock.unlock() }
         guard let userID, userID == ownerID else { return .solo }
-        return stored
+        var context = stored
+        if context.linkActive, lockedOwnerID == userID {
+            context.lockedWorkoutIDs = lockedIDs
+        }
+        return context
     }
 
     func replace(_ context: CoachContext, ownerID: UUID?) {
         lock.lock()
         self.ownerID = ownerID
         stored = context
+        lock.unlock()
+    }
+
+    /// Called whenever the active plan loads. Ids are lower-case, like the server's.
+    func replaceLockedWorkouts(_ ids: [UUID], ownerID: UUID) {
+        lock.lock()
+        lockedOwnerID = ownerID
+        lockedIDs = ids.map { $0.uuidString.lowercased() }.sorted()
         lock.unlock()
     }
 }
@@ -51,16 +70,18 @@ enum CoachRequestJSON {
         let data = try JSONEncoder().encode(value)
         guard coach.linkActive else { return data }
         guard var object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return data }
-        object["coachContext"] = [
+        var coachContext: [String: Any] = [
             "coachDisplayName": coach.coachDisplayName,
             "linkActive": true,
             "lockedWorkoutIds": coach.lockedWorkoutIDs,
         ]
+        if coach.openPainFlag { coachContext["openPainFlag"] = true }
+        object["coachContext"] = coachContext
         return try JSONSerialization.data(withJSONObject: object)
     }
 }
 
-/// Story 4.1 will answer these. Until then every workout is unlocked and has no note.
+/// Answers whether a workout is coach-locked and what the coach wrote on it.
 protocol CoachLockProvider {
     func isLocked(workoutID: String) -> Bool
     func note(for workoutID: String) -> String?
@@ -69,6 +90,22 @@ protocol CoachLockProvider {
 struct UnavailableCoachLockProvider: CoachLockProvider {
     func isLocked(workoutID: String) -> Bool { false }
     func note(for workoutID: String) -> String? { nil }
+}
+
+/// C8.5: the plan rows the app already loaded. A locked row's `detail` is the coach's note.
+struct WorkoutSummaryLockProvider: CoachLockProvider {
+    var workouts: [WorkoutSummary]
+
+    private func row(_ workoutID: String) -> WorkoutSummary? {
+        workouts.first { $0.id.uuidString.caseInsensitiveCompare(workoutID) == .orderedSame }
+    }
+
+    func isLocked(workoutID: String) -> Bool { row(workoutID)?.coachLocked == true }
+
+    func note(for workoutID: String) -> String? {
+        guard let row = row(workoutID), row.coachLocked else { return nil }
+        return row.detail
+    }
 }
 
 /// Fixed copy when the athlete asks the AI to change a coach-set workout. Copy only: no chat destination.
@@ -89,7 +126,7 @@ enum CoachLockReplyBuilder {
         let trimmed = provider.note(for: workoutID)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let note = (trimmed?.isEmpty == false) ? trimmed : nil
         return CoachLockReply(
-            message: "That's \(coachName)'s workout",
+            message: "That's \(coachName)'s workout.",
             noteLinkTitle: note == nil ? nil : "Read \(coachName)'s note",
             note: note
         )

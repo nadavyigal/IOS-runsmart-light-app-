@@ -174,6 +174,11 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func saveTrainingGoal(_ request: TrainingGoalRequest) async -> Bool {
         guard let userID = currentUserID else { return false }
+        // C8.5 AC 7: a coach-published plan keeps its goal. Nothing is saved and the P5 block shows.
+        if request.groupPlanAthleteID == nil, await activePlanIsCoachPublished(userID) {
+            CoachLockNotices.post(.planLocked)
+            return false
+        }
         let saved = await planRepo.saveTrainingGoal(authUserID: userID, request: request)
         guard saved else { return false }
 
@@ -199,6 +204,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
 
     func regenerateTrainingPlan(_ request: TrainingGoalRequest) async -> Bool {
         await generateTrainingPlan(request) == nil
+    }
+
+    /// Read fresh: the 30 s plan cache could predate the coach's publish.
+    private func activePlanIsCoachPublished(_ userID: UUID) async -> Bool {
+        planRepo.invalidateActivePlanCache(authUserID: userID)
+        return await planRepo.activePlan(authUserID: userID)?.plan.isCoachPublished == true
     }
 
     /// Builds and saves a plan. Returns nil on success, otherwise why it failed.
@@ -289,13 +300,13 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             }
 
             guard request.groupPlanAthleteID == nil || currentUserID == userID else { return .noSession }
-            let persisted = await planRepo.persistGeneratedPlan(
+            let persistFailure = await planRepo.persistGeneratedPlan(
                 authUserID: userID,
                 request: request,
                 generated: generated,
                 startDate: request.planStartDate ?? Date()
             )
-            if persisted {
+            if persistFailure == nil {
                 await refreshAppleWorkoutExports()
                 Analytics.trackPlanGenerated(
                     planType: request.goal,
@@ -305,7 +316,7 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
                     NotificationCenter.default.post(name: .runSmartPlanDidChange, object: nil)
                 }
             }
-            return persisted ? nil : .persistFailed
+            return persistFailure
         } catch {
             if !(error is CancellationError) {
                 print("[SupabaseServices] regenerateTrainingPlan error:", error)
@@ -505,7 +516,14 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
             message: message,
             context: context
         )
-        let body = try CoachRequestJSON.encode(request, coach: CoachContextSource.shared.context(for: athleteID))
+        var coach = CoachContextSource.shared.context(for: athleteID)
+        if coach.linkActive {
+            // C8.5 AC 8 (G21): only the open-flag bit goes to the AI, never the flag itself.
+            coach.openPainFlag = await MainActor.run {
+                CoachLockRules.hasOpenPainFlag(AthleteRunFlagService.shared.flags, ownerID: athleteID)
+            }
+        }
+        let body = try CoachRequestJSON.encode(request, coach: coach)
         let client = URLSessionRunSmartAPIClient(
             baseURL: SupabaseManager.functionsBaseURL,
             accessToken: accessToken,
@@ -1567,7 +1585,12 @@ final class SupabaseRunSmartServices: RunSmartServiceProviding {
         }
     }
 
+    /// C8.5 AC 2: every outcome (AI, cached or deterministic) leaves coach-locked rows alone.
     func flexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome {
+        CoachLockRules.respectingLocks(await unfilteredFlexCurrentWeek(request), originalWeek: request.currentWeek)
+    }
+
+    private func unfilteredFlexCurrentWeek(_ request: FlexWeekRequest) async -> FlexWeekOutcome {
         guard let authSession = try? await supabase.auth.session else {
             let coach = CoachContextSource.shared.context(for: currentUserID)
             if let cached = FlexWeekServiceSupport.cachedOutcome(for: request, userID: currentUserID) {

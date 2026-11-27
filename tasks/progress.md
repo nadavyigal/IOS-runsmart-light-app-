@@ -1,3 +1,12 @@
+# 2026-11-27: C8.5 AI and athlete side respect coach locks (lane A)
+
+Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.5 PR open, no migration, Batch C still not applied.
+Active Story: C8.5: locked ids in AI context, flex week lock filter (server and client), hidden actions, lock copy, P5 block, G21 line.
+Next Recommended Story: C7.9 counted goal-change warning on the persistGeneratedPlan acknowledgedReplacedCount seam; then C8.15.
+Blockers: AC 9 device check (1.2.6 against Batch C schema) not run; expected behavior documented as unverified.
+Last Validation: iOS unit suite 1551 passed, 0 failed, 8 skipped; coach_message Deno 53 passed; code-reviewer fix re-tested.
+Last Updated: 2026-11-27
+
 # 2026-11-27: C8.1b coach plan locks written (M6b, stacked on C8.1a)
 
 Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1b PR open stacked on C8.1a, M6b written and not applied.

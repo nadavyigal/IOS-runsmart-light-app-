@@ -2,7 +2,7 @@
 
 **Story:** C8.1a (M6a, `supabase/migrations/20261127100000_coach_workout_locks.sql`) and C8.1b (M6b, `supabase/migrations/20261127110000_coach_plan_locks.sql`). **Written:** 2026-11-27.
 **Checked at:** iOS `origin/main` `ae24e5e`, web `origin/main` `d0ca8c98` (read-only), production schema read-only on 2026-11-27.
-**Update this file** in every story that adds a writer or changes the trigger (C8.1b, C8.5, C8.6 and later).
+**Update this file** in every story that adds a writer or changes the trigger (C8.1b, C8.5, C8.6 and later). C8.5 updated rows 1 and 4 to 8 and added the two sections at the end (2026-11-27).
 
 ## How the trigger decides
 
@@ -67,14 +67,14 @@ M6b follows the same numbering:
 
 | # | Writer | Table and write | Under the trigger | Follow-up |
 |---|---|---|---|---|
-| 1 | `persistGeneratedPlan` (L489): deactivate old plans (L552, L561, L568, L575) | `plans` UPDATE `is_active=false` | Not touched by M6a. | **M6b:** blocked with `plan_locked_by_coach` / `coach_workouts_present` only when the active plan is published or has locked future rows (tested with this exact filter). A solo user or an unlocked plan works as before (AC6). C8.5 moves linked athletes to `athlete_replace_training_plan`. |
+| 1 | `persistGeneratedPlan` (L489): deactivate old plans (L552, L561, L568, L575) | `plans` UPDATE `is_active=false` | Not touched by M6a. | **M6b:** blocked with `plan_locked_by_coach` / `coach_workouts_present` only when the active plan is published or has locked future rows (tested with this exact filter). A solo user or an unlocked plan works as before (AC6). **C8.5:** a published plan is refused before any write (P5 block); a linked athlete, or any plan with locked future rows, goes through `athlete_replace_training_plan` (row 18). The direct path stays for solo users and as the fallback while that RPC is not deployed (PGRST202). |
 | 2 | `persistGeneratedPlan`: new plan (L583) and its workouts (L597) | `plans` INSERT, `workouts` INSERT | Workouts arrive as `source='ai'`, unlocked. | none |
 | 3 | `persistGeneratedPlan` via `replace_group_training_plan` RPC (L547) | security invoker: `plans` UPDATE + INSERT, `workouts` INSERT | Same as 1 and 2. | **M6b:** replaced (same signature, still security invoker). Raises `plan_locked_by_coach` / `coach_workouts_present` with a detail and a hint before it changes anything; otherwise unchanged (tested). |
-| 4 | `saveSuggestedWorkout` (L612, insert at L660) and `createRecommendationPlan` (L673) | `workouts` INSERT, `plans` INSERT | Inserted unlocked. It can add a second workout on a day that already has a locked coach row; the trigger does not prevent that. Accepted on purpose (second-model review, 2026-11-27): raising on that insert would fail whole batches from 1.2.6 clients and the web sync. | C8.5: the AI skips days that have a locked row. |
-| 5 | `amendWorkout` (L869) and `moveWorkout` (L885) | `workouts` UPDATE by id (`DBWorkoutUpdate`: date, day, type, distance, duration, pace, notes, workout_structure) | Unlocked: unchanged. Locked: nothing changes and the call still returns `true`. | C8.5: the app hides edit and move on locked rows and shows the `workout_locked` copy. |
-| 6 | `pushWorkoutTomorrow` (L889) | two `moveWorkout` calls (the conflict, then the workout) | Unlocked: unchanged. A locked row in either position silently keeps its date. | C8.5 |
-| 7 | `removeWorkout` (L924) | `workouts` DELETE by id | Unlocked: unchanged. Locked: raises `workout_locked`, the call returns `false`. | C8.5 shows the copy. |
-| 8 | `applyFlexWeek` (L940, updates at L975, rollback at L987) | `workouts` UPDATE (`DBWorkoutFlexUpdate`: date, day, type, distance, duration, pace, intensity) | Unlocked: unchanged. Locked rows keep their plan; the apply still marks the hash applied. | C8.5: the flex week leaves locked rows out. |
+| 4 | `saveSuggestedWorkout` (L612, insert at L660) and `createRecommendationPlan` (L673) | `workouts` INSERT, `plans` INSERT | Inserted unlocked. It can add a second workout on a day that already has a locked coach row; the trigger does not prevent that. Accepted on purpose (second-model review, 2026-11-27): raising on that insert would fail whole batches from 1.2.6 clients and the web sync. | Not changed by C8.5 (follow-up: skip a day with a locked row). The flex week and chat paths do respect locks. |
+| 5 | `amendWorkout` (L869) and `moveWorkout` (L885) | `workouts` UPDATE by id (`DBWorkoutUpdate`: date, day, type, distance, duration, pace, notes, workout_structure) | Unlocked: unchanged. Locked: nothing changes and the call still returns `true`. | **C8.5:** amend and move are hidden on locked rows, the amend/reschedule screens show the lock notice for a locked row, and the repository reads the row first and refuses a locked one with the `workout_locked` copy. |
+| 6 | `pushWorkoutTomorrow` (L889) | two `moveWorkout` calls (the conflict, then the workout) | Unlocked: unchanged. A locked row in either position silently keeps its date. | **C8.5:** a locked row is refused (`workout_locked` copy); a locked row on the target day is never pushed aside: "That day already has a workout." |
+| 7 | `removeWorkout` (L924) | `workouts` DELETE by id | Unlocked: unchanged. Locked: raises `workout_locked`, the call returns `false`. | **C8.5:** Remove is hidden on locked rows; a `workout_locked` error shows the copy, never the raw error. |
+| 8 | `applyFlexWeek` (L940, updates at L975, rollback at L987) | `workouts` UPDATE (`DBWorkoutFlexUpdate`: date, day, type, distance, duration, pace, intensity) | Unlocked: unchanged. Locked rows keep their plan; the apply still marks the hash applied. | **C8.5:** locked rows and moves onto a locked row's day are skipped, from the database's lock state. The outcome is filtered before it is shown, and `coach_message` drops those changes server side. |
 | 9 | `complete_run_workout` RPC (L782) | security invoker: `workouts` UPDATE of completion fields only | Completes a locked row (tested). | none |
 
 ### Web app (`Running-coach-`, read-only)
@@ -106,3 +106,36 @@ No other writer was found: no Edge Function in either repo writes `workouts` or 
 ## One workout per day
 
 Production has no unique index on `workouts (plan_id, scheduled_date)`. On 2026-11-27 none of the 356 rows shares a plan and day, so the rule holds in practice. M6a enforces it only on the coach path (`date_taken` from create and move, serialized with an advisory lock on plan + day). It does not add a unique index, because a 1.2.6 client or the web sync writing a duplicate would then fail mid-batch.
+
+## C8.5: how the app and the AI respect the locks (2026-11-27)
+
+Batch C is merged but not applied in production. Every path below reads a missing `locked` / `coach_published` column, or a missing RPC, as "no lock", so solo athletes and today's schema behave as before.
+
+| Path | What C8.5 does |
+|---|---|
+| `DBWorkout.locked`, `DBWorkout.source`, `DBPlan.coachPublished` | Decoded as optional; missing or null is unlocked / not published. `WorkoutSummary.coachLocked` carries the lock to the views. |
+| AI request context (`CoachContext.lockedWorkoutIDs`) | Filled from the active plan's `locked = true` rows, lower-case, linked athletes only. A solo request's bytes are unchanged (tested). `openPainFlag` is sent only when true. |
+| `coach_message`, chat | Reads the athlete's locked rows itself (workouts RLS, last 7 days onward, at most 60), never trusts the client's list. The prompt names them by date and type and answers a change request with "That's {Coach}'s workout." |
+| `coach_message`, flex week | Reads the locked rows of the request's week, whether or not the phone sent a coach context. `validateFlexWeekResponse` and the rule-based fallback copy locked rows back, drop their changes, and revert any move onto a locked row's day (a coach rest day included). A week whose only changes touched locked rows falls back. |
+| Client flex week | `CoachLockRules.respectingLocks` filters every outcome (AI, cached or deterministic) before it is shown; `applyFlexWeek` skips locked rows and moves onto their days from the database's lock state. |
+| Workout detail, amend, reschedule, Today | Remove, Reschedule, Amend and Adjust Plan are hidden on a locked row, which shows "Set by {Coach}" and "That's {Coach}'s workout." (with "Read {Coach}'s note" when the row has a note). The amend and reschedule screens show the lock notice instead of the editor. Today's "Skip" is hidden on a locked row (C8.15 brings skip and move). |
+| `workout_locked` from any write | "{Coach} set this workout, so it can't be changed here." [ASSUMPTION copy], as an alert. Never the raw error. |
+| `plan_locked_by_coach`, goal change, Build my plan | A published plan is checked before the goal is saved and before generation. The P5 block shows: "Ask {Coach} to change your plan" with "Reply to {Coach}'s latest note" only when that coach has written a note. |
+| Pain flag (G21) | The chat gets one bit, `openPainFlag`, from the phone's own flag store; the server never reads `athlete_run_flags`. Asked about the next workout while a flag is open, it answers "That's {Coach}'s workout. Your flag was sent to {Coach}. If the pain is sharp or doesn't go away, check with a doctor or physio." when that workout is locked. |
+
+**Left for C7.9:** `persistGeneratedPlan(acknowledgedReplacedCount:)` is the seam. Until C7.9 sets it, nil sends 0, so a plan with locked future rows is refused (`count_changed`, reported as `.coachWorkoutsPresent`, no copy yet) instead of replaced without a warning. C7.9 adds the counted warning, the `count_changed` re-fetch, the group wording and the offline line.
+
+## C8.5 AC 9: what a 1.2.6 (46) build shows against the Batch C schema
+
+**Unverified on device.** Written from the 1.2.6 code (`4a016b4`) and the M6a/M6b triggers, 2026-11-27. The manual check in the test plan (1.2.6 build against local Supabase with Batch C) has not been run.
+
+| Action on a locked row | What 1.2.6 does | What the athlete sees |
+|---|---|---|
+| Move (Reschedule: Tomorrow, In 2 days, Next week) | `moveWorkout` / `pushWorkoutTomorrow` update by id. The trigger keeps the date and raises nothing, so the call returns `true`. | The sheet closes as if it worked. After the refresh the workout is still on its old day. No message. |
+| Push an unlocked workout onto a day with a locked row | The cascade "moves" the locked row (kept silently), then moves the unlocked row. | Two workouts on that day. No message. |
+| Amend | Same as move: no error, nothing changes. | The sheet closes; the old values come back on refresh. |
+| Remove | The delete raises `workout_locked`; `removeWorkout` returns `false`. | The tile goes from "Removing" back to "Remove Workout". The sheet stays open. No message. |
+| Flex week | Updates on locked rows keep the coach's plan; the hash is marked applied. | The review says the week was adjusted; the coach rows did not change. |
+| Regenerate (goal wizard, Build my plan) on a published plan or one with locked future rows | The goal is saved first, then the plan deactivation raises `plan_locked_by_coach` / `coach_workouts_present` and the generation fails as `persist_failed`. | The wizard closes as saved. Today and Plan show "We couldn't build your plan" / "Nothing was lost" / "Try again"; Try again fails the same way. The saved goal no longer matches the plan. |
+
+Only a linked athlete whose v2 coach wrote workouts can reach any of this (D4 limits coach writes to v2 pairs), and no row is lost or overwritten: the triggers keep every coach field.

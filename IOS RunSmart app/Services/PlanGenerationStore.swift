@@ -36,6 +36,10 @@ enum PlanGenerationFailureReason: String, Equatable {
     case badResponse = "bad_response"
     case noPlan = "no_plan"
     case persistFailed = "persist_failed"
+    /// C8.5: the active plan is coach-published (`plan_locked_by_coach`). The P5 block shows.
+    case planLockedByCoach = "plan_locked_by_coach"
+    /// C8.5: the plan has coach workouts the athlete has not agreed to replace. C7.9 adds the warning.
+    case coachWorkoutsPresent = "coach_workouts_present"
     case cancelled
     case unknown
 

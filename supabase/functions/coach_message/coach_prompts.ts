@@ -21,7 +21,23 @@ export type CoachPromptContext = {
   coachDisplayName: string;
   linkActive: boolean;
   lockedWorkoutIds: string[];
+  /** C8.5: dates and types of the locked rows, so chat can match "Thursday's tempo". */
+  lockedWorkouts?: LockedWorkoutSummary[];
+  /** C8.5 AC 8 (G21): the phone has an open pain flag. The server never reads the flags table. */
+  openPainFlag?: boolean;
 };
+
+export type LockedWorkoutSummary = { id: string; scheduledDate: string; type: string };
+
+/** P4 copy. */
+export function coachLockReply(name: string): string {
+  return `That's ${name}'s workout.`;
+}
+
+/** G21 copy: asked about the next workout while a pain flag is open. */
+export function painFlagLockReply(name: string): string {
+  return `That's ${name}'s workout. Your flag was sent to ${name}. If the pain is sharp or doesn't go away, check with a doctor or physio.`;
+}
 
 export function readCoachContext(body: Record<string, unknown> | null | undefined): CoachPromptContext | null {
   if (!body) return null;
@@ -34,14 +50,18 @@ export function readCoachContext(body: Record<string, unknown> | null | undefine
   const locked = Array.isArray(record.lockedWorkoutIds)
     ? record.lockedWorkoutIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
     : [];
-  return { coachDisplayName: name, linkActive: true, lockedWorkoutIds: locked };
+  const context: CoachPromptContext = { coachDisplayName: name, linkActive: true, lockedWorkoutIds: locked };
+  if (record.openPainFlag === true) context.openPainFlag = true;
+  return context;
 }
 
 // Coach Mode sends this context only when enabled. Confirm the link independently
 // so a revoked or unlinked athlete stays on the solo prompt.
+// Locked ids come from the database (`lockedWorkouts`), never from the client.
 export async function resolveCoachContext(
   body: Record<string, unknown> | null | undefined,
   activeCoachName: () => Promise<string | null>,
+  lockedWorkouts: () => Promise<LockedWorkoutSummary[]> = () => Promise.resolve([]),
 ): Promise<CoachPromptContext | null> {
   const requested = readCoachContext(body);
   if (!requested) return null;
@@ -49,8 +69,15 @@ export async function resolveCoachContext(
   if (!coachDisplayName || coachDisplayName !== requested.coachDisplayName) {
     return null;
   }
-  // Coach-set workout locks are not available from the server until Story 4.1.
-  return { coachDisplayName, linkActive: true, lockedWorkoutIds: [] };
+  const rows = await lockedWorkouts();
+  const context: CoachPromptContext = {
+    coachDisplayName,
+    linkActive: true,
+    lockedWorkoutIds: rows.map((row) => row.id),
+  };
+  if (rows.length > 0) context.lockedWorkouts = rows;
+  if (requested.openPainFlag) context.openPainFlag = true;
+  return context;
 }
 
 /// Solo (`null`) returns `base` with no added or removed characters.
@@ -66,7 +93,25 @@ Linked coach rules (the human coach is ${name}; you are RunSmart, not the coach)
 - Never write as or on behalf of ${name}. "Your coach" means ${name}.
 - Injury or pain goes to a doctor or physio.
 - Plan disputes defer to ${name}'s plan. Do not tell the athlete to ask ${name} in chat.
-- Locked workout ids (do not change these): ${locked}.`;
+- Locked workout ids (do not change these): ${locked}.${lockRules(coach)}`;
+}
+
+// Extra lines only when there are locked rows or an open pain flag, so a linked
+// prompt with neither keeps its bytes.
+function lockRules(coach: CoachPromptContext): string {
+  const name = coach.coachDisplayName;
+  const lines: string[] = [];
+  const rows = coach.lockedWorkouts ?? [];
+  if (rows.length > 0) {
+    lines.push(`- Locked workouts set by ${name}: ${rows.map((row) => `${row.scheduledDate} ${row.type}`).join(", ")}.`);
+  }
+  if (coach.lockedWorkoutIds.length > 0) {
+    lines.push(`- If the runner asks to change, move, skip, swap or remove a locked workout, reply only: "${coachLockReply(name)}"`);
+  }
+  if (coach.openPainFlag) {
+    lines.push(`- The runner sent ${name} a pain flag that is still open. Never change the plan because of it. If they ask about their next workout and it is locked, reply only: "${painFlagLockReply(name)}" Otherwise say "Your flag was sent to ${name}. If the pain is sharp or doesn't go away, check with a doctor or physio."`);
+  }
+  return lines.length > 0 ? `\n${lines.join("\n")}` : "";
 }
 
 // Shared chat safety core. The same text lives in the web app
