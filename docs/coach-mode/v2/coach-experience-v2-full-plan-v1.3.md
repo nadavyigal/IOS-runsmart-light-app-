@@ -884,7 +884,7 @@ Every story inherits §1.1 (the cross-cutting ACs and the DoD). "UX AC: §X" mea
   4. **Given** the change **Then** the workout stays locked against the AI: flex-week and chat still answer "That's {Coach}'s workout".
   5. **Given** the athlete **Then** distance, steps and pace can't be edited.
   6. **Given** the coach **Then** an in-app "new" marker (C7.2) and the `m` count in the 20:00 push (C7.6), with no instant push.
-  7. **Given** a move to a date in the past, or to a date that already has a coach workout **Then** the picker doesn't offer it. **Given** the server returns `date_taken` **Then** "That day already has a workout from {Coach}." [ASSUMPTION copy]
+  7. **Given** a move to a date in the past, or to a date that already has a workout from any source (AI or coach) **Then** the picker doesn't offer it. **Given** the server returns `date_taken` **Then** "That day already has a workout." (founder decision 2026-11-27)
 - Tests: Swift for the confirm, tags and outbox. UX AC: spec §C.5, G2.
 
 **C7.9 Goal change on a plan with coach workouts (counted warning, D2)**: **Sonnet (high)** | Mig: none (uses M6b) | M | Deps: C8.1b, C8.5
