@@ -4,7 +4,7 @@ Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1b PR open sta
 Active Story: C8.1b M6b 20261127110000_coach_plan_locks.sql: plans trigger, athlete RPCs, lock release at link end and account deletion.
 Next Recommended Story: C8.5 (AI and athlete side respect coach locks) after Batch C review; retarget C8.1b PR to main once #262 merges.
 Blockers: None. Batch C (M6a then M6b) applies only after a read-only audit, on Nadav's yes.
-Last Validation: rebased on C8.1a 4b30e91; all M6b suites, race 5/5 and coach_lock_release PASS on top of M6b; rollback verified.
+Last Validation: second-model review fixes; all suites, race 7/7, coach_lock_release PASS on top of M6b; rollback verified.
 Last Updated: 2026-11-27
 
 # 2026-11-27: C8.1a second-model review fixes (coach_id indexes, update defaults, bash suites in CI)

@@ -21,7 +21,8 @@
 --   * athlete_replace_training_plan, athlete_change_coach_workout,
 --     athlete_request_seen, coach_plan_locked_future_count and
 --     coach_release_athlete_locks are dropped.
---   * end_coach_link is restored to its M5b body (20261121160000) and
+--   * end_coach_link, leave_coach and coach_remove_athlete are restored to their
+--     M5b bodies (20261121160000), and
 --     replace_group_training_plan to its Story 1.8 body (20261117163000), same
 --     signatures and grants.
 --   * The plans columns coach_published and coach_id stay, with their values.
@@ -147,6 +148,99 @@ $$;
 
 revoke all on function public.replace_group_training_plan(uuid, jsonb, jsonb) from public, anon;
 grant execute on function public.replace_group_training_plan(uuid, jsonb, jsonb) to authenticated;
+
+-- leave_coach and coach_remove_athlete: the M5b bodies (20261121160000), verbatim.
+create or replace function public.leave_coach(expected_link_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_link uuid;
+begin
+  if v_uid is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+
+  select l.id
+    into v_link
+  from public.coach_athlete_links l
+  where l.athlete_id = v_uid
+    and l.id = expected_link_id
+    and l.status = 'active'
+  for update;
+
+  -- Two steps on purpose: SQL does not promise to short-circuit "or", and
+  -- end_coach_link(null, ..) would raise a different error.
+  if not found then
+    raise exception 'not_linked' using errcode = 'P0001';
+  end if;
+  if not public.end_coach_link(v_link, 'athlete') then
+    raise exception 'not_linked' using errcode = 'P0001';
+  end if;
+end;
+$$;
+
+create or replace function public.coach_remove_athlete(p_athlete uuid)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_link uuid;
+begin
+  if v_uid is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+  if p_athlete is null then
+    raise exception 'missing athlete' using errcode = '22023';
+  end if;
+
+  if public.is_active_coach_of(p_athlete) then
+    select l.id
+      into v_link
+    from public.coach_athlete_links l
+    where l.coach_id = v_uid
+      and l.athlete_id = p_athlete
+      and l.status = 'active'
+    for update;
+
+    if found then
+      if public.end_coach_link(v_link, 'coach') then
+        return 'removed';
+      end if;
+    end if;
+  end if;
+
+  -- Idempotent repeat: this coach's newest link with the athlete has ended.
+  if exists (
+    select 1
+    from public.coach_athlete_links l
+    where l.coach_id = v_uid
+      and l.athlete_id = p_athlete
+      and l.status = 'revoked'
+      and l.created_at = (
+        select max(l2.created_at)
+        from public.coach_athlete_links l2
+        where l2.coach_id = v_uid
+          and l2.athlete_id = p_athlete
+      )
+  ) then
+    return 'already_ended';
+  end if;
+
+  raise exception 'not_linked' using errcode = 'P0001';
+end;
+$$;
+
+revoke all on function public.leave_coach(uuid) from public, anon;
+grant execute on function public.leave_coach(uuid) to authenticated;
+revoke all on function public.coach_remove_athlete(uuid) from public, anon;
+grant execute on function public.coach_remove_athlete(uuid) to authenticated;
 
 -- Dropped last: the M5b end_coach_link above no longer calls them.
 drop function if exists public.coach_release_athlete_locks(uuid);

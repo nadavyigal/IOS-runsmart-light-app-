@@ -29,7 +29,7 @@ A client cannot become a coach writer by setting `runsmart.coach_write` itself: 
 |---|---|---|---|---|
 | Coach path (`runsmart.coach_write = on`, non-client role): `end_coach_link` lock release, M7 publish later | as written | as written | allowed | allowed |
 | `athlete_replace_training_plan` (`runsmart.goal_change = on`, non-client role) | n/a (inserts as everyone else) | as everyone else | `plan_locked_by_coach` if published; allowed with locked future rows | n/a |
-| Everyone else: the app as `authenticated`, the web sync, owner SQL without a setting | `coach_published = false`, `coach_id = null` forced | `coach_published` and `coach_id` kept from OLD, no error | `plan_locked_by_coach` if published, else `coach_workouts_present` if it has locked future rows, else allowed | same as deactivation |
+| Everyone else: the app as `authenticated`, the web sync, owner SQL without a setting | `coach_published = false`, `coach_id = null` forced | `coach_published` and `coach_id` kept from OLD, no error | `plan_locked_by_coach` if published, else `coach_workouts_present` if it has locked future rows, else allowed | `plan_locked_by_coach` if published; `coach_workouts_present` only for an active plan with locked future rows (an inactive replaced plan can be deleted) |
 | Service role (`delete_account`) | as everyone else | as everyone else | as everyone else | allowed |
 | FK cascade (an auth user is deleted) | n/a | n/a | n/a | allowed |
 | FK SET NULL (a coach's auth user is deleted) | n/a | `coach_id` set to null, all else kept | n/a | n/a |
@@ -54,11 +54,12 @@ Update, move and delete first read the workout's athlete without a lock (`coach_
 
 M6b follows the same numbering:
 
-- `end_coach_link`: lock 1 is the link UPDATE that revokes it (`leave_coach` and `coach_remove_athlete` lock the link first). Then `coach_release_athlete_locks` takes lock 2 (the athlete's plans `FOR UPDATE`) and lock 3 (the workouts, by its UPDATE). No advisory lock. Known gap, pre-existing in M5b and not replaced here: those two callers do not take lock 0, and the left/removed event insert checks the coach's `auth.users` row after lock 1, so a coach account delete at the same moment can deadlock with them (Postgres aborts one; the client retries).
+- `leave_coach` and `coach_remove_athlete` (replaced in M6b with their full M5b bodies): lock 0 (both `auth.users` rows, `FOR KEY SHARE`), then lock 1 (the link `FOR UPDATE`), then `end_coach_link`.
+- `end_coach_link`: lock 1 is held (the link UPDATE that revokes it). Then `coach_release_athlete_locks` takes lock 2 (the athlete's plans `FOR UPDATE`) and lock 3 (the workouts, by its UPDATE). No advisory lock.
 - `coach_links_release_locks_on_delete`: runs inside the link delete (lock 1 held; a coach account delete already holds lock 0), then the same release (locks 2 and 3).
 - `athlete_change_coach_workout`: 0 the athlete's and the active coach's `auth.users` rows (`FOR KEY SHARE`), 1 the link `FOR SHARE`, 2 the plan `FOR SHARE`, 3 the workout `FOR UPDATE`, 4 advisory keys 63 (one request id) and 61 (one plan-day).
 - `athlete_replace_training_plan`: 0, 1 as above, then the Story 1.8 replace lock (advisory key 18, shared with `replace_group_training_plan`; both take it before any plan lock, so it cannot form a cycle), then 2 the active plans `FOR UPDATE` before counting. No existing workout is locked.
-- `supabase/tests/coach_plan_locks_race.sh` (manual) shows the athlete RPCs wait at lock 0 holding no plan or workout lock, and a coach account delete and a plan replacement finish in either order.
+- `supabase/tests/coach_plan_locks_race.sh` (manual) shows the athlete RPCs wait at lock 0 holding no plan or workout lock, and a coach account delete and a plan replacement finish in either order, a deactivation waiting on a coach create counts its row, and `leave_coach` / `coach_remove_athlete` wait at lock 0 holding no link lock.
 
 ## Writers
 

@@ -6,12 +6,15 @@
 --     published but has locked future workouts cannot be deactivated or deleted
 --     (coach_workouts_present), and a client that sets runsmart.goal_change
 --     itself is still blocked. A non-coach cannot set coach_published / coach_id
---     on UPDATE or INSERT. The plans columns exist with constant defaults.
+--     on UPDATE or INSERT, not even with a client-set runsmart.coach_write. An
+--     inactive plan with locked rows can be deleted; an inactive published one
+--     cannot. The plans columns exist with constant defaults.
 --   * AC2: athlete_replace_training_plan. Another user -> 42501. A wrong count ->
 --     count_changed (detail = the count) and nothing changes. The right count ->
 --     one transaction: old plan inactive, new plan active with unlocked AI
 --     workouts, goal_change logged for the coach. A published plan ->
---     plan_locked_by_coach. A bad count -> invalid_ack_count.
+--     plan_locked_by_coach. A bad count -> invalid_ack_count. Rows left on the
+--     replaced plan cannot be skipped or moved afterwards.
 --   * AC3: athlete_change_coach_workout. Skip and move change only the allowed
 --     columns, the row stays locked, athlete_skip / athlete_move is logged, a
 --     repeated p_request_id is a no-op. Errors: past or completed row and past
@@ -303,6 +306,57 @@ begin
   end if;
 end $$;
 
+-- A client that sets runsmart.coach_write itself cannot set the coach columns.
+set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+select set_config('runsmart.coach_write', 'on', true);
+update public.plans set coach_published = true, coach_id = 'aaaaaaaa-0000-4000-8000-00000000000a'
+where id = 'b1000000-0000-4000-8000-0000000000b1';
+select pg_temp.expect_error_msg(
+  $q$update public.plans set is_active = false where id = 'b1000000-0000-4000-8000-0000000000b1'$q$,
+  'P0001', 'coach_workouts_present', 'deactivation with a client-set coach_write');
+select set_config('runsmart.coach_write', 'off', true);
+reset role;
+do $$
+begin
+  if exists (select 1 from public.plans
+             where id = 'b1000000-0000-4000-8000-0000000000b1' and (coach_published or coach_id is not null)) then
+    raise exception 'FAIL: AC1 a client-set coach_write let an athlete set coach columns';
+  end if;
+end $$;
+
+-- An inactive plan with locked future rows can be deleted (cleanup of a replaced
+-- plan); an inactive published plan cannot.
+insert into public.plans (id, profile_id, auth_user_id, title, start_date, end_date, is_active) values
+  ('b3000000-0000-4000-8000-0000000000b3', 'bbbbbbbb-0000-4000-8000-00000000000b', 'bbbbbbbb-0000-4000-8000-00000000000b',
+   'B old', current_date - 30, current_date + 30, false),
+  ('b4000000-0000-4000-8000-0000000000b4', 'bbbbbbbb-0000-4000-8000-00000000000b', 'bbbbbbbb-0000-4000-8000-00000000000b',
+   'B old published', current_date - 30, current_date + 30, false);
+select set_config('runsmart.coach_write', 'on', true);
+insert into public.workouts (id, plan_id, auth_user_id, week, day, type, distance, scheduled_date,
+                             source, locked, coach_id, coach_revision) values
+  ('b3000001-0000-4000-8000-0000000000b3', 'b3000000-0000-4000-8000-0000000000b3', 'bbbbbbbb-0000-4000-8000-00000000000b',
+   5, to_char(current_date + 9, 'Dy'), 'tempo', 8, current_date + 9, 'coach', true, 'aaaaaaaa-0000-4000-8000-00000000000a', 1);
+update public.plans set coach_published = true where id = 'b4000000-0000-4000-8000-0000000000b4';
+select set_config('runsmart.coach_write', 'off', true);
+set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+delete from public.plans where id = 'b3000000-0000-4000-8000-0000000000b3';
+select pg_temp.expect_error_msg(
+  $q$delete from public.plans where id = 'b4000000-0000-4000-8000-0000000000b4'$q$,
+  'P0001', 'plan_locked_by_coach', 'athlete deletes an inactive published plan');
+reset role;
+do $$
+begin
+  if exists (select 1 from public.plans where id = 'b3000000-0000-4000-8000-0000000000b3')
+     or exists (select 1 from public.workouts where id = 'b3000001-0000-4000-8000-0000000000b3') then
+    raise exception 'FAIL: AC1 an inactive plan with locked rows could not be deleted';
+  end if;
+end $$;
+select set_config('runsmart.coach_write', 'on', true);
+delete from public.plans where id = 'b4000000-0000-4000-8000-0000000000b4';
+select set_config('runsmart.coach_write', 'off', true);
+
 -- AC1: coach-published -> plan_locked_by_coach.
 select set_config('runsmart.coach_write', 'on', true);
 update public.plans set coach_published = true, coach_id = 'aaaaaaaa-0000-4000-8000-00000000000a'
@@ -552,6 +606,14 @@ begin
     raise exception 'FAIL: AC2 the replaced plan''s locked rows changed';
   end if;
 end $$;
+
+-- Rows left on the replaced (inactive) plan cannot be skipped or moved.
+set local role authenticated;
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+select pg_temp.expect_error_msg(
+  $q$select public.athlete_change_coach_workout('b0000002-0000-4000-8000-0000000000b2', 'skip', null,
+     'e1000009-0000-4000-8000-0000000000e9')$q$, 'P0002', 'workout_not_found', 'skip a row on the replaced plan');
+reset role;
 
 -- AC4: lock release at link end -----------------------------------------------------------
 -- The coach adds a workout to the new plan and publishes it.

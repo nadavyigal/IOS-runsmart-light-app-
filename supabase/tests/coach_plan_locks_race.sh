@@ -17,6 +17,10 @@
 #      (the delete released the locked rows the athlete had counted).
 #   4. A retry of a skip that starts before the original commits, while the link
 #      ends in between, returns 'duplicate' (not link_inactive); one event.
+#   5. A plain plan deactivation that waits on a coach create sees the new
+#      locked row once the coach commits (coach_workouts_present).
+#   6, 7. leave_coach and coach_remove_athlete take the auth.users rows before
+#      the link, so a concurrent account delete cannot deadlock with them.
 #
 # Run after the same files as coach_plan_locks.sql, minus that suite:
 #   psql "$DB_URL" -f supabase/tests/coach_plan_locks_fixture.sql
@@ -143,5 +147,47 @@ grep -qx 'duplicate' "$T/4c" || fail "4: expected duplicate, got: $(cat "$T/4c")
 [ "$(P -c "select count(*) from public.coach_athlete_events where athlete_id = '$B' and client_id = 'e0000004-0000-4000-8000-0000000000e4'")" = "1" ] \
   || fail "4: expected exactly one event"
 echo "4. a retry racing the original and a link end returned duplicate; one event"
+
+# 5. The plans trigger counts with a fresh snapshot. A coach create holds the
+# plan FOR SHARE; a plain athlete deactivation waits on it; once the coach commits,
+# the deactivation must see the new locked row and raise coach_workouts_present.
+setup
+P -c "select set_config('runsmart.coach_write', 'on', false); update public.workouts set locked = false where auth_user_id = '$B';" >/dev/null
+(P -c "begin; $AS_A select public.coach_create_workout('$B', 'c0000005-0000-4000-8000-0000000000c5', current_date + 10, 'easy', 5); select pg_sleep(3); commit;" >"$T/5a" 2>&1) &
+sleep 1
+P -c "$AS_B $(WAIT_SQL "update public.plans set is_active = false where id = '$PLAN'")" >"$T/5b" 2>&1 || true
+wait
+grep -q 'coach_workouts_present' "$T/5b" || fail "5: expected coach_workouts_present after the coach create committed, got: $(cat "$T/5b")"
+[ "$(P -c "select count(*) from public.plans where id = '$PLAN' and is_active")" = "1" ] || fail "5: the plan was deactivated"
+echo "5. a deactivation waiting on a coach create saw the new locked row and raised coach_workouts_present"
+
+# 6. leave_coach takes the auth.users rows before the link: while a coach account
+# delete holds the coach's row, leave_coach waits holding no link lock.
+setup
+LINK=$(P -c "select id from public.coach_athlete_links where athlete_id = '$B' and status = 'active'")
+(P -c "begin; select 1 from auth.users where id = '$A' for update; select pg_sleep(3); rollback;" >"$T/6h" 2>&1) &
+sleep 1
+(P -c "$AS_B $(WAIT_SQL "perform public.leave_coach('$LINK')")" >"$T/6r" 2>&1) &
+sleep 1
+P -c "begin; select 1 from public.coach_athlete_links where id = '$LINK' for update nowait; rollback;" >"$T/6n" 2>&1 \
+  || fail "6: leave_coach locked the link before the coach's auth row: $(cat "$T/6n")"
+wait
+w=$(waited "$T/6r")
+[ -n "$w" ] || fail "6: leave_coach failed: $(cat "$T/6r")"
+[ "$(P -c "select count(*) from public.workouts where auth_user_id = '$B' and locked")" = "0" ] || fail "6: rows still locked after leaving"
+echo "6. leave_coach waited ${w}s at the auth row, holding no link lock; rows unlocked after"
+
+# 7. coach_remove_athlete, the same.
+setup
+(P -c "begin; select 1 from auth.users where id = '$B' for update; select pg_sleep(3); rollback;" >"$T/7h" 2>&1) &
+sleep 1
+(P -c "$AS_A $(WAIT_SQL "perform public.coach_remove_athlete('$B')")" >"$T/7r" 2>&1) &
+sleep 1
+P -c "begin; select 1 from public.coach_athlete_links where athlete_id = '$B' and status = 'active' for update nowait; rollback;" >"$T/7n" 2>&1 \
+  || fail "7: coach_remove_athlete locked the link before the auth rows: $(cat "$T/7n")"
+wait
+w=$(waited "$T/7r")
+[ -n "$w" ] || fail "7: coach_remove_athlete failed: $(cat "$T/7r")"
+echo "7. coach_remove_athlete waited ${w}s at the auth row, holding no link lock"
 
 echo "coach_plan_locks_race: PASS"
