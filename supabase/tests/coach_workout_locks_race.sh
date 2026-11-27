@@ -18,7 +18,8 @@
 # Cases 2, 4 and 5 check pg_stat_activity that the waiting connection is really
 # blocked on a lock before the competing transaction commits.
 #
-# Run after the same files as coach_workout_locks.sql, minus that suite:
+# CI: its own row in the pr-checks.yml db matrix. Locally, run after the same
+# files as coach_workout_locks.sql, minus that suite:
 #   psql "$DB_URL" -f supabase/tests/coach_workout_locks_fixture.sql
 #   psql "$DB_URL" -f <the prerequisite migrations listed in coach_workout_locks.sql>
 #   psql "$DB_URL" -f supabase/migrations/20261127100000_coach_workout_locks.sql
@@ -71,7 +72,7 @@ trap 'rm -rf "$T"' EXIT
 relink() { P -c "update public.coach_athlete_links set status = 'active', revoked_at = null where coach_id = '$A' and athlete_id = '$B'" >/dev/null; }
 
 # 1. Coach update holds the link; the revoke waits for it.
-(P -c "begin; $AS_A select public.coach_update_workout('$W1', 0, 'tempo', 8); select pg_sleep(3); commit;" >"$T/1a" 2>&1) &
+(P -c "begin; $AS_A select public.coach_update_workout('$W1', 0, 'tempo', 8, null, null, null, null); select pg_sleep(3); commit;" >"$T/1a" 2>&1) &
 sleep 1
 P -c "$(WAIT_SQL "update public.coach_athlete_links set status = 'revoked', revoked_at = now() where coach_id = '$A' and athlete_id = '$B'")" >"$T/1b" 2>&1
 wait

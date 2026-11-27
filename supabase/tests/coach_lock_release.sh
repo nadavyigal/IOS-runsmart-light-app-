@@ -13,7 +13,8 @@
 #      athlete's lock neither stops nor rolls back the run.
 #   3. The all-athletes release then unlocks the rest.
 #
-# Run after the same files as coach_workout_locks.sql, minus that suite:
+# CI: its own row in the pr-checks.yml db matrix. Locally, run after the same
+# files as coach_workout_locks.sql, minus that suite:
 #   psql "$DB_URL" -f supabase/tests/coach_workout_locks_fixture.sql
 #   psql "$DB_URL" -f <the prerequisite migrations listed in coach_workout_locks.sql>
 #   psql "$DB_URL" -f supabase/migrations/20261127100000_coach_workout_locks.sql

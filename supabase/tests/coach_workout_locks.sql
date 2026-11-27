@@ -229,21 +229,21 @@ select pg_temp.expect_error_msg(
   $q$select public.coach_create_workout('bbbbbbbb-0000-4000-8000-00000000000b', 'c0000003-0000-4000-8000-0000000000c3',
     current_date + 10, 'easy', 5)$q$, '42501', 'not_coach', 'create by an unlinked coach');
 select pg_temp.expect_error_msg(
-  $q$select public.coach_update_workout('b0000002-0000-4000-8000-0000000000b2', 0, 'easy', 5)$q$,
+  $q$select public.coach_update_workout('b0000002-0000-4000-8000-0000000000b2', 0, 'easy', 5, null, null, null, null)$q$,
   'P0002', 'workout_not_found', 'update by an unlinked coach');
 select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
 select pg_temp.expect_error_msg(
-  $q$select public.coach_update_workout('b0000002-0000-4000-8000-0000000000b2', 0, 'easy', 5)$q$,
+  $q$select public.coach_update_workout('b0000002-0000-4000-8000-0000000000b2', 0, 'easy', 5, null, null, null, null)$q$,
   'P0002', 'workout_not_found', 'the athlete calling a coach RPC on their own row');
 select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
 select pg_temp.expect_error_msg(
-  $q$select public.coach_update_workout('d0000001-0000-4000-8000-0000000000d1', 0, 'easy', 5)$q$,
+  $q$select public.coach_update_workout('d0000001-0000-4000-8000-0000000000d1', 0, 'easy', 5, null, null, null, null)$q$,
   'P0001', 'link_inactive', 'update after the athlete left');
 select pg_temp.expect_error_msg(
   $q$select public.coach_create_workout('dddddddd-0000-4000-8000-00000000000d', 'c0000004-0000-4000-8000-0000000000c4',
     current_date + 10, 'easy', 5)$q$, 'P0001', 'link_inactive', 'create after the athlete left');
 select pg_temp.expect_error_msg(
-  $q$select public.coach_update_workout('60000001-0000-4000-8000-000000000061', 0, 'easy', 5)$q$,
+  $q$select public.coach_update_workout('60000001-0000-4000-8000-000000000061', 0, 'easy', 5, null, null, null, null)$q$,
   'P0001', 'v2_unavailable', 'update when link_is_v2 is false');
 select pg_temp.expect_error_msg(
   $q$select public.coach_create_workout('66666666-0000-4000-8000-000000000006', 'c0000005-0000-4000-8000-0000000000c5',
@@ -291,17 +291,23 @@ select pg_temp.expect_int(
   public.coach_update_workout('b0000001-0000-4000-8000-0000000000b1', 0, 'tempo', 6, 35, 310, 'Coach tempo', null, 'moderate'),
   1, 'update of an AI row returns revision 1');
 select pg_temp.expect_error_msg(
-  $q$select public.coach_update_workout('b0000001-0000-4000-8000-0000000000b1', 0, 'easy', 5)$q$,
+  $q$select public.coach_update_workout('b0000001-0000-4000-8000-0000000000b1', 0, 'easy', 5, null, null, null, null)$q$,
   '40001', 'edit_conflict', 'update with a stale revision');
 select pg_temp.expect_error_msg(
-  $q$select public.coach_update_workout('b0000003-0000-4000-8000-0000000000b3', 0, 'easy', 5)$q$,
+  $q$select public.coach_update_workout('b0000003-0000-4000-8000-0000000000b3', 0, 'easy', 5, null, null, null, null)$q$,
   'P0001', 'workout_not_editable', 'update of a past workout');
 select pg_temp.expect_error_msg(
-  $q$select public.coach_update_workout('b0000004-0000-4000-8000-0000000000b4', 0, 'easy', 5)$q$,
+  $q$select public.coach_update_workout('b0000004-0000-4000-8000-0000000000b4', 0, 'easy', 5, null, null, null, null)$q$,
   'P0001', 'workout_not_editable', 'update of a completed workout');
 select pg_temp.expect_error_msg(
   $q$select public.coach_update_workout('b0000001-0000-4000-8000-0000000000b1', 1, 'easy', 5, null, null, null, '[]'::jsonb)$q$,
   '22023', 'invalid_structure', 'update with an array structure');
+-- p_workout_structure (and duration, pace, notes) have no default: a client that
+-- leaves them out gets an error instead of silently wiping the structure.
+select pg_temp.expect_error_msg(
+  $q$select public.coach_update_workout('b0000001-0000-4000-8000-0000000000b1', 1, 'easy', 5)$q$,
+  '42883', null,
+  'update without p_workout_structure');
 
 select pg_temp.expect_int(
   public.coach_move_workout('b0000001-0000-4000-8000-0000000000b1', current_date + 9, 1),
@@ -567,7 +573,7 @@ end $$;
 set local role authenticated;
 select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
 select pg_temp.expect_error_msg(
-  $q$select public.coach_update_workout('c0000001-0000-4000-8000-0000000000c1', 2, 'easy', 5)$q$,
+  $q$select public.coach_update_workout('c0000001-0000-4000-8000-0000000000c1', 2, 'easy', 5, null, null, null, null)$q$,
   'P0001', 'workout_not_editable', 'coach edits a workout the athlete completed');
 reset role;
 
@@ -668,7 +674,7 @@ select pg_temp.expect_error_msg(
   $q$select public.coach_create_workout('bbbbbbbb-0000-4000-8000-00000000000b', 'c0000009-0000-4000-8000-0000000000c9',
     current_date + 12, 'easy', 5)$q$, 'P0002', 'no_active_plan', 'create on a deactivated plan');
 select pg_temp.expect_error_msg(
-  $q$select public.coach_update_workout('c0000001-0000-4000-8000-0000000000c1', 0, 'easy', 5)$q$,
+  $q$select public.coach_update_workout('c0000001-0000-4000-8000-0000000000c1', 0, 'easy', 5, null, null, null, null)$q$,
   'P0002', 'workout_not_found', 'update on a deactivated plan');
 select pg_temp.expect_error_msg(
   $q$select public.coach_move_workout('c0000001-0000-4000-8000-0000000000c1', current_date + 12, 0)$q$,
@@ -705,7 +711,7 @@ select pg_temp.expect_error_msg(
   $q$select public.coach_create_workout('bbbbbbbb-0000-4000-8000-00000000000b', 'c0000008-0000-4000-8000-0000000000c8',
     current_date + 12, 'easy', 5)$q$, 'P0001', 'link_inactive', 'new create after the link is revoked');
 select pg_temp.expect_error_msg(
-  $q$select public.coach_update_workout('c0000001-0000-4000-8000-0000000000c1', 0, 'easy', 5)$q$,
+  $q$select public.coach_update_workout('c0000001-0000-4000-8000-0000000000c1', 0, 'easy', 5, null, null, null, null)$q$,
   'P0001', 'link_inactive', 'update after the link is revoked');
 select pg_temp.expect_error_msg(
   $q$select public.coach_move_workout('c0000001-0000-4000-8000-0000000000c1', current_date + 12, 0)$q$,

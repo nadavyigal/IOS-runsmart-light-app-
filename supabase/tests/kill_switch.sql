@@ -611,7 +611,7 @@ insert into public.workouts (id, plan_id, auth_user_id, week, day, type, distanc
    2, to_char(current_date + 3, 'Dy'), 'easy', 5, current_date + 3);
 set local role authenticated;
 select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
-select public.coach_update_workout('b8000002-0000-4000-8000-0000000000b8', 0, 'tempo', 8);
+select public.coach_update_workout('b8000002-0000-4000-8000-0000000000b8', 0, 'tempo', 8, null, null, null, null);
 reset role;
 delete from public.athlete_plan_update_queue;
 
@@ -623,7 +623,7 @@ select pg_temp.expect_error_msg(
   $q$select public.coach_create_workout('bbbbbbbb-0000-4000-8000-00000000000b', 'b8000003-0000-4000-8000-0000000000b8',
     current_date + 5, 'easy', 5)$q$, 'P0001', 'v2_unavailable', 'coach_create_workout with the kill switch on');
 select pg_temp.expect_error_msg(
-  $q$select public.coach_update_workout('b8000001-0000-4000-8000-0000000000b8', 0, 'long', 15)$q$,
+  $q$select public.coach_update_workout('b8000001-0000-4000-8000-0000000000b8', 0, 'long', 15, null, null, null, null)$q$,
   'P0001', 'v2_unavailable', 'coach_update_workout with the kill switch on');
 select pg_temp.expect_error_msg(
   $q$select public.coach_move_workout('b8000002-0000-4000-8000-0000000000b8', current_date + 6, 1)$q$,
@@ -659,7 +659,7 @@ update public.runtime_flags set enabled = true, updated_at = now() where key = '
 -- The outbox retries after the switch is back on.
 set local role authenticated;
 select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
-select public.coach_update_workout('b8000001-0000-4000-8000-0000000000b8', 0, 'long', 15);
+select public.coach_update_workout('b8000001-0000-4000-8000-0000000000b8', 0, 'long', 15, null, null, null, null);
 reset role;
 do $$
 begin

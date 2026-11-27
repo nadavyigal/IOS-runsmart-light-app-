@@ -1,3 +1,12 @@
+# 2026-11-27: C8.1a second-model review fixes (coach_id indexes, update defaults, bash suites in CI)
+
+Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1a PR open, migration written and not applied.
+Active Story: C8.1a M6a: coach_id partial indexes, coach_update_workout planned fields required, race and release tests in CI.
+Next Recommended Story: C8.1b rebases; coach_update_workout callers must pass duration, pace, notes, structure explicitly.
+Blockers: None. Batch C applies M6a with M6b after a read-only audit, on Nadav's yes.
+Last Validation: coach_workout_locks, kill_switch PASS; race 5/5, coach_lock_release 3/3 PASS; rollback keeps coach_id indexes.
+Last Updated: 2026-11-27
+
 # 2026-11-27: C8.1a second Codex review fixes (auth lock 0, unlock-script order and owner)
 
 Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1a PR open, migration written and not applied.
