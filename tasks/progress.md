@@ -1,3 +1,12 @@
+# 2026-11-27: C8.1a Codex review fixes (link and plan locks, id, unlock filter)
+
+Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1a PR open, migration written and not applied.
+Active Story: C8.1a M6a Codex fixes: lock order link, plan, workout, advisory; locked id kept; single-athlete unlock filter.
+Next Recommended Story: C8.1b (M6b) rebases on this head; end_coach_link must follow the documented lock order.
+Blockers: None. Batch C applies M6a with M6b after a read-only audit, on Nadav's yes.
+Last Validation: coach_workout_locks, kill_switch PASS; race test 4/4 PASS; both unlock variants and rollback verified locally.
+Last Updated: 2026-11-27
+
 # 2026-11-27: C8.1a coach workout locks written (M6a, commit 4b53a35)
 
 Current Phase: Coach Experience v2 R3 (coach builds workouts); C8.1a PR open, migration written and not applied.

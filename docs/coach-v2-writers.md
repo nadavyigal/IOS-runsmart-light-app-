@@ -17,11 +17,22 @@
 | FK cascade (a plan or an auth user is deleted) | n/a | n/a | n/a | allowed |
 | FK SET NULL (a coach's auth user is deleted) | n/a | `coach_id` set to null | `coach_id` set to null, all else kept | n/a |
 
-"Planned fields" are `plan_id, auth_user_id, local_id, type, distance, duration, pace, notes, workout_structure, intensity, training_phase, created_at` (plus `scheduled_date, day, week` outside the athlete-change path).
+"Planned fields" are `id, plan_id, auth_user_id, local_id, type, distance, duration, pace, notes, workout_structure, intensity, training_phase, created_at` (plus `scheduled_date, day, week` outside the athlete-change path).
 
 A client cannot become a coach writer by setting `runsmart.coach_write` itself: the trigger ignores both settings while `current_user` is `authenticated` or `anon`. The kill switch (`runtime_flags.coach_v2`) does not change the trigger. With the flag off, coach RPCs raise `v2_unavailable` and locked rows stay protected.
 
 `plans` has no trigger in M6a. Plan deactivation and plan delete are M6b's (`plans_protect_coach_plans`). Until M6b is applied, deleting a plan cascades to its workouts, locked ones included. Batch C applies M6a and M6b together.
+
+## Lock order (every coach write, and M6b's `end_coach_link`)
+
+Every coach write RPC takes its locks in this order, and anything that ends a link or releases coach locks must take them in the same order, so writers can wait on each other but never deadlock:
+
+1. The `coach_athlete_links` row, `FOR SHARE`, in `coach_workout_gate`. A revoke (UPDATE of `status`) waits for the coach write to commit. If the revoke committed first, the locking read finds no active row and the RPC raises `link_inactive`.
+2. The `plans` row, `FOR SHARE` (`coach_create_workout`, and `coach_workout_for_write` for update / move / delete). A plan deactivation waits. If it committed first, `is_active` is re-checked under the lock: create raises `no_active_plan`, the others `workout_not_found`.
+3. The `workouts` row, `FOR UPDATE` (`coach_workout_for_write`).
+4. Advisory locks: key 62 (one `p_id`, create retries) and key 61 (one plan-day, one workout per day).
+
+Update, move and delete first read the workout's athlete without a lock (`coach_workout_owner`), so they can take lock 1 before locks 2 and 3. They then check that the locked row still belongs to that athlete. `supabase/tests/coach_workout_locks_race.sh` shows each wait with two real connections (manual run, not in the CI matrix).
 
 ## Writers
 

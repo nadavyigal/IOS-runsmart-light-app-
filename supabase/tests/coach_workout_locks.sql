@@ -455,6 +455,17 @@ select pg_temp.expect_error_msg(
   $q$delete from public.workouts where id = 'c0000001-0000-4000-8000-0000000000c1'$q$,
   'P0001', 'workout_locked', 'athlete deletes a locked row');
 
+-- P1-b: a PATCH of id on a locked row keeps the id and does not raise.
+update public.workouts set id = 'e0000001-0000-4000-8000-0000000000e1'
+where id = 'c0000001-0000-4000-8000-0000000000c1';
+do $$
+begin
+  if not exists (select 1 from public.workouts where id = 'c0000001-0000-4000-8000-0000000000c1' and locked)
+     or exists (select 1 from public.workouts where id = 'e0000001-0000-4000-8000-0000000000e1') then
+    raise exception 'FAIL: an athlete PATCH changed the id of a locked row';
+  end if;
+end $$;
+
 -- A non-coach INSERT with lock columns gets an AI, unlocked row.
 insert into public.workouts (id, plan_id, auth_user_id, week, day, type, distance, scheduled_date,
                              source, locked, coach_id, coach_revision, coach_edited, athlete_change, original_date)
@@ -645,8 +656,44 @@ begin
   end if;
 end $$;
 
+-- P2-a: a deactivated plan. The plan row is locked FOR SHARE and is_active is
+-- re-checked under the lock, so no coach write lands on an inactive plan. An
+-- outbox retry of a create that already landed still returns its revision.
+update public.plans set is_active = false where id = 'b1000000-0000-4000-8000-0000000000b1';
+select set_config('test.c1_revision',
+  (select coach_revision::text from public.workouts where id = 'c0000001-0000-4000-8000-0000000000c1'), true);
+set local role authenticated;
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_create_workout('bbbbbbbb-0000-4000-8000-00000000000b', 'c0000009-0000-4000-8000-0000000000c9',
+    current_date + 12, 'easy', 5)$q$, 'P0002', 'no_active_plan', 'create on a deactivated plan');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_update_workout('c0000001-0000-4000-8000-0000000000c1', 0, 'easy', 5)$q$,
+  'P0002', 'workout_not_found', 'update on a deactivated plan');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_move_workout('c0000001-0000-4000-8000-0000000000c1', current_date + 12, 0)$q$,
+  'P0002', 'workout_not_found', 'move on a deactivated plan');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_delete_workout('c0000001-0000-4000-8000-0000000000c1', 0)$q$,
+  'P0002', 'workout_not_found', 'delete on a deactivated plan');
+do $$
+declare
+  v_got integer;
+  v_stored integer := current_setting('test.c1_revision')::integer;
+begin
+  v_got := public.coach_create_workout('bbbbbbbb-0000-4000-8000-00000000000b', 'c0000001-0000-4000-8000-0000000000c1',
+    current_date + 6, 'intervals', 7);
+  if v_got is distinct from v_stored then
+    raise exception 'FAIL: create retry on a deactivated plan returned % (stored %)', v_got, v_stored;
+  end if;
+end $$;
+reset role;
+update public.plans set is_active = true where id = 'b1000000-0000-4000-8000-0000000000b1';
+
 -- A retried create after the link is revoked raises instead of returning the
--- stored revision (the gate runs before the retry lookup).
+-- stored revision (the gate runs before the retry lookup). P1-a: every RPC
+-- raises link_inactive once the link is revoked (the gate's locking read finds
+-- no active row). The two-connection race is coach_workout_locks_race.sh.
 update public.coach_athlete_links set status = 'revoked', revoked_at = now()
 where coach_id = 'aaaaaaaa-0000-4000-8000-00000000000a' and athlete_id = 'bbbbbbbb-0000-4000-8000-00000000000b';
 set local role authenticated;
@@ -654,6 +701,18 @@ select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
 select pg_temp.expect_error_msg(
   $q$select public.coach_create_workout('bbbbbbbb-0000-4000-8000-00000000000b', 'c0000001-0000-4000-8000-0000000000c1',
     current_date + 6, 'intervals', 7)$q$, 'P0001', 'link_inactive', 'create retry after the link is revoked');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_create_workout('bbbbbbbb-0000-4000-8000-00000000000b', 'c0000008-0000-4000-8000-0000000000c8',
+    current_date + 12, 'easy', 5)$q$, 'P0001', 'link_inactive', 'new create after the link is revoked');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_update_workout('c0000001-0000-4000-8000-0000000000c1', 0, 'easy', 5)$q$,
+  'P0001', 'link_inactive', 'update after the link is revoked');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_move_workout('c0000001-0000-4000-8000-0000000000c1', current_date + 12, 0)$q$,
+  'P0001', 'link_inactive', 'move after the link is revoked');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_delete_workout('c0000001-0000-4000-8000-0000000000c1', 0)$q$,
+  'P0001', 'link_inactive', 'delete after the link is revoked');
 reset role;
 
 -- Deleting the coach's account: workouts.coach_id is ON DELETE SET NULL, which

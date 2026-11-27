@@ -24,17 +24,26 @@
 -- transaction only. The trigger accepts that setting only from a non-client role,
 -- so this works from the SQL editor and never from the app.
 --
--- To release one athlete only, replace "where w.locked" below with
---   where w.locked and w.auth_user_id = '<athlete user id>'
--- and do the same in the plans block.
+-- To release one athlete only, put their auth user id between the quotes on the
+-- RELEASE_ATHLETE line below, for example
+--   select set_config('runsmart.release_athlete', '0b1c...-uuid', true);
+-- Leave it empty ('') to release every athlete. The before count, the update,
+-- the plans block and the after check all use that same filter, so another
+-- athlete's locks never make a single-athlete release roll back.
 
 begin;
+
+-- RELEASE_ATHLETE: '' = every athlete, or one athlete's auth user id.
+select set_config('runsmart.release_athlete', '', true);
 
 do $$
 declare
   v_before bigint;
 begin
-  select count(*) into v_before from public.workouts where locked;
+  select count(*) into v_before from public.workouts w
+  where w.locked
+    and (nullif(current_setting('runsmart.release_athlete', true), '') is null
+         or w.auth_user_id = nullif(current_setting('runsmart.release_athlete', true), '')::uuid);
   raise notice 'release_all_coach_locks: % locked workouts before', v_before;
 end $$;
 
@@ -42,7 +51,9 @@ select set_config('runsmart.coach_write', 'on', true);
 
 update public.workouts w
 set locked = false
-where w.locked;
+where w.locked
+  and (nullif(current_setting('runsmart.release_athlete', true), '') is null
+       or w.auth_user_id = nullif(current_setting('runsmart.release_athlete', true), '')::uuid);
 
 -- M6b adds plans.coach_published. Skip this block when the column is absent.
 do $$
@@ -51,7 +62,13 @@ begin
     select 1 from information_schema.columns
     where table_schema = 'public' and table_name = 'plans' and column_name = 'coach_published'
   ) then
-    execute 'update public.plans set coach_published = false where coach_published';
+    execute $u$
+      update public.plans p set coach_published = false
+      where p.coach_published
+        and (nullif(current_setting('runsmart.release_athlete', true), '') is null
+             or coalesce(p.auth_user_id, p.profile_id)
+                = nullif(current_setting('runsmart.release_athlete', true), '')::uuid)
+    $u$;
   end if;
 end $$;
 
@@ -61,7 +78,10 @@ do $$
 declare
   v_after bigint;
 begin
-  select count(*) into v_after from public.workouts where locked;
+  select count(*) into v_after from public.workouts w
+  where w.locked
+    and (nullif(current_setting('runsmart.release_athlete', true), '') is null
+         or w.auth_user_id = nullif(current_setting('runsmart.release_athlete', true), '')::uuid);
   if v_after <> 0 then
     raise exception 'release_all_coach_locks: % rows still locked; nothing was committed', v_after;
   end if;

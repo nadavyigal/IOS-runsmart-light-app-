@@ -41,6 +41,7 @@ drop function if exists public.coach_move_workout(uuid, date, integer);
 drop function if exists public.coach_delete_workout(uuid, integer);
 
 drop function if exists public.coach_workout_for_write(uuid);
+drop function if exists public.coach_workout_owner(uuid);
 drop function if exists public.coach_queue_plan_update(uuid, uuid, uuid, text, date);
 drop function if exists public.coach_workout_fields_check(text, numeric, integer, integer, text, jsonb, text);
 drop function if exists public.coach_workout_structure_ok(jsonb);
