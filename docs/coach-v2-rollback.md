@@ -241,10 +241,21 @@ First move: `coach_v2_push` to false. Senders keep their queue.
 
 | File | Story | Rollback file | Status |
 |---|---|---|---|
-| `20261201100000_coach_workout_locks.sql` (M6a) | C8.1a | added by C8.1a | not written |
-| `20261201110000_coach_plan_locks.sql` (M6b) | C8.1b | added by C8.1b | not written |
+| `20261127100000_coach_workout_locks.sql` (M6a; reserved as `20261201100000`, renamed unapplied because `check_migrations.py` rejects timestamps more than 24h ahead) | C8.1a | `supabase/rollback/20261127100000_coach_workout_locks.sql` | written; not applied |
+| `20261201110000_coach_plan_locks.sql` (M6b; needs the same rename when written) | C8.1b | added by C8.1b | not written |
 
 Warning carried from v1.3 §3.7: once athletes have coach-published workouts, dropping the M6 triggers exposes them to the AI and to 1.2.6 writers. Flip `coach_v2` instead. Existing locks stay enforced by the triggers with the flag off. Unlocking is a separate Nadav-only script, `supabase/rollback/release_all_coach_locks.sql`, added by C8.1a.
+
+#### `20261127100000_coach_workout_locks.sql`
+
+1. **Flag to flip first:** `coach_v2` to false. Coach create / edit / move / delete then raise `v2_unavailable` and change nothing; the app keeps the edits queued. The trigger does not read the flag, so every locked row stays protected.
+2. **Safe with the flag off:** yes. Solo users and unlocked rows behave exactly as before either way (`supabase/tests/coach_workout_locks.sql`, AC6).
+3. **Rollback file:** `supabase/rollback/20261127100000_coach_workout_locks.sql`. It drops the trigger `workouts_protect_coach_rows`, the four coach write RPCs and the six internal helpers. It keeps every new `workouts` column with its values, the partial index, and `athlete_plan_update_queue` with its rows. Re-applying the migration afterwards changes none of them.
+4. **When not to roll back:** while M6b is applied (roll it back first), and while any athlete has a locked workout, unless you want those rows exposed: after the rollback the AI, 1.2.6 clients and the web sync can overwrite or delete them. Flip `coach_v2` instead.
+5. **To unlock on purpose:** `supabase/rollback/release_all_coach_locks.sql` (owner role, SQL editor). It sets `locked = false` on every locked workout and, once M6b exists, `plans.coach_published = false`. It keeps the planned fields, `source`, `coach_id` and `coach_revision`, deletes nothing, prints counts before and after, and commits only if no row is still locked. To unlock one athlete, add `and w.auth_user_id = '<athlete id>'` as its header says.
+6. **After the rollback, the app:** v2 coach screens that write workouts fail with "function not found" and keep the edits queued. Athletes keep seeing coach workouts. 1.2.6 apps see no change.
+7. **Account deletion:** unchanged. `delete_account` deletes `workouts` with the service role, which the trigger allows, and FK cascades pass. `athlete_plan_update_queue` rows go with the auth user (`on delete cascade`).
+8. **Verified:** on a throwaway local Postgres (supabase/postgres 17.6.1.158), 2026-11-27: the migration applied twice, then `coach_workout_locks.sql` and `kill_switch.sql` passed; with two locked rows, an owner UPDATE without the setting changed nothing, `release_all_coach_locks.sql` unlocked both (counts 2 then 0) and kept their plan; the rollback left 0 triggers, 0 M6a functions, all 9 columns, the queue table and both coach rows; the migration then re-applied cleanly.
 
 ### Batches D, E, F and M10
 

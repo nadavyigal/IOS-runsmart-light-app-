@@ -39,6 +39,11 @@
 --     v2_unavailable and stores nothing (the app's outbox keeps it), and the athlete
 --     still reads their own replies. Back on, the queued reply lands and the coach
 --     reads both.
+--   * C8.1a (M6a): with the flag off, coach_create_workout, coach_update_workout,
+--     coach_move_workout and coach_delete_workout raise v2_unavailable and change
+--     nothing (no workout row, no queue row); the workouts lock trigger still keeps
+--     a locked row's planned fields and still refuses its delete. Back on, the
+--     queued edit lands.
 --
 -- Every later v2 RPC adds its own case to this file (C7.12 DoD): with the flag
 -- off, write RPCs raise v2_unavailable and read RPCs return zero rows.
@@ -50,7 +55,8 @@
 -- Run (the runs fixture, Stories 1.2, 1.3, 1.5 and 2.2, the gate and every earlier
 -- v2 migration, then the newest v2 migration that adds a case here, twice; CI's
 -- matrix row lists the same files):
---   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/coach_read_fixture.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/coach_workout_locks_fixture.sql
+--   (coach_read_fixture.sql plus the plans / workouts columns M6a needs)
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261114210000_coach_role_and_invites.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261115091000_coach_athlete_links.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261115194500_leave_coach.sql
@@ -62,7 +68,8 @@
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121150000_athlete_run_flags.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121160000_coach_link_end.sql
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121180000_coach_feedback_replies.sql
---   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261121180000_coach_feedback_replies.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261122100000_push_tokens_and_prefs.sql
+--   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261127100000_coach_workout_locks.sql   (twice)
 --   psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/kill_switch.sql
 -- (C7.7 also needs Story 1.8, 3.1, 3.2, 3.3 and 3.4 before the v2 files:
 -- 20261117130000_coach_plan_mode_group_settings, 20261118100000_coach_feedback,
@@ -590,6 +597,79 @@ select public.athlete_reply_to_feedback('d7000000-0000-4000-8000-0000000000e7', 
 select pg_temp.act_as('cccccccc-0000-4000-8000-00000000000c');
 select pg_temp.expect_count('select 1 from public.coach_get_feedback_replies()', 2, 'flag back on: the queued reply lands');
 reset role;
+
+-- C8.1a (M6a): coach workout writes with the switch off -------------------------------
+-- A coaches B (TestFlight pair). B has an active plan with one AI workout and one
+-- coach-locked workout written while the flag is on.
+insert into public.plans (id, profile_id, auth_user_id, title, start_date, end_date, is_active) values
+  ('b8100000-0000-4000-8000-0000000000b8', 'bbbbbbbb-0000-4000-8000-00000000000b', 'bbbbbbbb-0000-4000-8000-00000000000b',
+   'B plan', current_date - 7, current_date + 60, true);
+insert into public.workouts (id, plan_id, auth_user_id, week, day, type, distance, scheduled_date) values
+  ('b8000001-0000-4000-8000-0000000000b8', 'b8100000-0000-4000-8000-0000000000b8', 'bbbbbbbb-0000-4000-8000-00000000000b',
+   2, to_char(current_date + 2, 'Dy'), 'easy', 5, current_date + 2),
+  ('b8000002-0000-4000-8000-0000000000b8', 'b8100000-0000-4000-8000-0000000000b8', 'bbbbbbbb-0000-4000-8000-00000000000b',
+   2, to_char(current_date + 3, 'Dy'), 'easy', 5, current_date + 3);
+set local role authenticated;
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
+select public.coach_update_workout('b8000002-0000-4000-8000-0000000000b8', 0, 'tempo', 8);
+reset role;
+delete from public.athlete_plan_update_queue;
+
+update public.runtime_flags set enabled = false, updated_at = now() where key = 'coach_v2';
+
+set local role authenticated;
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_create_workout('bbbbbbbb-0000-4000-8000-00000000000b', 'b8000003-0000-4000-8000-0000000000b8',
+    current_date + 5, 'easy', 5)$q$, 'P0001', 'v2_unavailable', 'coach_create_workout with the kill switch on');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_update_workout('b8000001-0000-4000-8000-0000000000b8', 0, 'long', 15)$q$,
+  'P0001', 'v2_unavailable', 'coach_update_workout with the kill switch on');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_move_workout('b8000002-0000-4000-8000-0000000000b8', current_date + 6, 1)$q$,
+  'P0001', 'v2_unavailable', 'coach_move_workout with the kill switch on');
+select pg_temp.expect_error_msg(
+  $q$select public.coach_delete_workout('b8000002-0000-4000-8000-0000000000b8', 1)$q$,
+  'P0001', 'v2_unavailable', 'coach_delete_workout with the kill switch on');
+-- The athlete still cannot change or delete the locked row.
+select pg_temp.act_as('bbbbbbbb-0000-4000-8000-00000000000b');
+update public.workouts set type = 'easy', distance = 1, locked = false
+where id = 'b8000002-0000-4000-8000-0000000000b8';
+select pg_temp.expect_error_msg(
+  $q$delete from public.workouts where id = 'b8000002-0000-4000-8000-0000000000b8'$q$,
+  'P0001', 'workout_locked', 'athlete deletes a locked workout with the kill switch on');
+reset role;
+do $$
+begin
+  if exists (select 1 from public.workouts where id = 'b8000003-0000-4000-8000-0000000000b8')
+     or exists (select 1 from public.athlete_plan_update_queue)
+     or not exists (select 1 from public.workouts
+                    where id = 'b8000001-0000-4000-8000-0000000000b8'
+                      and type = 'easy' and not locked and source = 'ai')
+     or not exists (select 1 from public.workouts
+                    where id = 'b8000002-0000-4000-8000-0000000000b8'
+                      and type = 'tempo' and distance = 8 and locked and coach_revision = 1
+                      and scheduled_date = current_date + 3) then
+    raise exception 'FAIL: a coach workout write with the kill switch on changed something, or the lock gave way';
+  end if;
+end $$;
+
+update public.runtime_flags set enabled = true, updated_at = now() where key = 'coach_v2';
+
+-- The outbox retries after the switch is back on.
+set local role authenticated;
+select pg_temp.act_as('aaaaaaaa-0000-4000-8000-00000000000a');
+select public.coach_update_workout('b8000001-0000-4000-8000-0000000000b8', 0, 'long', 15);
+reset role;
+do $$
+begin
+  if not exists (select 1 from public.workouts
+                 where id = 'b8000001-0000-4000-8000-0000000000b8' and type = 'long' and locked and coach_revision = 1)
+     or not exists (select 1 from public.athlete_plan_update_queue
+                    where athlete_id = 'bbbbbbbb-0000-4000-8000-00000000000b' and change_count = 1) then
+    raise exception 'FAIL: flag back on: the queued coach edit did not land';
+  end if;
+end $$;
 
 do $$ begin raise notice 'kill_switch: PASS'; end $$;
 

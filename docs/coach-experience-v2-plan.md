@@ -172,7 +172,7 @@ A dependent story starts from `main` after its parent is merged. No stacked bran
 | A | `20261121170000_coach_milestones.sql` (M13, only if needed) | C7.16 |
 | B | `20261122100000_push_tokens_and_prefs.sql` (M2a) | C7.10 |
 | B | `20261122110000_notification_log_and_deferred.sql` (M2b) | C7.5 |
-| C | `20261201100000_coach_workout_locks.sql` (M6a) | C8.1a |
+| C | `20261127100000_coach_workout_locks.sql` (M6a; reserved as `20261201100000`) | C8.1a |
 | C | `20261201110000_coach_plan_locks.sql` (M6b) | C8.1b |
 
 The order inside Batch A matches v1.3. A story that needs a file not listed adds a ledger row first, with a timestamp that sorts in the right place. Later batches (D, E, F, M10) get their rows when Nadav picks them after TF-2.
