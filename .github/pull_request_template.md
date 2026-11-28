@@ -9,3 +9,5 @@
 - [ ] Resolve material findings and record validation. Request only missing review coverage.
 
 Review and merge authority live in Agentic OS GLOBAL-WORKFLOWS.md §7b.
+
+<!-- attestation gate test marker -->
