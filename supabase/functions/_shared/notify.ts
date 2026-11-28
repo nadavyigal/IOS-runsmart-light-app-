@@ -1,6 +1,6 @@
 // Shared push pipeline for Coach Experience v2 (story C7.5). Every sender uses it:
-// coach_notify (C7.5), coach_evening_summary (C7.6), and later the plan digest
-// (C8.16) and the broadcast (C8.12). v1.3 §1.1 Push AC: every send goes through here, which
+// coach_notify (C7.5), coach_evening_summary (C7.6), athlete_plan_update_digest
+// (C8.16), and later the broadcast (C8.12). v1.3 §1.1 Push AC: every send goes through here, which
 // applies prefs, quiet hours, dedupe, collapse, the link re-check and the log.
 // The kill switch is checked once per request by the caller (_shared/flags.ts,
 // exitIfFlagsOff with coach_v2 and coach_v2_push) before anything here runs.
@@ -51,6 +51,8 @@ export type EventKind = "coachRunFinished" | "coachPainFlag" | "athleteCoachRepl
 export type DigestKind = "coachDigest" | "athleteNotesDigest" | "athleteCoachNote";
 /** C7.6: the 20:00 counts push. One per coach per local day, ref_id = that day. */
 export type SummaryKind = "coachEveningSummary";
+/** C8.16: the bundled push for a batch of coach plan changes (D3). */
+export type PlanUpdateKind = "athletePlanUpdated";
 
 export type PrefKey =
   | "coach_run_finished"
@@ -123,7 +125,7 @@ export interface DeferredRow {
 export interface LogInput {
   recipientId: string;
   athleteId: string | null;
-  kind: EventKind | DigestKind | SummaryKind;
+  kind: EventKind | DigestKind | SummaryKind | PlanUpdateKind;
   refId: string | null;
   itemCount: number;
 }
@@ -315,6 +317,15 @@ export const copy = {
     const prefix = day === "yesterday" ? "Yesterday" : "Today";
     const flags = openFlags === 1 ? "1 flag open" : `${openFlags} flags open`;
     return `${prefix}: ${missed} missed · ${flags} · ${planChanges} changed their plan`;
+  },
+  /**
+   * C8.16 AC1 (D3): "{Coach} updated your plan · {n} changes". "1 change" is the
+   * singular [ASSUMPTION, like "1 flag open" in eveningSummary].
+   */
+  planUpdated(coach: string, n: number): string {
+    const count = Math.max(1, Math.floor(n));
+    const changes = count === 1 ? "1 change" : `${count} changes`;
+    return `${fill("{Coach} updated your plan", { Coach: name(coach, "Your coach") })} · ${changes}`;
   },
 };
 
