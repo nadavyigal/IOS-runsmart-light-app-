@@ -208,6 +208,11 @@ final class TrainingPlanRepository {
 
         let resolved = await resolveActivePlan(authUserID: authUserID)
         activePlanCache[authUserID] = (resolved, Date().addingTimeInterval(Self.activePlanCacheTTL))
+        // C8.5 AC 1: AI requests carry the locked ids (linked athletes only; solo stays `.solo`).
+        CoachContextSource.shared.replaceLockedWorkouts(
+            resolved?.workouts.filter(\.locked).map(\.id) ?? [],
+            ownerID: authUserID
+        )
         return resolved
     }
 
@@ -486,12 +491,20 @@ final class TrainingPlanRepository {
     /// `startDate` defaults to now. A group-plan join passes the race date minus
     /// 16 weeks when the race is further out than the generator's cap, so the
     /// saved plan covers the final 16 weeks. Every other caller keeps today.
+    ///
+    /// C8.5: returns nil on success, else why it failed. A coach-published plan is never
+    /// replaced (`.planLockedByCoach`, P5 block). A linked athlete, or any plan with locked
+    /// future rows, goes through `athlete_replace_training_plan` with
+    /// `acknowledgedReplacedCount`, the number of coach workouts the athlete agreed to
+    /// replace. C7.9 adds the warning that sets it; until then nil sends 0, so a plan with
+    /// locked future rows is refused (`.coachWorkoutsPresent`) instead of replaced.
     func persistGeneratedPlan(
         authUserID: UUID,
         request: TrainingGoalRequest,
         generated: RunSmartDTO.GeneratedPlan,
-        startDate: Date = Date()
-    ) async -> Bool {
+        startDate: Date = Date(),
+        acknowledgedReplacedCount: Int? = nil
+    ) async -> PlanGenerationFailureReason? {
         let resolved = await identity(authUserID: authUserID)
         let profileID = resolved.planWriteProfileReference(fallback: authUserID)
         print("[TrainingPlanRepo] persistGeneratedPlan using profileID=\(profileID.debugValue)")
@@ -538,14 +551,41 @@ final class TrainingPlanRepository {
 
             if let athleteID = request.groupPlanAthleteID {
                 guard athleteID == authUserID, supabase.auth.currentUser?.id == athleteID,
-                      !generated.workouts.isEmpty else { return false }
+                      !generated.workouts.isEmpty else { return .persistFailed }
                 let params = GroupPlanReplacementParams(
                     athleteID: athleteID,
                     plan: planInsert,
                     workouts: workoutInserts(planID: nil)
                 )
                 try await supabase.rpc("replace_group_training_plan", params: params).execute()
-                return true
+                return nil
+            }
+
+            // C8.5 AC 7: read the current plan fresh, not from the 30 s cache.
+            invalidateActivePlanCache(authUserID: authUserID)
+            let current = await activePlan(authUserID: authUserID)
+            if current?.plan.isCoachPublished == true {
+                CoachLockNotices.post(.planLocked)
+                return .planLockedByCoach
+            }
+            let lockedFuture = CoachLockRules.lockedFutureCount(current?.workouts ?? [])
+            let linked = CoachContextSource.shared.context(for: authUserID).linkActive
+            if (linked || lockedFuture > 0), !generated.workouts.isEmpty,
+               supabase.auth.currentUser?.id == authUserID {
+                let params = AthleteReplacePlanParams(
+                    athleteID: authUserID,
+                    plan: planInsert,
+                    workouts: workoutInserts(planID: nil),
+                    acknowledgedReplacedCount: acknowledgedReplacedCount ?? 0
+                )
+                do {
+                    try await supabase.rpc("athlete_replace_training_plan", params: params).execute()
+                    print("[TrainingPlanRepo] ✅ replaced plan via athlete_replace_training_plan workouts=\(generated.workouts.count)")
+                    return nil
+                } catch where CoachLockError.isMissingFunction(error) && lockedFuture == 0 {
+                    // Batch C is not applied yet: the direct path below behaves as before.
+                    print("[TrainingPlanRepo] athlete_replace_training_plan unavailable, using direct replace")
+                }
             }
 
             try await supabase
@@ -588,7 +628,7 @@ final class TrainingPlanRepository {
 
             guard let plan = planRows.first else {
                 print("[TrainingPlanRepo] ❌ persistGeneratedPlan failed: no plan returned after insert")
-                return false
+                return .persistFailed
             }
 
             let workouts = workoutInserts(planID: plan.id.uuidString)
@@ -600,12 +640,15 @@ final class TrainingPlanRepository {
             }
 
             print("[TrainingPlanRepo] ✅ persisted generated plan=\(plan.id) workouts=\(workouts.count) profileID=\(profileID.debugValue)")
-            return true
+            return nil
         } catch {
-            if !(error is CancellationError) {
-                print("[TrainingPlanRepo] ❌ persistGeneratedPlan error:", error)
+            if error is CancellationError { return .cancelled }
+            print("[TrainingPlanRepo] ❌ persistGeneratedPlan error:", error)
+            switch CoachLockNotices.postIfLock(error) {
+            case .planLockedByCoach: return .planLockedByCoach
+            case .coachWorkoutsPresent, .countChanged: return .coachWorkoutsPresent
+            default: return .persistFailed
             }
-            return false
         }
     }
 
@@ -867,6 +910,12 @@ final class TrainingPlanRepository {
     }
 
     func amendWorkout(workoutID: UUID, patch: WorkoutPatch) async -> Bool {
+        // C8.5: M6a keeps a locked row's planned fields without an error, so check
+        // first and tell the athlete instead of reporting a save that did nothing.
+        if let row = await workout(id: workoutID), row.locked {
+            CoachLockNotices.post(.workoutLocked)
+            return false
+        }
         do {
             try await supabase
                 .from("workouts")
@@ -877,6 +926,7 @@ final class TrainingPlanRepository {
         } catch {
             if !(error is CancellationError) {
                 print("[TrainingPlanRepo] amendWorkout error:", error)
+                CoachLockNotices.postIfLock(error)
             }
             return false
         }
@@ -889,6 +939,10 @@ final class TrainingPlanRepository {
     func pushWorkoutTomorrow(workoutID: UUID) async -> Bool {
         guard let workout = await workout(id: workoutID) else {
             print("[TrainingPlanRepo] pushWorkoutTomorrow failed: workout not found \(workoutID)")
+            return false
+        }
+        if workout.locked {
+            CoachLockNotices.post(.workoutLocked)
             return false
         }
 
@@ -906,8 +960,27 @@ final class TrainingPlanRepository {
                 .execute()
                 .value
 
+            // C8.5: a coach workout tomorrow can't be pushed aside (founder decision
+            // 2026-11-27: a move onto a day that already has a workout is blocked).
+            // The cascade below also checks the day after. Batch C not applied: `locked` decodes false.
+            if conflicts.contains(where: { $0.id != workoutID && $0.locked }) {
+                CoachLockNotices.post(.dateTaken)
+                return false
+            }
             if let conflict = conflicts.first(where: { $0.id != workoutID }) {
                 let nextDay = calendar.date(byAdding: .day, value: 1, to: tomorrow) ?? tomorrow
+                // C8.5: the cascade must not land on a coach-set day either.
+                let nextDayRows: [DBWorkout] = try await supabase
+                    .from("workouts")
+                    .select()
+                    .eq("plan_id", value: workout.planId.uuidString)
+                    .eq("scheduled_date", value: ISO8601DateFormatter.shortDate.string(from: nextDay))
+                    .execute()
+                    .value
+                if nextDayRows.contains(where: { $0.locked }) {
+                    CoachLockNotices.post(.dateTaken)
+                    return false
+                }
                 _ = await moveWorkout(workoutID: conflict.id, to: nextDay)
                 print("[TrainingPlanRepo] pushWorkoutTomorrow cascaded conflict=\(conflict.id)")
             }
@@ -932,6 +1005,7 @@ final class TrainingPlanRepository {
         } catch {
             if !(error is CancellationError) {
                 print("[TrainingPlanRepo] removeWorkout error:", error)
+                CoachLockNotices.postIfLock(error)
             }
             return false
         }
@@ -953,13 +1027,19 @@ final class TrainingPlanRepository {
         let originalByID = Dictionary(uniqueKeysWithValues: active.workouts.map { ($0.id, $0) })
         let changeByWorkoutID = Dictionary(uniqueKeysWithValues: outcome.changes.map { ($0.workoutID, $0) })
         var pendingUpdates: [(UUID, DBWorkoutFlexUpdate, DBWorkoutFlexUpdate)] = []
+        // C8.5 AC 2 / AC 4: the database's lock state, not the outcome's, decides.
+        let lockedDates = Set(active.workouts.filter(\.locked).map(\.scheduledDate))
 
         for workout in outcome.restructuredWeek {
-            guard let original = originalByID[workout.id], !original.completed else { continue }
+            guard let original = originalByID[workout.id], !original.completed, !original.locked else { continue }
             let change = changeByWorkoutID[workout.id]
             let updatedPatch = Self.flexUpdate(for: workout, change: change)
             let rollbackPatch = DBWorkoutFlexUpdate(dbWorkout: original)
             guard !Self.flexUpdateMatches(workout: original, patch: updatedPatch) else { continue }
+            if updatedPatch.scheduledDate != original.scheduledDate, lockedDates.contains(updatedPatch.scheduledDate) {
+                print("[TrainingPlanRepo] applyFlexWeek skipped a move onto a coach-set day")
+                continue
+            }
             pendingUpdates.append((workout.id, updatedPatch, rollbackPatch))
         }
 
@@ -1323,6 +1403,21 @@ private struct GroupPlanReplacementParams: Encodable {
     }
 }
 
+/// M6b `athlete_replace_training_plan(expected_athlete, new_plan, new_workouts, p_ack_replaced_count)`.
+private struct AthleteReplacePlanParams: Encodable {
+    let athleteID: UUID
+    let plan: DBPlanInsert
+    let workouts: [DBWorkoutInsert]
+    let acknowledgedReplacedCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case athleteID = "expected_athlete"
+        case plan = "new_plan"
+        case workouts = "new_workouts"
+        case acknowledgedReplacedCount = "p_ack_replaced_count"
+    }
+}
+
 private struct DBPlanInsert: Encodable {
     let profileID: DBProfileReference
     let authUserID: String
@@ -1536,7 +1631,8 @@ extension DBWorkout {
             trainingPhase: trainingPhase,
             workoutStructure: workoutStructure,
             adjustedAt: adjustedAt.flatMap { Self.parseAdjustedDate($0) },
-            adjustedReason: adjustedReason
+            adjustedReason: adjustedReason,
+            coachLocked: locked
         )
     }
 

@@ -275,6 +275,14 @@ struct RunSmartLiteAppShell: View {
             )
             RemotePushNoticeHost(registrar: .shared)
                 .zIndex(9)
+            // C8.5: lock copy and the P5 block. A sheet's own copy of this answers while it is up.
+            Color.clear
+                .frame(width: 0, height: 0)
+                .coachLockNotices(
+                    links: coachLinks, feedback: athleteFeedback,
+                    isActive: { router.activeSheet == nil && router.flexWeekLaunch == nil },
+                    openReply: { router.open(.myCoach) }
+                )
 
             if isShowingLaunch {
                 RunSmartLaunchView()
@@ -489,6 +497,9 @@ struct RunSmartLiteAppShell: View {
                     .environment(\.runRecorder, recorder)
             case .secondary(let destination):
                 SecondaryFlowView(destination: destination)
+                    .coachLockNotices(links: coachLinks, feedback: athleteFeedback) {
+                        router.open(.myCoach)
+                    }
                     .presentationDetents(fullHeightSecondaryDestinations.contains(destination) ? [.large] : [.medium, .large])
                     .presentationDragIndicator(.visible)
                     .environmentObject(router)

@@ -208,6 +208,10 @@ struct DBPlan: Codable, Sendable {
     let totalWeeks: Int
     let isActive: Bool
     let planType: String
+    /// M6b. Optional so a schema without the column (before Batch C) decodes as not published.
+    var coachPublished: Bool? = nil
+
+    var isCoachPublished: Bool { coachPublished == true }
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -219,6 +223,7 @@ struct DBPlan: Codable, Sendable {
         case totalWeeks = "total_weeks"
         case isActive = "is_active"
         case planType = "plan_type"
+        case coachPublished = "coach_published"
     }
 }
 
@@ -239,6 +244,10 @@ struct DBWorkout: Codable, Sendable {
     let trainingPhase: String?
     let adjustedAt: String?
     let adjustedReason: String?
+    /// M6a coach lock. A missing column (before Batch C) or a null reads as unlocked.
+    let locked: Bool
+    /// M6a `source` ('ai' or 'coach'); nil before Batch C.
+    let source: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -257,6 +266,8 @@ struct DBWorkout: Codable, Sendable {
         case trainingPhase = "training_phase"
         case adjustedAt = "adjusted_at"
         case adjustedReason = "adjusted_reason"
+        case locked
+        case source
     }
 
     init(from decoder: Decoder) throws {
@@ -277,6 +288,8 @@ struct DBWorkout: Codable, Sendable {
         trainingPhase = try? c.decodeIfPresent(String.self, forKey: .trainingPhase)
         adjustedAt = try? c.decodeIfPresent(String.self, forKey: .adjustedAt)
         adjustedReason = try? c.decodeIfPresent(String.self, forKey: .adjustedReason)
+        locked = ((try? c.decodeIfPresent(Bool.self, forKey: .locked)) ?? nil) ?? false
+        source = try? c.decodeIfPresent(String.self, forKey: .source)
     }
 }
 

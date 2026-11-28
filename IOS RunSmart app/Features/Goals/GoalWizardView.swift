@@ -261,6 +261,9 @@ struct GoalWizardView: View {
         if saved {
             RunSmartHaptics.success()
             dismiss()
+        } else if CoachLockNotices.planLockedRecently() {
+            // C8.5 AC 7: the coach manages this plan; the P5 block explains, so no error line.
+            errorMessage = nil
         } else {
             errorMessage = "Could not save your goal. Check your connection and try again."
         }

@@ -158,11 +158,13 @@ export function buildFlexWeekRequestBody(
   selection: CoachModelSelection,
   coach: CoachPromptContext | null,
   language: CoachLanguage,
+  lockedIds: string[] = [],
 ): Record<string, unknown> {
+  const base = instructionsFor(flexWeekInstructions(language), coach);
   return {
     model: selection.model,
     ...reasoningParam(selection),
-    instructions: instructionsFor(flexWeekInstructions(language), coach),
+    instructions: lockedIds.length > 0 ? `${base}\n\n${flexWeekLockRule(lockedIds)}` : base,
     input: [{
       role: "user",
       content: [{ type: "input_text", text: `Flex week request:\n${JSON.stringify(request)}` }],
@@ -170,6 +172,11 @@ export function buildFlexWeekRequestBody(
     text: strictJsonText("flex_week", FLEX_WEEK_SCHEMA),
     max_output_tokens: FLEX_WEEK_MAX_OUTPUT_TOKENS,
   };
+}
+
+/** C8.5: added to the flex week prompt only when the week has coach-locked workouts. */
+export function flexWeekLockRule(lockedIds: string[]): string {
+  return `Coach-set workouts (workout_id ${lockedIds.join(", ")}): copy them exactly, never list them in changes, and never move another workout onto their scheduled_date.`;
 }
 
 export function sanitizeFlexWeekRequest(body: Record<string, unknown>): FlexWeekRequestPayload | null {
@@ -220,17 +227,20 @@ export function sanitizeFlexWeekRequest(body: Record<string, unknown>): FlexWeek
   };
 }
 
+/** `lockedIds` are coach-locked workouts (C8.5): changes to them are dropped. */
 export function validateFlexWeekResponse(
   parsed: unknown,
   originalWeek: FlexWeekWorkoutDTO[],
+  lockedIds: Iterable<string> = [],
 ): FlexWeekResponsePayload | null {
-  return checkFlexWeekResponse(parsed, originalWeek).payload;
+  return checkFlexWeekResponse(parsed, originalWeek, lockedIds).payload;
 }
 
 /** Same checks as validateFlexWeekResponse, plus the first rule a rejected week broke. */
 export function checkFlexWeekResponse(
   parsed: unknown,
   originalWeek: FlexWeekWorkoutDTO[],
+  lockedIds: Iterable<string> = [],
 ): { payload: FlexWeekResponsePayload | null; reason: string | null } {
   const reject = (reason: string) => ({ payload: null, reason });
   const record = asRecord(parsed);
@@ -263,23 +273,88 @@ export function checkFlexWeekResponse(
   const sourceRaw = stringValue(record.source);
   const source: "live_ai" | "fallback" = sourceRaw === "live_ai" ? "live_ai" : "fallback";
 
-  const violation = violatesSafetyRules(originalWeek, restructuredWeek, changes);
+  // Locks first, so the safety rules judge the week that would really apply.
+  const respected = applyCoachLocks(
+    { restructured_week: restructuredWeek, changes, safety_warnings: safetyWarnings, source },
+    originalWeek,
+    lockedIds,
+  );
+  if (respected.changes.length === 0) return reject("only_locked_changes");
+
+  const violation = violatesSafetyRules(originalWeek, respected.restructured_week, respected.changes);
   if (violation) return reject(violation);
 
-  return {
-    payload: {
-      restructured_week: restructuredWeek,
-      changes,
-      safety_warnings: safetyWarnings,
-      source,
-    },
-    reason: null,
-  };
+  return { payload: respected, reason: null };
+}
+
+/**
+ * C8.5: a coach-locked workout is never changed, and no other workout moves onto
+ * its day (a coach rest day included: M6a turns a coach delete into a locked rest
+ * row). Changes to locked ids, or to moves that were reverted, are dropped. With
+ * no locked ids the payload comes back unchanged.
+ */
+export function applyCoachLocks(
+  payload: FlexWeekResponsePayload,
+  originalWeek: FlexWeekWorkoutDTO[],
+  lockedIds: Iterable<string>,
+): FlexWeekResponsePayload {
+  const locked = new Set([...lockedIds].map((id) => id.toLowerCase()));
+  if (locked.size === 0) return payload;
+
+  const originalById = new Map(originalWeek.map((w) => [w.workout_id.toLowerCase(), w]));
+  const lockedDates = new Set(
+    originalWeek.filter((w) => locked.has(w.workout_id.toLowerCase())).map((w) => w.scheduled_date),
+  );
+  const reverted = new Set<string>();
+  const restructuredWeek = payload.restructured_week.map((workout) => {
+    const key = workout.workout_id.toLowerCase();
+    const original = originalById.get(key);
+    if (!original) return workout;
+    if (locked.has(key)) return cloneWorkout(original);
+    if (workout.scheduled_date !== original.scheduled_date && lockedDates.has(workout.scheduled_date)) {
+      reverted.add(key);
+      return cloneWorkout(original);
+    }
+    return workout;
+  });
+  const changes = payload.changes.filter((change) => {
+    const key = change.workout_id.toLowerCase();
+    if (locked.has(key) || reverted.has(key)) return false;
+    const from = change.original_workout_id?.toLowerCase();
+    return !(from && locked.has(from));
+  });
+  return { ...payload, restructured_week: restructuredWeek, changes };
 }
 
 export function fallbackFlexWeek(
   request: FlexWeekRequestPayload,
   coach: CoachPromptContext | null = null,
+  lockedIds: Iterable<string> = [],
+): FlexWeekResponsePayload {
+  const locked = new Set([...lockedIds].map((id) => id.toLowerCase()));
+  if (locked.size === 0) return fallbackFlexWeekUnlocked(request, coach);
+  const original = [...request.current_week].sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date));
+  const respected = applyCoachLocks(fallbackFlexWeekUnlocked(request, coach), original, locked);
+  if (respected.changes.length > 0) return respected;
+  // Every rule-based change touched a coach workout. Fall back to the generic
+  // conservative note on the first open workout, or to no change at all.
+  const target = original.find((w) => !locked.has(w.workout_id.toLowerCase()) && !w.is_complete && !isRestDay(w));
+  return {
+    ...respected,
+    restructured_week: original.map(cloneWorkout),
+    changes: target
+      ? [{
+          workout_id: target.workout_id,
+          change_type: "downgraded",
+          rationale: `RECOVERY — applied a conservative ${request.reason.replace("_", " ")} adjustment for the rest of the week.`,
+        }]
+      : [],
+  };
+}
+
+function fallbackFlexWeekUnlocked(
+  request: FlexWeekRequestPayload,
+  coach: CoachPromptContext | null,
 ): FlexWeekResponsePayload {
   const sortedWeek = [...request.current_week].sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date));
 
@@ -336,16 +411,17 @@ export async function generateFlexWeek(
   fetchImpl: typeof fetch = fetch,
   coach: CoachPromptContext | null = null,
   language: CoachLanguage = "en",
+  lockedIds: string[] = [],
 ): Promise<FlexWeekResponsePayload> {
   if (isTaperWeek(request.current_week)) {
-    return fallbackFlexWeek(request, coach);
+    return fallbackFlexWeek(request, coach, lockedIds);
   }
 
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   // FAST tier: flex week used gpt-4.1-mini, a small-model task.
   const selection = selectCoachModel("FAST");
   if (!apiKey) {
-    return fallbackFlexWeek(request, coach);
+    return fallbackFlexWeek(request, coach, lockedIds);
   }
 
   const controller = new AbortController();
@@ -356,7 +432,7 @@ export async function generateFlexWeek(
       method: "POST",
       signal: controller.signal,
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(buildFlexWeekRequestBody(request, selection, coach, language)),
+      body: JSON.stringify(buildFlexWeekRequestBody(request, selection, coach, language, lockedIds)),
     });
     if (!response.ok) throw new Error(`OpenAI ${response.status}`);
     const json = await response.json();
@@ -366,12 +442,12 @@ export async function generateFlexWeek(
     const text = extractResponseText(json).trim();
     if (!text) throw new Error("flex_week: OpenAI returned empty text");
     const parsed = JSON.parse(text);
-    const { payload: validated, reason } = checkFlexWeekResponse(parsed, request.current_week);
+    const { payload: validated, reason } = checkFlexWeekResponse(parsed, request.current_week, lockedIds);
     if (!validated) throw new Error(`flex_week: AI response failed validation (${reason})`);
     return { ...validated, source: "live_ai" };
   } catch (error) {
     console.error("flex_week AI fallback", error);
-    return fallbackFlexWeek(request, coach);
+    return fallbackFlexWeek(request, coach, lockedIds);
   } finally {
     clearTimeout(timeout);
   }

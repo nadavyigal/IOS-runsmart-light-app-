@@ -229,7 +229,10 @@ struct SecondaryFlowView: View {
 
 private struct SecondaryContentView: View {
     @EnvironmentObject private var session: SupabaseSession
+    @EnvironmentObject private var coachLinks: CoachLinkStore
     var destination: SecondaryDestination
+
+    private var lockCoachName: String { CoachLockCopy.coachName(coachLinks.currentLink) }
 
     var body: some View {
         if destination == .goalWizard {
@@ -274,9 +277,18 @@ private struct SecondaryContentView: View {
         case .planAdjustment:
             PlanAdjustmentScaffold()
         case .reschedule(let workout):
-            RescheduleScaffold(workout: workout)
+            // C8.5 AC 5: a coach-set row never opens an editor, whichever button led here.
+            if workout.coachLocked {
+                CoachLockedWorkoutNotice(workout: workout, coachName: lockCoachName)
+            } else {
+                RescheduleScaffold(workout: workout)
+            }
         case .amendWorkout(let workout):
-            AmendWorkoutScaffold(workout: workout)
+            if workout.coachLocked {
+                CoachLockedWorkoutNotice(workout: workout, coachName: lockCoachName)
+            } else {
+                AmendWorkoutScaffold(workout: workout)
+            }
         case .addActivity:
             AddActivityScaffold()
         case .routeSelector:
@@ -397,6 +409,7 @@ private struct WorkoutDetailScaffold: View {
     @Environment(\.runSmartServices) private var services
     @Environment(\.coachAssistantActive) private var coachAssistantActive
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var coachLinks: CoachLinkStore
     @Environment(\.dismiss) private var dismiss
 
     var workout: WorkoutSummary
@@ -412,6 +425,9 @@ private struct WorkoutDetailScaffold: View {
                     SectionLabel(title: "Workout", trailing: workout.distance)
                     Text(workout.title)
                         .font(.title2.bold())
+                    if workout.coachLocked {
+                        CoachLockTag(coachName: lockCoachName)
+                    }
                     if !workout.detail.isEmpty {
                         Text(workout.detail)
                             .font(.body)
@@ -448,8 +464,11 @@ private struct WorkoutDetailScaffold: View {
                         ActionTile(title: "Warm-Up Stretches", symbol: "line.3.horizontal") {}
                         ActionTile(title: "Add Route", symbol: "mappin.and.ellipse") { router.open(.routeSelector) }
                         ActionTile(title: "Link Activity", symbol: "link") { router.open(.addActivity) }
-                        ActionTile(title: isRemoving ? "Removing" : "Remove Workout", symbol: "trash", tint: .red) {
-                            Task { await removeWorkout() }
+                        // C8.5 AC 5: no remove on a coach-set row.
+                        if !workout.coachLocked {
+                            ActionTile(title: isRemoving ? "Removing" : "Remove Workout", symbol: "trash", tint: .red) {
+                                Task { await removeWorkout() }
+                            }
                         }
                     }
                 }
@@ -541,21 +560,39 @@ private struct WorkoutDetailScaffold: View {
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionLabel(title: CoachAssistantCopy.apply("Coach Actions", assistant: coachAssistantActive))
-                    ActionRow(title: "Reschedule Workout", detail: "Move this session and preserve weekly balance.", symbol: "calendar.badge.clock") {
-                        router.open(.reschedule(workout))
-                    }
-                    ActionRow(title: "Amend Workout", detail: "Update distance, duration, pace, or notes.", symbol: "slider.horizontal.3") {
-                        router.open(.amendWorkout(workout))
+                    if let lockReply {
+                        // C8.5 AC 3 / AC 5 (P4): RunSmart can't move, amend or reshuffle a coach-set row.
+                        CoachLockReplyView(reply: lockReply)
+                    } else {
+                        ActionRow(title: "Reschedule Workout", detail: "Move this session and preserve weekly balance.", symbol: "calendar.badge.clock") {
+                            router.open(.reschedule(workout))
+                        }
+                        ActionRow(title: "Amend Workout", detail: "Update distance, duration, pace, or notes.", symbol: "slider.horizontal.3") {
+                            router.open(.amendWorkout(workout))
+                        }
                     }
                     ActionRow(title: "Choose Route", detail: "Pick a route that matches the target effort.", symbol: "map") {
                         router.open(.routeSelector)
                     }
-                    ActionRow(title: "Adjust Plan", detail: CoachAssistantCopy.apply("Ask the coach to reshuffle the week.", assistant: coachAssistantActive), symbol: "slider.horizontal.3") {
-                        router.open(.planAdjustment)
+                    if lockReply == nil {
+                        ActionRow(title: "Adjust Plan", detail: CoachAssistantCopy.apply("Ask the coach to reshuffle the week.", assistant: coachAssistantActive), symbol: "slider.horizontal.3") {
+                            router.open(.planAdjustment)
+                        }
                     }
                 }
             }
         }
+    }
+
+    private var lockCoachName: String { CoachLockCopy.coachName(coachLinks.currentLink) }
+
+    /// Nil for any row the athlete may change.
+    private var lockReply: CoachLockReply? {
+        CoachLockReplyBuilder.replyIfLocked(
+            coachName: lockCoachName,
+            workoutID: workout.id.uuidString,
+            provider: WorkoutSummaryLockProvider(workouts: [workout])
+        )
     }
 
     private var workoutPurpose: String {
